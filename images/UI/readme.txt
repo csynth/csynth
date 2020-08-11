@@ -1,0 +1,1 @@
+note bin icon creative commons attribution by ipapun http://findicons.com/icon/158568/trash_recyclebin_empty_closed?id=350118#

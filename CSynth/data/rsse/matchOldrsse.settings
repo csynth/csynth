@@ -1,0 +1,7 @@
+// set up dynamics as per old rsse demo
+// cannot use GUI version as springforce not included in gui
+G.pushapartforce = 0.00031622776601683794;
+G.nonBackboneLen = 3;
+GX.setValue('Ribbon/diameter', 11);
+G.springspreaddist = 120;
+G.scaleFactor = 10;

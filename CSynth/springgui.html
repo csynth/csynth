@@ -1,0 +1,70 @@
+<div id="springgui">
+<style>
+#springgui {
+	position: absolute;
+	font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+	font-size: 2em;
+	right: 80px;
+	top: 100px;
+	z-index: 9999;
+	width: 200px;
+	color: white;
+	display: block;
+	text-align: center;
+	zoom: 0.8;
+	/* transform: scale(0.8); does not work as I want, moves it down as well */
+}
+#springgui input[type="image"] {
+	width: 150px;
+	opacity: 0.5;
+	background-color: rgba(225, 225, 225, 0.05);
+	border: 1px solid #505050;
+}
+#springgui input[type="image"]:hover {
+	opacity: 1;
+}
+#springgui button { height: 100px; color: white; }
+
+#springgui div {
+	height: 34px;
+	margin: 5px;
+	padding: 20px;
+	border: 1px solid #505050;
+	width: 150px;
+	text-align: center;
+	display: inline-block;
+	background-color: rgba(20, 50, 150, 0.5);
+	color: white;
+}
+#springgui div:hover {
+	cursor: pointer;
+	background-color: rgba(40, 80, 200, 0.8);
+}
+.active { background-color: rgba(40, 100, 200, 0.8) !important; opacity: 1 !important; }
+#csynthZoom { bottom: 64px; text-align: center; float: right; }
+</style>
+	<input type="image" id="loadredim" onclick="CSynth.xyzSpringsRed()" src="icons/redcell256.png" />
+	<br>
+	<input type="image" id="loadwhiteim" onclick="CSynth.xyzSpringsWhite()" src="icons/whitecell256.png" />
+	<br>
+	<input type="image" id="loadfreeim" onclick="loadwide()" src="icons/unfolded512.png" />
+	<br>
+	<div onclick="CSynth.loadbed('CSynth/data/rsse/extrude.bed')">Regions</div>
+	<div onclick="CSynth.loadbed('CSynth/data/rsse/genes.bed')">Genes</div>
+	<div onclick="CSynth.loadbed('CSynth/data/rsse/ctcf.bed')">Boundaries</div>
+	<div onclick="CSynth.loadbed('CSynth/data/rsse/prom_enh.bed'); CSynth.loadwig('CSynth/data/rsse/prom_enh.wig')">Switches</div>
+	<div onclick="CSynth.loadbedcol('$synth$');">Groups</div>
+	<br>
+	<input class="slider" id="threshslide" oninput="setthresh(threshslide.value);" type="range" min="0" max="150" value="0" step="1"
+		style="display:none"> <!-- still needed for contact probability use -->
+	<!--<br>
+	<input type="image" id="loadopen" onclick="loadopen()" src="icons/unfolded512.png" />open now
+	<br><br>
+	<button onclick="lowres()">low res</button>
+	<br>
+	<button onclick="highres()">high res</button>-->
+</div>
+<div id="csynthZoom" class="speed_control" style="display:none">
+<img src="icons/mag_white.png" 	alt="" id="csynthZoomnorm" onclick="csynthZoomSlider.value=25; showpress(this);"/>
+<input id="csynthZoomSlider" type="range" min="1" max="100" value="0.5" step="0.01" oninput="G.scaleFactor = value"/>
+</div>

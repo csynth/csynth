@@ -1,0 +1,4 @@
+rerender(); plot([cum[2], cum[3]])
+undefined
+rerender(); plot([cum[2], cum[3]])
+undefined

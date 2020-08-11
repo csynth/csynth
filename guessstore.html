@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+
+<html style="background: black">
+<meta charset="utf-8"/>
+    <head>
+        <title>Guess gpu storage
+        </title>
+        <script type="text/javascript">
+            searchValues = {};
+        </script>
+        <script src="JSdeps/three106SJPT.js"></script>
+
+        <script type="text/javascript">
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+let st = Date.now();
+function log(...args) {
+    const nt = Date.now();
+    const dt = nt - st;
+    st = nt;
+    console.log(dt, ...args);
+    window._main.innerHTML += '<br>' + dt + ':  ' + args.join(' ');
+}
+
+var maxi, fgl, frenderer;
+async function guessStore() {
+    document.body.style.color = 'white';
+    maxi = 0;
+    let lost = false;
+    let i;
+
+    frenderer = new THREE.WebGLRenderer();
+    frenderer.setSize(1,1);
+    fgl = frenderer.getContext();
+    const maxt = fgl.getParameter(fgl.MAX_TEXTURE_SIZE);
+    log('maxt', maxt);
+    log('~~~~');
+    canvas = frenderer.domElement;
+    document.body.appendChild(canvas);
+
+    canvas.addEventListener("webglcontextlost", () => {
+        log('lost context', i, maxi);
+        lost = true;
+        // frenderer.dispose();
+        }, false);
+    canvas.addEventListener("webglcontextrestored", () => {
+        log('restored context', i, maxi);
+        }, false);
+
+    const opts = {
+        format: THREE.RGBAFormat,
+        type: THREE.FloatType,
+        minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter,
+        stencilBuffer: false,
+        depthBuffer: false
+    };
+    const mat = new THREE.MeshBasicMaterial();
+    mat.depthTest = mat.depthWrite = false;
+    const matt = new THREE.MeshBasicMaterial();
+    matt.depthTest = matt.depthWrite = false;
+
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1,1), mat);
+    const mesht = new THREE.Mesh(new THREE.PlaneGeometry(1,1), matt);
+    const cam = new THREE.OrthographicCamera(-1,1,1,-1);
+
+    fgl.getErrorX = async () => {
+        const rc = fgl.getError();
+        if (rc) return 'rc error ' + rc
+        fgl.finish();
+        await sleep(1);
+        if (lost) return 'lost error';
+        return rc;
+    }
+
+    for (i = 512; ; i += 512) {
+        const rt = new THREE.WebGLRenderTarget(i, i, opts);
+
+        frenderer.setRenderTarget(rt);
+        frenderer.render(mesh, cam);
+
+        matt.map = rt.texture;
+        frenderer.setRenderTarget(null);
+        frenderer.render(mesht, cam);
+
+        rt.dispose();
+        const rcd = await fgl.getErrorX();  // make sure the dispose has fully happened
+        if (rcd) {
+            log('guessStore return bad rc', rcd, i);
+            break;
+        }
+        log('ok so far', i, i*i*16);
+        maxi = i;
+    }
+    fgl.finish();       // might for a context lost?
+
+    const guess = maxi*maxi*16;
+    const guessGBB = guess/1e9;
+    const guessGB = guess/2**30;
+    localStorage.guessStore = JSON.stringify({maxi, guess, guessGBB, guessGB, maxt})
+    log('guess result', localStorage.guessStore);
+
+    const ert = new THREE.WebGLRenderTarget(maxi, maxi, opts);
+    matt.map = ert.texture;
+    for (let ii=0; ;ii++) {
+        frenderer.setRenderTarget(ert);
+        frenderer.render(mesh, cam);
+
+        matt.map = ert.texture;
+        frenderer.setRenderTarget(null);
+        frenderer.render(mesht, cam);
+
+        window._iiii.innerHTML = 'ii=' + ii;
+        await sleep(0);
+    }
+
+    //await sleep(500);
+    //log('guess slept hoping for restore');
+    // frenderer.dispose();
+    if (location.search) {
+        const newurl = location.href.split('guessstore')[0] + location.search.substr(1);
+        // location.href = newurl;      // this will transfer to an already webgl broken url in Chromium
+        window.open(newurl, '_self');   // so will this
+        window.open(newurl);            // this is killed as a popup in edge, opens with broken webGL in Chrome
+    }
+}
+
+async function guessStoreX() {
+    try {
+        await guessStore();
+    } catch (e) {
+        log('ERROR in guessStore', e.message);
+
+    }
+}
+
+window.onload = guessStoreX;
+        </script>
+    <body>
+        <p id='_main'></p>
+        <p id='_iiii'></p>
+
+
+    </body>
+</html>

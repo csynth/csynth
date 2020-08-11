@@ -1,0 +1,5 @@
+// use old dynamics style
+// cannot use GUI version as springforce not included in gui
+G.springforce = 1;
+G.xyzforce = 0;
+CSynth.applyXyzs(CSynth.current.selectedSpringSource - CSynth.current.contacts.length)

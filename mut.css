@@ -1,0 +1,898 @@
+#startscreen { z-index: 1; display: block; background-color: black;
+               position: fixed; width: 100%; height: 100%; top: 0; left: 0;
+               background-image: url("images/UI/startscreen.jpg");
+               background-repeat: no-repeat; background-position: left;
+}
+/* <editor-fold> general */
+body {
+	width:100%;height:100%;
+	overflow:hidden;margin:0;
+	font-size: 70%;
+	background-color: #000;
+	color: #aaa;
+	/* font-family: 'consolas', monospace; */
+}
+
+body::-webkit-scrollbar {width: 1em;}
+body::-webkit-scrollbar-track {box-shadow: inset 0 0 6px rgba(0,0,0,0.3);}
+body::-webkit-scrollbar-thumb {background-color: darkgrey;outline: 1px solid slategrey;}
+
+#allbody { position: absolute; left: 0; top: 0; }
+
+#attribbox {position: absolute;top: 47em;left: 1em;font-size: 150%;width: 100em;color: #666;display: none;}
+
+
+*  {position: relative; /* so hover has something to be absolute relative to */}
+dt { display: inline; font-weight:bold; }
+.group {
+	white-space: nowrap;
+	border: 1px solid #e0e0e0;
+	margin: 0 4px 0 4px;
+	padding: 2px;
+	display: block;
+}
+.errmsg {
+	font-weight: bold;
+	font-size: 125%;
+	color: red;
+}
+.plus {
+	font-weight: bold;
+	font-size: 150%;
+	color: #ff8;
+}
+.dynmsg {color: white;}
+.whiteback .dynmsg  {color: #080;}
+.dynmsg, .staticmsg {margin: 0.3em;display: block;text-indent: -2em;margin-left: 2em;}
+.dynmsg table, .staticmsg table {text-indent: 0em;}
+#msgfix_messages .dynmsg, #msgfix_messages .staticmsg {display: inline}
+/* .staticmsg {} */
+
+.msgfix_key {
+	font-style: oblique;
+}
+.msgfix_value {
+	font-size: 100%;
+}
+.msgfix_value ul {
+	margin-top: 0;
+	margin-top: 0;
+    text-indent: 0;
+    list-style-type: none;
+}
+
+
+#errreason {
+	color: white;
+}
+
+#msgbox, #infobox {
+     /* float: right; */
+     color: lightblue;
+     margin-top: 4px;
+     z-index:2400;
+     font-size: 150%;
+     position: absolute;
+     left: 360px;
+     background-color: rgba(0,0,0,0.5);
+     /* font-family: monospace; */
+     overflow:  auto;
+     max-width: 800px;
+	 max-height: 800px;
+	 resize: auto;
+}
+#infobox {
+	color: white;
+	font-size: 200%;
+	display: none;
+}
+.whiteback #msgbox {
+	background-color: rgba(1,1,1,0.1);
+	color: darkblue;
+}
+
+/*
+.msg_item {
+	padding: 1px;
+} */
+.files_dir {color: green;}
+#valbox {
+    color: black;
+    background-color: #e0d8d8;
+	border: 1px solid #e00;
+    margin: 0px;
+	padding: 2px;
+    font-size: 120%;
+}
+#valouter {
+	border: 1px solid #e00;
+    border-radius: 5px;
+	position: fixed;
+    padding-top: 18px;
+    z-index:2400;
+}
+
+
+.hidden { display: none; }
+/* hovercursor allows hover text at cursor position ... not used?? */
+#hovercursor { display: none; position: fixed; z-index: 200; color: #f00; background-color: #fff; font-size: 200%;}
+/* </editor-fold> general */
+/* <editor-fold> cursors and canvas */
+/* http://findicons.com/search/rotate etc */
+#rendercanvas.rot { cursor: url(images/UI/rotsmall_white.png) 12 12,crosshair; }
+#rendercanvas.rotz { cursor: url(rotz.png) 12 12,crosshair; }
+#rendercanvas.pan { cursor: url(pan.png) 12 12,crosshair; }
+#rendercanvas.zoom { cursor: url(zoom.png)12 12,crosshair; }
+#rendercanvas.skew { cursor: url(skew.png) 12 12,crosshair; }
+#rendercanvas.persp { cursor: url(persp.png) 12 12,crosshair; }
+#rendercanvas.nop { cursor:  url(nop.png) 12 12,crosshair; }
+#rendercanvas.nocurs { cursor:  none; }
+/* </editor-fold> cursors and canvas ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  */
+/* <editor-fold> genes */
+.min, .max, .delta, .step, .gtag  { display:inline; }
+input[type="radio"] { margin: 0px 3px 0px 3px; }
+input[type="range"]  { width: 60%; }
+input[type="number"]  { width: 6em; }
+input.current, input.name, span.name {width: 6em;/* font-size: 80%; */display: inline-block; padding: 1px}
+.gene input.slider  {width: 50%;}
+input.min, input.max, input.delta, input.step { width: 4em; font-size: 80%; }
+
+.gene {
+    position: relative; /* so hover has something to be absolute relative to */
+    white-space: nowrap;
+}
+
+.genehidegroup {display: block;text-align: center;}
+
+/* #genefieldset .gene .genemain  */
+.addgene, .gtagx { display:none !important; }
+
+/* from http://davidbcalhoun.com/2011/implementing-iphone-slider-unlock-with-input-type-range */
+input[type='range'] {
+    -webkit-appearance: none;
+    background-color: #ddd;
+	height: 2px;
+    top: -0px;
+	position: relative;
+    border-top: 6px;
+    margin: 0px;
+    padding: 0px;  /* else IE makes absurdly large */
+}
+
+input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    background-color: #aaa;
+    width: 10px;
+    height: 8px;
+	border-radius: 5px;
+}
+.frozen input, .frozen .name { background-color: #008; color: #fff; }
+.frozen input[type='range']::-webkit-slider-thumb { background-color: #ccc; }
+
+#animimage {
+	position: absolute;
+	width: 300px;
+	height: 42px;
+	top: -2px;
+	left: 0;
+	margin: 0;
+}
+/* </editor-fold> genes  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+/* <editor-fold>  collapse and flyout */
+
+
+
+/** note, hidebelow rules simplified and lots of guff removed. 2 March 2014
+refer to  v2401 if any issues */
+/* we collapse two kinds of things ...
+fieldset			for 'normal' collapse, including gene groups
+	legend
+	main body
+
+.genehidable					for gene
+	.genehide
+	.genehidegroup
+
+In each case, the top level may be marked by the tag .hidebelow;
+which is added/removed dynamically by Javascript on click of the first child.
+*/
+.hidebelow:not(:hover) > :not(:first-child) { display : none; } /* hidden except for legend, until hover */
+
+
+legend:before, .genehide:before { content : "-"; }
+.hidebelow > *:first-child:before, .hidebelow legend:before { content : "+"; }
+
+legend, .genehide {
+	margin-bottom: 0px;
+	font-weight: bold;
+	/* color: #9fd5ff; */
+	/* font-family: initial; */
+	font-size: larger;
+	/* font-stretch: extra-expanded; */
+	font-family: 'consolas', monospace;
+}  /* when expanded */
+/* .hidebelow > :first-child {/* color: red; *-/}  /* when collapsed *-/ */
+:hover.hidebelow > legend { color: green; }  /* when flyout */
+:hover.hidebelow > .genehide { color: green; }  /* when flyout */
+
+.hidebelow:hover > legend:first-child +*, .hidebelow:hover > .genehide +* { /* flyout of single */
+	display: block;
+	left: 1em;
+	top: 1em;
+	position:absolute;
+	border: 1px solid #080;
+	margin: 0 -4004px 0 4px;
+	padding: 12px;
+	z-index: 2000;
+	background-color: #2f2f2f;
+	border-radius: 6px;
+	min-width: 360px;
+	width: 360px;
+}
+.hidebelow:hover > .genehide +* { /* flyout for gene must be closer */
+	left: -19.3em;
+	top: 2em;
+	max-width: 15em;
+	min-width: 0em;
+}
+
+/* </editor-fold> collapse and flyout ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  */
+/* <editor-fold> controls */
+/*
+top of controls structure is
+controlsouter           claim space to allow even for flyout from controls
+    controls            to allow for scroll of left hand side
+        controlscore    the real core of the controls, actual width
+            etc         real controls
+
+|---------------full window -----------------------|
+|-------- controlsouter -----------|
+|?|------- controls   -------------|
+|?|- controlscore -||--------- canvas -------------|
+
+|?| shows where scrollbar goes if present
+controls id defined width (800) so controlsouter is same (if controls displayed)
+controlscore is always same width  (340)
+canvas has width based on full window width less scrollbar less controlscore
+*/
+#mystats { height: 96px; display: block }
+#guifilter {display: block;pointer-events: auto;width: 350px;height: 40px;background-color: rgba(13, 13, 13, 0.75); color: #aaa}
+#guifilter.error { background-color: #a00 }
+#controlsouter {
+    z-index: 1500;  /* high, so fly-outs are displayed over the canvas */
+    position: absolute;
+    left: 0px;   /** set top left to around 305/50px if main screen is TV, eg GV gallary */
+    top: 0px;
+	pointer-events: none;  /* off, so mouse still works on all canvas */
+}
+
+/* fix width of controls, not controlsouter, so controlsouter narrow when only stats displayed */
+#controls {
+	overflow-y: scroll;
+	direction: rtl;
+	width: 500px;  /* leave room for fly-out */
+	pointer-events: auto;  /* otherwise scrolling often does not work. why ?? */
+}
+#controls.noscroll { overflow-y: hidden; }
+
+#controlscore{
+	direction: ltr;
+	max-width: 360px;
+	min-width: 340px;
+	z-index: 500;
+	display: block;
+	border: 0px;
+	padding: 0px;
+	position: absolute;
+	left: 0px; /* seems to be about right for scroll bar, at least on Peter's W8 machine. */
+	/* background-color: rgba(200,200,200,1); */
+	text-align: left;
+	pointer-events: auto;  /* on, so mouse works at this level and below */
+}
+
+#controls fieldset, #controls .group /* allow for nesting within controls */ {
+	max-width: 95%;
+	width: 92%;
+	margin:  2px;
+	padding:  2px;
+	overflow: visible;
+	border-radius: 4px;
+}
+
+#stats {width: 300px; }
+#samplegene {display: none; }
+
+#canvas, #canv2d {
+   position: fixed;
+   top: 0px;
+   z-index: 1000;
+}
+#canv2d {
+   z-index: 999999;
+   background-color: rgba(0,0,0,0);
+   pointer-events: none;
+}
+/* </editor-fold> gui controls, visibility and size. inc remainnder for #canvas ~~~~~~~~~~~~~~~~~~~~~~~  */
+/* <editor-fold> htmlrules */
+
+#htmlouter {
+	white-space: nowrap;
+	z-index: 1300;
+	background-color: rgba(30,40,40,0.8);
+	color: white;
+	font-size: 110%;
+	position: fixed;
+	top: 30px;
+	right: 0;
+	padding: 8px;
+	font-family: consolas, monospace;
+	min-width: 150px;
+}
+
+#htmlrulebox fieldset {
+	padding: 0px 1px 1px 1px;
+}
+
+#htmlouter.hidebelow:hover #htmlrulebox {
+	right: 0px;
+	left: auto;
+	margin-right:  0px;
+	width: auto;
+}
+
+#htmlouter * { background-color: rgba(30,40,40,0.8); }
+
+.note { display: block; color: #6f6; }
+
+.horn {
+	border: solid 2px;
+	border-color: #66f;
+	display: inline-block;
+	/* margin-top: -6px; */
+	padding:  1px;
+}
+.horn + .horn {
+	margin-top:0px;
+}
+.horn > * { padding: 0px; margin: 0px; }
+.tails > .horn { display : block}
+
+.hornpref {
+	display: inline-block;
+	vertical-align: top;
+	margin: 3px;
+}
+
+.trans {
+	display: block; /* try different way to get below hornpref? */
+	color: #ccc;
+}
+.tran {
+	display: block;
+	border: solid 1px;
+	border-color:  #888;
+	min-width: 8em;
+	color: #8f8;
+}
+button.tranname {
+	vertical-align: top;
+	padding:  3px;
+	color: #8f8;
+	background-color:  inherit;
+	border:  0;
+	font-weight: bold;
+}
+#htmlrulebox .tranname:focus {
+	color: #ff8;
+}
+
+
+.tranparms {
+	display: inline-block;
+}
+.tranparm {
+	display: block;
+	margin-left: 5px;
+}
+.gval {
+	color: #8f8;
+}
+.gval[contenteditable=true] {
+	color: white;
+}
+
+
+.subs {display: block; }
+
+.subs > legend { color: #f55; text-align: center; font-weight: bolder; }
+.subs {
+	margin: 2px;
+	border: 0px solid #a00;
+	border-top-width: 5px;
+}
+.tails {
+	margin: 0px 1px 1px 1px;
+	border: 0px solid #090;
+	border-left-width: 4px;
+	display: inline-block;
+	vertical-align: top;
+}
+.tails.heads {
+	border: 0px solid #990;
+	border-left-width: 0px;
+	border-right-width: 4px;
+}
+.tails > legend { color: #4d4; text-align: center;}
+
+.horn > legend { color: #99f;  font-weight: bolder; font-size:  150%; /* top: 0.0em; */}
+.hornname { color: #00f;display: inline-block; font-weight: bolder; /* align-items: center; */}
+.hornname2 { color: #fff;display: block; font-weight: bolder; text-align: center; border: solid #fff; border-width:  1px 0px 2px 0px;}
+
+.hornhead * { display:block; }
+.hornhead :before { color: #f88; }
+.radius:before { content : "radius: "; }
+.rref:before { content : "rref: "; }
+.ribs:before { content : "ribs: "; }
+
+.hornshow {transform: rotate(-30deg);}
+.hornshow .trans, .hornshow .hornhead { display:inline-block}
+/* experiment for summary  * /
+.trans, .radius, .ribs, .rref { display:none; }
+/* */
+
+.gval {
+	width: 8em;  /* allow for radius: etc :before */
+	font-weight:bold;
+}
+.tran .gval {
+	width: 4em;
+	display: inline-block;  /* otherwise width ignored, more compact but wobbles during animation  */
+}
+.gval.frozen {
+	color: #88f;
+}
+
+#htmlrulebox .help {
+	top: -1em;
+	left: -17em;
+	width: 12em;
+}
+#htmlrulebox .help:after {
+	content : "Right mouse drag to change, ctrl for slow, shift for fast. Click to edit as text.";
+	color:black;
+	font-size: 80%;
+	display: block;
+	margin-top: 10px;
+	border-top: solid 1px black;
+}
+#htmlrulebox :focus {color: #8f8; }
+#htmlrulebox dt { font-weight: bold; float:left; clear: left; width: 2.5em; }
+/* #htmlrulebox dd { xmargin-bottom:1em; } */
+
+#dragcode { background-color: yellow; margin:0; padding:0; border: 0;}
+
+/* #htmlrulebox :focus + .help { color: green; } */
+
+#trancontextmenu, #horncontextmenu {
+    position: fixed;
+
+    z-index: 5000;
+    font-size: 140%;
+    background-color: white;
+    padding:  4px;
+    border: solid 1px blue;
+    border-radius:  5px;
+}
+#trancontextmenu p, #horncontextmenu p {
+    margin: 0;
+}
+
+.disabled {
+	background-color: #d84;
+}
+
+/* </editor-fold> htmlrules  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  */
+/* <editor-fold> genetable */
+
+#genetable { z-index: 1100;  width: 82em; display:block; background-color: #808080; overflow: visible; float: right;}
+#genetable thead { display: table-header-group;  }
+#genetable tr { display: block; position: relative; }
+#genetable th { background-color: #ffffff; }
+#genetable tbody { overflow:auto; width: 100%; display:block; max-height: 600px; }
+#genetable td.name { background-color: #e0e0e0; border-color: #e0e0e0; font-weight: bold;  }
+#genetable td.allsame { background-color: #d0d0d0; border-color: #d0d0d0; }
+#genetable td.differ { background-color: #ffffff; }
+#genetable td.min { background-color: #d0ffd0; }
+#genetable td.max { background-color: #ffd0d0; }
+#genetable td, #genetable th {  min-width: 5em;  max-width: 5em;   border-width: 2px;  border-style: solid;   margin:  0px;  overflow: hidden;  padding:  1px;}
+
+/* </editor-fold> genetable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  */
+/* <editor-fold> */
+
+
+#baderror { display:none; background-color:rgba(255,200,200,1);}
+
+#tranrulebox, #directorrulebox {
+	white-space: nowrap;
+	background-color: rgba(255,255,200);
+	font-family: monospace;
+	font-size: 140%;
+	position: fixed;
+	bottom: 0;
+	z-index: 10000;
+}
+#directorrulebox {
+	top: 300px;
+	bottom: inherit;
+}
+
+input, button, select {
+	/*all: unset;*/
+	background-color: rgba(80, 80, 80, 0.4);
+	font-size: inherit;
+	border: 1px solid;
+	padding: 2px;
+	margin: 1px;
+	color: inherit;
+}
+option {background-color: rgba(20, 20, 20);}
+
+input[type=checkbox], input[type=radio] {
+	padding-left:8px;
+	height: 11px;
+	vertical-align:middle;
+	display: inline-block;
+}
+input[type=checkbox]:checked, input[type=radio]:checked {
+	background-color:#188;
+}
+input[type=color] {
+	border: none;
+	vertical-align: middle;
+	background-color: transparent;
+}
+#loads {
+	column-count: 2;
+	max-height: 600px;
+	overflow-y: auto;
+}
+
+.savename {
+    background-color: rgba(32, 32, 32, 0.8);
+    font-size: 120%;
+    white-space: nowrap;
+    display: block;
+    color: cyan;
+}
+
+/* dummy to ensure they are defined as far as NetBeans/lint is concerned --- now commented out for new linter... */
+/* .genehidable .topdiv .fieldtop .samplegene .genemain .color .cubemap .texture .def .objsave .fieldbody {} */
+
+/* </editor-fold> various ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  */
+/* <editor-fold> PROJECTION UI*/
+
+
+/* PROJECTION UI */
+#UI_overlay {
+	display:none;
+    z-index:1450;
+    height:65px;
+    position:fixed;
+	-webkit-user-select:none;
+	border: 0px;
+	bottom:30px;
+}
+
+.speed_control {
+	float: left;
+	margin: 0 10px 0 10px;
+	padding:6px 10px 6px 10px;
+	border-radius:4px;
+	background-color:rgba(32,32,32,0.5);
+	border:1px solid #333;
+	/* display: inline-block; lint: 'inline block is ignored due to the float' */
+	height:  42px;
+	font-size: 35px; /* help vertical-align, but a bit random */
+}
+
+.speed_control * {
+	display: inline-block;
+}
+
+.speed_control img {
+	height: 43px;
+	cursor:pointer;
+	margin-left:5px;
+	vertical-align: text-top;
+}
+
+.speed_control p {
+	color:#ccc;
+	font-size:20px;
+	font-weight:bold;
+    font-family: "trebuchet ms";
+	text-align:left;
+	margin: 8px;
+	vertical-align: bottom;
+}
+
+.speed_control input {
+    font-family: 'consolas', monospace;
+
+    z-index: 2000;
+    width: 300px;
+
+    vertical-align: middle;
+}
+
+.speed_control input::-webkit-slider-thumb {
+	height: 42px;
+	width: 32px;
+	border-radius: 20px;
+	background-color: rgba(0,0,0,1);
+	border: 4px solid white;
+}
+
+.pressed {
+    background: #00AFAF;
+}
+
+#animset * { width: 3em; font-size: 50% }
+#scConsole {
+			font-family: 'consolas', monospace;
+			font-size: 1.1em;
+			background-color: #050505;
+			opacity: 0.8;
+			position: fixed;
+			z-index: 200000;
+			right: 0px;
+			width: 500px;
+			/* left:  200px; */
+			}
+#scConsole textarea { font-family: 'consolas', monospace; opacity: 0.9; background-color: #101010; color: lightgray; }
+#scConsole > * { width:auto; color: lightgray; }
+#sclogbox {
+		 padding: 0px;
+		 overflow: auto;
+		 z-index: 200000;
+		 width: 500px;
+		 height: 400px;
+		 opacity: 0.8;
+		 color: white;
+		 background-color: #111;
+		 }
+#scScopes { overflow: auto; max-height: 440px; } /* max-height should be based on available space*/
+@keyframes redfade { 0% { background-color: inherit } 100% { background-color: #AA4444 } }
+.sc-networkLost { animation: redfade 6s infinite alternate ease-in-out; }
+@keyframes flash { 0% { background-color: cyan } 100% { background-color: inherit } }
+.code-flash { animation: flash 0.5s ease-out }
+@keyframes flashError { 0% { background-color: red } 100% { background-color: inherit } }
+.code-flash-error { animation: flashError 0.5s ease-out }
+.log-error { background-color: red }
+.log-code { background-color: rgba(0, 180, 180, 0.6) }
+.scopeRangeIndicator { position: absolute; margin: 4px; right: 0px; top: 0px; }
+#scSendLED { opacity: 0; position: absolute; right: 2px; bottom: 2px; width: 8px; height: 8px; background-color: green; z-index: 2001; border-radius: 4px; }
+#scStatus { color: gray;  }
+#scStatus span { color: cyan; }
+.scScope { z-index: 2000; border: 1px solid gray; color: gray; background-color: #111; width: 480px; max-width: 480px; margin: 2px; }
+.scScope p, .scopeRangeIndicator { margin: 0px; padding: 2px; background: rgba(30, 30, 30, 0.5); position: absolute; top: 0px; z-index: 2001; }
+.scScope em { font-weight: bold; font-style: normal; color: #bbb; }
+.healthOverlay { z-index: 1400; position: fixed; background-color: #601010; pointer-events: none; } /* chrome warning: pointer-events not widely supported */
+.parentOverlay { z-index: 1450; position: fixed; background-color: green; pointer-events: none; opacity: 0.3; }
+.fractEvoOverlay { z-index: 1400; position: fixed; }
+.fractEvoOverlay img { width: 100%; height: 100%; }
+.fractInProcess { background-image: url("images/UI/ajax-loader.gif"); background-repeat: no-repeat; background-position: center; }
+.fractQueued { background-color: rgba(50, 80, 80, 0.3); }
+.fractBar { width: 8px; border: 1px solid black; background-color: cyan; opacity: 0.6; position: absolute; display: block; bottom: 0px; }
+.fractError { z-index: 1500; background-image: url("images/UI/awsnap.png"); background-repeat: no-repeat; background-position: center; background-color: rgba(255, 0, 0, 0.2); opacity: 0.6; }
+.fractError:hover { opacity: 1; min-width: 450px; }
+.fractError p { z-index: 1550; background-color: white; font: 1.1em monospace; }
+.flipX { -moz-transform: scaleX(-1); -o-transform: scaleX(-1); -webkit-transform: scaleX(-1); -ms-transform: scaleX(-1); transform: scaleX(-1); -ms-filter: "FlipH"; filter: FlipH;}
+.flipY { -moz-transform: scaleY(-1); -o-transform: scaleY(-1); -webkit-transform: scaleY(-1); -ms-transform: scaleY(-1); transform: scaleY(-1); -ms-filter: "FlipV"; filter: FlipV;}
+.fractEvoOverlay img { opacity: 0.5; position: absolute; }
+.fractEvoOverlay .presel { opacity: 0.3; z-index: 1600; }
+/*
+.xfractEvoOverlay img { -webkit-animation-name: flicker; -webkit-animation-duration: 2s;
+	-webkit-animation-iteration-count: infinite; -webkit-animation-timing-function: linear;
+}
+@-webkit-keyframes flicker {from{opacity:0.5;}4%{opacity:0.5;}6%{opacity:0.45;}8%{opacity:0.55;}10%{opacity:0.45;}11%{opacity:0.5;}12%{opacity:0.65;}14%{opacity:0.55;}16%{opacity:0.70;}17%{opacity:0.55;}19%{opacity:0.5;}20%{opacity:0.5;}24%{opacity:0.5;}26%{opacity:0.69;}28%{opacity:0.5;}38%{opacity:0.45;}40%{opacity:0.5;}42%{opacity:0.6;}44%{opacity:0.5;}46%{opacity:0.5;}56%{opacity:0.5;}58%{opacity:0.75;}60%{opacity:0.5;}68%{opacity:0.5;}70%{opacity:.6;}72%{opacity:0.5;}93%{opacity:0.5;}95%{opacity:.6;}97%{opacity:0.5;}to{opacity:0.5;}}
+*/
+.fractEvoOverlay canvas { bottom: 0px; padding: 0px; margin: 0; z-index: 20000; position: absolute; left: 0 }
+.lorenzoTop { background-color: rgba(20, 150, 20, 0.5); }
+#gestureHelp { background-image: url("images/UI/hands_512.png"); z-index: 2000; display: none; position: fixed; pointer-events: none; width: 512px; height: 384px; right: 55%; top: 348px;  }
+.hbar { height: 30px; background-color: cyan; border-color: gray; }
+
+#fingerimage {
+	 z-index: 11000;
+	 position: fixed;
+	 pointer-events: none;
+}
+
+/* </editor-fold> PROJECTION UI ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  */
+/* <editor-fold> html canvas overlay (viewport hover) */
+
+#hoverdisplay {
+	position:fixed;
+    pointer-events: none;
+	z-index: 1300;
+}
+
+#hoverdisplay * {
+    margin: 0;
+    padding : 0;
+}
+
+#hoverborder {
+    display: inline-block;
+	border: 1px solid white;
+}
+
+#hovercontrols {
+    display: inline-block;
+    vertical-align: top;
+    pointer-events: auto;
+}
+
+#hovercontrols button {
+	margin-bottom: 4px;
+	margin-left: -4px;  /* why gap otherwise? */
+	width: 2em;
+    font-size: 200%;
+}
+
+#hovercontrols .help {
+	top: 30px;
+    font-size: 150%;
+	width: 10em;
+}
+.showselect { z-index: 1300; }
+
+/* </editor-fold> html canvas overlay  (viewport hover) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  */
+/* <editor-fold> MutatorHTML and Cilly */
+
+
+/* ~~~~~~~~~~ for MutatorHTML and Cilly */
+/* table {} */
+td, th {border: 1px solid;padding: 6px;}
+td.empty { background-color: #ddf; }
+td.ok { background-color: #fff; }
+td.changed { background-color: #dfd; }
+td.error { background-color: #fdd; }
+td.loser { background-color: #aaa; }
+td.winner { background-color: #ffa; }
+td.frozen { background-color: #ddf; }
+
+.simpletable {color: white;border-collapse: collapse;text-align: right;width:100%;}
+.simpletable th {text-align: center;text-indent: 0;}
+
+
+#functiontopgui {
+    float: right;
+    z-index: 9999;
+    /*margin-right: 40px;*/
+    background-color:rgba(200,200,200,0.7);
+    max-height: 800px;
+    overflow: auto;}
+/* table#functiongui{ } */
+/** fieldset#genefieldset { width: 400px;} **/
+
+.divhost { border: 1px solid; background-color: #ddd; display:inline-block;
+          width: 400px; height: 300px; resize: both; overflow: hidden; padding: 3px; }
+.mutvp { border: 1px solid; background-color: #eee; display:inline-block;
+        width: 31%; height: 46%; margin: 0.5%; padding: 0; }
+#mutvp0 { background-color: #fff;
+        width: 96%; height: 96%; margin: 2%; border: 0; padding:0;  }
+.mutvp.sel { border-color: #f88; background-color: #fee; }
+/* #mutrate { /* width: 200px; *-/ } */
+
+#vpoptions { position:fixed; }
+/* </editor-fold> MutatorHTML and Cilly ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  */
+/* <editor-fold> htmlrules */
+/* </editor-fold> */
+
+
+.matrix {
+	border-left: 1px solid;
+	border-right: 1px solid;
+	display:  inline-table;
+	padding: 5px;
+	background-color: #000;
+}
+
+.matrix td {
+	border: 0px;
+}
+
+.pixeltable {
+	background-color: #000;
+}
+
+#mldetails {
+	position: fixed;
+	top: 0px;
+	right: 0px;
+	color:  white;
+	font-size: 12pt;
+	vertical-align: middle;
+}
+#mlnotes, #mlid {
+	border: 1px solid #444;
+	padding: 0px;
+	margin: 5px;
+	color:  white;
+
+	background-color: black;
+	vertical-align: middle;
+}
+html-gl { display: inline-block; transform: translateZ(0);}
+
+#entervr { 	color:  white; font-size: 16pt; }
+
+.keystring {font-weight:bold;font-size: 12pt;min-width: 3em;display:inline-block;color: aliceblue;}
+.keycomment  { font-size: 12pt; display:inline; }
+
+.msgbig p, .msgbig li  { font-size: 70%; }
+.msgbig ol {list-style-position: inside;}
+.msgbig a {color: #a0e0ff}
+.whiteback .msgbig a {color: #00a}
+
+#seriousbox {
+	position: fixed;
+	top: 0;
+	z-index: 9999999;
+	opacity: 1;
+	background: black;
+}
+#seriousbox button {
+	font-size: 150%
+}
+#seriousbox h3 {
+	font-size: 200%;
+	color: red;
+}
+#seriousbox .help {
+	font-size: 150%;
+	color: white;
+}
+#seriousbody {
+	background: black;
+	color: white;
+	max-height: 40em;
+	tab-size: 4;
+}
+
+
+/* <editor-fold> help */
+/** keep help at end, otherwise sometimes overridden */
+
+.help {
+    display: none;  /* overridden on :hover on previous element */
+    background-color: #2f2f2f;
+    border-color: rgb(255, 72, 89);
+    border-style: solid;
+    color: rgb(255, 72, 89);
+    border-radius: 5px;
+    opacity: 1.0;
+    border-width: 1px 1px 1px 1px;
+    clear: left;
+    font-style: normal;
+    left: 0px;
+    margin: 10px;
+    padding: 5px;
+    position: absolute;
+    text-align: left;
+    /* top: 60px; */ /* leaving out seems best compromise, bottom odd on 'Save Main Image' */
+    z-index: 2000;
+    white-space: normal;
+    pointer-events: none;
+    text-indent: 0;
+    min-width: 25em;
+}
+
+.helpabove {top: -70px;}  /* for help that hovers above the item, not below */
+
+:hover + .help {
+	display: block;
+}
+
+/* </editor-fold> help  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  */

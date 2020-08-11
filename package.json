@@ -1,0 +1,79 @@
+{
+  "name": "organicart",
+  "main": "threek.html",
+  "description": "organic art using WebGL",
+  "version": "0.1.0",
+  "keywords": [
+    "organic",
+    "art",
+    "node-webkit"
+  ],
+  "window": {
+    "toolbar": false,
+    "fullscreen": false,
+    "deferfullscreen": false,
+    "frame": false,
+    "NOwidth": 1920,
+    "wnote": "set width and height if we really want to force values",
+    "NOheight": 1080,
+    "min_width": 400,
+    "min_height": 200,
+    "NOleft": 0,
+    "NOtop": 0,
+    "note": "position does not work well with multiple screens, so we use our own left/top"
+  },
+  "_comment": "see https://github.com/rogerwang/node-webkit/wiki/Manifest-format",
+  "private": true,
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^7.1.3",
+    "@rollup/plugin-typescript": "^2.1.0",
+    "@types/js-yaml": "^3.12.4",
+    "@types/node": "^13.13.9",
+    "@types/ws": "^6.0.4",
+    "eslint": "^6.8.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-config-standard": "^14.1.1",
+    "eslint-plugin-import": "^2.20.2",
+    "eslint-plugin-node": "^10.0.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-standard": "^4.0.1",
+    "rollup": "^1.32.1",
+    "ts-loader": "^6.2.2",
+    "typescript": "^3.9.3",
+    "webpack": "^4.43.0",
+    "webpack-cli": "^3.3.11"
+  },
+  "dependencies": {
+    "@supercollider/osc": "^1.0.0",
+    "@tonaljs/modules": "^3.4.16",
+    "esprima": "^4.0.1",
+    "js-yaml": "^3.13.1",
+    "supercolliderjs": "^1.0.1",
+    "three": "^0.112.1",
+    "ws": "^7.3.0"
+  },
+  "scripts": {
+    "server": "node dist/organserver.js",
+    "webpack": "webpack",
+    "webpackw": "webpack --w",
+    "rollup": "rollup --config rollup.config.tsmod.js",
+    "rollupw": "rollup --config rollup.config.tsmod.js -w",
+    "tscw": "tsc -p TS --watch",
+    "tsc": "tsc -p TS",
+    "tscversion": "tsc --version"
+  },
+  "_//browser": "for webpack web output",
+  "browser": {
+    "fs": false,
+    "http": false,
+    "child_process": false,
+    "electron": false,
+    "os": false,
+    "path": false,
+    "fluent-ffmpeg": false,
+    "net": false,
+    "nw.gui": false,
+    "dgram": false,
+    "https": false
+  }
+}

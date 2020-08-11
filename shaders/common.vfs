@@ -1,0 +1,300 @@
+// the horn code must not contain references to pickrt for OPMODE == OPPICK
+// because that makes the pickrt both input and output texture
+#if (OPMODE == OPPICK || defined(IMPLICIT))
+    float getPickC(int i) {return -999.;}
+    vec3 getPickColor(int i) { return vec3(1.); }
+#else
+    // pickrt has 4 points, with 4 values each
+    // the x,y position of the first point is the raw lopos position
+    // the z position of first point is the useful value for single horn
+    uniform float userPicks[16];  // <<<< PICKNUM-16
+    float getPickC(int i) {
+        if (!(i==0 || i==4 || i==5 || i==8 || i==12 || i==13 || i >= 16 ) ) return 999.5;
+        #define ppick(k) if (i == 16+k) return userPicks[k];
+        ppick( 0); ppick( 1); ppick( 2); ppick( 3);
+        ppick( 4); ppick( 5); ppick( 6); ppick( 7);
+        ppick( 8); ppick( 9); ppick(10); ppick(11);
+        ppick(12); ppick(13); ppick(14); ppick(15);
+        float fslot = float(i) / 4.;
+        float slot = floor(fslot);
+        vec4 v = texture2D(pickrt, vec2((slot + 0.5) / 4., 0.5));
+        int e = int(floor((fslot - slot) * 4.));
+        //TODO: make this match CSynth.CommonShaderCode() version.
+        return e == 0 ? v.x : e == 1 ? v.y : e == 2 ? v.z : e == 3 ? v.w : 999.;
+    }
+    vec3 getPickColor(int i) {
+        if (i < 8)  return vec3(1., 0., 0.);
+        if (i < 16) return vec3(0., 1., 0.);
+        if (i == 16) return vec3(0., 1., 1.);
+        if (i == 17) return vec3(1., 0., 1.);
+        if (i == 18) return vec3(1., 1., 0.);
+        if (i == 19) return vec3(1., 1., 1.);
+        if (i == 20) return vec3(0.5, 1., 1.);
+        if (i == 21) return vec3(1., 0.5, 1.);
+        if (i == 22) return vec3(1., 1., 0.5);
+        if (i == 23) return vec3(1., 1., 1.);
+        return vec3(1.,1.,1.);
+    }
+#endif
+#define WALLID 2.
+uniform float _boxsize;   // #define _boxsize 1.25 // 500.
+
+#define rot4w (hornid == 2. ? mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1) : rot4)  // to allow for rot4 on walls
+#define rot4wl (lhornid == 2. ? mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1) : rot4)  // to allow for rot4 on walls
+#define rot4wc (colourid == 2. ? mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1) : rot4)  // to allow for rot4 on walls
+gene(capres, 0.1, 0,1, 0.001, 0.01, geom, frozen) // proportion of body to use for caps at ends
+
+#define round(c) floor(c+0.5)
+vec4 parnumsa;
+vec4 parnumsb;
+
+uniform float numSegs;
+uniform float numInstancesP2;
+uniform vec2 rtSize;
+
+
+
+
+#if __VERSION__ < 300
+//https://machinesdontcare.wordpress.com/2008/03/10/glsl-cosh-sinh-tanh/
+float tanh(float val)
+{
+    float tmp = exp(val);
+    float tanH = (tmp - 1.0 / tmp) / (tmp + 1.0 / tmp);
+    return tanH;
+}
+#endif
+
+#define max3(a,b,c) max(a, max(b,c)) /* max of three elements */
+#define max4(a,b,c,d) max(max(a,d), max(b,c)) /* max of 4 elements */
+#define mixk(x,y,a) (a == 0. ? x : a == 1. ? y : mix(x,y,a)) /* mix with bug fix */
+//#define mix(x,y,a) ((1.-a) * x + a * y) /* mix with bug fix */
+//#defined ifNaN1(v, nan, ok) { float r = nan; if(v <= 0. || v >= 0.) r = ok; return r; }
+//#defined ifNaN3(v3, nan, ok) { float r = nan; return ifNaN1(v3.x+v3.y+v3.z, nan, ok) }
+//#defined ifNaN4(v4, nan, ok) { float r = nan; return ifNaN1(v3.x+v3.y+v3.z, nan, ok) }
+bool isNaN(float v) { return !(v <= 0. || v >= 0.); }
+bool isNaN(vec3 v) { return isNaN(v.x + v.y + v.z); }
+bool isNaN(vec4 v) { return isNaN(v.x + v.y + v.z + v.w); }
+#define ifNaN(v,nonan) {if (isNaN(v)) v = nonan; }
+//#define ifNaN(v,nonan) {}
+
+#define D(a,b) length((a).xyz-(b).xyz) /* distance between 2 points, force 3d */
+#define pxyz vec3(x,y,z)	/* current position in transformation pipe */
+#define pxyz1 vec4(x,y,z,1)	/* current position in transformation pipe */
+#define wxyz1 (pxyz1 * rot4)	/* world position vec4 */
+#define wxyz (wxyz1.xyz)	/* world position vec3 */
+#define setxyz(p) {x = p.x; y = p.y; z = p.z;}  /* set x,y,z from a vector */
+
+#define row4(m, c) vec4(m[0].c, m[1].c, m[2].c, m[3].c)  /* get row from matrix */
+#define row3(m, c) vec3(m[0].c, m[1].c, m[2].c)  /* get row from matrix */
+
+// hull is for hulls around given control points, at point o
+#define hull1(o,b) (D(o,b))  /* hull from 1 point (sphere) */
+#define hull2(o,b,c) (D(o,b) + D(o,c))  /* hull from 2 points (ellipsoid) */
+#define hull3(o,b,c,d) (D(o,b) + D(o,c) + D(o,d))   /* hull from 3 points */
+#define hull4(o,b,c,d,e) (D(o,b) + D(o,c) + D(o,d) + D(o,e))   /* hull from 4 points */
+// fhull is for hull-based metaball-like combinations, current point implicit
+#define fhull1(r,pp,b) exp((r - hull1(pxyz, b)) * pp)	/* exponential falloff from sphere, b centre */
+#define fhull2(r,pp,b,c) exp((r - hull2(pxyz, b, c)) * pp)	/* exponential falloff from 2 hull, 1 at distance r, 0 at infinity, pp current point, b,c hull points */
+#define fhull3(r,pp,b,c,d) exp((r - hull3(pxyz, b, c, d)) * pp)	/* exponential falloff from 3 hull */
+#define fhull4(r,pp,b,c,d,e) exp((r - hull4(pxyz, b, c, d, e)) * pp)	/* exponential falloff from 4 hull */
+
+// 'standard' colour, sadly no array for gles 2
+// consider colour lookup texture. (bear in mind how this relates to other colour mapping features...)
+vec3 stdcol(float tv) {
+    // tv = round(tv);
+    float k = 1./ceil(tv/7.);
+    tv = mod(tv, 7.);
+    vec3 col;
+    if (tv < 0.) col = vec3(9.5, 0.5, 0.5);  // debug
+    else if (tv < 0.5) col = vec3(0.5, 0.5, 0.5);
+    else if (tv < 1.5) col = vec3(1,0,0);
+    else if (tv < 2.5) col = vec3(0,1,0);
+    else if (tv < 3.5) col = vec3(0,0,1);
+    else if (tv < 4.5) col = vec3(0,1,1);
+    else if (tv < 5.5) col = vec3(1,0,1);
+    else if (tv < 6.5) col = vec3(1,1,0);
+    else col = vec3(1,1,1);
+    return col; //  * k;
+}
+
+//#define hump(x, k) max(0., k*k/(k*k - x*x))
+//#define PI 3.14159286
+#define hump(x, w) (0.5 + 0.5 * cos(clamp(x / w, -1., 1.) * PI)) /* hump at x=0 with width w and height 1 */
+
+
+///////////////////////////////////// glslUtils functions (from fractaleid) /////////
+
+//2d cartesian to polar coordinates
+highp vec2 car2pol(highp vec2 IN) {
+    return vec2(length(IN), atan(IN.y,IN.x));
+}
+//2d polar to cartesian coordinates
+highp vec2 pol2car(highp vec2 IN) {
+    return vec2(IN.x * cos(IN.y), IN.x * sin(IN.y));
+}
+//function to cause numbers outside the range 0-1 to be 'reflected'
+//into that range
+//:::: how did this end up being the working version...
+//texture is GL_TEXTURE_2D - NPOT should more-or-less "just work", but without MIRRORED_REPEAT
+//so we reproduce that here... coordinates are still normalised, so we don't need a version
+//taking into account proportions
+//HOWEVER... see http://www.khronos.org/registry/gles/extensions/OES/OES_texture_npot.txt
+//if GL_OES_texture_npot extension is present, then MIRRORED_REPEAT *is* supported, so we
+//should take advantage of that and conditionally
+highp vec2 UV_Rectify(highp vec2 uv) {
+    //uv = abs(uv % 2);
+    uv = vec2(1.) - abs(mod(abs(uv), vec2(2.)) - vec2(1.));
+    return uv;
+}
+
+mediump vec2 mirrorRepeat(mediump vec2 uv) {
+    return abs(mod((vec2(-1)-uv),vec2(2))+vec2(1));
+}
+
+lowp vec4 invertCol(lowp vec4 IN) {
+    return vec4(vec3(1.)-IN.xyz, IN.w);
+}
+lowp vec4 incrementCol(lowp vec4 IN) {
+    lowp vec3 inc = vec3(0.05, 0.1, 0.08);// vec3(1./10.); //TODO: make inc uniform
+    return vec4(IN.xyz + inc, IN.w);
+}
+lowp vec4 invInc(lowp vec4 IN) {
+    lowp vec3 inv = invertCol(IN).xyz;
+    lowp vec3 inc = vec3(1./10.);
+    if (inv.x >= 0.5) inc *= -1.;
+    return vec4(inv + inc, IN.w);
+}
+lowp vec4 wrapCol(lowp vec4 IN) {
+    if (IN.r >= 0.99) return vec4(0,0,0,IN.a);
+    return IN;
+}
+
+lowp vec4 check(mediump vec2 IN) {
+    lowp float f = 0.3;
+    lowp float f2 = 1.3333333*f;
+    bool r = abs(mod(IN.x, f2)) > f2*0.5 && abs(mod(IN.y, f)) > f*0.5;
+    return r ? vec4(0) : vec4(1);
+}
+
+struct KaleidParms {
+    //mat3 uvMatrix; //do I want this rather than other components? Needs logic outside to construct.
+    vec2 uv;
+    vec2 centre;
+    float leaves;
+    float zoom;
+    float angle;
+};
+
+virtual KaleidParms DefKParms() {
+    KaleidParms K;
+    K.leaves = 6.;
+    K.zoom = 1.;
+    K.angle = 0.;
+    return K;
+}
+
+virtual vec2 KaleidUV(KaleidParms K) {
+    vec2 pol = car2pol(K.uv - K.centre);
+
+    float segAng = K.leaves / 2.*3.141592653;
+
+    float fr = fract(pol.y / segAng);
+    pol.y = K.angle + (fr > 0.5 ? 1.-fr : fr) * segAng;
+    pol.x *= K.zoom;
+
+    vec2 uv = pol2car(pol);// + Centre;
+    //uv = UV_Rectify_Uniform(uv);
+    uv = UV_Rectify(uv);
+    return uv;
+}
+
+// renormalise v from range min1-max1 to min2-max2 (doesn't clamp)
+float map(const float v, const float min1, const float max1, const float min2, const float max2) {
+    return min2 + (v - min1) * (max2 - min2) / (max1 - min1);
+}
+
+//////////////// end glslUtils //////////////////////////////////
+
+/** example
+posttranrule = `
+float fh=fhull2(140., 0.01,  gpRmat * vec4(0,0,0,1), gpRmat * vec4(95,0,0, 1));
+r *= fh - 0.11;
+`;
+***/
+$$$extraIncludes$$
+
+// packing from three.js
+vec3 packNormalToRGB( const in vec3 normal ) {
+	return normalize( normal ) * 0.5 + 0.5;
+}
+vec3 unpackRGBToNormal( const in vec3 rgb ) {
+	return 1.0 - 2.0 * rgb.xyz;
+}
+const float PackUpscale = 256. / 255.;const float UnpackDownscale = 255. / 256.;
+const vec3 PackFactors = vec3( 256. * 256. * 256., 256. * 256.,  256. );
+const vec4 UnpackFactors = UnpackDownscale / vec4( PackFactors, 1. );
+const float ShiftRight8 = 1. / 256.;
+vec4 packDepthToRGBA( const in float v ) {
+	vec4 r = vec4( fract( v * PackFactors ), v );
+	r.yzw -= r.xyz * ShiftRight8;	return r * PackUpscale;
+}
+float unpackRGBAToDepth( const in vec4 v ) {
+	return dot( v, UnpackFactors );
+}
+
+float S(const float r) { return (3. - 2. * r) * r * r; }
+
+// for springs
+#define histpost(p,t) texture2D(posHist, vec2(histtime - (t), (p)))
+#define histpos(p) texture2D(posNewvals, vec2(0, (p)))
+uniform sampler2D posHist;          // posHist is a 2d texture. 1st dim gives a circular buffer of positions at different times, second dimenstion is spring number
+uniform sampler2D posNewvals;       // posNewvals is effectively a 1d texture giving current position of each spring
+uniform sampler2D tadprop;		// sampler used for tadpole properties
+
+/**
+// rotation about axis, from https://en.wikipedia.org/wiki/Rotation_matrix#In_three_dimensions
+mat3 axrot(vec3 u, float ang) {
+    u = normalize(u);
+    float x = u.x, y = u.y, z = u.z;
+    float ar = ang * 3.14159 / 180.;
+    float c = cos(ar);
+    float s = sin(ar);
+    float c1 = 1- c;
+
+    return mat3(
+        c +  x*x*c1, y*x*cq + z*s,
+    );
+**/
+
+// http://www.neilmendoza.com/glsl-rotation-about-an-arbitrary-axis
+mat4 axrot4(vec3 axis, float angle)
+{
+    axis = normalize(axis);
+    float x = axis.x, y = axis.y, z = axis.z;
+
+    angle *= 3.14159 / 180.;
+    float s = sin(angle);
+    float c = cos(angle);
+    float oc = 1.0 - c;
+
+    return mat4(oc * x * x + c,      oc * x * y - z * s,  oc * z * x + y * s,  0.0,
+                oc * x * y + z * s,  oc * y * y + c,      oc * y * z - x * s,  0.0,
+                oc * z * x - y * s,  oc * y * z + x * s,  oc * z * z + c,      0.0,
+                0.0,                 0.0,                 0.0,                 1.0);
+}
+
+mat3 axrot(vec3 axis, float angle)
+{
+    axis = normalize(axis);
+    float x = axis.x, y = axis.y, z = axis.z;
+
+    angle *= 3.14159 / 180.;
+    float s = sin(angle);
+    float c = cos(angle);
+    float oc = 1.0 - c;
+
+    return mat3(oc * x * x + c,      oc * x * y - z * s,  oc * z * x + y * s,
+                oc * x * y + z * s,  oc * y * y + c,      oc * y * z - x * s,
+                oc * z * x - y * s,  oc * y * z + x * s,  oc * z * z + c);
+}

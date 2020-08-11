@@ -1,0 +1,7 @@
+// set up dynamics for close match to giv en xyz
+// cannot use GUI version as springforce not included in gui
+G.pushapartforce = 0;
+G.nonBackboneLen = 1;
+GX.setValue('Ribbon/diameter', 4);
+G.springspreaddist = 30;
+G.scaleFactor = 30;

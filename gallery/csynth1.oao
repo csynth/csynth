@@ -1,0 +1,529 @@
+name: novrlights
+date: 'Thu Feb 01 2018 12:08:17 GMT+0000 (GMT Standard Time)'
+genes: &ref_46
+  tranrule: |
+    // CSynth ribbon
+    //(gn, s, min, max, delta, step, help, tag, free, useuniform)
+    gene('wigmult', 500., 0, 2000, 10, 1, 'multiplier for wig radius', 'geom', 1);
+    gene('colmix', 0., 0, 1, 0.1, 0.01, 'proportion of rainbow to use', 'geom', 1);
+    gene('scaleFactor', 30., 1., 100., 0.01, 0.01, 'scaling factor for 3d ribbon etc', 'geom', 1);
+    gene('ribbonPickWidth', 0.04, 0,1, 0.01, 0.01, 'how much of ribbon will have increased radius around selected particles', 'geom', 1 );
+    gene('ribbonPickExtra', 0, 0,40, 0.1, 0.1, 'amount by which to increase ribbon diameter around selected particles', 'geom', 1 );
+    gene('ribbonPickRangeExtra', 1, 0,40, 0.1, 0.1, 'amount by which to increase ribbon diameter for BED region of selected particles', 'geom', 1 );
+
+    gene('endblobs', 3., 0., 20., 1, 1, 'number of blobs at endc', 'geom', 1);
+    gene('endbloblen', 0.0, 0., 0.1, 0.001, 0.0001, 'length of blobby end', 'geom', 1);
+
+    gene('killradwidth', 0, 0, 10, 1, 1, 'numer of particles to kill each side of killrad points', 'geom', 1);
+    KILLRADLEN = 20;
+
+    gene('ribbonStart', 0, 0,1, 0.001,0.001, 'start of ribbon, range 0..1 for full data');
+    gene('ribbonEnd', 1, 0,1, 0.001,0.001, 'end of ribbon, range 0..1 for full data');
+
+
+    //gene('numSegs', 87, 0,1023, 1,1, 'number of segments, numInstances-1', 'system', 0);
+    //gene('numInstancesP2', 87, 0,1023, 1,1, 'power of 2 to hold all instances', 'system', 0);
+    horn('R').ribs(20).radius(80)
+      .code('vec4 q=ppos((rp*numSegs + 0.5)/numInstancesP2)*scaleFactor; x+=q.x; y+=q.y; z+=q.z;') // nb, r set below in skerad
+      .code('#define SKELPICK')
+    ;
+    mainhorn='R';
+    onframe(checkvr, 5);
+    onframe(checkvr, 25);
+    extradefines = `
+      uniform sampler2D t_ribboncol, t_ribbonrad;
+      #define KILLRADLEN ${KILLRADLEN}
+      uniform float killrads[KILLRADLEN];
+      //copy/paste from springsynth...
+      vec4 getPickRange(const in float p) {
+        return texture2D(t_ribboncol, vec2(p, 0.75));
+      }
+      float isInPickRange(float p, float pr, float smooth) {
+          vec4 r = getPickRange(pr);
+          float v = smoothstep(r.y, r.y+smooth, p);
+          v = min(v, 1. - smoothstep(r.z-smooth, r.z, p));
+          return v;
+      }
+
+    `;
+    overrides= //gl //comment serves as a tag to start a glsl section
+    `
+
+    override float skelrad(float r, float rp, float oposz) {
+      // note no sqrt for wig, already arranged in layout of the textre
+      float wigg = texture2D(t_ribbonrad, vec2(rp, 0.5)).x;
+      r = scaleFactor * (R_radius +  wigg * wigmult);
+      if (wigmult < 0. && wigg != 0.) r = -0.1;     // so some segments can disappear, eg between chains/chroms in Ss-S10 example
+
+      // boost radius for pick item i
+      #define xrad(i) { \
+        float p = getPickC(i);\
+        float xtra = 1. - abs(p-rp) / ribbonPickWidth;\
+        rx = max(rx, xtra);\
+        rangeX = max(rangeX, isInPickRange(rp, p, 1./255.));\
+      }
+      // boost ribbon radius based on matrix picks
+      //PJT adding other pick slots (0 & 8), as per VALID_PICK_INDEX
+      if (ribbonPickExtra != 0.) {
+        float rx = 0., rangeX = 0.;
+        xrad(0) xrad(4) xrad(5) xrad(8) xrad(12) xrad(13)
+        r += ribbonPickExtra * rx;
+        r += ribbonPickRangeExtra * rangeX;
+      }
+
+      // killrads in particles, this is used to create breaks between chains/chroms, eg in full yeast example
+      for (int i=0; i < KILLRADLEN; i++)
+        if (abs(rp * (numSegs) - killrads[i]) <= killradwidth) r = -0.1;
+
+      float pi = 3.141592;
+      float tr = max(endbloblen-rp, -1. + endbloblen + rp)/endbloblen;
+      if (tr > 0.) { float dr = max(0.00, (1. + cos( (1.-tr) * 6.28318 * endblobs)) * 0.5 * (1.- tr)); r *= sqrt(dr); }
+
+      // display range
+      if (rp < ribbonStart || rp > ribbonEnd) r = -0.1;
+      return r;
+    }
+
+    override Colsurf iridescentTexcol(in vec3 texpos, in vec3 viewDir, in vec3 normal) {
+        Colsurf cs = colsurfd();
+        float p = opos.x;
+        // vec3 rbow = vec3(p,1.-p,0); // rainbow colouring, also to verify opos.x correct
+        // TODO use bedColor from commonFragmentShaderCode
+        vec3 rbow = hsv2rgb(vec3(p, 1., 1.));
+
+        //vec3 col = cs.col.rgb;
+        // using opos.x instead of p below gives wrong answers!
+        // Maybe compiler can't cope with texture call within texture call? opos is macro for texture call
+        vec4 bed = texture2D(t_ribboncol, vec2(p, 0.25)); //was 0.5, added row for range, 0.75 to debug, should be 0.25
+        float t = bed.w;  // t_ribboncol is bed texture, small 'integer' values for now, but mapped to range 0..1
+        float ti = t * 255. - 0.0;
+        // when BED doesn't have explicit colour, then all elements will be same... that doesn't make this logic right
+        // but close enough for now (famous last words), closer with test against green as well
+        vec3 col = bed.r != t || bed.g != t ? bed.rgb : stdcol(ti);
+        // for helix striping
+        // if (fract(opos.x*5000. + opos.y) < 0.1) col = stdcol(6.);
+        col = mix(col, rbow, colmix);
+
+        // now overlay preselection highlights
+        float op = (opos.x - capres*0.5) / (1. - capres);
+        for (int i=0; i<16; i++) {
+          //yuck.  Ignore the elements that aren't wanted. Will need to change later.
+          if (!(i==0 || i==4 || i==5 || i==8 || i==12 || i==13 )) continue;
+          float p = getPickC(i);
+          float k = 10. * (1. - clamp(abs(op-p) * 400., 0., 1.));
+          float k1 = abs(op-p) * 14000. < 1. ? 0. : k;
+          col += vec3(k,k1,k1) * getPickColor(i)*0.1;
+        }
+
+        cs.col.rgb = col;
+        return cs;
+    }
+
+    //over ride vec4 lightingxNOT(const vec3 xmnormal, const vec4 trpos, const vec3 texpos) {
+    //    // needs usemask = -1; mmm = material.regular[G.tranrule];  mmm.transparent=true; mmm.side = THREE.DoubleSide
+    //    vec4 col = lightingx_base(xmnormal, trpos, texpos);
+    //    if (fract(opos.x*5000. + opos.y) > 0.1) col.a = 0.2;
+    //    return col;
+    //}
+
+    `; ///gl  //comment closes the glsl section
+    CSynth.startdemo();
+inputState:
+  zoomgui: 0
+  animSpeed: 0
+  animlen: '500'
+  grot: 1
+  cillyfiles: ''
+  cillyname: cilly
+  valbox: ''
+  fixcontrols: false
+  controlOpacity: 85
+  showrules: false
+  showhtmlrules: false
+  showdirectorrules: false
+  showstats: false
+  showgrid: false
+  showcilly: false
+  doShowSCLog: false
+  showuiover: false
+  NOMESS: false
+  mutrate: 20
+  sliderate: 0
+  tad60: false
+  tad252: false
+  tad1020: false
+  tad2044: false
+  openfilebut: ''
+  preloaddata: ''
+  audioAnal: false
+  testerbox: false
+  imagename: organic
+  imageres: '2048'
+  previewAr: false
+  imageasp: 4/3
+  vp0: true
+  vp3: false
+  vp8: false
+  vp12: false
+  vp18: false
+  vp32: false
+  vp48: false
+  vp64: false
+  rotallcams: false
+  projvp: false
+  fullvp: false
+  revscreen: false
+  layoutbox: 2
+  videovrui: false
+  doAnim: false
+  doAnimRev: false
+  realtimeimages: false
+  animquality: 0.9
+  doAutorot: false
+  USEGROT: false
+  doFixrot: true
+  doyrot: true
+  xzrot: 0
+  doxrot: true
+  yzrot: 0
+  dozrot: false
+  xyrot: 0
+  using4d: false
+  doywrot: false
+  ywrot: 0
+  doxwrot: false
+  xwrot: 0
+  dozwrot: false
+  zwrot: 0
+  usecubic: false
+  usequartic: false
+  fragfidbox: four.fs
+  boundsprefix: eve29
+  savename: csynth1
+  savesnapatend: false
+  fileChooser: ''
+  masterVolume: -80
+  audioRecord: false
+  logStatWarning: false
+  clearColor: '#000000'
+  colrot: '0'
+  bwset: false
+  cubeup: ''
+  cubedown: ''
+  cubeleft: ''
+  cuberight: ''
+  cubefront: ''
+  cubeback: ''
+  useDOF: false
+  controlAperture: 0.025
+  controlFocus: 1.4
+  togglewater: false
+  togglewaterrefl: false
+  RAND: false
+  BUMP: false
+  SHADOWS: false
+  SHADOWS1: false
+  SHADOWS2: false
+  REFLECTION: false
+  FLATMAP: false
+  FLATWALLREFL: true
+  PERLIN: true
+  POHNOISE: true
+  FLUORESC: true
+  SIMPLESHADE: false
+  U360: false
+  EDGES: false
+  COOKIE0: false
+  COOKIE1: false
+  COOKIE2: false
+  resbaseui: 9
+  resdyndeltaui: 0
+  renderRatioUi: 1
+  USESKELBUFFER: true
+  USEGBUFFER: false
+  NONUNIFORM: true
+  CHECKGL: false
+  AFAP: false
+  DEBUG: false
+  GPUSCALE: true
+  NOSCALE: true
+  NOCENTRE: false
+  GPUGRIDN: false
+  PIXELS: false
+  SINGLEMULTI: true
+  DISTORTPIX: false
+  shad0: false
+  shad0.5: false
+  shad1: false
+  shad1.5: false
+  shad2: true
+  shad3: false
+  shadbilin: false
+  shadbicub: false
+  shadx: false
+  shadr512: false
+  shadr1024: true
+  shadr2048: false
+  shadr4096: false
+  usefilter: false
+  mlid: 0
+  fileDialog: ''
+  backgroundSelect: color
+  codebox: |-
+    // type test javascript here
+
+  tranrulebox: '->'
+  directorrulebox: |-
+    var r = [{},{},{},{},{},{},{},{}];
+    r[0].rot = {x: 0, y: 3, z: 0};
+    r[1].rot = {x: 0, y: 3, z: 0};
+    r[2].rot = {x: 0, y: 3, z: 0};
+    r[3].rot = {x: 0, y: 3, z: 3};
+    r[4].rot = {x: 3, y: 0, z: 0};
+    r[5].rot = {x: 0, y: 3, z: 3};
+    r[6].rot = {x: 3, y: 0, z: 3};
+    r[7].rot = {x: 0, y: 3, z: 0};
+    Director.rules = r;
+  guifilter: ''
+  genefilter: ''
+  test: for(int i=0; i<100; i++) col = sqrt(col);
+  mlnotes: ''
+currentObjects:
+  do_7: &ref_45
+    mmm:
+      elements:
+        - 1
+        - 0
+        - 0
+        - 0
+        - 0
+        - 1
+        - 0
+        - 0
+        - 0
+        - 0
+        - 1
+        - 0
+        - 0
+        - 0
+        - 0
+        - 1
+      '##c': THREE.Matrix4
+    lastTouchedDate: 1517486841298
+    createDate: 1517486841298
+    width: 1680
+    height: 944
+    cy: 472
+    cx: 840
+    xid: do_7
+    uniforms: &ref_20
+      intex:
+        type: t
+      despeckle:
+        type: f
+        value: 2
+      renderRatio:
+        type: f
+        value: 1
+      R:
+        type: f
+        value: 1
+      S:
+        type: f
+        value: 1
+      softt:
+        type: f
+        value: 0.97
+      outpower:
+        type: f
+        value: 0.45454545454545453
+      bwthresh:
+        type: f
+        value: 0.6168795173755851
+      bwuse:
+        type: f
+        value: 0
+      screenR:
+        type: f
+        value: 1
+      screenG:
+        type: f
+        value: 1
+      screenB:
+        type: f
+        value: 1
+      distortpixk:
+        type: f
+        value: 0
+      res:
+        type: v2
+        value:
+          x: 1680
+          'y': 944
+          '##c': THREE.Vector2
+      zoom:
+        type: f
+        value: 0
+      zoompos:
+        type: v2
+        value:
+          x: 0.7202380952380952
+          'y': 0.8824152542372882
+          '##c': THREE.Vector2
+      textureToUse:
+        type: v2
+        value:
+          x: 1
+          'y': 1
+          '##c': THREE.Vector2
+      xmatrix:
+        type: m4
+        value:
+          elements:
+            - 1
+            - 0
+            - 0
+            - 0
+            - 0
+            - 1
+            - 0
+            - 0
+            - 0
+            - 0
+            - 1
+            - 0
+            - 0
+            - 0
+            - 0
+            - 1
+          '##c': THREE.Matrix4
+    genes: *ref_46
+    needsRender: 1
+    vn: 0
+    cz: 50
+    z: 0
+    lcx: 840
+    lcy: 472
+    '##c': Dispobj
+vps:
+  - 0
+  - 0
+slots:
+  - x: 0
+    'y': 0
+    width: 1680
+    height: 944
+    selected: false
+    col: 50
+    cx: 840
+    cy: 472
+    dispobj: *ref_45
+extraDispobj: &ref_51
+  mmm:
+    elements:
+      - 1
+      - 0
+      - 0
+      - 0
+      - 0
+      - 1
+      - 0
+      - 0
+      - 0
+      - 0
+      - 1
+      - 0
+      - 0
+      - 0
+      - 0
+      - 1
+    '##c': THREE.Matrix4
+  lastTouchedDate: 1491906651260
+  createDate: 1491906651260
+  width: 840
+  height: 1050
+  cy: 525
+  cx: 10419
+  xid: do_5428
+  uniforms: &ref_48
+    intex:
+      type: t
+    despeckle:
+      type: f
+    renderRatio:
+      type: f
+    R:
+      type: f
+    S:
+      type: f
+    softt:
+      type: f
+    outpower:
+      type: f
+    bwthresh:
+      type: f
+    bwuse:
+      type: f
+      value: 0
+    screenR:
+      type: f
+    screenG:
+      type: f
+    screenB:
+      type: f
+    distortpixk:
+      type: f
+    res:
+      type: v2
+      value:
+        x: 0
+        'y': 0
+        '##c': THREE.Vector2
+    zoom:
+      type: f
+      value: 0
+    zoompos:
+      type: v2
+      value:
+        x: 0.5
+        'y': 0.5
+        '##c': THREE.Vector2
+    textureToUse:
+      type: v2
+      value:
+        x: 1
+        'y': 1
+        '##c': THREE.Vector2
+    xmatrix:
+      type: m4
+      value:
+        elements:
+          - 1
+          - 0
+          - 0
+          - 0
+          - 0
+          - 1
+          - 0
+          - 0
+          - 0
+          - 0
+          - 1
+          - 0
+          - 0
+          - 0
+          - 0
+          - 1
+        '##c': THREE.Matrix4
+  needsRender: 0
+  vn: no vn
+  cz: 0
+  z: 0
+  lcx: -999
+  lcy: 525
+  needsPaint: false
+  '##c': Dispobj
+geneids: []
+frameSaver:
+  baseTime: 0
+  type: buffer

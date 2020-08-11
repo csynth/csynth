@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>interactive distance matrices</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link rel="stylesheet" href="matrixexplorer.css">
+	</head>
+
+	<body>
+		<div id="container">
+		</div>
+        <div id="dropinfo">
+			<h1 id="info"><a href="http://threejs.org" target="_blank">three.js</a> webgl - interactive distance matrices </h1>
+            <p>Select (see below) one or two <b>RAWobserved</b> files to display its contact matrix.</p>
+            <p>This will be displayed as 4 matrices with increasing zoom levels.  A single file will be shown in black/white, and a pair of files will be shown in yellow and blue.</p>
+            <p>Click or drag in any zoom level to change what is displayed at the higher levels.
+            On a machine with faster graphics dragging will be more interactive,
+                but on a machine with slower graphics clicking is more certain.
+            </p>
+            <p>It is usually best to start the selection process in the top left (widest view) matrix
+                to get a selection in the top right (fairly wide) view.
+            </p>
+            <p>Then refine the selection by click/drag in the top right
+                to get a finer selection in the bottom left (fairly close view).
+                Complete the selection by clicking or dragging in this bottom left view to get a very fine selection
+                in the bottom right.
+            </p>
+            <br>
+            <p>To select <b>RAWobserved</b> file(s):</p>
+            <ul>
+				<li>To select default files click <input type="button" value="default files" onclick="loaddefaultdata()"/></li>
+                <li>
+                If you have launched this automatically from FoldSynth (eg ctrl-alt-m) the filename will already be in the clipboard. (not on Mac)
+                    <ul>
+                        <li>Type O to open the file dialog</li>
+                        <li>Type ctrl-V to paste the filename into the file dialog, </li>
+                        <li>then hit Enter.</li>
+                    </ul>
+                </li>
+                <li>Otherwise, either: Choose a <b>RAWobserved</b> file by clicking 'Choose File' button below.
+                    <br>
+                <input type="file" id="fileChooser"/></li>
+                <li>Or: Drag file(s) from a file manager onto this screen.</li>
+            </ul>
+            <br>
+            <p>When you have selected a region you can drag from the <i>Drag to FoldSynth</i> button that will appear onto FoldSynth.</p>
+            <p>FoldSynth will then set the active fold from your selected region.
+			Alternatively, drag into a text editor and the appropriate commands for a FoldSynth script will be dropped.</p>
+			<p>For quick springs test click <input type="button" value="springs test" onclick="springdemo()"/>.</p>
+        </div>
+		<div id="running">
+			<div id="dragger"  class="back" draggable="true">
+				When final selection made drag this box onto FoldSynth, or onto a text editor of FoldSynth script file.
+			</div>
+			<div id="x1">1</div>
+			<div id="x2">2</div>
+			<div id="x3">3</div>
+			<div id="x4">4</div>
+
+			<div id="y11" class="y">?11</div>
+			<div id="y12" class="y">?12</div>
+			<div id="y21" class="y">?21</div>
+			<div id="y22" class="y">?22</div>
+			<div id="y31" class="y">?31</div>
+			<div id="y32" class="y">?32</div>
+			<div id="y41" class="y">?41</div>
+			<div id="y42" class="y">?42</div>
+
+			<div id="refsel" class="back">Refine selection in more detailed matrices (higher numbers) by clicking or dragging in the less detailed ones.
+			</div>
+			<div id="feedback">
+				<div id="filenames">files pending selection</div><br>
+				pane: <span id="pane">?</span><br>
+				id1: <span id="id1">?</span><br>
+				id2: <span id="id2">?</span><br>
+				vals: <span id=value1>?</span> ~~ <span id=value2>?</span><br>
+				avgs: <span id=avg1>?</span> ~~ <span id=avg2>?</span><br>
+				dist: <span id="dist">?t</span><br>
+			</div>
+			<div id="sliders">
+				<p>strengths:</p>
+				<p><input id="slider1", type="range", min="0", max="200", step="1", value="100"></p>
+				<p><input id="slider2", type="range", min="0", max="200", step="1", value="100"></p>
+				<p id="slider2val">1/1</p>
+			</div>
+		</div>
+
+        <script src="../../startcommit.js"></script>
+		<script src="deps/three.js"></script>
+		<script src="deps/TrackballControls.js"></script>
+		<script src="mutbridge.js"></script>
+		<!-- <script src="springsynth.js"></script> -->
+		<!--
+		<script src="../../aaorganicart/organicart/JS/springs.js"></script>
+		<script src="../../aaorganicart/organicart/shaders/springsjs.fs"></script>
+		-->
+		<script src="../../JS/serious.js"></script>
+		<script src="../../JS/errorHolder.js"></script>
+		<script src="../../JS/searchString.js"></script>
+		<script src="../../JS/utils.js"></script>
+
+		<!--<script src="../JSdeps/Detector.js"></script>-->
+		<script src="deps/stats.min.js"></script>
+		<script src="../../JSdeps/fft.js"></script>
+		<script src="matrixexplorer.js"></script>
+	</body>
+</html>

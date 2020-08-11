@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        // es2018 came up with silly errors such as no Math.sign/log10,
+        // corrected by updating global typescript, tsc --- version 3.7.3
+        "target": "es2018",
+        //"target": "es6",        // converts async/await into special wrapper and yield
+        "module": "ES6",
+        "moduleResolution": "node",
+        "outDir": "../JSTS/",     // was "../dist/" which sometimes results in organserver.js being module rather than webpack bundle.
+        "sourceMap": true,
+        "rootDirs": [".", "../TSServer"],
+        "experimentalDecorators": true
+    }
+}
