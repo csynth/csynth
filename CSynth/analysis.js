@@ -436,7 +436,7 @@ CSynth.gotoCapture = function(n = 0, set = CSynth.captures) {
     setObjUniforms(currentGenes, uniforms);
 }
 
-/** display a set (probably captures) */
+/** display stats information about a set (probably captures) */
 CSynth.displayCaptureStats = function(set = CSynth.captures, name = 'captures', msg = 'stats for captured data' ) {
     // const {sr, dists, positions} = CSynth.captures;
     const r = [];
@@ -488,7 +488,7 @@ CSynth.genArray = function(def, popts = {}) {
 }
 
 var Maestro;
-// capture a set of 8 stats
+// capture a set of stats given ab
 CSynth.capture8 = function(w = 5000, opts={}) {
     CSynth.captures = CSynth.clearCaptures();
     const arr = CSynth.genArray({contactforce: [100,400], pushapartpow: [0, -1], springpow: [0, -2] });

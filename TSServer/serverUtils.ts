@@ -86,11 +86,14 @@ export function websocketReflector() {
         lastClient.send(sdata);
     }
 
+    setTimeout(()=>console.log('"cls<enter>" to clear console'), 1000);
     standard_input.on('data', function (rawData) { // When user input data and click enter key.
         let data: string = rawData.toString();
+        data = data.trimRight();
+        // console.log('in data', data);
+        if (data === 'cls') {console.clear(); return; }
         if (lastClient) {
             try {
-                data = data.slice(0, -2)
                 if (data.startsWith('getfile:')) {
                     sendfile(data.substring(8).trim());
                 } else if (data.startsWith('testfile:')) {
@@ -312,6 +315,7 @@ export function mainServer() {
             const pref = '/remote/';  //handle remote before checking things like dir
             const pp = upath.split(pref);
             if (pp[1]) return remote(pp[1], response);
+            if (upath.endsWith('/clear/')) { console.clear(); writeresp(response, 200, 'cleared'); return; }
             if (upath.endsWith('/runcmd.php')) return cmd(unescape(message.headers.cmd), response);
             if (upath.endsWith('/savefile.php')) return savefile(message, response);
             if (upath.endsWith('/appendfile.php')) return savefile(message, response, true);

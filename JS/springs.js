@@ -8,6 +8,9 @@ writetextremote, guiFromGene, ffloat, V, setspringshaders, springdemo, CSynth, G
 nomess, msgfix, guifilter, DNASprings, msgfixerror, scaleDampTarget1, getSpringUniforms, addgeneperm, inworker,
 genedefs, nextpow2, uniforms, GX, gl, onframe, maxTextureSize, EX, format, newTHREE_DataTextureNamed, framedelta;
 
+// for mutate
+var mutate, vps, setViewports, slots, setObjUniforms, S, slowMutate;
+
 var Springs = function(id = '') {
     //if (meX) serious("attempt to reset springs");
     var me = this;
@@ -713,7 +716,7 @@ var Springs = function(id = '') {
         s += DEFWIDTH;
         var fix = topologyarr[s]; if (fix > 0 ) pairs.push( 'fix=' + topologyarr[s+1] +','+ topologyarr[s+2] +','+  topologyarr[s+3]);
         s += DEFWIDTH;
-        var pull = topologyarr[s+3]; if (pull > 0 ) pairs.push( 'pull=' + topologyarr[s] +','+ topologyarr[s+1] +','+ topologyarr[s+2] +','+  topologyarr[s+3]);
+        var pull = topologyarr[s+3]; if (pull > 0 ) pairs.push( 'pull=<' + topologyarr[s] +','+ topologyarr[s+1] +','+ topologyarr[s+2] +'>,'+  topologyarr[s+3]);
         if (typeof f === 'function') pairs = f(pairs);
         else if (f) pairs = format(pairs);
         return pairs;
@@ -828,6 +831,17 @@ var Springs = function(id = '') {
         // NOTE fix has x,y,z in t,z,w slots
         addat(FIXPOS, ai, 1, x,y,z);
     };
+
+    /** replace all pulls with fixes */
+    me.pullsToFix = function(unfix = true) {
+        for (let ai = 0; ai < numInstances; ai++) {
+            const pull = me.getpull(ai);
+            if (pull) {
+                me.setfix(ai, pull.pos);
+            }
+        }
+        if (unfix) me.finishFix();
+    }
 
     /** get fixed position of particle ai (if any), return vector or undefined */
     me.getfix = function(ai) {
@@ -1082,7 +1096,7 @@ meX.setHISTLEN(256); meX.repos(); meX.demotopology(); setTimeout(meX.start, 500)
     /** goto saved array of spring positions */
     me.setpos = function(pos) {
         for (let i = 0; i < pos.length; i++)
-        springs.setfix(i, pos[i]);
+            springs.setfix(i, pos[i]);
         springs.finishFix();
     }
 
@@ -1263,6 +1277,37 @@ meX.setHISTLEN(256); meX.repos(); meX.demotopology(); setTimeout(meX.start, 500)
         }
     }
 
+    me.mutate = async function(w = 2000, use) {
+        if (vps[0] + vps[1] === 0) setViewports([3,3]);
+        if (use) for (let gn in genedefs) {genedefs[gn].free = +use.includes(gn)};
+        slowMutate = false;
+        mutate();
+        if (me.prerenderObjk) Maestro.remove('prerenderObj', me.prerenderObjk)
+        Maestro.on('prerenderObj', (evt,a,b,c) => {
+            const dispobj = evt.dispobj;
+            // log('prerenderObj', dispobj.vn, dispobj.springs)
+            if (dispobj.springs)
+                meX.setpos(dispobj.springs)
+            // const vn = dispobj.vn;
+            // CSynth.gotoCapture(vn);
+            // slots[vn].dispobj.genes = currentGenes;
+        });
+
+
+        for (const slot of slots) {
+            if (slot === undefined) continue;
+            const dispobj = slot.dispobj;
+            // ?? setObjUniforms(dispobj.genes, uniforms);
+            // ?? initial position here ??
+            me.step(w);
+            dispobj.springs = me.getpos();
+            dispobj.render(1);
+            console.log('ready', dispobj.vn);
+            await S.frame();
+        }
+    }
+
+
     //me.start();
     return this;
 };
@@ -1305,3 +1350,4 @@ function springBufferGUI() {
 
     g.scale.set(10,10,10);
 }
+

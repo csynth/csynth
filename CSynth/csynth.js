@@ -3391,11 +3391,10 @@ CSynth.twist = function({sc = 1, R = 1, r = 0.5, n = 17} = {}) {
 }
 
 
-
 /** random kick of given particle, or of all selected particles if none given */
 CSynth.kick = function(bv=1, item=undefined, w=10) {
     const v = bv * G.backboneScale;
-    const P = CSynth.picks;
+    const P = CSynth.picks || [];
     if (item === undefined) {
         let done = false;
         for (let i=0; i < PICKNUM; i++)
@@ -3743,6 +3742,15 @@ if (THREE) {  // not in worker
     CSynth.defaultMaterial.roughness = 0.5;
 }
 
+CSynth.materialProperties = () => { return {
+    transparent: false,
+    opacity: 1,
+    color: new THREE.Color().setRGB(1,1,1),
+    metalness: 0.5,
+    roughness: 0.5,
+    wireframe: false
+}};
+
 CSynth.materialGui = function CSynth_materialGui(mat, vgui) {
     //TODO: something better in library side. Texture map options.
     mat.options = {     // no need to tie to mat, but might be helpful
@@ -3752,8 +3760,8 @@ CSynth.materialGui = function CSynth_materialGui(mat, vgui) {
     vgui.add(mat.options, 'transparent').listen();
     vgui.add(mat, 'opacity').min(0).max(1).step(0.01).listen();
     vgui.add(mat, 'color'); // .listen(); listen breaks interactive change // onChange(updateColourGenes);
-    vgui.add(mat, 'metalness').min(0).max(1).step(0.01).listen();
-    vgui.add(mat, 'roughness').min(0).max(1).step(0.01).listen();
+    if ('metalness' in mat) vgui.add(mat, 'metalness').min(0).max(1).step(0.01).listen();
+    if ('roughness' in mat) vgui.add(mat, 'roughness').min(0).max(1).step(0.01).listen();
     vgui.add(mat, 'wireframe').listen();
 }
 

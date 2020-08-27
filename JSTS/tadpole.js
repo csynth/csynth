@@ -1,3 +1,15 @@
+// using THREEA till import issue fixed, revert to THREE when that is ok.
+// import below fixes compile time errors but creates runtime ones
+// If tadpole.js script tag uses type="module" then
+//     Failed to resolve module specifier "THREE". Relative references must start with either "/", "./", or "../".
+//     Presumably fixable by having a patched version of three module version???
+//     and in the longer term, not even needing to patch three at all ???
+// Else
+//     Async error found Uncaught SyntaxError: Cannot use import statement outside a module
+// import * as THREE from 'THREE'; // fixes compile time errors but creates runtime ones
+//
+// Issue seems to be confusion as to whether this is or is not a module.
+// It looks as if typescript thinks it is.
 ;
 let MEvents = () => new MaestroConstructor();
 class TadkeyMap {
@@ -52,6 +64,7 @@ function TadpoleSystem() {
     let tadprop; // array for properties, sets of 4, radii, colid, ?, ?
     me.tailpuffnum = 1; // number of particles to puff
     me.tailpuff = 2.5; // factor to puff last particle of tail
+    me.pullspringforce = 1; // pull
     me.extramouse = { mode: 0 };
     let things;
     let roles = me.roles = {};
@@ -164,6 +177,7 @@ function TadpoleSystem() {
         else {
             things.forEach(t => me.TESTapplyProps(t));
         }
+        me.propTexture.needsUpdate = true;
     };
     /** copy data for one tadpole from roleprops into tadprop:
     but copy radius into radius_target for later smooth transition */
@@ -545,19 +559,69 @@ function TadpoleSystem() {
                 tad.continousActive = false;
             });
             setExtraKey('K,Z', 'various simplifications', () => {
-                G.tadAttractorsL;
-                G.tadAttractorsR = 0;
+                tad.continousActive = false;
+                me.emul.left.baitWeight = me.emul.right.baitWeight = 0;
+                me.emul.left.twist = me.emul.right.twist = 0;
+                G.tadAttractorsL = G.tadAttractorsR = 0;
+                uniforms.pullspringmat.value.identity();
                 me.flowRate = 1000;
                 G._camz = 7; // G.tadBac kbone2 = 0;
                 cMap.SetRenderState('color');
             });
             setExtraKey('K,V,X', 'virus test', () => me.testVirus());
-            setExtraKey('K,V,1', 'virus test', () => me.vir1());
-            setExtraKey('K,V,2', 'virus test', () => me.vir2());
-            setExtraKey('K,V,3', 'virus test', () => me.vir3());
-            setExtraKey('K,P', 'virus reset position', () => me.virpos1());
-            setExtraKey('K,P,1', 'virus reset position', () => me.virpos1());
-            setExtraKey('K,P,2', 'virus reset position rest 2', () => me.virpos2());
+            setExtraKey('K,V,1', 'virus test', () => me.newThing(me.TR.vir1));
+            setExtraKey('K,V,2', 'virus test', () => me.newThing(me.TR.vir2));
+            setExtraKey('K,V,3', 'virus test', () => me.newThing(me.TR.vir3));
+            setExtraKey('K,V,4', 'virus test', () => me.newThing(me.TR.vir4));
+            setExtraKey('K,V,5', 'virus test', () => me.newThing(me.TR.vir5));
+            setExtraKey('K,P', 'nop', () => { });
+            setExtraKey('K,P,1', 'virus reset position', () => me.virpos());
+            setExtraKey('K,P,2', 'virus reset position rest 2', () => me.virposLineSpike());
+            setExtraKey('K,H', 'nop', () => { }); // prevent 'standard' K,H from operating
+            setExtraKey('K,H,1', 'horns/skela', () => me.newThing(me.TR.skela));
+            setExtraKey('K,H,2', 'horns/skelb', () => me.newThing(me.TR.skela));
+            setExtraKey('K,H,3', 'horns/skelc', () => me.newThing(me.TR.skela));
+            setExtraKey('K,,', 'pull to fixed to fast virus converge', () => springs.pullsToFix());
+            setExtraKey('K,O', 'order map in role', () => me.allOrdered());
+            setExtraKey('K,S', 'space filling', () => CSynth.hilbert(0.1));
+            setExtraKey('K,T', 'twisted torus form', () => CSynth.twist({ sc: 1 }));
+            setExtraKey('K,X', 'tadpole demo', () => tad.demo());
+            setExtraKey('K,F', 'to tadfree', () => tad.newThing(tad.TR.tadfree));
+            setExtraKey('K,I', 'to imported skeleton', () => tad.newThing(tad.TR.skelc));
+            setExtraKey('K,I,1', 'to imported skeleton a', () => tad.newThing(tad.TR.skela));
+            setExtraKey('K,I,2', 'to imported skeleton b', () => tad.newThing(tad.TR.skelb));
+            setExtraKey('K,I,3', 'to imported skeleton c', () => tad.newThing(tad.TR.skelc));
+            setExtraKey('K,G', 'gui', () => tad.testgui());
+            setExtraKey('K,=', 'set resting position', () => tad.setResting());
+            setExtraKey('K,.', 'toggle continuous', () => {
+                tad.continousActive = !tad.continousActive;
+                msgfix('!tad.continousActive', tad.continousActive);
+            });
+            setExtraKey('K,A', 'swap pull and dist forces', () => {
+                if (G.pullspringforce === 0) {
+                    G.pullspringforce = me.pullspringforce;
+                    G.xyzforce = 0.0;
+                }
+                else
+                    me.skeldist({});
+                msgfix('!spr', () => `pull=${G.pullspringforce} dist:${G.xyzforce}`);
+            });
+            setExtraKey('K,\\', 'go to skel position', () => {
+                me.skelpos();
+                uniforms.pullspringmat.value.identity();
+            });
+            setExtraKey('K,]', 'fix skel', () => {
+                G.twistBase = 0;
+                tad.defaultTadAttractors = 0;
+                G.xradiusforce = 0;
+            });
+            setExtraKey('K,[', 'free skel', () => tad.tune());
+            setExtraKey('K,[', 'free skel', () => tad.tune());
+            setExtraKey('K,J', 'allow reflection', () => {
+                tad.useGreyWall = false;
+                cMap.SetRenderState('fixpeekfeedback');
+                G.superwall = 0;
+            });
             me.setupPointerForFrame = V.setupPointerForFrame; // so it can be done under our control
             V.setupPointerForFrame = nop;
         }
@@ -708,25 +772,10 @@ function TadpoleSystem() {
             // collect all spring related genes here ... tune dynamics
             //G.modelSphereRadius = 2;  // 1 or 2 should be sensible but ...??? to tie in with _boxsize
             G.modelSphereForce = 0; // replaced with wall equivalent
-            G.pullspringforce = 0.03; // for tadskel IF we are using pullsprings
+            G.pullspringforce = me.pullspringforce; // ??? 0.03 for tadskel IF we are using pullsprings
             uniforms.pullspringmat.value.elements[14] = -0.5; // push skel form back (unless we get better distortion)
             G.xyzpow = 0; // for tadskel with distances; 0 was very unstable but OK with no 0 distances, -0.1 seems better, -1 not that different???
             // odd test, why not almost same after settling
-            setExtraKey('K,A', 'swap pull and dist forces', () => {
-                if (G.pullspringforce === 0) {
-                    G.pullspringforce = 0.03;
-                    G.xyzforce = 0.0;
-                }
-                else
-                    me.skeldist({});
-                msgfix('!spr', () => `pull=${G.pullspringforce} dist:${G.xyzforce}`);
-            });
-            setExtraKey('K,\\', 'go to skel position', () => {
-                me.skelpos();
-                uniforms.pullspringmat.value.identity();
-            });
-            // G.pullspringforce=0.00; G.xyzforce = 0.003
-            // G.pullspringforce=0.03; G.xyzforce = 0.0
             G.powBaseDist = 1;
             G.springpow = 0;
             G.backboneScale = 0.01;
@@ -777,10 +826,12 @@ function TadpoleSystem() {
             TRA.push(TR.horn2 = me.tadhorn(2));
             TRA.push(TR.tadfree2 = me.tadfree());
             TRA.push(TR.skelb = me.tadskel({ fid: 'testb.skel' }));
+            TRA.push(TR.vir1 = me.tadVirus(me.virusDefs[0]));
+            TRA.push(TR.vir2 = me.tadVirus(me.virusDefs[1]));
+            TRA.push(TR.vir3 = me.tadVirus(me.virusDefs[2]));
+            TRA.push(TR.vir4 = me.tadVirus(me.virusDefs[3]));
+            TRA.push(TR.vir5 = me.tadVirus(me.virusDefs[4]));
             me.seq.on('beat', () => { me.tadBeat(); return 0; }); // step, beat, bar, measure;  seq.step is number within beat, etc
-            TR.vir1 = me.vir1();
-            TR.vir2 = me.vir2();
-            TR.vir3 = me.vir3();
             // TR.back2 = 'tadBack bone2';
             log('extraDetails set here');
             // G.stepsPerStep = 4;                 // reasonable speed at 45fps
@@ -809,26 +860,20 @@ function TadpoleSystem() {
             }
         }; // me.extraDetails
         me.xspring(); // start the twist forces
-        if (!me.greyevery) {
+        if (!me.greyeveryKey) {
             me.colorCycle = 20;
-            me.greyevery = everyframe(() => {
+            me.greyeveryKey = everyframe(() => {
                 tad.greywall();
                 G.g_hueshift = (G.time * 1 / me.colorCycle) % 1; // keep colours rotating very 20 seconds
             }); // () to allow for dynamic change of function
         }
         WA.killdown = tad.killdown;
         // setExtraKey('V', 'close down',me.killdown);  // done in giodoc to catch key as long as focus is on us somewhere
-        setExtraKey('K,]', 'fix skel', () => {
-            G.twistBase = 0;
-            tad.defaultTadAttractors = 0;
-            G.xradiusforce = 0;
-        });
-        setExtraKey('K,[', 'free skel', () => tad.tune());
         msgfix('!twist', () => [G.twistL, G.twistR]);
         msgfix('!baitpos', () => [uniforms.baitPositionL.value, uniforms.baitPositionR.value]);
         msgfix('!force', () => `attract=${tad.defaultTadAttractors} xradforce=${G.xradiusforce} twist=${G.twistBase} continuous=${tad.continousActive}`);
         msgfix('!skel', () => `rot ${tad.skelrot} pull${tad.skelpull}`);
-        msgfix('!Things', () => T.map(t => [t.role.id, t.map.length]).join(' ')); //  lazy output of message
+        msgfix('!Things', () => things.map(t => [t.role.id, t.map.length]).join(' ')); //  lazy output of message
     }; // end tad
     /** reposition the tadpoles in starter positions */
     me.remakePositions = function () {
@@ -1106,143 +1151,236 @@ function TadpoleSystem() {
     me.tadVirusPushDist = 1.6;
     me.tadVirusPushStr = 0;
     me.tadVirusPushPow = 0;
-    me.tadPerPlane = 1;
-    me.ribsBetweenEdges = 1;
-    function id4Edge(pln, edgen) {
-        return pln * me.tadPerPlane * RIBS + edgen * me.ribsBetweenEdges; // this allows edges to flow smoothly over group of pln tadpoles
-    }
-    me.virusSegDist = 0.01;
     // lay out using virus plane definition, computing edges
-    me.tadVirus = function (def = [{ a: 0.257, b: 0, size: 1, col: 1 }], opts = {}) {
+    me.tadVirus = function (pdef = 0, opts = {}) {
+        let def = pdef;
+        if (typeof def === 'number')
+            def = me.virusDefs[pdef];
+        let { str, tadPerPlane, ribsBetweenEdges, virusSegDist, allowBad } = Object.assign({ str: 1, tadPerPlane: 0, ribsBetweenEdges: 0, virusSegDist: 0.01, allowBad: false }, opts);
+        let len = virusSegDist, pow = 0, prio = 1;
+        let role = makeRole(`tadVirus_${def.shortname || '?'}`, me.defaultStrength);
+        role.id4Edge = function (pln, edgen) {
+            return pln * this.tadPerPlane * RIBS + edgen * this.ribsBetweenEdges; // this allows edges to flow smoothly over group of pln tadpoles
+        };
+        Plane.findPoint.thresh = 0.01;
+        const pset = role.pset = Plane.planesetSymset(def.tiling || def);
+        Plane.processSet(pset);
+        pset.forEach((p, i) => p.id = i); // so planes are easily identified
+        // for autoset max usage of tadpoles for a virus
+        const maxTadPerPlane = Math.floor(HEADS / pset.length);
+        if (!tadPerPlane)
+            log('auto tadPerPlane', tadPerPlane = maxTadPerPlane);
+        if (tadPerPlane > maxTadPerPlane && !allowBad)
+            log('forced max tadPerPlane', tadPerPlane = maxTadPerPlane);
+        const maxRibsBetweenEdges = Math.floor(tadPerPlane * RIBS / 6);
+        if (!ribsBetweenEdges)
+            log('auto ribsBetweenEdges', ribsBetweenEdges = maxRibsBetweenEdges);
+        if (ribsBetweenEdges < 0)
+            log('auto -ve ribsBetweenEdges', ribsBetweenEdges = Math.max(1, maxRibsBetweenEdges + ribsBetweenEdges));
+        if (ribsBetweenEdges > maxRibsBetweenEdges && !allowBad)
+            log('forced max ribsBetweenEdges', ribsBetweenEdges = maxRibsBetweenEdges);
+        Object.assign(role, { tadPerPlane, ribsBetweenEdges, virusSegDist });
+        // Object.assign(me, [tadPerPlane, ribsBetweenEdges, virusSegDist]);
         if (me.useVirusPoints)
-            return me.tadVirusPoints(def, opts);
-        let { str, tadPerPlane, ribsBetweenEdges, virusSegDist } = Object.assign({ str: 1, tadPerPlane: 1, ribsBetweenEdges: 1, virusSegDist: 0.01 }, opts);
-        [me.tadPerPlane, me.ribsBetweenEdges, me.virusSegDist] = [tadPerPlane, ribsBetweenEdges, virusSegDist];
-        let len = virusSegDist, pow = 0, prio = 1;
-        let role = makeRole(`tadVirus`, me.defaultStrength);
-        Plane.findPoint.thresh = 0.01;
-        const pset = role.pset = Plane.planesetSymset(def);
-        Plane.processSet(pset);
-        pset.forEach((p, i) => p.id = i); // so planes are easily identified
-        pset.forEach((p, i) => {
-            const edges = p.edges = Plane.edges(p);
-            edges.forEach((e, ei) => {
-                setslot(id4Edge(i, ei), id4Edge(e.oplane.id, e.oind), len, str, pow, role, prio); // cross tad edge contacts
-            });
-            addspring(id4Edge(i, 0), id4Edge(i, edges.length), len * 0.1, str * 10, pow, role, prio); // tad into circle
-        });
-        // force overall shape
-        if (me.tadVirusPushStr) {
-            pset.forEach((p1, i1) => {
-                pset.forEach((p2, i2) => {
-                    if (i1 > i2) {
-                        const dd = distxyz(p1.point, p2.point);
-                        if (dd > me.tadVirusPushDist)
-                            addspring(id4Edge(i1, 0), id4Edge(i2, 0), dd, me.tadVirusPushStr, me.tadVirusPushPow, role, prio);
-                    }
+            return (me.useVirusPoints ? tadVirusPoints : tadVirusEdges)();
+        function tadVirusEdges() {
+            // continue here for older topology/distance edge based  virus
+            pset.forEach((p, i) => {
+                const edges = p.edges = Plane.edges(p);
+                edges.forEach((e, ei) => {
+                    setslot(role.id4Edge(i, ei), role.id4Edge(e.oplane.id, e.oind), len, str, pow, role, prio); // cross tad edge contacts
                 });
+                addspring(role.id4Edge(i, 0), role.id4Edge(i, edges.length), len * 0.1, str * 10, pow, role, prio); // tad into circle
             });
-        }
-        // n.b. backbone uses length for entire tadpole, reflen is just for ribsBetweenEdges segments
-        const edge0 = Plane.edges(pset[0])[0];
-        const reflen = edge0.p0.distanceTo(edge0.p1);
-        const blen = reflen * RIBS / me.ribsBetweenEdges * me.tadVirusLengthFactor;
-        backboneSprings(role, blen, str, undefined);
-        groupSprings(role, me.tadPerPlane, 0, str + 100, 2); // join groups of tadpoles
-        // const headUsed = 3; // assume 3 parts of tadpole used for edges, rest are tail
-        const rp = role.roleprops;
-        // note 4 below is for 4 values per rp entry (rad, ?, torad, ?)
-        // narrow tails not part of topology
-        for (let i = 0; i < pset.length; i++) {
-            const st = i * RIBS * me.tadPerPlane; // id for start
-            const headUsed = pset[i].edges.length;
-            const stt = st + headUsed * me.ribsBetweenEdges;
-            const et = (i + 1) * RIBS * me.tadPerPlane; // id for start of next
-            for (let k = stt; k < et; k++) {
-                rp[k * 4] = rp[k * 4 + 2] = 0.01;
+            // force overall shape
+            if (me.tadVirusPushStr) {
+                pset.forEach((p1, i1) => {
+                    pset.forEach((p2, i2) => {
+                        if (i1 > i2) {
+                            const dd = distxyz(p1.point, p2.point);
+                            if (dd > me.tadVirusPushDist)
+                                addspring(role.id4Edge(i1, 0), role.id4Edge(i2, 0), dd, me.tadVirusPushStr, me.tadVirusPushPow, role, prio);
+                        }
+                    });
+                });
             }
+            // n.b. backbone uses length for entire tadpole, reflen is just for ribsBetweenEdges segments
+            const edge0 = Plane.edges(pset[0])[0];
+            const reflen = edge0.p0.distanceTo(edge0.p1);
+            const blen = reflen * RIBS / role.ribsBetweenEdges * me.tadVirusLengthFactor;
+            backboneSprings(role, blen, str, undefined);
+            groupSprings(role, role.tadPerPlane, 0, str + 100, 2); // join groups of tadpoles
+            // const headUsed = 3; // assume 3 parts of tadpole used for edges, rest are tail
+            const rp = role.roleprops;
+            // note 4 below is for 4 values per rp entry (rad, ?, torad, ?)
+            // narrow tails not part of topology
+            for (let i = 0; i < pset.length; i++) {
+                const st = i * RIBS * role.tadPerPlane; // id for start
+                const headUsed = pset[i].edges.length;
+                const stt = st + headUsed * role.ribsBetweenEdges;
+                const et = (i + 1) * RIBS * role.tadPerPlane; // id for start of next
+                for (let k = stt; k < et; k++) {
+                    rp[k * 4] = rp[k * 4 + 2] = 0.01;
+                }
+            }
+            // kill/hide unused tadpoles
+            for (let i = pset.length * RIBS * role.tadPerPlane * 4; i < rp.length; i += 4) {
+                rp[i] = rp[i + 2] = 0;
+            }
+            return role;
         }
-        // kill/hide unused tadpoles
-        for (let i = pset.length * RIBS * me.tadPerPlane * 4; i < rp.length; i += 4) {
-            rp[i] = rp[i + 2] = 0;
+        // lay out using virus plane definition, attract to points
+        function tadVirusPoints() {
+            const rp = role.roleprops;
+            pset.forEach((p, i) => p.id = i); // so planes are easily identified
+            pset.forEach((ps, psi) => {
+                const points = ps.poly.points;
+                const sk = role.id4Edge(psi, 0); // start of tadpole group
+                const ek = role.id4Edge(psi + 1, 0); // end of tadpole group
+                let euk; // end of part used form 'main' swipe
+                for (let pi = 0; pi <= points.length; pi++) { // nb wraps in circle back to 0
+                    const p = points[pi % points.length];
+                    const { x, y, z } = p;
+                    const skk = euk = sk + ribsBetweenEdges * pi;
+                    role.springs.push({ at: toTid(skk), bt: toTid(0), type: 'pullspring', x, y, z, len, str: str * (pi % RIBS ? 0.99 : 1), pow, prio: prioR('skel') });
+                }
+                ;
+                // edge rads
+                for (let ck = sk; ck < euk; ck++) {
+                    rp[ck * 4] = rp[ck * 4 + 2] *= me.tadEdgeRad;
+                }
+                // now give ice-cream cone spike
+                let q = ribsBetweenEdges * points.length; // one cycle
+                const dq = (q - me.tadxMinq) / (ek - euk);
+                for (let ck = euk; ck < ek; ck++) {
+                    const r = (ek - ck) / (ek - euk); // ratio, diminishing to 0 just after end
+                    const str = me.tadxSpringStr * (r ** 3 + (1 - r ** 3) * me.tadxSpringEndStr);
+                    if (me.doAddSpring)
+                        addspring(toTid(ck), toTid(ck - Math.ceil(q)), me.tadxSpringLen, str, pow, role, prio);
+                    q -= dq;
+                    const rm = (ck === ek - 1) ? me.tadSpikeEndRad : (r * me.tadEdgeRad + (1 - r) * me.tadSpikeRad);
+                    rp[ck * 4] = rp[ck * 4 + 2] *= rm; // spike rad
+                }
+                const { x, y, z } = ps.poly.points.reduce((a, b) => a.add(b), VEC3()).multiplyScalar(me.tadSpike / points.length); // spike end
+                // colours
+                for (let ck = sk; ck < ek; ck++) {
+                    rp[ck * 4 + 1] = psi;
+                }
+                // const {x,y,z} = (ps.point as THREE.Vector3).clone().multiplyScalar(me.tadSpike);
+                role.springs.push({ at: toTid(ek - 1), bt: toTid(0), type: 'pullspring', x, y, z, len, str, pow, prio: prioR('skel') });
+            });
+            // n.b. backbone uses length for entire tadpole, reflen is just for ribsBetweenEdges segments
+            const reflen = pset[0].poly.points[0].distanceTo(pset[0].poly.points[1]);
+            const blen = reflen * RIBS / role.ribsBetweenEdges * me.tadVirusLengthFactor;
+            backboneSprings(role, blen, str, undefined);
+            groupSprings(role, role.tadPerPlane, 0, str + 100, 2); // join groups of tadpoles
+            // kill/hide unused tadpoles
+            for (let i = pset.length * RIBS * role.tadPerPlane * 4; i < rp.length; i += 4) {
+                rp[i] = rp[i + 2] = 0;
+            }
+            return role;
         }
-        return role;
     };
+    me.tadSpike = 1.5; // spike height compared to main surfcae
+    me.doAddSpring = true; // use the extra spike
+    me.tadxSpringLen = 0.001; // length of the tad segments in the spike (??? should reduce)
+    me.tadxSpringStr = 0.0001; // strength of spike springs at start
+    me.tadxSpringEndStr = 3; // boost to strength of spike springs by end
+    me.tadxMinq = 3; // min q for helix twist along spike
+    me.tadEdgeRad = 1.5; // radius for main edge
+    me.tadSpikeRad = 0.7; // radius for end of spike (narrows over spike)
+    me.tadSpikeEndRad = 2; // radius for very end of spike
+    // me.tadEdgeRad = 1.5; me.tadSpikeRad = 0.8; me.tadxMinq = 3; me.tadxSpringLen = 0.01 * 0.1;     me.tadxSpringStr =  0.0001;  me.tadSpike = 1.4; me.newThing(me.tadVirus(4, {tadPerPlane: 0, ribsBetweenEdges: 3})); me.allOrdered();
     me.useVirusPoints = true;
-    // lay out using virus plane definition, attract to points
-    me.tadVirusPoints = function (def = [{ a: 0.257, b: 0, size: 1, col: 1 }], opts = {}) {
-        let { str, tadPerPlane, ribsBetweenEdges, virusSegDist } = Object.assign({ str: 1, tadPerPlane: 1, ribsBetweenEdges: 1, virusSegDist: 0.01 }, opts);
-        [me.tadPerPlane, me.ribsBetweenEdges, me.virusSegDist] = [tadPerPlane, ribsBetweenEdges, virusSegDist];
-        let len = virusSegDist, pow = 0, prio = 1;
-        let role = makeRole(`tadVirusPoints`, me.defaultStrength);
-        Plane.findPoint.thresh = 0.01;
-        const pset = role.pset = Plane.planesetSymset(def);
-        Plane.processSet(pset);
-        pset.forEach((p, i) => p.id = i); // so planes are easily identified
-        pset.forEach((ps, psi) => {
-            const points = ps.poly.points;
-            const sk = id4Edge(psi, 0);
-            for (let pi = 0; pi <= points.length; pi++) { // nb wraps in circle back to 0
-                const p = points[pi % points.length];
-                const { x, y, z } = p;
-                const skk = sk + ribsBetweenEdges * pi;
-                role.springs.push({ at: toTid(skk), bt: toTid(0), type: 'pullspring', x, y, z, len, str: str * (pi % RIBS ? 0.99 : 1), pow, prio: prioR('skel') });
-            }
-            ;
-        });
-        // n.b. backbone uses length for entire tadpole, reflen is just for ribsBetweenEdges segments
-        const reflen = pset[0].poly.points[0].distanceTo(pset[0].poly.points[1]);
-        const blen = reflen * RIBS / me.ribsBetweenEdges * me.tadVirusLengthFactor;
-        backboneSprings(role, blen, str, undefined);
-        groupSprings(role, me.tadPerPlane, 0, str + 100, 2); // join groups of tadpoles
-        // const headUsed = 3; // assume 3 parts of tadpole used for edges, rest are tail
-        const rp = role.roleprops;
-        // note 4 below is for 4 values per rp entry (rad, ?, torad, ?)
-        // narrow tails not part of topology
-        for (let i = 0; i < pset.length; i++) {
-            const st = i * RIBS * me.tadPerPlane; // id for start
-            const headUsed = pset[i].poly.points.length;
-            const stt = st + headUsed * me.ribsBetweenEdges;
-            const et = (i + 1) * RIBS * me.tadPerPlane; // id for start of next
-            for (let k = stt; k < et; k++) {
-                rp[k * 4] = rp[k * 4 + 2] = 0.01;
-            }
-        }
-        // kill/hide unused tadpoles
-        for (let i = pset.length * RIBS * me.tadPerPlane * 4; i < rp.length; i += 4) {
-            rp[i] = rp[i + 2] = 0;
-        }
-        return role;
+    me.virusDefsX = {
+        ///contacts: [{filename: 'triva.contacts', shortname: 'IF'}],
+        colorScheme: [['A', 0x3030ff], ['B', 'green'], ['C', 'red']],
+        //baseRadius: 0.5, multiplierRadius: 2, ssNarrowRad: 0.4, ssBroadRad: 2, ssSheetBroadRad: 2, ssArrowSize: 2,
+        extraPDB: [
+            {
+                filename: '1sva.pdb', shortname: 'SV40', comment: 'Emergent Human Pathogen Simian Virus\nalso called HSV',
+                tiling: [
+                    { a: 0.45451063262124236, b: -0.1735073261813263, size: 1 },
+                    { a: 0, b: 0, size: 1 },
+                    { a: 0.07608244680159279, b: -0.6415763702842711, size: 1 }
+                ],
+                scale: 0.5,
+                orient: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+            },
+            {
+                filename: '6cgr.pdb', shortname: 'HSV1',
+                style: searchValues.hsvstyle || 'smooth',
+                colorBy: 'chain', colDistNear: 490, colDistFar: 611,
+                comment: 'Herpes Simplex Virus\nlike Basilisk, fig 3b',
+                tiling: //  !searchValues.hsvab ? 'GeodesicIcosahedron25.polys' :      // pre Aug 19
+                [
+                    { a: 1, b: 0, size: 0.9960515674918517 },
+                    { a: 0.5043645634880239, b: 0, size: 0.9920374665156196 },
+                    { a: 0.2657419602284653, b: -0.733306819738863, size: 0.990790533995604 },
+                    { a: 0, b: 0, size: 0.990760686442865 },
+                    { a: 0.7821769488688209, b: -0.21782305113117853, size: 0.9992576073766486 },
+                    { a: 0.5272617433956593, b: 0.47273825529490177, size: 0.999068905073811 },
+                    { a: 0.2566082373396572, b: -0.23737687807156496, size: 0.9989979459735572 },
+                    { a: 0.25660824082065414, b: 0.2373768742057317, size: 0.998997947071859 },
+                    { a: 0, b: 0.4814983189272394, size: 0.998960463933496 },
+                    { a: 0, b: -0.9999999981691525, size: 0.9989479045079642 } // tri 5
+                ],
+                colorScheme: [
+                    ['4,A,B,C,D,E,F', 0xffff00],
+                    ['M,N,O,S,T,U,V,W,X', 0xff6000],
+                    ['0,1,2,3,G,H,I,J,K,L,P,Q,R,Y,Z', 'green'],
+                    ['5,8,b,e,h', 'red'],
+                    ['6,7,9,a,c,d,f,g,i,j', 0x3030ff],
+                    ['k,l,m,n,o', 'black']
+                ],
+                excludeChains: searchValues.hsvExclude ? 'KLMNOklmno' : 'klmno',
+                scale: 0.18,
+                orient: [-0.588, 0.688, -0.425, 0, -0.809, -0.500, 0.309, 0, 0, 0.526, 0.851, 0, 0, 0, 0, 1],
+                XmeshOrient: [-80.7, -49.6, -31.0, 0, 30.3, -80.7, 50.1, 0, -50.1, 31.4, 80.7, 0, 0, 0, 0, 1],
+                Xorient: [0.348, 0.811, 0.280, 0, -0.597, 0.012, 0.708, 0, 0.616, -0.447, 0.527, 0, 0, 0, 0, 1]
+            },
+            // { // 3
+            //     filename: '1f8v.pdb', shortname: 'PAV\naffine extension',
+            //     // has biomt
+            //     comment: 'Pariacoto',
+            //     spheres: 'pariacoto_full_export_563_*.pdb',
+            //     tiling: {a:0.257, b:0, size: 1}, // a=4, b=0, 5/6 triangles
+            //     style: 'cartoon', colorBy: 'chain', // opacity: 0.2, transparent: true,
+            //     scale: 0.75,
+            //     orient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 115.8, 16.5, -66.7, 1],
+            //     spheresOrient: [0.310, 0.812, -0.502, 0, -0.503, -0.309, -0.810, 0, -0.811, 0.500, 0.307, 0, 0, 0, 0, 1]
+            // },  // PAV affine
+            {
+                filename: '1f8v.pdb', shortname: 'PAV',
+                // has biomt
+                comment: 'Pariacoto fig 4a',
+                tiling: { a: 0.257, b: 0, size: 1 },
+                scale: 0.75,
+                orient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 115.8, 16.5, -66.7, 1]
+            },
+            {
+                filename: '2ms2.pdb', shortname: 'MS2',
+                // has biomt
+                comment: 'Bacteriophage MS2, fig 4b',
+                tiling: [{ x: 0, y: 0, z: 1, size: 1 }, { x: 0.9, y: 0, z: 1, size: 1 }],
+                scale: 0.9,
+                Xorient: [0.809017, 0.500000, 0.309017, 0, -0.30902, 0.809017, -0.50000, 0, -0.50000, 0.309017, 0.809017, 0, 0, 0, 0, 1],
+                orient: [0.500, -0.309, 0.809, 0, 0.809, 0.500, -0.309, 0, -0.309, 0.809, 0.500, 0, 0, 0, 0, 1]
+            },
+            {
+                filename: '1a6cX.pdb', shortname: 'TRSV',
+                // has biomt
+                comment: 'Tobacco Ringspot Virus\nfig 4c',
+                tiling: { a: 0.3758987414465172, b: 0.617193999288073, size: 1 },
+                scale: 0.8,
+                colorBy: 'chaingroup',
+                baseRadius: 0.5, multiplierRadius: 2, ssNarrowRad: 0.4, ssBroadRad: 2, ssSheetBroadRad: 2, ssArrowSize: 2,
+                orient: [-0.500, -0.309, -0.809, 0, -0.309, -0.809, 0.500, 0, -0.809, 0.500, 0.309, 0, 0, 0, 0, 1]
+            } // TRSV
+        ]
     };
-    me.vir1 = function (opts = {}) {
-        return me.tadVirus(undefined, opts);
-    };
-    me.vir2 = function (opts = {}) {
-        const pl = [
-            { a: 0.45451063262124236, b: -0.1735073261813263, size: 1 },
-            { a: 0, b: 0, size: 1 },
-            { a: 0.07608244680159279, b: -0.6415763702842711, size: 1 }
-        ];
-        opts.planes = pl;
-        return me.tadVirus(pl, opts);
-    };
-    me.vir3 = function (opts = {}) {
-        const pl = [
-            { a: 1, b: 0, size: 99.60515674918517 },
-            { a: 0.5043645634880239, b: 0, size: 99.20374665156196 },
-            { a: 0.2657419602284653, b: -0.733306819738863, size: 99.0790533995604 },
-            { a: 0, b: 0, size: 99.0760686442865 },
-            { a: 0.7821769488688209, b: -0.21782305113117853, size: 99.92576073766486 },
-            { a: 0.5272617433956593, b: 0.47273825529490177, size: 99.9068905073811 },
-            { a: 0.2566082373396572, b: -0.23737687807156496, size: 99.89979459735572 },
-            { a: 0.25660824082065414, b: 0.2373768742057317, size: 99.8997947071859 },
-            { a: 0, b: 0.4814983189272394, size: 99.8960463933496 },
-            { a: 0, b: -0.9999999981691525, size: 99.89479045079642 } // tri 5
-        ];
-        pl.forEach(p => p.size /= 100);
-        opts.planes = pl;
-        return me.tadVirus(pl, opts);
-    };
+    me.virusDefs = me.virusDefsX.extraPDB;
+    /** set up for testing virus code, not for use in full system */
     me.testVirus = function (opts = {}) {
         // T.forEach(t => t.map.raw = []); // clear out other tadpole claims
         me.ts = me.tadVirus(opts.planes, opts);
@@ -1255,35 +1393,36 @@ function TadpoleSystem() {
         G.springCentreDamp = 1;
         onframe(() => me.TESTapplyProps(), 3);
         // get started in more or less sensible symmetry
-        me.virpos1();
+        me.virpos();
         WA.me = me;
     };
-    // set initial positions just from centre of faces
-    me.virpos2 = function () {
-        const pset = WA.pset = me.ts.pset;
+    // set initial positions just from centre of faces ... does not allow for role.map
+    me.virposLineSpike = function (role = me.T[0].role) {
+        const pset = role.pset;
+        WA.pset = pset;
         for (let i = 0; i < pset.length; i++)
-            for (let z = 0; z < RIBS * me.tadPerPlane; z++)
-                springs.setfix(id4Edge(i, 0) + z, pset[i].point.clone().multiplyScalar(1 + (z - 4) / 20));
+            for (let z = 0; z < RIBS * role.tadPerPlane; z++)
+                springs.setfix(role.id4Edge(i, 0) + z, pset[i].point.clone().multiplyScalar(1 + (z - 4) / 20));
         springs.finishFix();
     };
     // set initial positions from joining edges
-    me.virpos1 = function () {
+    me.virpos = function (role = me.T[0].role) {
+        const pset = role.pset;
         if (me.useVirusPoints)
-            return me.virpos1Points();
-        me.virpos2(); // this will set the tails fairly sensibly
-        const pset = WA.pset = me.ts.pset;
+            return me.virposPoints(role);
+        me.virposLineSpike(role); // this will set the tails fairly sensibly
         const v = VEC3();
         for (let i = 0; i < pset.length; i++) {
             const edges = pset[i].edges;
             const lv = VEC3();
-            const be = id4Edge(i, 0); // base position
+            const be = role.id4Edge(i, 0); // base position
             for (let ei = 0; ei <= edges.length; ei++) {
-                const se = be + ei * me.ribsBetweenEdges; // spring id# for start of segment
+                const se = be + ei * role.ribsBetweenEdges; // spring id# for start of segment
                 const sv = edges[ei % edges.length].pc; // position for start of segment
-                // const ee = id4Edge(i, (ei+1));
+                // const ee = role.id4Edge(i, (ei+1));
                 const ev = edges[(ei + 1) % edges.length].pc; // position for end of segment
-                for (let ii = 0; ii < me.ribsBetweenEdges; ii++) { // for each popint along segment
-                    lv.copy(sv).lerp(ev, ii / me.ribsBetweenEdges); // interpolate position
+                for (let ii = 0; ii < role.ribsBetweenEdges; ii++) { // for each popint along segment
+                    lv.copy(sv).lerp(ev, ii / role.ribsBetweenEdges); // interpolate position
                     springs.setfix(se + ii, lv); // and set spring
                 }
             }
@@ -1291,21 +1430,21 @@ function TadpoleSystem() {
         springs.finishFix();
     };
     // set initial positions from joining edges
-    me.virpos1Points = function () {
-        me.virpos2(); // this will set the tails fairly sensibly
-        const pset = WA.pset = me.ts.pset;
+    me.virposPoints = function (role = me.T[0].role) {
+        const pset = role.pset;
+        me.virposLineSpike(role); // this will set the tails fairly sensibly
         const v = VEC3();
         for (let i = 0; i < pset.length; i++) {
             const points = pset[i].poly.points;
             const lv = VEC3();
-            const be = id4Edge(i, 0); // base position
+            const be = role.id4Edge(i, 0); // base position
             for (let ei = 0; ei <= points.length; ei++) {
-                const se = be + ei * me.ribsBetweenEdges; // spring id# for start of segment
+                const se = be + ei * role.ribsBetweenEdges; // spring id# for start of segment
                 const sv = points[ei % points.length]; // position for start of segment
-                // const ee = id4Edge(i, (ei+1));
+                // const ee = role.id4Edge(i, (ei+1));
                 const ev = points[(ei + 1) % points.length]; // position for end of segment
-                for (let ii = 0; ii < me.ribsBetweenEdges; ii++) { // for each popint along segment
-                    lv.copy(sv).lerp(ev, ii / me.ribsBetweenEdges); // interpolate position
+                for (let ii = 0; ii < role.ribsBetweenEdges; ii++) { // for each popint along segment
+                    lv.copy(sv).lerp(ev, ii / role.ribsBetweenEdges); // interpolate position
                     springs.setfix(se + ii, lv); // and set spring
                 }
             }
@@ -1561,7 +1700,7 @@ function TadpoleSystem() {
     };
     var nextFlowTime;
     /** called every frame to allow transfer of tads between active things */
-    me.flowBlock = function tadFlowBlock() {
+    me.flowBlock = function tadFlowBlock(all = false) {
         let done = 0; // number transferred
         if (T.length === 0) {
             const srole = ofirst(me.TR);
@@ -1577,11 +1716,9 @@ function TadpoleSystem() {
         let tt = T.length - 1; // index for target object
         // for (let i = 0; i < n; i++) {
         if (tt !== 0)
-            while (frametime > nextFlowTime) {
+            while (frametime > nextFlowTime || all) {
                 nextFlowTime += 1000 / me.flowRate;
                 // if (T[tt].map.length >= T[tt]..max)
-                T[tt].map.push(T[0].map.pop()); // transfer from source to target
-                done++;
                 if (T[0].map.length === 0) {
                     const i = things.indexOf(T[0]);
                     if (i === -1)
@@ -1589,6 +1726,10 @@ function TadpoleSystem() {
                     things.splice(i, 1);
                     events.trigger('deadThing', T.splice(0, 1)[0]); // if source empty kill it off
                 }
+                else {
+                    T[tt].map.push(T[0].map.pop()); // transfer from source to target
+                }
+                done++;
                 if (T.length === 1) {
                     events.trigger('lastThing', T[0]); // signal that transfers are over
                     break; // only one object left, can't do any more tranfers
@@ -2081,6 +2222,19 @@ onframe(function tranrule_tadpoleSystem_randcols() {tad.randcols()}, 15);
     //    msgfix('KILL', 'KILL');
     //    //killdown();
     //});
+    me.saves = {};
+    /** save enough to recreate main grphics, NOT fully to restore state for now */
+    me.save = function (name) {
+        const position = springs.getpos();
+        const tadprop = me.tadprop.slice(0);
+        const r = { position, tadprop };
+        me.save[name || '$last'] = r;
+        return r;
+    };
+    me.restore = function (pv = '$last') {
+        let v = (typeof pv === 'string') ? me.save[pv] : pv;
+        springs.setpos(v.position);
+    };
 } // end TadpoleSystem
 //var tadpoleSystem = new TadpoleSystem();
 //would maybe prefer to make a fresh one when we want rather than have one persistent

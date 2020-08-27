@@ -748,18 +748,23 @@ function copyFromN(to, from) {
     }
 }
 
-/** clone object */
+/** clone object, keep class information */
 function clone(obj) {
-    if (obj === undefined) return undefined;
+    if (typeof obj !== 'object') return obj;
     if (obj === null) return null;
-    var s;
-    try {
-        s = JSON.stringify(obj);
-        return JSON.parse(s);
-    } catch (e) {
-        console.error("Clone error for " + obj + ": " + e);
-        return cloneNoCircle(obj);
-    }
+    const r = dstring(xstring(obj));
+    if ('#k' in r) debugger
+    return r;
+
+    // below lost class information
+    // var s;
+    // try {
+    //     s = JSON.stringify(obj);
+    //     return JSON.parse(s);
+    // } catch (e) {
+    //     console.error("Clone error for " + obj + ": " + e);
+    //     return cloneNoCircle(obj);
+    // }
 }
 
 /** map the classes that might be needed by xstring.
@@ -1009,12 +1014,12 @@ function getConstructor(classname) {
     return cl;
 }
 
-/** parse JSON with classes and circular/duplicate references
+/** parse JSON/yaml with classes and circular/duplicate references
 Remove pollution as we go.
 There are two distinct cases:
     yaml: the circular/duplicate references are dealt with by yaml
     json: we must handle the circular/duplicate references (#k and #xref fields)
-In either case we must handle the class object details (#cc field)
+In either case we must handle the class object details (##c field)
 */
 function dstring(ostr) {
     // mapOnce();  // no longer needed, we compute contructors using getConstructor()
@@ -1024,6 +1029,7 @@ function dstring(ostr) {
     var reviver = (key, value) => key === 'frameSaver' && !nwfs ? undefined : value; // TODO generalize or ...??? stephen 21/01/2017
     //    var o = JSON.parse(str, reviver);
     let obj;
+    yaml = jsyaml;
     if (yaml)
         obj = yaml.safeLoad(str);
     else
@@ -1033,7 +1039,10 @@ function dstring(ostr) {
     var polluted = [];          // list of polluted objects
     var maxd = 0;               // depth control
     var visited = new Set();    // visited objects, to stop visit recursion
-    refmap(obj, 0);          // pass to recreate ref map
+    //var wrapper = {x:obj};      // refmap does not handle types at top level, so wrap and unwrap
+    //refmap(wrapper, 0);         // pass to recreate ref map
+    //obj = wrapper.x;
+    obj = refmap(obj, 0);        // pass to recreate classes, may be a new object itself
     if (olength(map))
         repmap(obj, 0);      // map in the duplicate references, does not apply to yaml
     // log ('dstring maxd', maxd);
@@ -1084,7 +1093,7 @@ function dstring(ostr) {
                     o[i] = undefined;
                 else {
                     let soi = o[i];         // remember old for debug
-                    // o[i] will change when a #cc Class object is replaced by a new Class object
+                    // o[i] will change when a ##c Class object is replaced by a new Class object
                     o[i] = refmap(o[i], map, d + 1);
                     // o = o;  // debug
                 }
@@ -1099,53 +1108,19 @@ function dstring(ostr) {
                 if (!con2) con2 = xconstructors[classname] = getConstructor(classname);
                 if (!con2) serious('no constructor found for class', classname);
                 const newo = new con2();       // we have found the class, make a new objects
-                /*****~~~~~~~~~~~~~~ use constructor instead, no longer needed **** /
-                // dead __proto__ code to remove Sept 2017 >>> TODO
-                // iterate ##c value to find the class, eg Dispobj or THREE.Vector2
-                let cl=window;
-                const kk = classname.split('.');
-                for (let ki=0; ki<kk.length; ki++) cl = cl[kk[ki]];
-                if (!cl) {
-                    cl=eval(classname);  // catch class such as class Dispobj, does not exist as window.Dispobj
-                }
-                if (!cl) serious('Cannot resolve class for', classname)
-                if (cl !== cl2)
-                    log('differing opinion on object constructor', cl.name, cl2.name);
-                /** ~~~~~~~~~~~~~ **************/
                 for (let k in o)            // and copy over all the non-pollution fields
-                    if (k !== '#cc' && k !== 'k#') newo[k] = o[k];
+                    if (k !== '##c' && k !== '#k') newo[k] = o[k];
                 o['#replaced'] = newo;      // remember o is un-classed, for yaml revisits
                 o = newo;
-                /*********************** dead __proto__ code to remove Sept 2017 >>> TODO
-                var proto = xclasses[o['##c']];
-                if (!proto && (nwfs || !(o['##c'].startsWith('nwfs.')))) {  // repair proto if possible
-                    // below allows for compound names such as THREE.Matrix2
-                    try {
-                        proto = (Function("return window." + o['##c']))().prototype;
-                        xclasses[o['##c']] = proto;
-                        proto[CLASSNAME] = o['##c'];
-                    } catch (e) {
-                        console.error('cannot use class for ', o['##c'], ' during dstring, may cause downstream errors');
-                        // can fail if class unknown, eg accidentally saved an nwfs class
-                        // which cannot be reconstructed in a non-node environment
-                        // Just hope that the class does not matter!
-                    }
-                }
-                if (proto) {
-                    o.__proto__ = proto;
-                    delete o['##c'];
-                } else {
-                    console.log("Unexpected class #c " + o['##c']);
-                }
-                ***************/
-            }
+            } // classname
             // call Init if there
             if (typeof o.Init === "function")
                 o.Init();
         }
-        if (o['#k'])
+        if ('#k' in o) {
             map[o['#k']] = o;       // remember the object for its key, it will be the class object if appropriate
-
+            delete o['#k'];
+        }
         return o;
     }
 
@@ -1453,6 +1428,10 @@ function posturi(puri, data, allowmissing = false) {
 }
 posturi.cacheTime = 1000;
 posturi.cacheFrame = 60;
+
+function clearServerLog() {
+    return posturi('/clear/');
+}
 
 function makeLogError() {
     var mmsg = showvals.apply(undefined, arguments);
@@ -2468,7 +2447,7 @@ function getFileName(fid) {
 
 /** throw an exception generated from a string or ... */
 function throwe(m) {
-    console.log(">> throwe error: " + m);
+    // console.log(">> throwe error: " + m);
     //debugger;
     sclogE(m);
     throw new Error(m);
@@ -4003,6 +3982,7 @@ function inittimed() {
 /** initial start on windows load, if nwwin availble check size, and in any case call inittimed */
 function init() {
     isFirefox = navigator.userAgent.contains('Firefox');
+    EX.toFront();
     consoleTime('comp init');
     if (nwwin)
         getScreenSize(inittimed);
@@ -4284,7 +4264,8 @@ function mtraverse(node, action) {
 var EX = {};
 /** bring to front just once */
 EX.toFront = function() {
-    runcommandphp(`start /min "toFront" cscript toFront.vbs "${document.title}"`);
+    nircmd(`win activate stitle "${document.title}"`);
+    // runcommandphp(`start /min "toFront" cscript toFront.vbs "${document.title}"`);
 }
 
 /** start a bring to front every interval (5 seconds) */

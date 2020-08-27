@@ -10,6 +10,7 @@ declare type TSprings = {
     setfix: ((n:number, x:number, y:number, z:number) => void) & ((n: number, vec:{x:number, y:number, z:number} ) => void),
     addpull: (ai:N, x:N,y:N,z:N,force?:N) => void,
     removepull: (ai:N) => void,
+    pullsToFix: ()=>{},
     finishFix: VOID;
     settleHistory: VOID,
     setslot: (na: number, nb: number, len?: number, str?: number, pow? : number, type?: number) => boolean,
@@ -19,6 +20,8 @@ declare type TSprings = {
     clearall: VOID,
     getHISTLEN: () => number,
     setHISTLEN: (number) => void,
+    getpos: () => THREE.Vector3[],
+    setpos: (p: THREE.Vector3[]) => void,
     removefix,
     posNewvals,
     material,
@@ -41,7 +44,7 @@ declare let clamp, fininshExperiences, tad, S;
 
 
 declare let
-    tadpoleSystem, guiFromGene, Gldebug, glsl,
+    tadpoleSystem, guiFromGene, Gldebug, glsl, EX,
     ofirst, distxyz, distarr3, nircmd: (str: string)=>void, // fullscreen,
     // unused, lastrc,
     saveundo: VOID, randi:(l?:N, h?:N)=>N, throwe:(e:string)=>void, removeElement:<T>(arr:T[],ele:T)=>void,

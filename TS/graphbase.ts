@@ -841,7 +841,7 @@ function init1() {
                 clearInterval(graphbase.interval);  // unset bring to front for debug
                 $('*').css({cursor: ''});           // unset cursor off
             } else {
-                nircmd(`win hideshow stitle "${document.title}"`);
+                EX.toFront();
             }
         }, 5000);
         $('*').css({cursor: 'none'});               // start with cursor off for exhibition
@@ -933,6 +933,7 @@ function init1() {
 	// logarithmicDepthBuffer improves rendering, eg of sheets, but can break text in dat.guivr
     // if (searchValues.nohorn) rca.logarithmicDepthBuffer = true;
 
+    isWebGL2 = false;
     if (searchValues.tryWebGL2) {
         canvas = document.createElement('canvas');
 
@@ -1430,8 +1431,8 @@ function correctSlots() {
 function makevr2() {
     if (!islocalhost) return;
     renderVR.xrfs.lastrequest = true;
-    nircmd(`win hideshow stitle "${document.title}"`);
-    // nircmd(`win activate stitle "${document.title}"`);  // also stops it being maximized
+    EX.toFront();
+    // EX.toFront();  // also stops it being maximized
     nircmd(`sendkey f2 press`);
     log('xrfs f2 sent by makevr2');
 }
@@ -6378,13 +6379,13 @@ renderVR.xrfs = async function xrenderVRfs(bool = true) {
     // repeat the click loop
     if (!searchValues.devMode && bool && !renderVR.xrfsdone) {
         // make sure in front and fullscreen before we start poking
-        nircmd(`win hideshow stitle "${document.title}"`);
+        EX.toFront();
         // await document.body.requestFullscreen();        // this level should have come from (simulated?) keystroke
 
         await sleep(500);
         for (let i = 0; i < 1; i++) {              // several may be needed if openVR wasn't ready
             if (renderer.vr.getSession()) break;
-            tryclick();
+            // tryclick(); // obsolete with Chrome 86
             if (renderer.vr.getSession()) break;
             log('xrfs clicks before sleep', i, callnum);
             await sleep(2000);
@@ -6399,26 +6400,27 @@ renderVR.xrfs = async function xrenderVRfs(bool = true) {
         log('xrfs leave renderVR.xrfs in XR OK', callnum);
     renderVR.xrfs.state = 'unguarded';
 
-    // click loop to click irritating security button
-    function tryclick() {
-        if (!islocalhost) return;
-        // runcommandphp('..\\nircmd\\nircmd.exe setcursor 905 220');
-        //
-        // this loop should hit it as long as Chrome is fullscreen on window
-        // whether the address bar etc is displayed or Organic is fullscreen in chrome
-        // bottom and work up so we don't
-        nircmd(`win hideshow stitle "${document.title}"`);
-        for (let i=25; i > 10; i -= 2) {
-            nircmd(`setcursorwin ${(width*0.5+100)*devicePixelRatio} ${height*i/100*devicePixelRatio}`);
-            nircmd(`sendmouse left click`)
-            if (renderer.vr.getSession()) break;
-        }
-        // final click in middle
-        nircmd(`setcursorwin ${width/2} ${height/2}`);
-        nircmd(`sendmouse left click`)
-        //  not sure why it is sometimes hidden but this should bring it back
-        setTimeout( () => nircmd(`win hideshow stitle "${document.title}"`), 500);
-    }
+    // // tryclick no longer needed as Chrome 86 has more sensible security arrangement.
+    // // click loop to click irritating security button
+    // function tryclick() {
+    //     if (!islocalhost) return;
+    //     // runcommandphp('..\\nircmd\\nircmd.exe setcursor 905 220');
+    //     //
+    //     // this loop should hit it as long as Chrome is fullscreen on window
+    //     // whether the address bar etc is displayed or Organic is fullscreen in chrome
+    //     // bottom and work up so we don't
+    //     EX.toFront();
+    //     for (let i=25; i > 10; i -= 2) {
+    //         nircmd(`setcursorwin ${(width*0.5+100)*devicePixelRatio} ${height*i/100*devicePixelRatio}`);
+    //         nircmd(`sendmouse left click`)
+    //         if (renderer.vr.getSession()) break;
+    //     }
+    //     // final click in middle
+    //     nircmd(`setcursorwin ${width/2} ${height/2}`);
+    //     nircmd(`sendmouse left click`)
+    //     //  not sure why it is sometimes hidden but this should bring it back
+    //     setTimeout( () => EX.toFront(), 500);
+    // }
 }   // renderVR.xrfs
 renderVR.xrfs.restarts = 0;
 renderVR.xrfs.lastRestartTime = 0;

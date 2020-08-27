@@ -234,7 +234,7 @@ function addgene(gn, def, min, max, delta, step, help, tag, free, internal, useu
     geneSpeedSave[gn] = geneSpeed[gn] = (2 + Math.random()) * (max - min) * 0.001;
     addGeneToExtraObjects(gn);
     if (useuniform !== false)
-        if (tag === 'texture') { }
+        if (tag === 'texture' || tag === 'wallcol') { }
         else
             adduniform(gn, def, 'f', tag);
     if (addGui)

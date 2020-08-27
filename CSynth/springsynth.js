@@ -984,10 +984,13 @@ var SS = new Proxy({}, {
         },
     set : (ig, name, v) => {
         const o = CSynth.settingsObject(name);
-        if (o)
+        if (o) {
             o[name] = v;
-        else
+            return true;
+        } else {
             log(`No object ${name} for S`);
+            return false;
+        }
     },
 
     ownKeys : (o) => {

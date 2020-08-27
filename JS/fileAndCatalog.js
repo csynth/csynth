@@ -880,7 +880,7 @@ function yamlString(genes = currentGenes, extras) {
             if (obj.genes && obj.genes.tranrule === '->')
                 obj.genes.tranrule = trsave;
         }
-        for (let object in polluted) delete object['#cc']
+        for (let object in polluted) delete object['##c']
     }
     return s;
 }
@@ -1120,32 +1120,12 @@ var webGalByNum;  // same as allGal, but array sorted by name or date
 function readWebGalX() {
     if (oxcsynth) return {csynth1: {  name: "csynth1",  date: "2018-01-19T10:41:29.000Z" }};
     const res  = {};
-    if (nwfs) {
-        const files = nwfs.readdirSync("gallery");
-        for (let f=0; f<files.length; f++) {
-            const ff = files[f].split("\t");
-            const fid = ff[0];
-            if (fid.endsWith(".oao")) {
-                const name = fid.replace('.oao','');
-                const date = nwfs.statSync("gallery/" + fid).mtime;
-                res[name] = {name: name, date: date };
-            }
-        }
-    } else {
-        // use robocopy rather than dir because it gives seconds
-        // https://stackoverflow.com/questions/15113245/a-more-accurate-windows-command-prompt-dir-modified-time
-        //XXX TODO::: don't use windows specific commands
-        const files = runcommandphp('cmd /k robocopy gallery . *.oao /L /TS').split('\r\n');
-        for (let f=0; f<files.length; f++) {
-            const ff = files[f];
-            const d = ff.substr(26, 19);
-            if (!d.startsWith("20")) continue;
-            const date = new Date(d);
-            const name = ff.substr(46).pre('.oao');
-            res[name] = {name, date};
-        }
+    const files = readdir('./gallery');
+    for (const fn in  files) {
+        if (!fn.endsWith('.oao')) continue;
+        const ff = fn.replaceall('.oao', '');
+        res[ff] = {name: ff, date: new Date(files[fn].mtime)};
     }
-        // files = posturi("addr.php", "dir=gallery&op=DIR&from=XXX&to=XXX").split("\n");
     return res;
 }
 

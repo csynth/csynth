@@ -708,6 +708,7 @@ Synth.prototype._load = function (args, opts) {
                     sclogE(msg);
                     synth.killed = msg;
                     reject(msg); //why isn't this stopping us adequately?
+                    throwe(msg); // will this stop better??
                 }
             }
             try {

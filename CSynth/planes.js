@@ -593,6 +593,7 @@ Plane.ab2Symset = function(...ab) {
 // make a large set of planes by applying symmetry to each of a small set
 // remember the initial small set
 Plane.planesetSymset = function Plane_planesetSymset(planes, symmat = CSynth.symMatrix) {
+    if (!Array.isArray(planes)) planes = [planes];
     let rr = [];            // result planeset
     let keyPlanes = [];     // key planes actually used, in plane format
     for (let i=0; i<planes.length; i++) {

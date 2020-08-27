@@ -3,7 +3,7 @@ var genedefs, setvalr, currentGenes, uniforms, extradefines, regenHornShader, lo
 runscript, InspectedWin3js, posturi, inputs, resoverride, G, W, V, VH, dotty, usewireframe, copyFrom, nomess, msgtrack, camset,
 camera,camToGenes, renderVR, showview, logload, useGenetransform, cc, CSynth, startvr, fixedgenes, setBackgroundColor, fs,
 writetextremote, Blob, readbinaryasync, currentObjects, refall, pick, lastdocx, lastdocy, width, height, extrakeys, nop,
-slots, mainvp, distxyz;
+slots, mainvp, distxyz, material, EX;
 
 
 /** convenient look at uniforms */
@@ -844,5 +844,50 @@ function hornmeta() {
         V.camscene.onBeforeRender = V.rawscene.children[1].onBeforeRender; // patch for three bug
         G.scaleFactor = 1;
     }
-
 }
+
+EX.materials = [];
+EX.baseTHREERawShaderMaterial = THREE.RawShaderMaterial;
+THREE.RawShaderMaterial = function(...a) {
+    const mat = new EX.baseTHREERawShaderMaterial(...a);
+    EX.materials.push(mat);
+    return mat;
+}
+
+// special console function queryObjects (NOT console.queryObjects) can collect the information very usefully
+// but only from console, and result comes as null with an async listing of result
+// function qqqq() {return queryObjects(EX.baseTHREERawShaderMaterial)};
+
+/** iterate to find used uniforms */
+function usedUniformsO() {
+    const uu = {};
+    for (let mm in material) {
+        const mlist = material[mm];
+        for (let tr in mlist) {
+            const mat = mlist[tr];
+            if (mat.program) Object.assign(uu, mat.program.getUniforms().map);
+        }
+    }
+    return uu;
+}
+
+/** iterate to find used uniforms */
+function usedUniforms() {
+    const uu = {};
+    for (let mat of EX.materials) {
+        if (mat.program) Object.assign(uu, mat.program.getUniforms().map);
+    }
+    return uu;
+}
+
+/** find unused uniforms  */
+function unusedUniforms() {
+    const uu = usedUniforms();
+    const uuu = [];
+    for (let u in uniforms) {
+        if (!uu[u]) uuu.push(u);
+    }
+    return uuu;
+}
+
+

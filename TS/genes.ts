@@ -236,7 +236,7 @@ function addgene(gn:string, def:number, min:number, max:number, delta?, step?:nu
     addGeneToExtraObjects(gn);
 
     if (useuniform !== false)
-        if (tag === 'texture')
+        if (tag === 'texture' || tag === 'wallcol')
             {}
         else
             adduniform(gn, def, 'f', tag);
