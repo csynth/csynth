@@ -4820,3 +4820,7 @@ CSynth.xtooltips = {
     "Extras/dynamics running": "",
     "Extras/annotation spring uniforms GUI": ""
 }
+
+CSynth.shortcuts = {
+    cov: 'covid/Corona-httpkorkinlab.org-wuhan/4. Models of viral-human protein complexes/wS_trimer-ACE2.js'
+}

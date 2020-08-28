@@ -38,7 +38,7 @@ function Marching(isWebGL2) {
 const X = me.X = window.X = {
     rad: 0.1,           // radius of spheres
     radInfluence: 1.5,  // how far infludence spreads
-    sphereScale: 1,     // scale of sphere positions (TODO; something cheap but more complete)
+    spherePosScale: new THREE.Vector4(0,0,0,1),     // scale of sphere positions (TODO; something cheap but more complete)
     sphereYin: false,   // set to true for y based input texture of sphere points
     npart: 1000,        // number of particles
     ntexsize: 1000,     // size of texture holding particles
@@ -59,6 +59,7 @@ const X = me.X = window.X = {
     trackStyle: 'trackColor',           // trackNone, trackColor, trackId1, trackId2, trackMedial
     showTriangles: 0,   // size to show trianlges (? id1 mode only for now) 0 or -ve for none
     doubleSide: false,  // true for double-sided
+    rotateInside: false,// true to rotate rgb for back-facing surface
     isol: 1,            // marching cubes isolation level
     useFun: false,      // true to use function rather than spheres
     funcode: '',        // function code
@@ -67,7 +68,7 @@ const X = me.X = window.X = {
     spatoff: 1,         // offset in test for -ve,+ve regions
     medialThresh: -999, // threshold for medial surface
     medialColMax: 0.3,  // scale for medial colouring, 0 for plain
-    marchtexture: window.marchtexture   // use the marchtexture override code
+    marchtexture: !!window.TextureMaterial   // use the marchtexture override code
 }
 
 var
@@ -150,6 +151,7 @@ function beforeRender(renderer, scene, camera) {
 
     boxMarchUniforms.projectionMatrix.value = camera.projectionMatrix;
     boxMarchUniforms.showTriangles.value = X.showTriangles;
+    boxMarchUniforms.rotateInside.value = +X.rotateInside;
 
     marchmesh.material.wireframe = X.dowire;
     marchmesh.material.side = X.doubleSide ? THREE.DoubleSide : THREE.FrontSide;
@@ -186,11 +188,11 @@ me.testRender = function(renderer, scene, camera) {
     marchmesh.onBeforeRender = beforeRender;
 }
 
-me.updateData = function (datatexture, sphereScale=X.sphereScale) {
+me.updateData = function (datatexture, spherePosScale=X.spherePosScale) {
     if (spatFillUniforms && spatFillUniforms.sphereData) {
         spatFillUniforms.sphereData.value = datatexture;
-        spatFillUniforms.sphereScale.value = sphereScale;
-        // boxMarchUniforms.iSphereScale.value = 1/sphereScale;
+        spatFillUniforms.spherePosScale.value.copy(spherePosScale);
+        boxMarchUniforms.spherePosScale.value.copy(spherePosScale);
     }
 }
 
@@ -229,11 +231,20 @@ float getmu(float isol, float valp1, float valp2) {
 }
 `;
 
-codebits.sphereInput = () => {
-    return (X.sphereYin) ?
-    '(texture2D(sphereData, vec2(0.5, iin)))' :
-    '(texture2D(sphereData, vec2(iin, 0.5)))';
-}
+codebits.sphereInput = () => `
+    uniform vec4 spherePosScale;
+    uniform sampler2D sphereData;
+    vec4 sphereInput(float iin) {
+        #if ${+X.sphereYin}
+            vec4 r = texture2D(sphereData, vec2(0.5, iin));
+        #else
+            vec4 r = texture2D(sphereData, vec2(iin, 0.5));
+        #endif
+        r.xyz -= spherePosScale.xyz;
+        r.xyz *= spherePosScale.w;
+        return r;
+    }
+`;
 
 codebits.vintcore = /*glsl*/`// codebits.vintcore
 uniform float medialThresh, medialColMax;
@@ -449,6 +460,12 @@ out highp vec4 pc_fragColor;
 #define gl_FragColor pc_fragColor
 `;
 
+/* track:
+color: r    g   b   v
+id1:   id   val -99 v
+none:   1   1   1   v
+medial: min va  vb  v
+*/
 codebits.track = () => /*glsl*/`// codbits.track
 
 #ifndef trackStyle
@@ -460,18 +477,18 @@ codebits.track = () => /*glsl*/`// codbits.track
     #define trackStyle ${X.trackStyle}
     #if trackStyle == trackColor
         #define Track vec3
-        vec3 track = vec3(0,0,0);
+        vec3 trackC = vec3(0,0,0);
     #elif trackStyle == trackId1
         #define Track vec2
-        vec2 track = vec2(-1,0);     // id, val
+        vec2 trackI1 = vec2(-1,0);     // id, val
         // #define trackId track.x
-        #define trackV track.y
+        #define trackV trackI1.y
     #else
         #define Track float // unused
-        float track = 0.;
+        float trackF = 0.;
     #endif
 
-    uniform float showTriangles;
+    uniform float showTriangles, rotateInside;
     varying vec3 vmarchCol;         // collect output colour
     varying vec3 norm;              // collect normal
     varying vec3 whichVert;         // used to track where in triangle, help reconstruct whichId and whichF
@@ -515,7 +532,7 @@ codebits.marchTrackCol = () => /*glsl*/`// codebits.marchTrackCol
 
     // trackNone leave to standard three.js material colour
     #endif
-    if (!gl_FrontFacing) inoutcol = inoutcol.brg;
+    if (!gl_FrontFacing && rotateInside != 0.) inoutcol = inoutcol.brg;
     if (showTriangles > 0. && min(whichVert.x, min(whichVert.y, whichVert.z)) < showTriangles) inoutcol = 1. - inoutcol;
     }
 // end codebits.marchTrackCol`
@@ -569,9 +586,10 @@ boxMarchUniforms = {
     color: {value: new THREE.Vector3(1,1,1)},
     ambcol: {value: new THREE.Vector3(0.03,0.03,0.07)},
     isol: {value: X.isol},
-    // iSphereScale: {value: 1},
+    spherePosScale: {value: new THREE.Vector4(0,0,0,1)},
     funRange: {value: X.funRange},
     showTriangles: {value: 0},
+    rotateInside: {value: 0},
     projectionMatrix: {value: undefined},
     modelViewMatrix: {value: new THREE.Matrix4()},          // contents set by three.js
     fillrt: {value: undefined},
@@ -676,6 +694,8 @@ vec4 BAD4 = vec4(999, 999, 999, 1); // doesn't seem to make much difference what
 ${codebits.lookup()}
 ${codebits.getmu()}
 ${codebits.compnorm}
+
+uniform vec4 spherePosScale;
 
 ${codebits.vintcore}
 vec3 up1, up2;     // grid coordinates for ends and step between them, set by VIntG etc for use by VIntReal,
@@ -800,6 +820,8 @@ var marchvertCore = () => /*glsl*/` // marchvertCore, core work of computing pos
     // now we have identified edge ends find transformed position and norm
     VIntReal(transformed) ;
     transformed = transformed/numv * 2. - 1.;                 // -1..1 coords
+    transformed /= spherePosScale.w;                            // return to user coords
+    transformed += spherePosScale.xyz;
 
     vec3 bnorm = normalize(norm);
     #if ${+X.lego}
@@ -834,7 +856,6 @@ precision highp float;
 
 uniform vec3 color;
 uniform vec3 ambcol;
-// uniform float iSphereScale;
 const vec3 light1 = normalize(vec3(1,1,1)) * 0.7;
 const vec3 light2 = normalize(vec3(-1,0,1)) * 0.1;
 const vec3 eye = vec3(0,0,3);
@@ -862,7 +883,6 @@ void main() {               // marchfragmain
             `${marchvertPre}
             void main() {               // marchvertmain trivial shader
                 vec3 transformed;       // transformed is output of marching transformation, to fit in with three.js convenetions
-                // transformed *= iSphereScale;
                 ${marchvertCore()}
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.);
 
@@ -909,7 +929,6 @@ void main() {               // marchfragmain
                 #endif
             `);
 
-            // if (X.marchtexture) shader.fragmentShader = X.marchtexture(shader.fragmentShader, boxMarchUniforms, X); // modifies shader and adds to uniforms
             Object.assign(shader.uniforms, boxMarchUniforms);
 
         }
@@ -1377,8 +1396,7 @@ const vec3 nump =  vec3(${xnum}., ${ynum}., ${znum}.);
 const vec3 numv =  vec3(${xnum-1}., ${ynum-1}., ${znum-1}.);
 
 uniform float rad;
-uniform float sphereScale;
-uniform sampler2D sphereData;
+${codebits.sphereInput()}
 uniform sampler2D spatdata;
 uniform float testfr;
 uniform float medialNeg;
@@ -1414,8 +1432,7 @@ vec2 fillspatiali(float ii, float activeKey, float x, float y, float z) {
         activeKey *= 0.5;
         if (fract(activeKey) >= 0.5) {
             float iin = (i + ii + 0.5) / float(${X.ntexsize});
-            vec4 d = ${codebits.sphereInput()};                 // in user coordinates
-            d.xyz *= sphereScale;                               // to -1..1 coordinates
+            vec4 d = sphereInput(iin);  // in -1..1 coordinates
             float xx = x - d.x;
             float yy = y - d.y;
             float zz = z - d.z;
@@ -1428,10 +1445,10 @@ vec2 fillspatiali(float ii, float activeKey, float x, float y, float z) {
                 t += tme;
             #endif
             #if trackStyle == trackColor
-                track += tme * vec3(getpart(d.w, 256.)/255., getpart(d.w, 256.)/255., getpart(d.w, 256.)/255.);
+                trackC += tme * vec3(getpart(d.w, 256.)/255., getpart(d.w, 256.)/255., getpart(d.w, 256.)/255.);
             #elif trackStyle == trackId1
                 if (tme > trackV) {
-                    track = vec2(i, tme);
+                    trackI1 = vec2(i, tme);
                     // track = vec2(i, max(2. - sqrt(d2/rad2), 0.));
                 }
             #endif
@@ -1472,9 +1489,9 @@ void main() {           // fill fragment shader fillfragmain
 
     vec3 vv = fillspatial(x, y, z);
     #if trackStyle == trackId1
-        gl_FragColor = vec4(track, -999, vv.x);
+        gl_FragColor = vec4(trackI1, -99, vv.x);
     #elif trackStyle == trackColor
-        gl_FragColor = vec4(track/vv.x, vv.x);
+        gl_FragColor = vec4(trackC/vv.x, vv.x);
     #elif trackStyle == trackMedial
         gl_FragColor = vec4(min(vv.y, vv.z), vv.y, vv.z, vv.x);   // min, val1, val2, diff
     #else
@@ -1486,7 +1503,7 @@ void main() {           // fill fragment shader fillfragmain
     const fillUniforms = {
         expradinf: {value: expradinf},
         expradinfnorm: {value: 99},
-        sphereScale: {value: 1},
+        spherePosScale: {value: new THREE.Vector4(0,0,0,1)},
         sphereData: {value: undefined},
         spatdata:  {value: spatdata},
         rad2: {value: 99},
@@ -1653,8 +1670,7 @@ void main() {
 precision highp float;
 const vec3 spatdivs = vec3(${spatdivs.x}., ${spatdivs.y}., ${spatdivs.z}.);
 uniform float span; // span of element (rad*expradinf)
-uniform float sphereScale;
-uniform sampler2D sphereData;
+${codebits.sphereInput()}
 const float npart = ${X.npart}.;
 const float spatn = ${spatn}.;
 
@@ -1669,7 +1685,7 @@ float spatkey(float lowi) {
         float i = ii + lowi;
         // if (i >= npart) break;      // may not be helpful, WRONG if ii working backwards, otherwise just some unused calculation
         float iin = (i+0.5) / float(${X.ntexsize});
-        vec3 d = ${codebits.sphereInput()}.xyz * sphereScale;
+        vec3 d = sphereInput(iin).xyz;
         t *= 2.;
         t += (low.x < d.x && d.x < high.x && low.y < d.y && d.y < high.y && low.z < d.z && d.z < high.z && i < npart) ? 1. : 0.;
     }
@@ -1925,6 +1941,38 @@ me.expose = function(w = window) {
         marchvert, marchfrag, marchgeom, marchmat, marchmesh, marchmatgen, marchinit,
         surfmat, surfmesh, surfinit, legomid, legonorms, codebits
     });
+}
+
+me.usedRange = function(renderer) {
+    const gl = renderer.getContext();
+    renderer.setRenderTarget(boxrt);
+    const buff = new Float32Array(boxrt.width * boxrt.height  * 4);
+    gl.readPixels(0, 0, boxrt.width, boxrt.height, gl.RGBA, gl.FLOAT, buff);
+    let minx = Infinity, miny = Infinity, minz = Infinity;
+    let maxx = -Infinity, maxy = -Infinity, maxz = -Infinity;
+    let i = 3;
+    for (let z = 0; z < X.znum; z++)
+    for (let y = 0; y < X.znum; y++)
+    for (let x = 0; x < X.znum; x++) {
+        if (buff[i] !== -1) {
+            minx = Math.min(minx, x);
+            miny = Math.min(miny, y);
+            minz = Math.min(minz, z);
+            maxx = Math.max(maxx, x);
+            maxy = Math.max(maxy, y);
+            maxz = Math.max(maxz, z);
+        }
+        i += 4;
+    }
+    const xrange = maxx - minx  + 1;
+    const yrange = maxy - miny  + 1;
+    const zrange = maxz - minz  + 1;
+    const trange = xrange * yrange * zrange;
+    const xprop = xrange / X.xnum;
+    const yprop = yrange / X.ynum;
+    const zprop = zrange / X.ynum;
+    const tprop = xprop * yprop * zprop;
+    return {minx, miny, minz, maxx, maxy, maxz, xrange, yrange, zrange, trange, xprop, yprop, zprop, tprop};
 }
 
 

@@ -1,7 +1,7 @@
 'use strict';
 
 var THREE, numInstancesP2, numInstances, renderer, CSynth, uniforms, currentGenes, log, W, V, dat, guiFromGene,
-addgeneperm, copyFrom, CSynthFast, G, glsl, Marching, skelbuffer, springs, everyframe, isWebGL2;
+addgeneperm, copyFrom, CSynthFast, G, glsl, Marching, skelbuffer, springs, everyframe, onframe, isWebGL2, COL;
 
 /** simplified rendering for non-organic use */
 CSynth.Metavis = function() {
@@ -15,27 +15,26 @@ CSynth.Metavis = function() {
     V.rawscene.add(marching.three);
     V.rawscene.metavis = marching.three;
     V.rawscene.metavis.visible = false;
-    X.sphereScale = 0.005;
+    X.spherePosScale.w = 0.005;
     X.trackStyle = 'trackNone';
     me.rad = 2;
     let guiMat;
-    // X.rad = 0.01;
+    const tv4 = new THREE.Vector4();
     everyframe(() => {
         if (!V.rawscene.metavis.visible) return;
         X.npart = springs.numInstances;
-        X.rad = me.rad * X.sphereScale;
+        X.rad = me.rad * X.spherePosScale.w;
         if (X.sphereYin) { // use Springs as input (posNewvals)
-            // nb, sphereScale does map of our coordinates to -1..1 coordiates, range used by marching.
-            // This is set here and applied in marching code.
             X.ntexsize = springs.numInstancesP2;
-            marching.updateData(springs.posNewvals.texture, X.sphereScale);
-            const k = G.scaleFactor/X.sphereScale;              // scale back up to our coordinates, allowing for G.scaleFactor
+            marching.updateData(springs.posNewvals.texture, X.spherePosScale);  // spherePosScale is used to map to -1..1 and back
+            const k = G.scaleFactor;        // scale back up to our coordinates, allowing for G.scaleFactor
             marching.three.scale.set(k,k,k);
         } else {
             if (skelbuffer.width) X.ntexsize = skelbuffer.width; // skelbuffer may disappear for a frame during change OR when no ribbon rendered ... numInstancesP2;
-            const kk = X.sphereScale / G.scaleFactor;
-            marching.updateData(skelbuffer.texture, kk);
-            const k = 1/kk; marching.three.scale.set(k,k,k);
+            tv4.copy(X.spherePosScale);
+            tv4.w = X.spherePosScale.w / G.scaleFactor;
+            marching.updateData(skelbuffer.texture, tv4);
+            marching.three.scale.set(1,1,1);
         }
         const m = marching.three.material;
         if (m) {
@@ -81,6 +80,23 @@ CSynth.Metavis = function() {
                     X.doubleSide = false;
                     X.trackStyle = 'trackNone';
                 }
+            },
+            get organicMaterial() { return !!X.marchtexture},
+            set organicMaterial(v) {
+                if (v) {
+                    if (window.TextureMaterial) {
+                        X.marchtexture = true;
+                    } else {
+                        import('../jsopen/TextureMaterial/TextureMaterial.js').then(() => {
+                            X.marchtexture = true;
+                            window.TextureMaterial.docol = false;   // should be default ???
+                            COL.setx({'': 0, bumpstrength: 3, bumpscale: 10, red:1, green:1, blue: 1, band1: 1});
+                            COL.send();
+                        });
+                    }
+                } else {
+                    X.marchtexture = 0;
+                }
             }
         }
 
@@ -94,8 +110,11 @@ CSynth.Metavis = function() {
 
         // gui.add(X, 'dowire').listen().setToolTip('show in wireframe');
         gui.add(X, 'showTriangles', 0, 0.02).step(0.001).listen().setToolTip('overlay surface with triangles');
+        gui.add(xx, 'organicMaterial').listen().setToolTip('use organic 3d textured material');
         guiMat = CSynth.materialProperties();
         CSynth.materialGui(guiMat, gui); // does not work, material redefined, need proxy or similar
+        gui.add(X, 'rotateInside').listen().setToolTip('rotate rgb on back side of double-sided material');
+
         return gui;
     }
 

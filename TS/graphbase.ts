@@ -1154,6 +1154,8 @@ function init1() {
         }
         loadOao.lasttime = frametime;
         if (startscript) {
+            if (CSynth.shortcuts && CSynth.shortcuts[startscript])
+                startscript = CSynth.shortcuts[startscript];
             if (!startscript.includes('/data/') && !(startscript[0] === '/')) {
                 const dir = location.href.includes('/csynthstatic/') ? '../data/' : 'CSynth/data/';
                 startscript = dir +  startscript;

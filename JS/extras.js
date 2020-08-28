@@ -838,7 +838,7 @@ function hornmeta() {
         V.gui = dat.GUIVR.createX('TESTTEST');
         V.gui.add(zzzz.createGUIVR());
         VH.positionGUI();
-        X.sphereScale = 1;
+        X.spherePosScale.w = 1;
         X.sphereYin = true;
         G.vsub_radius = 0.001;
         V.camscene.onBeforeRender = V.rawscene.children[1].onBeforeRender; // patch for three bug

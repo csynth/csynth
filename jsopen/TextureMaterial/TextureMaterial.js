@@ -3,15 +3,15 @@ import {} from './texture.fs.js';
 var {COL, THREE} = window;
 
 const patchBefore = (s, k, toadd) => s.replace(k, toadd + '\n' + k );
-window.marchtexture = marchtexture;
 
 /** patch a three standard material to add Organic textures */
 function marchtexture(str, uniforms) {
 
     // set up COL so the details can be used for our textures
-    // it has the side-effect of adding uniforms.colbuff
+    // it also adds uniforms.colbuff
     COL.uniforms = uniforms;
-    COL.randcols(undefined, {texscale: [0.1,0.25], texfract3d: 1, bumpstrength: [0,1], bumpscale: [0.04,0.2], plastic: [0,1], shininess: [0,1] });
+    uniforms.colbuff = {value: COL.buff};
+    uniforms.trotateInside = {value: 0};
 
     let text = marchtexture.defs + '\n#include <O_texture>\n'
 
@@ -63,7 +63,7 @@ float shininess = s.x, gloss = s.y, UNUSEDspeck = s.z, plastic = s.w; // conveni
 // diffuseColor.rgb *= csurf.col.rgb;
 // TODO consider best colour mixing style here, and if we need an extra 'guide' parameter of some sort
 diffuseColor.rgb = min(diffuseColor.rgb , csurf.col.rgb);
-if (!gl_FrontFacing) diffuseColor.rgb = diffuseColor.bgr;
+if ((!gl_FrontFacing) && (trotateInside != 0.)) diffuseColor.rgb = diffuseColor.bgr;
 
 roughnessFactor = 1. - shininess;
 metalnessFactor = 1. - plastic;
@@ -116,6 +116,7 @@ marchtexture.defs = `
 float _boxsize = 1.0;
 
 uniform sampler2D colbuff;		// sampler used to hold colours
+uniform float trotateInside;
 vec4 xcol = vec4(0.,0.,0.,0.);  // extra colour, may be set in various places including tranrule or for debug
 
 float colourid = -1.; // -COLNUM;
@@ -129,7 +130,13 @@ float pohnoisen = 3.0;
 `
 marchtexture.defs += COL.generateDefines();
 
+TextureMaterial.docol = true;
+
 function TextureMaterial(uniforms = {}) {
+    if (TextureMaterial.docol) {
+        COL.randcols(undefined, {texscale: [0.1,0.25], texfract3d: 1, bumpstrength: [0,1], bumpscale: [0.04,0.2], plastic: [0,1], shininess: [0,1] });
+        TextureMaterial.docol = false;
+    }
     let mat = new THREE.MeshPhysicalMaterial();
     mat.onBeforeCompile = shader => {
         mat.xshader = shader;  // for debug
@@ -153,8 +160,9 @@ function TextureMaterial(uniforms = {}) {
         shader.fragmentShader = marchtexture(shader.fragmentShader, shader.uniforms); // modifies shader code and adds to its uniforms
         if (mat.onBeforeCompileX)
             mat.onBeforeCompileX(shader);
+    };
+    this.randcol = () => COL.randcols(undefined, {texscale: [0.1,0.25], texfract3d: 1, bumpstrength: [0,1], bumpscale: [0.04,0.2], plastic: [0,1], shininess: [0,1] });
 
-    }
     return mat;
 }
 window.TextureMaterial = TextureMaterial;   // for non-module

@@ -64,8 +64,10 @@ COL.send = function(force) {
         COL.buff.height = COL.NUM;
         COL.buff.generateMipmaps = false;
 
-        if (!COL.uniforms.colbuff) COL.uniforms.colbuff = { type: "t", value: COL.buff };
-        COL.uniforms.colbuff.value = COL.buff;
+        if (COL.uniforms) {
+            if (!COL.uniforms.colbuff) COL.uniforms.colbuff = { type: "t", value: COL.buff };
+            COL.uniforms.colbuff.value = COL.buff;
+        }
     }
     COL.buff.needsUpdate = true;
     COL.needsUpdate = false;
