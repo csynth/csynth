@@ -483,7 +483,7 @@ function getMaterial(matvariant, genes, quickout) {
             return mat;
         }
         log('>>> creating material', opname, origmatvariant.substring(0, 20).split('\n').join('    '));
-        if (fileExists(`shaders/${opname}.fs`)) { // load from files if they are present
+        if (fileExists(`shaders/${opname}.vs`) && fileExists(`shaders/${opname}.fs`)) { // load from files if they are present
             return shaderFromFiles(opname, genes);
         }
         // todo check 'true' below. removed sjpt 19 Jan 19, added 20 June 2022 for multiple tranrules at once

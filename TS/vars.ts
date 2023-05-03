@@ -117,7 +117,7 @@ declare let
     setInput, inps, fft, searchValues, //Buffer, //PJT: TS error, cannot redeclare block-scoped variable also declared in globals.d.ts
     toggleFold, groupToggleFreeze,
     isControlShown, saveSkeleton,
-    geneCallback, islocalhost, _boxsizew, windowset, dualmode, dualdrag,
+    geneCallback, islocalhost, _boxsizew, windowset, dualmode, dualdrag, compareStruct,
 
     addElement, refts, aftercontrol, testnan, resoverride,
     docdrop, docdragover,

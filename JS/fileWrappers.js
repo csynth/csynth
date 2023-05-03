@@ -17,8 +17,10 @@ function fileExists(fid) {
     else if (islocalhost)
         r = posturi('/fileexists/'+fid) === 'true';
     else {
-        const e = posturi(fid, undefined, true)
-        r = !!e
+         var http = new XMLHttpRequest();
+          http.open('HEAD', fid, false);
+          http.send();
+          r = http.status != 404;
     }
     if (!r) console.trace('file not found', fid)
     return r

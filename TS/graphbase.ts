@@ -585,7 +585,7 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
         }
         log('>>> creating material', opname, origmatvariant.substring(0, 20).split('\n').join('    '));
 
-        if (fileExists(`shaders/${opname}.fs`)) {  // load from files if they are present
+        if (fileExists(`shaders/${opname}.vs`) && fileExists(`shaders/${opname}.fs`)) {  // load from files if they are present
             return shaderFromFiles(opname, genes);
         }
 
@@ -2003,7 +2003,7 @@ function rot(x:number, y:number, a:number, genes:Genes, mm = new THREE.Matrix4()
         tmat4b.makeTranslation(tad.centre.x, tad.centre.y, tad.centre.z).transpose();
         tmat4c.makeTranslation(-tad.centre.x, -tad.centre.y, -tad.centre.z).transpose();
         tmat4a.multiplyMatrices(tmat4c, mm).multiply(tmat4b)
-    
+
         mm.copy(tmat4a);
     }
     return mm;
