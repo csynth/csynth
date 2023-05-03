@@ -6,6 +6,7 @@ function serious(...e) {
     var smsg = showvals.apply(undefined, arguments);
     console.error('SERIOUS+++', smsg);
     if (location.href.contains('molbiol')) return smsg;
+    if (location.href.contains('csynth.github.io')) return smsg;
         const eee = e.filter(ee=>ee?.error?.stack); // any error arguments
     var astack = eee.reduce((cc,ee) => cc + ee.error.stack, '');
     eee.forEach(ee => console.error(ee.error));

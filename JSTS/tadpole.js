@@ -144,7 +144,7 @@ function TadpoleSystem() {
     const COLSAFE = me.COLSAFE = 16; // first 'safe' colour
     const COLNSAFE = me.COLNSAFE = COL.NUM - COLSAFE;
     // w.i.p. 21 Oct 2022, CONTROLS should be 0 for useKinect, but that isn't working right *** sjpt 27/04/23 add useKinect check in doReserved() to compensate
-    let CONTROLS = me.CONTROLS = (useKinect || searchValues.tadmutnoiseimage) ? 0 : me.docovid ? 8 : 2; // number of bait controls (eg vive controllers)
+    let CONTROLS = me.CONTROLS = searchValues.tadmutnoiseimage ? 0 : me.docovid ? 8 : 2; // number of bait controls (eg vive controllers)
     let FIXED = 2, RESERVED = CONTROLS + FIXED; // CONTROL for trackers etc, FIXED for origin etc
     let LINEBAITS = CONTROLS; // number of line baits
     // [0, TADS)                        standard tadpoles (eg 1200)
