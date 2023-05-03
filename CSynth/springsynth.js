@@ -11,7 +11,7 @@ var V, HW, THREE, getBody, renderer, init, currentGenes, uniforms, springs, CSyn
     searchValues, currentLoadingData, PICKNUM, readdir,
     scaleDampTarget1, nomess, posturi, GX, msgfixlog, objfilter, geneOverrides, col3, inworker, loadTime,
     currentLoadingDir, resetMat, slowinit, GO, renderVR, sleep, myRequestAnimationFrame, htmlDefines, maxTextureSize,
-    Gldebug, startWsListener, distxyz, downloadImage, downloadImageHigh, FIRST, writeBintri, runkeys, STL;
+    Gldebug, startWsListener, distxyz, downloadImage, downloadImageHigh, FIRST, writeBintri, runkeys, STL, islocalhost;
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 var CSynthFast;  // set to true even from outside to use fast graphics defaults
 //TODO: fragment more extensively into something like CSynth.ShaderChunks[]
@@ -885,7 +885,11 @@ CSynth.startdemo = function() {
     if (startscript) { //
     } else {
         startscript = 'CSynth/data/noConfig.js';
-        startWsListener();
+        try {
+            startWsListener();
+        } catch (e) {
+            console.error('could not start websocket listener', e);
+        }
     }
     //else if (oxcsynth && location.href.indexOf('/rev') !== -1) startscript="../data/Crick/loadcrick_600kb.js";
     //else if (oxcsynth) startscript = "CSynth/data/rsse/loadrsse.js";
