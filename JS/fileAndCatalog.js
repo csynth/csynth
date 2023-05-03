@@ -5,29 +5,42 @@
 "use strict";
 
 /** for encapsulation verification */
-var W, genedefs, mainvp, savedef, nwfs, camera, THREE, keysdown, inputs,
+var W, genedefs, mainvp, savedef, keysdown, inputs, fileOpenRead, fileRead, fileClose, fileOpenWrite, fileAppend,
         vpxQuadScene, zoomdef, permgenes, NODO, posturi, yaml,
-        framenum, width, height, vps, frametime, Director, require, process,
+        framenum, width, height, vps, frametime, Director, process,
         killev, log, getFileExtension, FileReader, serious, msgfix, getDispobj,  currentGenes, clone,
         xxxgenes, refall, settarget, newframe, currentObjects, XMLHttpRequest, dataURItoBlob, getfiledata, dstring,
         resolveFilter, setval, trysetele, tryseteleval, updateGuiGenes, newmain, restoreInputState, genBoundsFromObjects,
-        onframe, copyFrom, target, trygeteleval, autofillfun, saveframe, HTMLElement, HTMLDocument, mapOnce, saveInputState, slots, extraDispobj,
-        localStorageGet, localStorageSet, xxxxobj, CLASSNAME, fixrot4scale, setInput, getcentrescale, centrescalenow, clearSelected,
-        Genedef, setViewports, baseShaderChanged, defaultObj, trancodeForTranrule, setGUITranrule, transformTexture, setHornSet, cleangenesall,
+        onframe, copyFrom, trygeteleval, autofillfun, saveframe, saveInputState, slots, extraDispobj,
+        localStorageGet, localStorageSet, xxxxobj, yamlSave, fixrot4scale, setInput, getcentrescale, centrescalenow, clearSelected,
+        Genedef, setViewports, trancodeForTranrule, setGUITranrule, transformTexture, cleangenesall,
         addGenesToExtraObjects, setSize, forceCPUScale, inputsanimsave, imsize, format, saveframetga, wasRecordingWithAnim,
         msgfixlog, throwe, renderObjs, renderQuad, vpborder, framedelta, startAudioRecording, stopAudioRecording, setAllLots, saveimage,
         basescale, postCache, startscript, startvr, currentLoadingFile, currentLoadingDir, msgfixerror, oxcsynth, Maestro,
-        consoleTime, consoleTimeEnd, _insinit, currentLoadingData, CSynth, location, File, FormData, $,
-        loadStartTime, genbar, posturibin, uriclean, saveTextfile, islocalhost
-;
+        consoleTime, consoleTimeEnd, _insinit, CSynth, File, FormData, $, fileExistsAsync,
+        loadStartTime, genbar, uriclean, S, isNode, mkdir, readdir, readtext, runcommandphp,
+        writetextremote, fileExists, remotesave, fileStat, currentLoadingData, target, defaultObj, filterDOMEv, checkoao, msgflash, canvdroppaste,
+        searchValues, inps, COL, cMap, setBackgroundColor, addscript, GX
+, HW;
+
+var _binfiles = ['.tif', '.bintri', '.zip', '.map'];
 var FrameSaver = {};  // psuedo-class
-var frameSaver = {};
+var frameSaver = {baseTime:0, fps: 60};
 var dragDropDispob = NODO;  // dispobj just dropped onto
 var dragOverDispobj = NODO; // dispobj being dragged over
+var dropPasteEvent;         // last drop or paste event
+
+/** names of save files * ~~~ / var localGalNames = []; */
+/** structure of gallery */ var allGal = {};
+/** array of recent values */ var saves = [];
+var baseroot = "stems/";
+var webGalByNum;  // same as allGal, but array sorted by name or date
+var geneids = [];
+var regularizeTranruleOnLoad = false;
 
 
 /** handlers for different file types; in each case pass in data content of file */
-var fileTypeHandlers = { ".oao": loadOao, ".stem": loadStem, '.oag': loadOag, '.js': evalx, '.binary': loadRunSave };
+var fileTypeHandlers = { ".oao": loadOao, ".stem": loadStem, '.oag': loadOag, '.js': loadjs, '.binary': loadRunSave };
 
 /** use .binary dropped file to render a saved scene, uses entire directory */
 function loadRunSave(file) {
@@ -47,20 +60,27 @@ var lastopenfiles;
 function openfiles(files) {
     if (!files) files = lastopenfiles;
     lastopenfiles = files;
+    openfiles.promises = {} // todo, consider best synchronization method
+    openfiles.resolvers = {}
+    openfiles.groups = []
     for (let f=0; f<files.length; f++) {
         if (files[f].path)
-            files[f].canonpath = files[f].path.replaceall('\\', '/');
+            files[f].canonpath = files[f].path.replace(/\\/g, '/');
         else
             files[f].canonpath = files[f].name;
         openfiles.pending[files[f].canonpath] = Date.now();
+        let xx
+        openfiles.promises[files[f].canonpath] = new Promise( (resolve, reject) => { xx = resolve; });
+        openfiles.resolvers[files[f].canonpath] = xx;
     }
-    Maestro.trigger('preopenfiles', files);  // escape may want to change, e.g. sort files?
+    Maestro.trigger('preopenfiles', files);  // escape may want to change, e.g. sort files? Used by CSynth.handlefileset for drag/dropped set of files
     for (let f=0; f<files.length; f++) openfile(files[f]);
     Maestro.trigger('postopenfiles', files);
 }
 openfiles.pending = {};
 openfiles.dropped = {};  // contents of dropped and other opened files
 
+const chromeMaxString = 536870888;
 /** read and process a single file, given a File object */
 function openfile(file) {
     var ext = getFileExtension(file.name);
@@ -71,6 +91,8 @@ function openfile(file) {
     if (handler && handler.rawhandler) {
         handler(file);
     } else if (handler) {
+        if (file.size > chromeMaxString && navigator.userAgent.contains('Chrome'))
+            return serious(`file ${file.name} length ${file.size} exceeds Chrome maximum ${chromeMaxString}\nWe are fixing this but for now\ntry Firefox.`)
         var reader = new FileReader();
         // ??? reader.fff = f;
         // Closure to capture the file information.
@@ -96,20 +118,27 @@ function openfile(file) {
                 t = tt;
             }
         }
-        if (['.tif', '.bintri', '.zip', '.map'].includes(ext) )
+        if (_binfiles.includes(ext) )
             reader.readAsArrayBuffer(file);        // start read in the data file
         else
             reader.readAsText(file);        // start read in the data file
     } else {
-        serious("attempt to open file of wrong filetype " + file.name);
+        msgfixlog("baddrop", "attempt to open file of wrong filetype " + file.name);
     }
 }
 
+/** */
 /** handle js files, correct directory + eval + debug */
-function evalx(data, fname) {
+function loadjs(data, fname) {
+    // allow script to start //addscript for addscript rather than eval. Cleaner scope and easier debug.
+    if (data.startsWith('//addscript')) {
+        addscript(fname);
+        return;
+    }
     if (!data)
         return msgfixerror('eval', `<span style="font-size:200%">
             bad or empty file for javascript evaluation<br>in file ${fname}</span>`);
+    if (typeof data !== 'string') data = data.toString();
     if (data.startsWith('<')) {
         return msgfixerror('eval',
         `<span style="font-size:200%">unexpected javascript for ${fname}<br>
@@ -117,7 +146,7 @@ function evalx(data, fname) {
          or link to which you do not currently have access.<br>
          in file ${fname}</span>`);
     }
-    var sdata = fname || data.substring(0,100).replaceall('\n', '<br>');
+    var sdata = fname || data.substring(0,100).replace(/\n/g, '<br>');
     const saver = [currentLoadingFile, currentLoadingDir];
     try {
         currentLoadingFile = fname;
@@ -128,10 +157,12 @@ function evalx(data, fname) {
                 currentLoadingDir = fname.substring(0,Math.max(fname.lastIndexOf('/'), fname.lastIndexOf('\\')));
         }
         currentLoadingData = data;
-        var r = eval(data);
+        const r = eval(data);
         currentLoadingData = undefined;
         currentLoadingFile = currentLoadingDir = undefined;
-        // msgfix('eval', sdata , '<br>=>', r);
+        const rs = typeof r === 'function' ? r.toString() : r;
+        const m = typeof rs === 'string' && rs.length > 50 ? rs.substring(0, 50) + '...' : rs;
+        msgfix('eval', sdata , '<br>=>', m);
         return false;
     } catch(e) {
         msgfixerror('eval', `<span style="font-size:200%">evaluation failed<br>${e.message}'<br>'in file ${fname}</span>`);
@@ -150,7 +181,7 @@ function processFile(fn, ext) {
     var handler = fileTypeHandlers[ext];
     if (!handler) handler = window[ext.substring(1) + 'Reader'];
     delete postCache[fn];
-    let data = posturi(fn);
+    let data = posturi(fn); // not for binary, and posturibin is async
     if (data === undefined) msgfixerror(fn, 'cannot read file');
     const r = handler(data, fn);
     consoleTimeEnd('loading_' + fn);
@@ -161,27 +192,42 @@ function processFile(fn, ext) {
 returns full list but does not process
 N.b. it seems that you can drop mixed files/directories, but CANNOT open them (ctrl-o)
 TODO, handle the fact that readEntries is async */
-function _scanFiles(item, fileEntries = []) {
-    log('entry item', item)
+async function _scanFiles(item, fileEntries = [], directoryEntries = []) {
+    // log('entry item', item)
     if (item.isDirectory) {
+        directoryEntries.push(item);
+        const key = 'xxx' + Math.random();
         let directoryReader = item.createReader();
-        directoryReader.readEntries(function(entries) {
-            entries.forEach(function(entry) {
-                _scanFiles(entry, fileEntries);
-                log('entry', entry, fileEntries)
+        let getEntries = function() {
+            directoryReader.readEntries(function(entries) {
+                if (entries.length === 0) { Maestro.trigger(key); return; }
+                entries.forEach(async function(entry) {
+                    await _scanFiles(entry, fileEntries, directoryEntries);
+                    //log('entry', entry, fileEntries)
+                });
+                getEntries();
             });
-        });
+        };
+        getEntries();
+        await S.maestro('unused msg', key);
     } else if (item.isFile) {
-        log('file found', item);
+        // log('file found', item);
         fileEntries.push(item);
    }
-    return fileEntries;
+   return fileEntries;
 }
 
 function docdrop(evt) {
     try {
         // currentLoadingDir = '';
-        _docdrop(evt);
+        var dt = evt.dataTransfer;
+        if (!dt) { serious("unexpected dragdrop onto mutator"); return killev(evt); }
+        dt.dropEffect = 'copy';
+
+        if (evt.ctrlKey && dragOverDispobj === NODO) { log("drop onto no dispobj"); return killev(evt); }
+
+        _docdroppaste(evt, dt);
+        return killev(evt);
     } catch (e) {
         serious('Unexpected error found during docdrop', e);
     } finally {
@@ -191,48 +237,60 @@ function docdrop(evt) {
 
 /** document drop, if ctrl key keep dragDropDispobj which may be used by loader
 dragOverDispobj will be destroyed too soon because of asynchronous loader */
-function _docdrop(evt) {
-    var dt = evt.dataTransfer;
-    if (!dt) { serious("unexpected dragdrop onto mutator"); return killev(evt); }
-    dt.dropEffect = 'copy';
-
-    if (evt.ctrlKey && dragOverDispobj === NODO) { log("drop onto no dispobj"); return killev(evt); }
+async function _docdroppaste(evt, dt) {
+    dropPasteEvent = evt;
     dragDropDispob = (evt.ctrlKey) ? dragOverDispobj : NODO;
 
     // code below allows for directories, not complete
     let isdir = false;
-    let fileEntries = [];
-    for(let i=0; i < dt.items.length; i++) {
-        const item = dt.items[i].webkitGetAsEntry();
+    let fileEntries = [], directoryEntries= [];
+    // copy here as the async destroys the original ds.items etc
+    const dtcopy = Array.from(dt.items);
+    const filescopy = Array.from(dt.files);
+    const promises = [];
+    for(let i=0; i < dtcopy.length; i++) {
+        const item = dtcopy[i].webkitGetAsEntry();
         if (!item) continue;
         isdir |= item.isDirectory;
-        log('item', item);
-        _scanFiles(item, fileEntries);
+        promises[i] = _scanFiles(item, fileEntries, directoryEntries);  // <<<< this kills dt.files
+        window.fileEntries = fileEntries;
     }
+    await Promise.all(promises);
+    log('found files:', fileEntries.length, directoryEntries.length);
+    if (directoryEntries.length !== 0) return log(msgfixerror('drop', 'directory drop not yet supported'));
     // if (isdir) return;
 
+    var done = false;
     var data = dt.getData("text/plain");
-
-    if (dt.files.length > 0) {   // file dragdrop
-        openfiles(dt.files);
-    } else if (data !== "") { // data drag/drop TODO
-        try {
-            if (data.startsWith('http:') || data.startsWith('https:')) {  // drag/drop of url
-                CSynth.handlefileset( {eventParms: [{ canonpath: data}] })
-            } else {
-                msgfix('evaluate', data);
-                var r = eval(data);
-                msgfix('evaluate', data, 'result', r);
+    if (filescopy.length > 0) {   // file dragdrop
+        openfiles(filescopy);
+        done = true;
+    } else if (data !== "") { //
+        if (document.activeElement === W.canvas) {  // ??? later we many want to handle files dropped on canvas as well
+            const canvdone = canvdroppaste(data, evt);
+            if (canvdone) return killev(evt);
+        }
+        const path = Array.from(evt.composedPath());
+        if (W.doEvalOnPaste && (path[0] === document.body || path.includes(W.msgbox))) {
+            try {
+                done = true;
+                if (data.startsWith('http:') || data.startsWith('https:')) {  // drag/drop of url
+                    CSynth.handlefileset( {eventParms: [{ canonpath: data}] })
+                } else {
+                    msgfix('evaluate', data);
+                    var r = eval(data);
+                    msgfix('evaluate', data, 'result', r);
+                }
+            } catch (e) {
+                msgfix('evaluate', data, 'failed', e.message);
             }
-        } catch (e) {
-            msgfix('evaluate', data, 'failed', e.message);
         }
         // Poem.start(data); for now disable poem start by text drop
         // does not work, 5 Mar 2014
     }
     dragOverDispobj = NODO;
 
-    return killev(evt);
+    if (done) return killev(evt);
 }
 
 /** document drop  */
@@ -245,24 +303,46 @@ function docdragover(evt) {
 }
 
 /** document paste, works for strings but not files? */
-async function docpaste(evt) {
+function docpaste(evt) {
     const data = evt.clipboardData.getData('Text');
-    log ('#files', evt.clipboardData.files.length);
-    log ('target type', evt.target.tagName);
-    log ('data', data);
+    return _docdroppaste(evt, evt.clipboardData);
+    // debug
+    // msgfixlog ('#files', evt.clipboardData.files.length);
+    // msgfixlog ('target type', evt.target.tagName);
+    // msgfixlog ('target id', evt.target.id);
+    // msgfixlog ('!path', Array.from(evt.path).map(e => [e.tagName, e.id]));
+    // const a = document.activeElement;
+    // msgfixlog ('!act', [a.tagName, a.id]);
+
+    // msgfixlog ('data', data);
+
     // document.body for when dropped on canvas, not quite sure why not canvas
     // if (evt.target === document.body)  // todo, consider what drop/copy etc can apply where,
 
     //PJT:::: Since when does pasting into tranrule box mean we want to immediately eval????
     //SJPT:::: changed to apply only to body (for some reason canvas.onpaste = does not work)
     //SJPT, we were using event.target instead of document.activeElement, but that was not reliable
-    if (W.doEvalOnPaste && document.activeElement === document.body && !evt.target.isContentEditable) {
-        if (data.startsWith('http:') || data.startsWith('https:')) {  // drag/drop of url
+    //SJPT, 18/8/21 now canvase is 'real' pastableif (W.doEvalOnPaste && document.activeElement === document.body && !evt.target.isContentEditable) {
+    //SJPT, 20/1/22 use evt.path, much more useful than activeElement.
+    // if (W.doEvalOnPaste && document.activeElement === canvas) {
+    const path = Array.from(evt.path);
+    if (W.doEvalOnPaste && (path[0] === document.body || path.includes(W.msgbox))) {
+            if (data.startsWith('http:') || data.startsWith('https:')) {  // drag/drop of url
             CSynth.handlefileset( {eventParms: [{ canonpath: data}] })
         } else {
-            evalx(data);
+            try {
+                msgfix('eval');
+                const r = eval(data);
+                msgfix('eval', 'OK =><br>' + (r === undefined ? '' : r));
+                msgflash({col: 'darkgreen'});
+            } catch (e) {
+                msgfixerror('eval', 'error:<br>' + e);
+                msgflash({col: 'darkred', time: 2000});
+            }
         }
     }
+    newmain();          // refall could be too slow?
+    updateGuiGenes();   // in case paste changed something
 }
 W.doEvalOnPaste = true;
 
@@ -304,107 +384,6 @@ function undo() {
     if (saves.length > 0) settarget( JSON.parse(saves.pop()), false);
 }
 
-function readtext(fid) {
-    if (nwfs)
-        return nwfs.readFileSync(fid, 'ascii');
-    else
-        return posturi(fid);
-}
-
-async function readbinaryasync(fid) {
-    if (nwfs) {
-        // for some reason, async is much slower than sync. Maybe we should stream the async?
-        //return new Promise( (resolve, reject) => {
-        //    nwfs.readFile(fid, (err,data) => {
-        //        if (err) reject(err);
-        //        resolve(data);
-        //    });
-        //} );
-        const urik = 'reading file ' + uriclean(fid);
-        msgfix(urik, '<br>complete (nwfs sync)<br>' + genbar(1));
-
-        return new Promise( (resolve, reject) => {
-            try {
-                if (!nwfs.existsSync(fid)) reject(new Error('no file' + fid));
-                const r = nwfs.readFileSync(fid);
-                resolve(r.buffer);
-            } catch (e) {
-                reject(e);
-            }
-        } );
-    } else {
-        return posturibin(fid);
-    }
-}
-
-/** save to a remote location  */
-function remotesave(fid, newVersion) {
-    var newVersionString = (typeof newVersion === 'string') ? newVersion : JSON.stringify(newVersion, undefined, 2);
-    if (nwfs) {
-         nwfs.writeFileSync(fid, newVersionString);
-    } else {
-        writetextremote(fid, newVersionString);
-    }
-    log("saving to " + fid);
-    msgfix('saving to', '<span class="errmsg">' + fid + '</span>');
-}
-
-/** append text to remote file, synchronous */
-function appendtextremote(fid, text) {
-    writetextremote(fid, text, true);
-}
-
-
-/** write text to remote file, synchronous */
-function writetextremote(fid, text, append = false) {
-    if (fid[0] === '>')
-        return saveTextfile(text, fid.substr(1));  // for save into downloads
-    if (nwfs) {
-        nwfs.writeFileSync(fid, text);
-        return;
-    }
-    if (location.host === "csynth.molbiol.ox.ac.uk") {
-        const mm = location.search.match(/.*\?p=(.*?)&.*/);
-        if (!mm) {
-            msgfixlog('Sorry: upload files to public project not supported.');
-            return;
-        }
-        const project = mm[1];
-        writetextoxford(fid.post('file='), text, project);
-        return;
-    }
-
-    log("POST text");
-    var oReq = new XMLHttpRequest();
-    oReq.open("POST", append ? "appendfile.php" : "savefile.php", false);
-    oReq.setRequestHeader("Content-Disposition", fid);
-    oReq.send(text);
-    log("writetextremote", fid, "response text", oReq.responseText);
-}
-
-/** write text to Oxford server
- * does not work on Edge, https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/9551546/
- */
-function writetextoxford(fid, text, project) {
-    var file = new File([text], fid);  // is there a direct way without making a 'pseudo' file?
-    var myFormData = new FormData();
-    myFormData.append('file_desc_long', 'long');
-    myFormData.append('file_desc_short', 'short');
-    myFormData.append('file', file);
-    myFormData.append('project', project);
-
-    var r = $.ajax({
-        url: '/csynth/upload',
-        type: 'POST',
-        processData: false, // important
-        contentType: false, // important
-        dataType : 'json',
-        async: false,
-        data: myFormData
-    });
-    r.msg = r.responseText.post('role="alert">').pre('</')
-    return r;
-}
 
 /** write log text to Oxford server */
 function writeerroxford(text) {
@@ -428,68 +407,16 @@ function writeerroxford(text) {
 }
 
 
-/** run a command from php, if quiet is specified (non false) it is run async and so return,
-and if 'quiet' is a function, it will be called on completion with the response text.
-If there is an async error reject will be called if present, or flagged quiet if no reject
-quiet=false => sync, no message, return value
-quiet=undefined => sync, message, return value
-  */
-function runcommandphp(cmd, quiet, reject) {
-    if (!islocalhost && cmd.indexOf('--query-gpu') === -1 && cmd.indexOf('mkdir') === -1
-         && cmd.indexOf('exportShader') === -1)
-        serious('runcommandphp should not be called in oxcsynth mode');
-    if (nwfs) {
-        try {
-            if (quiet) {
-                if (typeof quiet === 'function')
-                    return require('child_process').exec(cmd, quiet).toString();
-                else
-                    return require('child_process').exec(cmd).toString();
-            } else {
-                const r = require('child_process').execSync(cmd).toString();  // << correct for async
-                return r;
-            }
-        } catch(e) {
-            log('runcommandphp error', e.message, cmd);
-            return undefined;
-        }
-    }
-    //TODO: probably use fetch() instead.
-    const oReq = new XMLHttpRequest();
-    oReq.open("POST", "runcmd.php", !!quiet);
-    oReq.setRequestHeader("cmd", cmd);
-    oReq.send("");
-    if (typeof quiet === 'function') {
-        oReq.onload =  function(e) {
-            if (oReq.status === 200)
-                quiet(oReq.responseText);
-            else if (reject)
-                reject(oReq.status + ' ' +  oReq.statusText);
-            else
-                quiet('!!!!!!! ERROR RETURN ' + oReq.status);
-        };
-        return oReq;  // in case caller wants to check details on callback
-    }
-    if (!quiet) {
-        // lovely.
-        if (quiet === undefined) {
-            log("runcommandphp", cmd, "response text", oReq.responseText.substring(0,50));
-        }
-        return oReq.responseText;
-    }
-}
-
-
 
 /** write image in url form to remote file */
 function writeUrlImageRemote(fid, urldata, ctype) {
-    log("POST image blob");
+    // log("POST image blob");
     var oReq = new XMLHttpRequest();
     oReq.open("POST", "savefile.php", false);
     oReq.setRequestHeader("Content-Type", ctype);
     oReq.setRequestHeader("Content-Disposition", fid);
     oReq.send(dataURItoBlob(urldata));
-    log("writeUrlImageRemote complete", fid);
+    // log("writeUrlImageRemote complete", fid);
 }
 
 /** linend used by the server */ var linend = "\r\n";
@@ -506,8 +433,12 @@ function getserveroao(fid) {
 
 // parse the data and make gene save specific corrections (for tranrule saving optimization)
 function dstringGenes(data) {
+    if (!data) {
+        console.error('dstringGenes called with no data');
+        return;
+    }
     // backward compatability of oag and other files
-    data = data.replaceall('texbetween', 'bandbetween');
+    data = data.replace(/texbetween/g, 'bandbetween');
 
     var r = dstring(data);
     if (r.genes && r.genes.tranrule) {
@@ -530,11 +461,22 @@ function dstringGenes(data) {
         }
     }
 
+    // ??? 30/10/2022, where had these extra genes come from
+    delete r.genes.genes;
+    if (r.currentObjects) for (const o of Object.values(r.currentObjects)) delete o.genes.genes
+
+    for (const k in searchValues) {
+        const k1 = k.substring(0, 2), k2 = k.substring(2);
+        if (k1 === 'I.' && k2 in r.inputState) r.inputState[k2] = searchValues[k];
+        if (k1 === 'G.' && k2 in r.genes) r.genes[k2] = searchValues[k];
+    }
+
     return r;
 }
 
 /** open object from data (.oao file) */
 function loadOao(data, fn) {
+    if (data === undefined) data = loadOao.lastfn;
     if (data.indexOf("{") === -1) {
         fn = data;
         if (fn.indexOf('.') === -1) fn = 'gallery/' + fn + '.oao';
@@ -575,7 +517,10 @@ function loadOao(data, fn) {
     }
 
     cleanvr();
-    onframe(()=>Maestro.trigger('doneLoadOao', fn));
+    onframe(()=> {
+        checkoao(fn);
+        Maestro.trigger('doneLoadOao', fn);
+    });
 }
 
 /** repeat function every frame for i frames */
@@ -608,7 +553,7 @@ function loadOag(data) {
 
 /** generate animation bounds from objects by name prefix */
 function genBoundsFromPrefixFS(stem) {
-    var files = nwfs.readdirSync(baseroot + stem);
+    var files = Object.keys(readdir('.')); // was nw fs.readdirSync(baseroot + stem);
     var o = [];  // object to use as bounds
     for (let i=0; i<files.length; i++) {
         var fid = files[i];
@@ -636,7 +581,7 @@ function genBoundsFromPrefixFS(stem) {
 /** generate animation bounds from objects by name prefix */
 function genBoundsFromPrefixGal(prefix) {
     if (!prefix) prefix = trygeteleval("boundsprefix", "xxx");
-    try { stemLoad(prefix); } catch (e) {}
+    try { stemLoad(prefix); } catch (e) { /**/ }
     var o = [];
     for (let n in allGal) {
         if (n.startsWith(prefix)) o.push(getGal(n));
@@ -664,13 +609,14 @@ function stemLoad(stem) {
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // gallery functions
 
-/** names of save files * ~~~ / var localGalNames = []; */
-/** structure of gallery */ var allGal = {};
-/** array of recent values */ var saves = [];
 
 /** get populated gallery for name */
 function getGal(name) {
+    //TODO better handling of missing entry.
     var v = allGal[name];
+    if (!v) {
+        console.error(`name not found in gallery: getGal('${name}')`);
+    }
 
 // don't use allGal cache as it is somehow getting corrupted
 //    if (v.genes)
@@ -683,8 +629,12 @@ function getGal(name) {
     var json = posturi(fid + "?" + framenum + '/' + loadStartTime);
     allGal[name] = dstringGenes(json);
     if (allGal[name].genes) allGal[name].genes.name = name;
-    getGal.lastname = name;
-    getGal.lasttime = frametime;
+    getGal.lastname = name;         // ??? not used
+    getGal.lasttime = frametime;    // ??? not used
+    // short term fix to have reliable (?) place to look for last name, will be tidying ????
+    loadOao.lastfn = name;
+    loadOao.lasttime = frametime;
+
 
     return allGal[name];
 }
@@ -755,18 +705,25 @@ function webgalload(num) {
     newframe();
 }
 
-/** save with serial number */
-function saven(genes, name, savedir) {
-    genes = genes || currentGenes;
-    name = name || trygeteleval("savename") || genes.name;
-    for (let num = 0; true; num++) {
-        var lname = name + "__" + (num < 100 ? (num+100+"").substr(-2) : num);
+/**  make a new name with unique serial number, eg fred__4 */
+function makeName(savedir = 'gallery', basename, genes = currentGenes, extras = {}) {
+    basename = basename || trygeteleval("savename") || genes.name;
+    let names = savedir ? readdir('/!' + savedir) : {}; // savedir names
+    Object.assign(names, extras);                       // merged with extra names if any (eg all gallery names)
+    const fname = basename + '__';
+    let num = Object.keys(names)                        // find the largest serial number in either
+        .filter(s => s.startsWith(fname))
+        .map(s => s.post(fname).pre('.'))
+        .reduce((c,v)=>Math.max(isNaN(v) ? -1 : v,c), -1);
+    num++;
+    let lname = fname + (num < 1000 ? (num+1000+"").substring(1) : num);   // new name, three digit
+    return savedir + '/' + lname;
+}
 
-        if (allGal[lname]) continue;
-        if (savedir && nwfs && nwfs.existsSync(savedir + '/' + lname)) continue;
-        break;
-    }
+// save at the next sequence numbner
+function saven(genes = currentGenes, basename, savedir = 'gallery') {
     // add two digit serial, unless >= 100
+    const lname = makeName(savedir, basename, genes, allGal)
     save(genes, lname);
     return lname;
 }
@@ -794,50 +751,37 @@ function save(genes, name) {
 function saveSnapInternal(genes, fid) {
     const s = yamlString(genes);
     if (!fid) {
-        var d = (new Date()).toJSON().replaceall(":", ".");
+        var d = (new Date()).toJSON().replace(/:/g, ".");
         fid = "org" + d + ".oao";
     }
     remotesave(fid, s);
 }
 
-function yamlString(genes = currentGenes, extras) {
-    const ignoreclasses = [THREE.Object3D, THREE.WebGLRenderTarget, THREE.Texture, THREE.Scene, HTMLElement, HTMLDocument];
-    var polluted = [];
-    // replacer for yaml ... maybe move to xstring.
-    function replacer(key, object) {
-        if (typeof object !== 'object' || object === null) return object;
-        for (let i=0; i<ignoreclasses.length; i++) if (object instanceof ignoreclasses[i]) return undefined;
-        if (object.__proto__[CLASSNAME]) {
-            //Object.defineProperty(value, '##c', { enumerable: true, writable: true});
-            object['##c'] = object.__proto__[CLASSNAME];
-            polluted.push(object);
-        } else if (Object.keys(object.__proto__).length !== 0) {
-            console.log("Warning: unexpected object found with no class info", object);
-        }
 
-        return object;
-    }
+
+/** save the main state of the system, complete with type information */
+function yamlString(genes = currentGenes, extras = undefined) {
     // cleangenesall();  // can kill synth mapping, >>> to consider
-    mapOnce();
     var newVersion = {
         name: genes.name,
         date: Date(),
-        genes: genes,
+        genes,
         inputState: saveInputState(),
-        genedefs: genedefs,
-        currentObjects: currentObjects,
-        vps: vps,
-        slots: slots,
-        extraDispobj: extraDispobj,
-        geneids: geneids,
-        frameSaver: frameSaver
+        genedefs,
+        currentObjects,
+        vps,
+        slots,
+        extraDispobj,
+        geneids,
+        guistring: GX.saveguiString(),
+        frameSaver
     };
     if (extras) copyFrom(newVersion, extras);
 
     var trsave = genes.tranrule;
     let inconsistentTranruleEncountered = false;
     try {  // modify to force cleaner tranrule saving
-        if (genes.tranrule) genes.tranrule = genes.tranrule.replaceall('\t', '    ');
+        if (genes.tranrule) genes.tranrule = genes.tranrule.replace(/\t/g, '    ');
         //genes.tranrule = trsave.split('\n');
         newVersion.inputState.tranrulebox = '->';
         for (let o in currentObjects) {
@@ -853,7 +797,7 @@ function yamlString(genes = currentGenes, extras) {
                 } else {
                     //there are interesting things to be done with more than one type of code spec simultaneously...
                     //It does cause problems with current (10/18) SynthBus system, so I'm flagging heavily in sclog...
-                    obj.genes.tranrule = tr.replaceall('\t', '    '); //replace(/\t/g, '    ')
+                    obj.genes.tranrule = tr.replace(/\t/g, '    '); //replace(/\t/g, '    ')
                     inconsistentTranruleEncountered = true;
                     let logStr = `\n\n\t---WARNING---\n\n`;
                     logStr = logStr + `Encountered different version of tranrule in genes of currentObjects[${o}] while building YAML\n`;
@@ -864,14 +808,16 @@ function yamlString(genes = currentGenes, extras) {
             }
         }
 
-        delete THREE.Object3D.prototype.toJSON;  // <<< patch for bug??? in three v74 TODO TODO chase/report
-        delete THREE.Texture.prototype.toJSON;  // <<< patch for bug??? in three v74 TODO TODO chase/report
-        delete THREE.Scene.prototype.toJSON;  // <<< patch for bug??? in three v74 TODO TODO chase/report
+        // appears not to be an issue now, 6 March 2021; not using JSON and I think three has fixed things anyway???
+        //delete THREE.Object3D.prototype.toJSON;  // <<< patch for bug??? in three v74 TODO TODO chase/report
+        //delete THREE.Texture.prototype.toJSON;  // <<< patch for bug??? in three v74 TODO TODO chase/report
+        //delete THREE.Scene.prototype.toJSON;  // <<< patch for bug??? in three v74 TODO TODO chase/report
         // actually blew up on json of a mesh.
         // object got jsoned BEFORE escape for key/value in xstring, and that caused the exception
         // var s = xstring(newVersion, { ignoreclasses } );
-        var s = yaml.safeDump(newVersion, {replacer, skipInvalid: true, lineWidth: 9999, flowLevel: 999});
-
+        // var s = yaml.safeDump(newVersion, {replacer, skipInvalid: true, lineWidth: 9999, flowLevel: 999});
+        const s = yamlSave(newVersion);
+        return s;
     } finally {  // restore modifications from above
         genes.tranrule = trsave;
         newVersion.inputState.tranrulebox = trsave; // probably clone about to be thrown away ???
@@ -880,9 +826,7 @@ function yamlString(genes = currentGenes, extras) {
             if (obj.genes && obj.genes.tranrule === '->')
                 obj.genes.tranrule = trsave;
         }
-        for (let object in polluted) delete object['##c']
     }
-    return s;
 }
 
 
@@ -918,7 +862,8 @@ function loadtarget(xxx, incfrozen, loadinputs) {
     if (incfrozen === undefined) incfrozen = keysdown.indexOf("ctrl") === -1;
     tryseteleval("savename", xobj.name);  // early, so we know what it was if it fails
     var t = settarget(loadxobjGetGenes(xobj, incfrozen, loadinputs));
-    updateGuiGenes();
+    if (inputs.imagename === 'organic') setInput('imagename', xobj.name);
+    updateGuiGenes(t);
     return t;
 }
 
@@ -931,6 +876,7 @@ function loadcurrent(xxx, incfrozen, loadinputs, genes) {
     if (loadinputs === undefined) loadinputs = keysdown.indexOf("shift") === -1; // shift prevents inputs loading
     tryseteleval("savename", xobj.name);  // early, so we know what it was if it fails
     var newgenes = loadxobjGetGenes(xobj, incfrozen, loadinputs);
+    if (inputs.imagename === 'organic') setInput('imagename', xobj.name);
     recent(xxx);
     for (let gn in genes) if (!(gn in newgenes)) log("inherited", gn, genes[gn]);  // added for info while cleaning up
     copyFrom(genes, newgenes);  // add changed ones, do not kill old ones
@@ -950,21 +896,28 @@ function loadcurrent(xxx, incfrozen, loadinputs, genes) {
         genes.gscale = 1;
         if (!_insinit) centrescalenow(genes); // added sjpt 6 Spet 2016
     }
-    updateGuiGenes();
+    updateGuiGenes(genes);
     Director.framesFromSlots();
 
-    addNewGenes();
+    _addNewGenesRepairOld();
     loadOao.lasttime = frametime;  // todo rename .... and clean up
     loadOao.lastgenes = {}; copyFrom(loadOao.lastgenes, genes);
 }
 
-/** add newly defined missing genes for backward compatibility */
-function addNewGenes() {
+var deadGenes = ['numPositionActive'];
+/** add newly defined missing genes and remove unused dead ones for backward compatibility */
+function _addNewGenesRepairOld() {
     for (let o in currentObjects) {
         var genes = currentObjects[o].genes;
         if (genes) {
             if (!('_uScale' in genes)) genes._uScale = 1;
+            for(const dgn of deadGenes) {
+                delete genes[dgn];
+            }
         }
+    }
+    for(const dgn of deadGenes) {
+        delete genedefs[dgn];
     }
 }
 
@@ -983,11 +936,12 @@ function loadxobjGetGenes(xxx, incfrozen, loadinputs) {
         if (!xobj.inputState.tranrulebox && xobj.genes.tranrule)
             xobj.inputState.tranrulebox = xobj.genes.tranrule;
         restoreInputState(xobj.inputState);
+        Maestro.on('doneLoadOao', ()=>filterDOMEv(), undefined, true);
     }
 
 
     // clean out all but permament genedefs, NO, might be other objects around that want them
-    // var fullobj = getHornSet(xobj.genes.tranrule);
+    // var fullobj = HW.getHornSet(xobj.genes);
     // var fullnames = fullobj && fullobj.getgenenames ? fullobj.getgenenames() : {};
     // for (let gn in genedefs) if (!permgenes[gn] && !fullnames[gn]) delete genedefs[gn];
     // and load our genedefs
@@ -1027,7 +981,7 @@ function loadxobjGetGenes(xxx, incfrozen, loadinputs) {
                 currentObjects[o].genes = clone(currentGenes);
             }
             if (regularizeTranruleOnLoad || !currentObjects[o].genes.tranrule) {
-                currentObjects[o].genes.tranrule = xobj.genes.tranrule;; //currentObjects.do_23.genes.tranrule;
+                currentObjects[o].genes.tranrule = xobj.genes.tranrule; //currentObjects.do_23.genes.tranrule;
             }
             if (inputs.GPUSCALE && !_insinit) {
                 // added sjpt 7 Spet 2016 to help scaling on load
@@ -1055,6 +1009,9 @@ function loadxobjGetGenes(xxx, incfrozen, loadinputs) {
     if (xobj.geneids)
         geneids = xobj.geneids;
 
+    if (xobj.guistring)
+        GX.restoreGuiFromObject(xobj.guistring);
+
     if (xobj.frameSaver)
         frameSaver = xobj.frameSaver;
 
@@ -1063,7 +1020,6 @@ function loadxobjGetGenes(xxx, incfrozen, loadinputs) {
     newmain();
     return resgenes;
 }
-var regularizeTranruleOnLoad = false;
 
 
 
@@ -1115,7 +1071,6 @@ function loadgenes(genes, incfrozen) {
 }
 
 
-var webGalByNum;  // same as allGal, but array sorted by name or date
 /** read data from web, gets names and data; */
 function readWebGalX() {
     if (oxcsynth) return {csynth1: {  name: "csynth1",  date: "2018-01-19T10:41:29.000Z" }};
@@ -1123,24 +1078,23 @@ function readWebGalX() {
     const files = readdir('./gallery');
     for (const fn in  files) {
         if (!fn.endsWith('.oao')) continue;
-        const ff = fn.replaceall('.oao', '');
+        const ff = fn.replace(/\.oao/g, '');
         res[ff] = {name: ff, date: new Date(files[fn].mtime)};
     }
     return res;
 }
 
-var baseroot = "stems/";
 
 /** save input configuration to local file */
 function stemSave(stem) {
-    if (!nwfs) { serious("no stemSave outside node webkit"); return; }
+    // if (!nw fs) { serious("no stemSave outside node webkit"); return; }
 
     stem = stem !== undefined ? stem : trygeteleval("boundsprefix", "xxx");
     var fstem = stem === "" ? "all" : stem;
     var s = saveInputState();
     s = JSON.stringify(s,undefined,2);
-    try { nwfs.mkdirSync(baseroot + fstem); } catch(e) {}
-    nwfs.writeFileSync(baseroot + fstem + "/" + fstem + ".stem", s);
+    try { mkdir(baseroot + fstem); } catch(e) {/**/}
+    writetextremote(baseroot + fstem + "/" + fstem + ".stem", s);
 
     for (let n in allGal) {
         if (n.startsWith(stem))
@@ -1160,12 +1114,12 @@ function saveObjToFS(name, xobj, root) {
     if (root === undefined) root = "";
     if (root !== "") {
         root = root + "/";   // nb double // do not matter in name
-        try { nwfs.mkdirSync(root); } catch(e) {};
+        try { mkdir(root); } catch(e) {/**/}
     } else {
         // root = baseroot;
     }
     var fid = root + name + ".oao";
-    nwfs.writeFileSync(fid, JSON.stringify(xobj, undefined, 2));
+    writetextremote(fid, JSON.stringify(xobj, undefined, 2));
     var date = dd(xobj.date);
 
     var pp = require('child_process');
@@ -1178,7 +1132,7 @@ function saveObjToFS(name, xobj, root) {
 /** clean object */
 function cleanoao(fid) {
     currentGenes = {};
-    setHornSet();
+    HW.setHornSet();
     for (let gn in genedefs) if (!permgenes[gn]) delete genedefs[gn];
     var data = getfiledata(fid);
     loadOao(data, fid);
@@ -1189,25 +1143,22 @@ function cleanoao(fid) {
     //}, undefined, true);
 }
 
-FrameSaver.Save = function() {
-    frameSaver.resbaseui = inputs.resbaseui;
-    frameSaver.resdyndeltaui = inputs.resdyndeltaui;
-    frameSaver.renderRatioUi = inputs.renderRatioUi;
-    frameSaver.projvp = inputs.projvp;
-    frameSaver.fullvp = inputs.fullvp;
-    frameSaver.vps = vps;
-    frameSaver.size = [width, height];
+FrameSaver.SaveSomeState = function(id) {
+    if (frameSaver.type !== 'director') console.error('FrameSaver.SaveSomeState called for non-director state')
+    if (FrameSaver.savedstate)
+        return console.error('FrameSaver.SaveSomeState with state already saved, ignore new state');
+    FrameSaver.savedstate = [id, inps.resbaseui, inps.resdyndeltaui, inps.renderRatioUi, inps.projvp, inps.fullvp, vps, width, height];
 };
 
- FrameSaver.Restore = function() {
-    // restore original resolution
-    setInput(W.resbaseui, frameSaver.resbaseui);
-    setInput(W.resdyndeltaui, frameSaver.resdyndeltaui);
-    setInput(W.renderRatioUi, frameSaver.renderRatioUi);
-    setInput(W.projvp, frameSaver.projvp);
-    setInput(W.fullvp, frameSaver.fullvp);
-    setSize(frameSaver.size);
-    setViewports(frameSaver.vps);
+ FrameSaver.RestoreSomeState = function(pid) {
+    if (frameSaver.type !== 'director') console.error('FrameSaver.SaveSomeState called for non-director state')
+    if (!FrameSaver.savedstate) return console.error('FrameSaver.RestoreSomeState called with no saved state.')
+    // eslint-disable-next-line no-shadow
+    let id, width, height, vps;
+    [id, inps.resbaseui, inps.resdyndeltaui, inps.renderRatioUi, inps.projvp, inps.fullvp, vps, width, height] = FrameSaver.savedstate;
+    if (id !== pid) console.error('FrameSaver.RestoreSomeState called with no wrong state. Used anyway', id, pid)
+    setSize([width, height]);
+    setViewports(vps);
 };
 
 // get a subdirectory in temp
@@ -1217,33 +1168,58 @@ function tmpdir(subdir) {
     return tmp;
 }
 
-// get the organic desktop (or other save) dir
-function getdesksave() {
-    try {
-        var os = require('os');
-    } catch (e) {
-        return '';
-    }
+function gethomedir() {
+    let homedir;
+    if (isNode())
+        homedir = process.env.USERPROFILE;  // no os.homedir() in nw.js
+    else
+        homedir = posturi('/eval/process.env.USERPROFILE');
+    if (!homedir) { homedir = 'save'; if (!fileExists(homedir)) mkdir(homedir);}   // for mac nwjs
+    return homedir;
+}
+
+function getcurrentdir() {
+    if (isNode()) return process.cwd();
+    return posturi('/eval/process.cwd()');
+}
+
+// get the organic desktop (or other save) dir, with optional subdirectory
+function getdesksave(...subdir) {
+    // serverdir = posturi('/eval/process .cwd()')
+    // homedir = posturi('/eval/var os = require("os"); os.homedir()')
+    // homedir = posturi('/eval/process .env.USERPROFILE')
+    let homedir = gethomedir();
     let desksave;
-    if (nwfs.existsSync('D:/organicsaves')) {
+    if (fileExists('D:/organicsaves')) {
         desksave = 'D:/organicsaves';
+    } else if (fileExists(homedir + "/OneDrive/Desktop")) {
+        desksave = homedir + "/OneDrive/Desktop/organicsaves"  // OneDrive desktop confusion, added 26 Jan 2023 for William's Hove machine
     } else {
-        var deskdir = os.homedir ? os.homedir() : process.env.USERPROFILE;  // no os.homedir() in nw.js
-        if (!deskdir) { deskdir = 'save'; if (!nwfs.existsSync(deskdir)) nwfs.mkdirSync(deskdir);}   // for mac nwjs
-        if (!nwfs.existsSync(deskdir + "/Desktop")) deskdir = deskdir.replace("C:", "D:");  // william's laptop install with aliased desktop march 17
-        if (!nwfs.existsSync(deskdir + "/Desktop")) deskdir = "C:";  // for Windows 7 ???, at least for DOCW1135
-        if (!nwfs.existsSync(deskdir)) serious("Cannot find a suitable Desktop to save in");
-        desksave = deskdir + "/Desktop/organicsaves";
+        if (!fileExists(homedir + "/Desktop")) homedir = homedir.replace("C:", "D:");  // william's laptop install with aliased desktop march 17
+        if (!fileExists(homedir + "/Desktop")) homedir = "C:";  // for Windows 7 ???, at least for DOCW1135
+        if (!fileExists(homedir)) serious("Cannot find a suitable Desktop to save in");
+        desksave = homedir + "/Desktop/organicsaves";
     }
     //Error: ENOENT: no such file or directory, access 'C:\Users\Peter/Desktop/organicsaves' at Object.fs.accessSync...
     //in fs.exisitsSync .... why would it fail on that and not earlier?
-    if (!nwfs.existsSync(desksave)) nwfs.mkdirSync(desksave);
-    return desksave;
+    if (!fileExists(desksave)) mkdir(desksave);
+    for (const ss of subdir) {
+        desksave = desksave + '/' + ss;
+        if (!fileExists(desksave)) mkdir(desksave);
+    }
+    return desksave + '/';
 }
 
-var geneids = [];
 /** start frameSaver sequence, set up for recording genes for each frame
  * Only called internally to FrameSaver.
+ * eg start by setting inputsanimsave to true.
+ * ctrl,Q: start record,  ctrl,shift,Q: render, shift,Q: replay
+ *
+ * frameSaver.type options
+ *  buffer:     stream selected genes to file, only accepted by Electron
+ *  JSON:       frame data held in JSON format in frameSaver.models
+ *  F32Array:   frame data held in Float32Array format in frameSaver.models
+ *  director:   worked via Director
  */
 FrameSaver._Start = function() {
     log('FrameSaver._Start');
@@ -1251,72 +1227,76 @@ FrameSaver._Start = function() {
     frameSaver.models = [];
     frameSaver.fps = 60;  // may be overridden before rendering
     frameSaver.num = -1;
-    FrameSaver.Save();
-    setInput(W.resbaseui, 9);       // resolutions to use for prerun
-    setInput(W.resdyndeltaui, 1);
-    setInput(W.renderRatioUi, 1);
-    if (Director.inbetween === Director.keyframesInbetween) forceCPUScale();
+    if (frameSaver.type === 'director') {
+        FrameSaver.SaveSomeState('prerun');
+        setInput(W.resbaseui, 9);       // resolutions to use for prerun
+        setInput(W.resdyndeltaui, 1);
+        setInput(W.renderRatioUi, 1);
+        if (Director.inbetween === Director.keyframesInbetween) forceCPUScale();
+    }
 
     geneids = [];
     for (let gn in currentGenes) if (typeof currentGenes[gn] === "number") geneids.push(gn);
 
     if (frameSaver.renderDirectory) log("start frame saving with rerendering incomplete, rest will be ignored in", frameSaver.renderDirectory);
     frameSaver.renderDirectory = undefined;
-    if (nwfs) {         // create special directory
-        var desksave = getdesksave();
 
-        // frameSaver.saveId = currentGenes.name + "_" + ((new Date()).toISOString().replaceall(":","."));
-        frameSaver.saveId = saven(undefined, undefined, desksave);  // save in gallery, also make sure we dont conflict with desksave saves
-        frameSaver.saveDirectory = desksave + "/" + frameSaver.saveId;
-        // try { nwfs.mkdirSync('save'); } catch(e) {}
-        nwfs.mkdirSync(frameSaver.saveDirectory);
-        nwfs.mkdirSync(frameSaver.saveDirectory + "/models");
-        nwfs.mkdirSync(frameSaver.saveDirectory + "/images");
-        if (frameSaver.type === "buffer") {
-            frameSaver.modelstream = nwfs.createWriteStream(frameSaver.saveDirectory + "/genes.binary");
-            frameSaver.recordlen = (geneids.length + 16) * 4;
-            // saveSnap(frameSaver.lastSaveDirectory + "/" + frameSaver.lastSaveDirectory + ".oao");
-        }
+    var desksave = getdesksave();
 
+    // frameSaver. saveId = currentGenes.name + "_" + ((new Date()).toISOString().replace(/:/g,"."));
+    const savedir = saven(undefined, undefined, desksave);  // save in desksave
 
-        // save helper file to run ffmpeg
-        var runff = 'rem - run ffmpeg using organicart runffmpeg.cmd\r\n';
-        runff += "pushd %~dp0\r\n";
-        runff += 'call "' + process.cwd() + '/runffmpeg.cmd" . ' + frameSaver.fps + ' %*\r\n';
-        runff += 'echo ffmpeg complete, code %ERRORLEVEL%\r\n';
-        // runff += 'pause Hit any key to finish.\r\n';
-        runff += "popd\r\n";
-        remotesave(frameSaver.saveDirectory + "/runffmpegL.cmd", runff);
-
-        // and image delete helper file
-        var delff = 'rem - delete most image files, save every 100\r\n';
-        delff += "mkdir saveimages\r\n";
-        delff += "move images\\*000.* saveimages\r\n";
-        delff += "del /q images\r\n";
-        remotesave(frameSaver.saveDirectory + "/deleteMostImages.cmd", delff);
-
-        // save oao file last to leave sensible message
-        save(undefined, frameSaver.saveDirectory  + '/' + frameSaver.saveId);
-    } else {        // save to autosave
-        frameSaver.saveDirectory = "autosave";
+    frameSaver.saveDirectory = savedir;
+    frameSaver.saveId = savedir.split('/').pop()
+    mkdir(frameSaver.saveDirectory);
+    if (frameSaver.type === "buffer") {
+        frameSaver.modelstream = fileOpenWrite(frameSaver.saveDirectory + "/genes.binary");
+        frameSaver.recordlen = (geneids.length + 16) * 4;
+        // saveSnap(frameSaver.lastSaveDirectory + "/" + frameSaver.lastSaveDirectory + ".oao");
     }
+
+    FrameSaver.saveHelpers(frameSaver.saveDirectory);
+
+    // save oao file last to leave sensible message
+    save(undefined, frameSaver.saveDirectory  + '/' + frameSaver.saveId);
     frameSaver.totsize = 0;
     currentGenes._recordTime = 0;
-
 };
 
-frameSaver.baseTime = 0;
+// save the helper files and directories that will be used for rendering1
+FrameSaver.saveHelpers = function(dir) {
+    mkdir(frameSaver.saveDirectory + "/models");
+    mkdir(frameSaver.saveDirectory + "/images");
+
+    // save helper file runffmpegL.cmd to run ffmpeg
+    var runff = 'rem - run ffmpeg using organicart runffmpeg.cmd\r\n';
+    runff += "pushd %~dp0\r\n";
+    runff += 'call "' + getcurrentdir() + '/runffmpeg.cmd" . ' + frameSaver.fps + ' %*\r\n';
+    runff += 'echo ffmpeg complete, code %ERRORLEVEL%\r\n';
+    // runff += 'pause Hit any key to finish.\r\n';
+    runff += "popd\r\n";
+    remotesave(dir + "/runffmpegL.cmd", runff);
+
+    // and image delete helper file
+    var delff = 'rem - delete most image files, save every 100\r\n';
+    delff += "mkdir saveimages\r\n";
+    delff += "move images\\*000.* saveimages\r\n";
+    delff += "del /q images\r\n";
+    remotesave(dir + "/deleteMostImages.cmd", delff);
+}
+
+// frameSaver.baseTime = 0;
 
 /** (optionally) set up frame and save data on every frame, also control calling other frameSave functions */
 FrameSaver.PreStep = function() {
     if (inputsanimsave) {
         var savefid = trygeteleval("imagename", "anim");
-        var savefidl = savefid + (framenum + 1000000).toString().substring(1);
+        var savefidl = savefid + '!' + (framenum + 1000000).toString().substring(1);
         if (!frameSaver.saveDirectory) {   // start of new animation save
             FrameSaver._Start();
         }
 
-        if (frameSaver.num === -1) {   // very fisrt, ignore to gives times chance to get regular
+        if (frameSaver.num === -1) {   // very first, ignore to gives times chance to get regular
             frameSaver.num++;
             return;
         } else if (frameSaver.num === 0) {   // first one in, start audio record
@@ -1355,7 +1335,7 @@ FrameSaver.PreStep = function() {
             msgfix("saveanim", "saving frames, saved=", frameSaver.num , "secs=",  currentGenes._recordTime/1000, "frames=", Math.floor(currentGenes._recordTime/1000 * frameSaver.fps),
                 "average record fps", format(frameSaver.num * 1000/currentGenes._recordTime, 1)); // "MB=" + Math.floor(frameSaver.totsize/1024/1024));
             if (frameSaver.type === "buffer") {
-                frameSaver.modelstream.write(sg);
+                fileAppend(frameSaver.modelstream, sg);
             } else if (frameSaver.type === "director") {
                 if (frameSaver.quickout) {
                     frameSaver.quickout = false;
@@ -1380,19 +1360,22 @@ FrameSaver.PreStep = function() {
 /** (optionally) save data on every frame, also control calling other frameSave functions */
 FrameSaver.PostStep = function() {
     if (frameSaver.defersave) {
-        saveframetga.convert();             // start convertion of this frame's result asap
+        saveframetga.convert(null, 1);      // start convertion of this frame's result asap, but mark it valid for next frame
         saveframetga(frameSaver.defersave); // this will save the old one read at the start of this frame
         frameSaver.defersave = undefined;
     }
     if (frameSaver.pendBatch) {
         // ??? this is the place to add to ranges.txt
-        FrameSaver.Runffmpeg(frameSaver.renderDirectory, frameSaver.pendBatch);
+        FrameSaver.Runffm(frameSaver.renderDirectory, frameSaver.pendBatch);
         frameSaver.pendBatch = undefined;
     }
 
     if (frameSaver.stopNext) {
-        FrameSaver.Endup();        // stop using feedback from FrameSaver.Render()
-        frameSaver.stopNext = false;
+        try {
+            FrameSaver.Endup();        // stop using feedback from FrameSaver.Render()
+        } finally {
+            frameSaver.stopNext = false;
+        }
     }
 };
 
@@ -1403,16 +1386,16 @@ function genesToBuffer(genes) {
     var sg;
     if (frameSaver.type === "JSON") {
         sg = JSON.stringify(currentGenes);
-    } else if (frameSaver.type === "F32Array") {
+    } else if (frameSaver.type === "F32Array" || frameSaver.type === "buffer") {
         sg = new Float32Array(geneids.length + 16);
         let i;
         for (i=0; i < geneids.length; i++) sg[i] = currentGenes[geneids[i]];
         for (let j=0; j<16; j++) sg[i++] = currentGenes._rot4_ele[j];
-    } else if (frameSaver.type === "buffer") {
-        sg = new Buffer(frameSaver.recordlen);
-        let i;
-        for (i=0; i < geneids.length; i++) sg.writeFloatLE(currentGenes[geneids[i]], i*4);
-        for (let j=0; j<16; j++) sg.writeFloatLE(currentGenes._rot4_ele[j], i++ * 4);
+    // } else if (frameSaver.type === "buffer") {
+    //     sg = Buffer.alloc(frameSaver.recordlen);
+    //     let i;
+    //     for (i=0; i < geneids.length; i++) sg.writeFloatLE(currentGenes[geneids[i]], i*4);
+    //     for (let j=0; j<16; j++) sg.writeFloatLE(currentGenes._rot4_ele[j], i++ * 4);
     } else if (frameSaver.type === "director") {
         sg = "";         // ??? maybe this should just be invalid ???
     } else serious("bad frameSaver.type ", frameSaver.type);
@@ -1427,31 +1410,32 @@ function genesFromBuffer(sg, genes, n) {
     if (frameSaver.type === "JSON") {
         var newgenes = JSON.parse(sg);
         copyFrom(genes, newgenes);
-    } else if (frameSaver.type === "F32Array") {
+    } else if (frameSaver.type === "F32Array" || frameSaver.type === "buffer") {
+        if (!(sg instanceof Float32Array)) sg = new Float32Array(sg);
         let i;
         for (i=0; i < geneids.length; i++) genes[geneids[i]] = sg[i];
         for (let j=0; j<16; j++) genes._rot4_ele[j] = sg[i++];
-    } else if (frameSaver.type === "buffer") {
-            // average over several frames
-        // var n = sg.length / frameSaver.recordlen;
-        var p = 0;  // position
+    // } else if (frameSaver.type === "buffer") {
+    //         // average over several frames
+    //     // var n = sg.length / frameSaver.recordlen;
+    //     var p = 0;  // position
 
-        for (let i=0; i < geneids.length; i++) genes[geneids[i]] = 0;
-        for (let j=0; j<16; j++) genes._rot4_ele[j] = 0;
+    //     for (let i=0; i < geneids.length; i++) genes[geneids[i]] = 0;
+    //     for (let j=0; j<16; j++) genes._rot4_ele[j] = 0;
 
-        for (let rr = 0; rr < n; rr++) {
-            for (let i=0; i < geneids.length; i++) genes[geneids[i]] += sg.readFloatLE(p++ * 4);
-            for (let j=0; j<16; j++) genes._rot4_ele[j] += sg.readFloatLE(p++ * 4);
-        }
+    //     for (let rr = 0; rr < n; rr++) {
+    //         for (let i=0; i < geneids.length; i++) genes[geneids[i]] += sg.readFloatLE(p++ * 4);
+    //         for (let j=0; j<16; j++) genes._rot4_ele[j] += sg.readFloatLE(p++ * 4);
+    //     }
 
-        for (let i=0; i < geneids.length; i++) genes[geneids[i]] /= n;
-        for (let j=0; j<16; j++) genes._rot4_ele[j] /= n;
+    //     for (let i=0; i < geneids.length; i++) genes[geneids[i]] /= n;
+    //     for (let j=0; j<16; j++) genes._rot4_ele[j] /= n;
 
-        if (W.wrongtime) {
-            var s = genes._recordTime;
-            genes._recordTime = frameSaver.nexttime;
-            frameSaver.nexttime = s;
-        }
+    //     if (W.wrongtime) {
+    //         var s = genes._recordTime;
+    //         genes._recordTime = frameSaver.nexttime;
+    //         frameSaver.nexttime = s;
+    //     }
     } else serious("bad frameSaver.type ", frameSaver.type);
 }
 
@@ -1474,15 +1458,16 @@ FrameSaver.StopRecord = function() {
     frameSaver.lastSaveDirectory = frameSaver.saveDirectory;
     delete frameSaver.saveDirectory;
     if (frameSaver.type === "buffer") {
-        frameSaver.modelstream.close();
+        fileClose(frameSaver.modelstream);
     }
     delete frameSaver.modelstream;
 
     // repeat save so that currentGenes._recordTime is correct, pending best way to do it
-    //save(undefined, frameSaver.saveId);
+    //save(undefined, frameSaver. saveId);
     //save(undefined, frameSaver.lastSaveDirectory  + '/' + frameSaver.saveId);
 
-    FrameSaver.Restore();
+    if (frameSaver.type === 'director')
+        FrameSaver.RestoreSomeState('prerun');
     frameSaver.saved = frameSaver.num;
     if (frameSaver.type === 'director') {
         // leave to director to set
@@ -1490,7 +1475,7 @@ FrameSaver.StopRecord = function() {
         frameSaver.lastRecordTime = currentGenes._recordTime;
     }
     // done at start saveSnap(frameSaver.lastSaveDirectory + "/" + frameSaver.lastSaveDirectory + ".oao");
-    // done at start saveSnap("save/" + frameSaver.saveId + ".oao");
+    // done at start saveSnap("save/" + frameSaver. saveId + ".oao");
 };
 
 
@@ -1501,9 +1486,9 @@ FrameSaver.StopRecord = function() {
 //     https://docs.google.com/document/d/1IeUvq-HQucrA7Wz7AqOzumHLj5iXkBeQ-OM---WR9WA/edit#heading=h.6vgoecfqido8
 
 //
-FrameSaver.StartRender = function(rdir, fps = Director.fps) {
+FrameSaver.StartRender = async function(rdir, fps = Director.fps || frameSaver.fps || 60) {
     if (frameSaver.renderDirectory) {
-        msgfix('stopping render', 'StartRender called while already rendering.');
+        msgfixlog('stopping render', 'StartRender called while already rendering.');
         frameSaver.renderDirectory = undefined;
         return;
     }
@@ -1514,17 +1499,17 @@ FrameSaver.StartRender = function(rdir, fps = Director.fps) {
         if (!rdir) {    // after load from gallery, find and use corresponding desktop/organicsaves directory
             var fn = loadOao.lastfn.replace('gallery/', '').replace('.oao', '');
             var ffn = getdesksave() + '/' + fn;
-            if (nwfs && nwfs.existsSync(ffn + '/genes.binary'))
+            if (fileExists(ffn + '/genes.binary'))
                 rdir = frameSaver.lastSaveDirectory = ffn;
         }
         if (!rdir) { msgfix(">saveanim", "no available data from which to rerun/render"); return; }
         if (geneids.length === 0) { msgfix(">saveanim", "no saved geneids, cannot rerun/render"); return; }
-        frameSaver.renderDirectory = rdir;
+        // only set at very end, so we dont't try to Render too soon.  frameSaver.render Directory = rdir;
         log("~~~~~~ starting rendering recorded models ~~~~~~~~");
         if (frameSaver.type === "buffer") {
             frameSaver.nexttime = 0;
-            var fid = frameSaver.renderDirectory + "/genes.binary";
-            frameSaver.streamlen = nwfs.statSync(fid).size;
+            var fid = rdir + "/genes.binary";
+            frameSaver.streamlen = fileStat(fid).size;
         // check information to match the stream with geneids
         // will usually detect errors by not having exact number of records
         // will try to correct errors by recomputing geneids
@@ -1541,7 +1526,7 @@ FrameSaver.StartRender = function(rdir, fps = Director.fps) {
                 frameSaver.recordlen = (geneids.length + 16) * 4;
                 frameSaver.numInputRecords = frameSaver.streamlen / frameSaver.recordlen;
                 if (frameSaver.numInputRecords%1 !== 0) {
-                    frameSaver.renderDirectory = undefined;
+                    // frameSaver.render Directory = undefined;
                     mmmm = msgfix('>loadgenestreampatch', 'stream len', frameSaver.streamlen, 'not integer mult record len', frameSaver.recordlen, 'recs', frameSaver.numInputRecords);
                     throwe(mmmm);
                 }
@@ -1549,48 +1534,51 @@ FrameSaver.StartRender = function(rdir, fps = Director.fps) {
             }
 
             // read last record to find time
-            var ffd = nwfs.openSync(fid, 'r');
-            frameSaver.inbuff = new Buffer(frameSaver.recordlen);
-            var l = nwfs.readSync(ffd, frameSaver.inbuff, 0, frameSaver.recordlen, frameSaver.streamlen - frameSaver.recordlen );
-            if (l !== frameSaver.recordlen) {
-                frameSaver.renderDirectory=undefined;
+            var ffd = fileOpenRead(fid); // nw fs.openSync(fid, 'r');
+            // frameSaver.in buff = Buffer.alloc(frameSaver.recordlen);
+            let buffer = await fileRead(ffd, frameSaver.recordlen, frameSaver.streamlen - frameSaver.recordlen );
+            // var l = nw fs.readSync(ffd, frameSaver.in buff, 0, frameSaver.recordlen, frameSaver.streamlen - frameSaver.recordlen );
+            if (buffer.byteLength !== frameSaver.recordlen) {
+                // frameSaver.render Directory=undefined;
                 let mmmm = log('unexpected read');
                 throwe(mmmm);
             }
-            nwfs.closeSync(ffd);
+            fileClose(ffd); //  nw fs.closeSync(ffd);
             var g = { _rot4_ele: [] };
             g._recordTime = 99999999999;
 
             W.wrongtime = false;  // always false // temp for Peterburg till record corrected for playback when recorded frames have time stamp on wrong buffer frame
-            genesFromBuffer(frameSaver.inbuff, g, 1);
+            genesFromBuffer(new Float32Array(buffer), g, 1);
             //W.wrongtime = true;   // TODO, temp for Peterburg till record corrected for playback when recorded frames have time stamp on wrong buffer frame
             frameSaver.lastRecordTime = g._recordTime;
 
-            frameSaver.inputfd = nwfs.openSync(fid, 'r');
+            frameSaver.inputfd = fileOpenRead(fid);
             if (frameSaver.replaysmooth === undefined) frameSaver.replaysmooth = 10;
-            frameSaver.inbuff = new Buffer(frameSaver.recordlen * frameSaver.replaysmooth);
-            // frameSaver.modelstream = nwfs.createReadStream(fid);
+            // frameSaver.in buff = Buffer.alloc(frameSaver.recordlen * frameSaver.replaysmooth);
             msgfix('inputstream', 'size', frameSaver.streamlen, 'genes', geneids.length, 'reclen', frameSaver.recordlen, 'records', frameSaver.numInputRecords, 'time', frameSaver.lastRecordTime);
         }  // type === buffer
         frameSaver.saveframe = -15;  // ensure feedback ok before starting for real
         frameSaver.num = 0;
-        frameSaver.framesToRender = Math.floor(frameSaver.lastRecordTime / 1000 * frameSaver.fps) + 1;
+        if (frameSaver.lastRecordTime)
+            frameSaver.framesToRender = Math.floor(frameSaver.lastRecordTime / 1000 * frameSaver.fps) + 1;
         frameSaver.prev = { _recordTime: -1, _rot4_ele: [] };
         frameSaver.next = { _recordTime: -1, _rot4_ele: [] };
 
-        FrameSaver.Save();
+        if (frameSaver.type === 'director') FrameSaver.SaveSomeState('render');
         if (!frameSaver.showonly) { // setup for save image/record
-            setInput(W.resbaseui, 12);      // resolutions to use for main run if saving rendered frames
-            setInput(W.resdyndeltaui, 1);
-            setInput(W.renderRatioUi, 1);  // 1/3 was MUCH slower
+            if (frameSaver.type === 'director') {
+                setInput(W.resbaseui, 12);      // resolutions to use for main run if saving rendered frames
+                setInput(W.resdyndeltaui, 1);
+                setInput(W.renderRatioUi, 1);  // 1/3 was MUCH slower
 
-            //setInput(W.resbaseui, 10);
-            //setInput(W.resdyndeltaui, 1);
-            //setInput(W.renderRatioUi, 1);
+                //setInput(W.resbaseui, 10);
+                //setInput(W.resdyndeltaui, 1);
+                //setInput(W.renderRatioUi, 1);
 
-            setInput(W.fullvp, false);
-            setInput(W.projvp, false);
-            var sss = imsize(0,0,0,true);
+                setInput(W.fullvp, false);
+                setInput(W.projvp, false);
+            }
+            var sss = imsize(0,0,0,true,'animimageres');
             if (renderObjs === renderQuad) {  // renderQuad was for York 4 wall recording
                 vpborder = 0;
                 setViewports([4,1]);
@@ -1611,63 +1599,89 @@ FrameSaver.StartRender = function(rdir, fps = Director.fps) {
             if (FrameSaver.batchSize) {
                 var batch = Math.floor(frameSaver.framesToRender / FrameSaver.batchSize);
                 var fbatch = (batch + 1000000).toString().substring(1);
-                // ??? nothig to ffmpeg yet ??? FrameSaver.Runffmpeg(frameSaver.renderDirectory, fbatch);
+                // ??? nothing to ffmpeg yet ??? FrameSaver.Runffm(frameSaver.renderDirectory, fbatch);
                 var s = "";
                 for (let b = 0; b <= batch; b++) {
                         fbatch = (b + 1000000).toString().substring(1);
                         s += 'file B_' + fbatch + ".mp4\n";
                         frameSaver.ffmPending[b] = 'pending';
                 }
-                remotesave(frameSaver.renderDirectory + "/ranges.txt", s);
+                remotesave(rdir + "/ranges.txt", s);
             }
         }  // end setup for save image/record
+        frameSaver.newBuffer = 1;   // just enough to trigger read in next Render();
 
         //  msgfixlog("[asyncffmpeg]", FrameSaver.Asyncffmpeg);
     }  // not realtime image save
+    frameSaver.renderDirectory = rdir;  // also acts as flag that it is now safe ot render
 };
 
+/*
+Render wishlist
+* works for Director, recorded genes ('buffer'), and tadpoles.
+* plays back frame by frame
+* plays back respecting record time
+*    with inbetweening for smoothness (buffer only for now)
+* records frame by frame
+* records respecting record time
+*    with inbetweening for smoothness (buffer only for now)
+
+ */
 /** called each frame for rendering given correct fps, return false if no correct frame available */
-FrameSaver.Render = function() {
-    newframe();
+FrameSaver.Render = function FrameSaverRender() {
+    if (!frameSaver.mynewframe) newframe();
 
     if (frameSaver.safeRenderFrame) { delete frameSaver.safeRenderFrame; return true; }
+
     while(true) {  // loop in case frame already rendered
         var rendertime = frameSaver.saveframe / frameSaver.fps * 1000;
         var keepGoing = true;   // allow for one extra frame at end because of readPixel timing
 
-        // establish next frame, either from recording or from directdor
+        // establish next frame, either from recording or from director
         if (frameSaver.type === "director") {
             keepGoing = Director.setframenum(frameSaver.saveframe);
+        } else if (typeof frameSaver.type === "function") {
+            frameSaver.type(frameSaver.saveframe);
         } else {
-
             var sg;
             msgfix('times', frameSaver.prev._recordTime, '...' , frameSaver.next._recordTime, rendertime);
-            while (frameSaver.next._recordTime <= rendertime) {
+            /// ??? while (frameSaver.next._recordTime <= rendertime) {
                 copyFrom(frameSaver.prev, frameSaver.next);
                 var framesRead = 1;  // unless overridden by buffer
                 if (frameSaver.type === "buffer") {
                     if (frameSaver.num * (frameSaver.recordlen) === frameSaver.streamlen) {
-                        msgfix('playback', 'end of stream stopped playback at', frameSaver.saveframe);
+                        msgfixlog('playyback', '~~~~~~~~~~~~~~~~~~~~~~~ end of stream stopped playback at', frameSaver.saveframe);
                         return false;
                     }
 
-                    //sg = frameSaver.modelstream.read(frameSaver.recordlen * frameSaver.replaysmooth);
+                    //sg = frameSaver.model stream.read(frameSaver.recordlen * frameSaver.replaysmooth);
                     //if (!sg)
                     //    return true;  // try again next frame, read is oddly async <<<<< TODO FIX THIS
                     var framesToRead = frameSaver.num === 0 ? 1 : frameSaver.replaysmooth;
-                    var l = nwfs.readSync(frameSaver.inputfd, frameSaver.inbuff, 0, framesToRead * frameSaver.recordlen );
-                    framesRead = l / frameSaver.recordlen;
+
+                    // var l = nw fs.readSync(frameSaver.inputfd, frameSaver.in buff, 0, framesToRead * frameSaver.recordlen );
+                    if (frameSaver.newBuffer) {
+                        frameSaver.newBuffer = undefined;
+                        var sgProm = fileRead(frameSaver.inputfd, framesToRead * frameSaver.recordlen, frameSaver.num * frameSaver.recordlen)
+                            .then(nsg => {
+                                frameSaver.newBuffer = frameSaver.currentBuffer = nsg;
+                                framesRead = nsg.byteLength / frameSaver.recordlen;
+                                frameSaver.num += framesRead;
+                                msgfixlog('input stream records', frameSaver.num, 'at', framenum, 'of', frameSaver.numInputRecords);
+                            });
+                        }
+                    sg = frameSaver.currentBuffer;
+
                     //if (framesRead !== framesToRead)
                     //    debugger;  // temp test, will usually fail at end of stream
-                    frameSaver.num += framesRead;
-                    msgfix('input stream records', frameSaver.num, 'of', frameSaver.numInputRecords);
-                    sg = frameSaver.inbuff;
+                    // sg = frameSaver.in buff;
 
                 } else {
                     sg = frameSaver.models.shift();
                     frameSaver.num++;
                 }
-                if (sg) {
+
+                if (sg && sg.byteLength > 0) {
                     genesFromBuffer(sg, frameSaver.next, framesRead);
                 } else {
                     frameSaver.next._recordTime = 99999999;
@@ -1675,7 +1689,7 @@ FrameSaver.Render = function() {
                     log("unexpected read past end of modelstream");
                     return false;
                 }
-            }
+            ///???}
             // linear interp to get current
             var p = (rendertime - frameSaver.prev._recordTime) / (frameSaver.next._recordTime -frameSaver.prev._recordTime);
             for (let gn in frameSaver.next)
@@ -1684,12 +1698,12 @@ FrameSaver.Render = function() {
             if (frameSaver.prev._rot4_ele.length === 16 && frameSaver.next._rot4_ele.length === 16)
                 for (let i=0; i<16; i++) currentGenes._rot4_ele[i] = (1-p) * frameSaver.prev._rot4_ele[i] + p * frameSaver.next._rot4_ele[i];
             //log ("frameSaver.num", frameSaver.num, p, "_camz", currentGenes._camz);
-        }
+        } // non-director of function
 
         // display and optionally save frame
         // frameSaver.showonly = true;  // to change when we get recording working again
-        if (frameSaver.saveframe  > frameSaver.framesToRender) {
-            msgfix('playback', 'all records processed stopped playback at', frameSaver.saveframe);
+        if (frameSaver.saveframe  > frameSaver.framesToRender+1) {  // +1 makes sure very last exact frame processed
+            msgfixlog('playback', '~~~~~~ all records processed stopped playback at', frameSaver.saveframe);
             return false;
         }
         msgfix('playback', frameSaver.saveframe, 'of', frameSaver.framesToRender, currentGenes._recordTime);
@@ -1707,19 +1721,19 @@ FrameSaver.Render = function() {
 
                 var fbatch = (batch + 1000000).toString().substring(1);
                 var fnum = (num + 1000000).toString().substring(1);
-                savefidl += inputs.imagename + fbatch + 'x' + fnum + ".tga";
+                savefidl += inputs.imagename + '!' + fbatch + 'x' + fnum + ".tga";
                 if (num === FrameSaver.batchSize-1)
                     frameSaver.pendBatch = fbatch;
             } else {
-                savefidl += inputs.imagename + (realframenum + 1000000).toString().substring(1) + ".tga";
+                savefidl += inputs.imagename + '!' + (realframenum + 1000000).toString().substring(1) + ".tga";
             }
             frameSaver.saveframe++;
-            if (nwfs.existsSync(savefidl)) {
+            if (fileExists(savefidl)) {
                 // we are recording and this one already exists
                 // the loop will just take up to the next frame to test
 
             } else {  // we have a real frame to record
-                newmain();
+                if (!frameSaver.mynewframe) newmain();
                 //renderFrame();  // doing this here will mean the renderFrame() in the main animate wil effectively be a noop
                 //saveframetga(savefidl);
                 if (realframenum >= 0) {
@@ -1739,7 +1753,7 @@ FrameSaver.Render = function() {
                     msgfixlog("[asyncffmpeg]", FrameSaver.Asyncffmpeg);
                 }
                 if (realframenum > 2*FrameSaver.AsyncStep && FrameSaver.Asyncffmpeg === 'pending') {
-                    FrameSaver.Runffmpeg(frameSaver.renderDirectory);
+                    FrameSaver.Runffm(frameSaver.renderDirectory);
                 }
 
                 // saveframe(savefidl, inputs.animquality, "png");
@@ -1758,9 +1772,11 @@ FrameSaver.Render = function() {
 
 /** finish frameSaver, spawn video maker and restore settings */
 FrameSaver.Endup = function() {
-    if (frameSaver.modelstream) frameSaver.modelstream.close();
+    if (!frameSaver.renderDirectory) return console.error('FrameSaver.Endup called with no renderDirectory');
+
+    if (frameSaver.modelstream) fileClose(frameSaver.modelstream);
     frameSaver.modelstream = undefined;
-    if (frameSaver.inputfd !== undefined) nwfs.closeSync(frameSaver.inputfd);
+    if (frameSaver.inputfd !== undefined) fileClose(frameSaver.inputfd);
     frameSaver.inputfd = undefined;
 // all models rendered, save video if possible and go back to normal mode
     msgfix("saveanim", "time taken", Date.now() - frameSaver.startRecordTime);
@@ -1771,33 +1787,35 @@ FrameSaver.Endup = function() {
             var batch = Math.floor(frameSaver.framesToRender / FrameSaver.batchSize);
             var fbatch = (batch + 1000000).toString().substring(1);
             // ??? or save complete ranges.txt here ???
-            FrameSaver.Runffmpeg(frameSaver.renderDirectory, fbatch);
+            FrameSaver.Runffm(frameSaver.renderDirectory, fbatch);
             //remotesave(frameSaver.renderDirectory + "/catffmpeg.cmd", "ffmpeg.exe -f concat -i mylist.txt -c copy out.mp4");
         } else {
-            FrameSaver.Runffmpeg(frameSaver.renderDirectory);
+            FrameSaver.Runffm(frameSaver.renderDirectory);
         }
     }
 
     frameSaver.lastRenderDirectory = frameSaver.renderDirectory;
     frameSaver.renderDirectory = undefined;
-    saveframetga.convertDone = false;       // do not use last frame at start of next sequence
+    // saveframetga.convertDone = false;       // framenum will resole this ... do not use last frame at start of next sequence
 
-    FrameSaver.Restore();
+    if (frameSaver.type === 'director')
+        FrameSaver.RestoreSomeState('render');
 };
 
-/** runffmpeg on movie or range (optional) of movie */
-FrameSaver.Runffmpeg = function(dir, range) {
-    dir = dir.replaceall('\\', '/');
+/** run ffmpeg on movie or range (optional) of movie */
+FrameSaver.Runffm = function(dir, range) {
+    dir = dir.replace(/\\/g, '/');
 
-    if (W.isNode() && frameSaver.saveframe !== 99999999) {
-        var isWin = /^win/.test(require('os').platform());
+    if (frameSaver.saveframe !== 99999999) {
+        var isWin = navigator.platform.match(/win/i);
         if (!isWin) {
+            if (!W.isNode())  return serious('cannot run ffmpeg in unix non-node mode')
             var ffmpeg = require('fluent-ffmpeg');
             var path = require('path');
             var command = ffmpeg();
             var crf = 18, preset = 'slow';
             var audioFile = frameSaver.renderDirectory + '/audio.wav';
-            if (nwfs.existsSync(audioFile)) command.addInput(audioFile);
+            if (fileExists(audioFile)) command.addInput(audioFile);
             command.addInput(path.normalize(dir + '/images/organic%06d.png'))
                 .inputFPS(frameSaver.fps).fps(frameSaver.fps)
                 .videoCodec('libx264').addOptions(['-crf '+crf, '-preset '+preset])
@@ -1808,17 +1826,10 @@ FrameSaver.Runffmpeg = function(dir, range) {
             if (range) frameSaver.ffmPending[range*1] = 'running';
             frameSaver.ffmframes = [];
             frameSaver.ffmframe = 0;
-            var spawn = W.require('child_process').spawn;
-            // var args = ['-framerate', '30', '-i', 'organic%06d.png', '-c:v', 'libx264', '-r',  '30',  'out.mp4'];
-            //var ffm = spawn('runffmpeg.cmd', ['"' + dir.replaceall("/", "\\") + '"']);
-            var ffm = spawn(dir + '/runffmpegL.cmd', range ? [range] : undefined);
-            if (FrameSaver.Asyncffmpeg === 'pending') {
-                FrameSaver.Asyncffmpeg = 'running';
-                msgfixlog("[asyncffmpeg]", FrameSaver.Asyncffmpeg);
-            }
+            let ffmfid = '?ffmfid?';
 
-            ffm.on('exit', function(code, signal) {
-                msgfixlog("[ffm]", range, 'Exit with code ' + code + ', "' + signal + '"<br>' + ffm.fid);
+            const onexit = function(code, signal) {
+                msgfixlog("[ffm]", range, 'Exit with code ' + code + ', "' + signal + '"<br>' + ffmfid);
                 log('ffmpeg complete, frames seen', frameSaver.ffmframes.join(','));
                 if (FrameSaver.Asyncffmpeg) {
                     FrameSaver.Asyncffmpeg = 'ended';
@@ -1826,52 +1837,71 @@ FrameSaver.Runffmpeg = function(dir, range) {
                 }
                 delete frameSaver.ffmPending[range*1];
                 if (range && Object.keys(frameSaver.ffmPending).length === 0)
-                    FrameSaver.Runffmpeg(dir);
-            });
-            ffm.on('error', function(err) {
-                msgfixlog("[ffm-error]", range, err);
-                if (FrameSaver.Asyncffmpeg) {
-                    FrameSaver.Asyncffmpeg = 'ended error';
+                    FrameSaver.Runffm(dir);
+            }
+
+            if (!isNode()) {
+                // initial version of 'standard' windows/no node.
+                // for now no proper checking for errors
+                const cmd = '"' + dir + '/runffmpegL.cmd" ' + (range ? range : '');
+                log('ffmpeg command:', cmd)
+                runcommandphp(cmd, r => onexit(r, 'nosignal'));
+            } else {            // is node
+                var spawn = W.require('child_process').spawn;
+                // var args = ['-framerate', '30', '-i', 'organic%06d.png', '-c:v', 'libx264', '-r',  '30',  'out.mp4'];
+                //var ffm = spawn('runffmpeg.cmd', ['"' + dir.replace(///g, "\\") + '"']);
+                var ffm = spawn(dir + '/runffmpegL.cmd', range ? [range] : undefined);
+                if (FrameSaver.Asyncffmpeg === 'pending') {
+                    FrameSaver.Asyncffmpeg = 'running';
                     msgfixlog("[asyncffmpeg]", FrameSaver.Asyncffmpeg);
                 }
-                delete frameSaver.ffmPending[range*1];
-                if (range && Object.keys(frameSaver.ffmPending).length === 0)
-                    FrameSaver.Runffmpeg(dir);
-            });
-            ffm.stdout.on('data', function(data) {
-                // this will come from the wrapper .cmd but not from ffmpeg itself
-                data = "" + data;
-                if (data.indexOf('Writing to') !== -1) {
-                    var p = data.lastIndexOf('Writing to');
-                    ffm.fid = data.substr(p).pre('\n');
-                    msgfixlog('[ffm]', range, ffm.fid);
-                }
-                log('[ffm-stdout]', "" + data);
-            });
-            ffm.stderr.on('data', function(data) {
-                // ffmpeg itself issues all 'console' output as stderr
-                //if (data.indexOf("command FIFO full" !== -1)) //todo something!
-                data = "" + data;
-                var fdata = data.post('frame=');
-                if (fdata) {
-                    var p = data.lastIndexOf('frame=');
-                    var ffmdetails = 'frame= ' + fdata.pre('\n');
-                    frameSaver.ffmframe = fdata.trim().pre(' ') * 1;
-                    frameSaver.ffmframes.push(frameSaver.ffmframe);
-                    if (!isNaN(frameSaver.ffmframe)) {
-                        if (frameSaver.ffmframe > frameSaver.saveframe - FrameSaver.AsyncStep && FrameSaver.Asyncffmpeg === 'running') {
-                            spawn('../ffmpeg/pssuspend.exe', ['runffmpeg']);
-                            FrameSaver.Asyncffmpeg = 'paused';
-                            msgfixlog("[asyncffmpeg]", FrameSaver.Asyncffmpeg);
-                        }
+
+                ffm.on('exit', onexit);
+                ffm.on('error', function(err) {
+                    msgfixlog("[ffm-error]", range, err);
+                    if (FrameSaver.Asyncffmpeg) {
+                        FrameSaver.Asyncffmpeg = 'ended error';
+                        msgfixlog("[asyncffmpeg]", FrameSaver.Asyncffmpeg);
                     }
-                    msgfix('[ffm]', range, ffmdetails + '<br>' + ffm.fid);
-                }
-                console.info('[ffm-stderr]' + data);
-            });
-        }
+                    delete frameSaver.ffmPending[range*1];
+                    if (range && Object.keys(frameSaver.ffmPending).length === 0)
+                        FrameSaver.Runffm(dir);
+                });
+                ffm.stdout.on('data', function(data) {
+                    // this will come from the wrapper .cmd but not from ffmpeg itself
+                    data = "" + data;
+                    if (data.indexOf('Writing to') !== -1) {
+                        var p = data.lastIndexOf('Writing to');
+                        ffmfid = data.substr(p).pre('\n');
+                        msgfixlog('[ffm]', range, ffmfid);
+                    }
+                    log('[ffm-stdout]', "" + data);
+                });
+                ffm.stderr.on('data', function(data) {
+                    // ffmpeg itself issues all 'console' output as stderr
+                    //if (data.indexOf("command FIFO full" !== -1)) //todo something!
+                    data = "" + data;
+                    var fdata = data.post('frame=');
+                    if (fdata) {
+                        var p = data.lastIndexOf('frame=');
+                        var ffmdetails = 'frame= ' + fdata.pre('\n');
+                        frameSaver.ffmframe = fdata.trim().pre(' ') * 1;
+                        frameSaver.ffmframes.push(frameSaver.ffmframe);
+                        if (!isNaN(frameSaver.ffmframe)) {
+                            if (frameSaver.ffmframe > frameSaver.saveframe - FrameSaver.AsyncStep && FrameSaver.Asyncffmpeg === 'running') {
+                                spawn('../ffmpeg/pssuspend.exe', ['runffmpeg']);
+                                FrameSaver.Asyncffmpeg = 'paused';
+                                msgfixlog("[asyncffmpeg]", FrameSaver.Asyncffmpeg);
+                            }
+                        }
+                        msgfix('[ffm]', range, ffmdetails + '<br>' + ffmfid);
+                    }
+                    console.info('[ffm-stderr]' + data);
+                });
+            } // isNode
+        }   // isWin
     }
-};
+};  // FrameSaver.Runffm
 FrameSaver.AsyncStep = 100;  // amount ffmpeg allowed to get ahdead/behind
 //FrameSaver.Asyncffmpeg;      // leave as undefined and the machanism won't kick in
 FrameSaver.batchSize = 300;     // batch of images before running ffmpeg
@@ -1889,7 +1919,7 @@ FrameSaver.batchSize = 300;     // batch of images before running ffmpeg
  *
  *
  *   saveAs                             FileSaver.js, saves as download
- *   nwfs.writeFileSync                 saves where told by parm
+ *   writetextremote                 saves where told by parm
  *
  *
  *   writetextremote                    saves text using XMLHttpRequest and savefile.php
@@ -1901,11 +1931,11 @@ FrameSaver.batchSize = 300;     // batch of images before running ffmpeg
  *   save -> remotesave
  *   remotesave -> writetextremote      save using writetextremote
  *
- *   animsave -> nwfs.writeFileSync     for continuous animation save
- *   saveStem -> nwfs.writeFileSync     for save stem, obsolete?
+ *   animsave -> writetextremote     for continuous animation save
+ *   saveStem -> writetextremote     for save stem, obsolete?
  *              -> saveObjToFS
  *   saveGalToFS -> saveObjToFS         save gal from dataorganic to separate file format
- *   saveObjToFS -> nwfs.writeFileSync
+ *   saveObjToFS -> writetextremote
  *
  *   GX.write -> localStorage | saveAs | writetextremote
  *
@@ -1923,7 +1953,7 @@ function nysetForAnim(num) {
     if (num === undefined) num = [57, 51, 56,     28, 59, 69,   23, 77, 47,    19, 64, 70,   66, 13, 31, 30,    63];
     for (let i=0; i<num.length; i++) {
         var fid = 'C:/Users/Organic/Dropbox/Organicart/organicart/gallery/York_15x_NewS2__' + num[i] + '.oao';
-        var data = nwfs.readFileSync(fid).toString();
+        var data = readtext(fid); // nw fs.readFileSync(fid).toString();
         var xx = dstringGenes(data);
         copyFrom(slots[i+1].dispobj.genes, xx.genes);
     }
@@ -1942,17 +1972,17 @@ function nyset(num) {
         num = n;
     }
 
-    if (nwfs.existsSync(process.env.USERPROFILE + '/desktop/newsc_' + num + '.tif')) {
+    if (fileExists(gethomedir() + '/desktop/newsc_' + num + '.tif')) {
         log('do not replace file', num);
         if (rest) nyset(rest);
     } else {
         var fid = 'C:/Users/Organic/Dropbox/Organicart/organicart/gallery/York_15x_NewS2__' + num + '.oao';
-        var data = nwfs.readFileSync(fid).toString();
+        var data = readtext(fid); // nw fs.readFileSync(fid).toString();
 
         //loadOao(data, fid);
-    var xx = dstringGenes(data);
-    var x = {genes: xx.genes, name: 'newsc_' + num};
-    loadcurrent(x, true, true, currentGenes);  // incfrozen/loadinputs
+        var xx = dstringGenes(data);
+        var x = {genes: xx.genes, name: 'newsc_' + num};
+        loadcurrent(x, true, true, currentGenes);  // incfrozen/loadinputs
 
         msgfix('file', fid);
         setInput(W.resbaseui, 12);      // resolution to use for nyset special image saving
@@ -1990,12 +2020,12 @@ function nyset(num) {
     nyset -> loadcurrent (special for preparing new scientist images)
 
     docdrop -> openfiles -> openfile -> handler -> loadOaO (with DATA)
-        handler ... { ".oao": loadOao, ".stem": loadStem, '.oag': loadOag, '.js': evalx, '.binary': loadRunSave };
+        handler ... { ".oao": loadOao, ".stem": loadStem, '.oag': loadOag, '.js': loadjs, '.binary': loadRunSave };
 
  ***/
 
 function reloadIfNeeded() {
-    const ff = lastopenfiles[0].path.replaceall('\\','/');
+    const ff = lastopenfiles[0].path.replace(/\\/g,'/');
     if (ff !== startscript) {
         window.location.href += ';startscript = "' + ff + '"'
     }
@@ -2047,9 +2077,17 @@ function jsonReader(data, fid) {
 }
 var geojsonReader = jsonReader;
 
+/** read file and return structure, or undefined if no file */
+async function readJSON(fid) {
+    if (await fileExistsAsync(fid)) {
+        const resp = await fetch(fid);
+        const data = await resp.text();
+        return JSON.parse(data);
+    }
+}
 
 /** prompt to save a file */
-function promptAndSave(data, extension = 'txt', msg) {
+function promptAndSave(data = undefined, extension = 'txt', msg = undefined) {
     const cc = CSynth && CSynth.current;
     // let available = cc ? cc.available Files : [];
     const dir = cc ? cc.fullDir : '';
@@ -2058,130 +2096,6 @@ function promptAndSave(data, extension = 'txt', msg) {
     writetextremote(fid, data);
 }
 
-/** sample return from local server version
-    atime: "2018-10-10T14:03:32.200Z"
-    atimeMs: 1539180212199.6782
-    birthtime: "2018-10-03T19:12:44.689Z"
-    birthtimeMs: 1538593964689.2727
-    ctime: "2018-10-11T08:59:38.650Z"
-    ctimeMs: 1539248378650.2507
-    dev: 584555679
-    gid: 0
-    ino: 18295873486214340
-    mode: 33206
-    mtime: "2018-10-11T08:59:38.650Z"
-    mtimeMs: 1539248378650.2507
-    nlink: 1
-    rdev: 0
-    size: 3039
-    uid: 0
-    isDir: false
-**/
-/** Oxford url styles (see
- * https://docs.google.com/document/d/1uXDwrxbD1fmC-Va0fEu7DU1H-jgFrBlpX0zw7pxMGlQ/edit#heading=h.ileo70levzo8
- *
- *
- Oxford url styles
-for private projects
-https://csynth.molbiol.ox.ac.uk/csynth/
-    top level, all private projects/settings files/project names
-https://csynth.molbiol.ox.ac.uk/csynth/serve?p=20&file=load_data.js
-    config load file for private project, or data file within project
-https://csynth.molbiol.ox.ac.uk/csynth/serve?p=20&file=settings.txt
-    list of all files within private project
-
-for public projects
-https://csynth.molbiol.ox.ac.uk/csynthstatic/public/p_3ad38c2f-83db-4afb-870b-7b602fca8b96/load_data.js
-    config file for public project, or data files within project
-https://csynth.molbiol.ox.ac.uk/csynthstatic/public/p_1f2d99f4-938b-411d-910c-4fda1f055a27/
-    list of all files within public project
-https://csynth.molbiol.ox.ac.uk/csynthstatic/public/
-    list of all directories containing public projects
-
-
-for 'special upload' projects *
-https://csynth.molbiol.ox.ac.uk/csynthstatic/data/Lorentz/lorentz.js
-     top level config file, or referenced data file
-https://csynth.molbiol.ox.ac.uk/csynthstatic/data/Lorentz/
-    list of all files within special project (including some subdirectories/projects)
-https://csynth.molbiol.ox.ac.uk/csynthstatic/data
-   list of all special projects (and some top level files, that should be removed)
-
-*/
-/** read directory */
-function readdir(dir) {
-    let result;
-    if (nwfs) {
-        // this version for Electron
-        const list = nwfs.readdirSync(dir);
-        const rr = {};
-        list.forEach(n=> {rr[n] = nwfs.statSync(dir + '/' + n)});
-        result = rr;
-
-    } else if (location.href.indexOf('https://csynth.molbiol.ox.ac.uk/csynth/serve') !== -1) {
-        // this version for Oxford private project
-        const r = {};
-        const proj = startscript.post('p=').pre('&');
-        const odir = posturi(`/csynth/settings?p=${proj}&t=${frametime}`);
-        const dirl = odir.split('\n');
-        for (let i=1; i<dirl.length; i++) {
-            const rr = dirl[i].split('\t');
-            r[rr[2]] = {name: rr[2], size: rr[1], mtime: rr[0]};
-        }
-        result = r;
-    } else if (location.host === 'localhost:8807') {  // for microApache
-        result = {};
-        const odir = posturi(dir);
-        const rawlist = odir.post('Parent Dir').split('href="').slice(1);
-        rawlist.forEach(lll => {
-            const name = lll.pre('"');
-            result[name] = {name, isDir: name.endsWith('/')};
-        });
-    } else if (location.href.indexOf('https://csynth.molbiol.ox.ac.uk') !== -1) {
-        // this version for Oxford public project or one of our csynthstatic/data directories
-        const r = {};
-        const odir = posturi(dir);
-        if (!odir) {  // no files
-
-        } else if (odir.indexOf('Parent Dir') !== -1) {
-            const rawlist = odir.post('Parent Dir').split('href="').slice(1);
-            rawlist.forEach(lll => {
-                let aa = lll.match(/(.*?)".*?right">(.*?)<.*?right">(.*?)</);
-                r[aa[1]] = {name: aa[1], mtime: aa[2].trim(), size: aa[3].trim()};  // leave date and size as strings
-                r[aa[1]].isDir = r[aa[1]].size === '-';
-            });
-        } else {
-            const rawlist = odir.split('<tr>').slice(2);
-            rawlist.forEach(lll => {
-                let aa = lll.match(/<small>(.*?)<\/small>/);
-                r[aa[1]] = {name: aa[1]}; //
-            });
-
-        }
-        result = r;
-        // [aa,bb,cc,dd] = lll.match(/(.*?)".*?right">(.*?)<.*?right">(.*?)</)
-// ...href="Interphase_chrII.normMtx.txt">Interphase_chrII.nor..&gt;</a></td><td align="right">2018-01-08 10:17  </td><td align="right"> 66M</td><td>&nbsp;</td></tr>
-    } else {
-        // this version for local server nodeserver.js
-        const fileNames = posturi('dir.php?' + dir.replaceall('//','/'));
-        try {
-            result = fileNames[0] === '{' ? JSON.parse(fileNames) : fileNames.split(',');
-        } catch (e) {
-            console.error('error reading directory, return empty', dir, e);
-            result = [];
-        }
-    }
-    return result;
-}
-
-// make a directory, todo add on-nwfs supprort
-function mkdir(dir) {
-	if (nwfs) {
-		if (!nwfs.existsSync(dir)) nwfs.mkdirSync(dir);
-	} else {
-		runcommandphp('mkdir ' + dir);
-	}
-}
 
 /** save oags for curated objects, by default top row from animation */
 function saveoags({fn = currentGenes.name, start = 1, end = 8, offset = 0}) {
@@ -2192,3 +2106,121 @@ function saveoags({fn = currentGenes.name, start = 1, end = 8, offset = 0}) {
         remotesave('gallery/' + fn + '__' + (i+offset) + '.oag', ss);
     }
 }
+
+
+
+// ~~~~~~~~~~~~~~~ temporary home for tadRenderLoop, for debug/develop
+var tad, springs, renderer, animateNum, renderFrame;
+async function tadRenderLoop(tdir, frames = [0, Infinity], showonly = false) {
+    frameSaver.type = async (x) => { return false; }        // function callback not that useful, at least for tad?
+    inputsanimsave = false;  // true for saving, not rendering
+    frameSaver.mynewframe = true;   // stop frames getting rendered while I'm in async wait for read
+    // probably not necessary as we have a tight loop with arrange setAnimationLoop(null)
+    springs.stop() // the force newframe
+    // let tdir = "C:\\Users\\Organic\\Desktop\\organicsaves\\tadsaves\\test\\"
+    frameSaver.framesToRender = frames[1];
+    if (!showonly) FrameSaver.StartRender(tdir, 60);
+    const decoder = new TextDecoder();
+    renderer.setAnimationLoop(null);    // we'll control loop for now
+    if (!tad.oldSave) frames[1] = Infinity;
+    const size = frames[2];
+
+    try {
+        let startTime = Date.now();
+        let otime = 0, pos = 0;
+        frameloop:
+        for (let frame = frames[0]; frame < frames[1]; frame++) {
+        // for (let frame = 0; frame < 361; frame++) {
+            if (!tad._makevid && !showonly) break;
+
+            if (tad.oldSave) {
+                const poso = frame * tad.floatsperframe * 4;
+                tad.wsread.send((tad.floatsperframe * 4) + ' ' + poso);
+                await S.waitEvent('messageReady');
+                let fbuff = new Float32Array(tad.abuff);
+                let bufferpos = 0;
+                springs.setpos(fbuff.slice(bufferpos, bufferpos + tad.springbuffer.length));  bufferpos += tad.springbuffer.length;
+                tad.tadprop.set(fbuff.slice(bufferpos, bufferpos + tad.tadprop.length));  bufferpos += tad.tadprop.length;
+                G._fixtime = G.time = fbuff[bufferpos-1];
+                log('ft', G.time - otime); otime = G.time;
+            } else {
+                // new save
+                let done = false;
+                while(!done) {
+                    tad.wsread.send('8 ' + pos); pos += 8;
+                    await S.waitEvent('messageReady');
+                    const abuff = tad.abuff, i32buff = new Uint32Array(abuff);
+                    if (abuff.byteLength < 8) {
+                        console.error('ran out of input file?')
+                        break frameloop;
+                    }
+                    const btype = i32buff[0], byteLen = i32buff[1];
+                    // const type = decoder.decode(i32buff.subarray(0,1)), byteLen = i32buff[1];
+
+                    let dbuff;
+                    if (byteLen !== 0) {
+                        tad.wsread.send(byteLen + ' ' + pos); pos += byteLen;
+                        await S.waitEvent('messageReady');
+                        dbuff = tad.abuff;
+                    }
+                    const kk = tad.savekeys;
+                    switch (btype) {
+                        case kk.SPRINGS.enckey: springs.setpos(new Float32Array(dbuff)); break;
+                        case kk.PROPS.enckey: tad.tadprop.set(new Float32Array(dbuff));  break;
+                        case kk.GENES.enckey: {
+                            const ss = decoder.decode(dbuff);
+                            const gs = JSON.parse(ss);
+                            copyFrom(G, gs);
+                            } break;
+                        case kk.WALL.enckey: {
+                            const ss = decoder.decode(dbuff);
+                            cMap.SetRenderState(ss);
+                            } break;
+                        case kk.COLS.enckey: {
+                            COL.array.set(new Float32Array(dbuff));
+                            COL.send(true);
+                            break;
+                            }
+                        case kk.EXTRAS.enckey: {
+                            let bigcol;
+                            ({bigcol, usegreywall: tad.useGreyWall} = JSON.parse(decoder.decode(dbuff)));
+                            setBackgroundColor(bigcol);
+                            break;
+                        }
+                        case kk.ENDFRAME.enckey: done = true; break;
+                        case kk.ENDFILE.enckey: break frameloop;
+                        default: console.error('wrong header in tadRenderLoop', btype); break;
+                    }
+                }
+                G._fixtime = G.time;
+            }
+
+            if (frame === frames[0]) {
+                for (let i = 0; i < 30; i++) {
+                    renderFrame();
+                }
+            }
+
+            if (!showonly) FrameSaver.PreStep();  // includes Render, which is frameSaver.type
+            renderFrame();
+            if (inputs.showstats) W.stats.update();
+            let updateFreq = 100;
+            if (frame%updateFreq === 0) {
+                let endTime = Date.now();
+                log(`frames=${frame}, msPerFrame=${((endTime-startTime)/updateFreq).toFixed()}, done=${(pos/size*100).toFixed(1)}%`)
+                startTime = endTime;
+            }
+            if (!showonly) FrameSaver.PostStep();
+        }  // loop on frames
+
+        log('tad.restoresave saved images normally');
+    } catch (e) {
+        log('tad.restoresave ended with error' , e);
+    } finally {
+        renderer.setAnimationLoop(animateNum)
+    }
+
+    //FrameSaver.Endup();
+    //frameSaver.stopNext = true;
+    S.trigger('loopdone');
+} // end loop

@@ -1,3 +1,4 @@
+/* eslint-disable no-use-before-define */
 /**
  * @author alteredq / http://alteredqualia.com/
  * @author mrdoob / http://mrdoob.com
@@ -15,6 +16,7 @@
 var CSynth, THREE, log, msgfixlog;
 
 CSynth.MarchingCubes2Push = function (xnum, ynum, znum) {
+
     let me = this;
     let field, cols;  // will be filled in on makePolygons
 
@@ -312,7 +314,7 @@ CSynth.MarchingCubes2Push = function (xnum, ynum, znum) {
     function posnormtriv(il, o1, o2, o3) {
         indices.push(il[o1], il[o2], il[o3]);
     }
-    this.makePolygons = function (pfield, thresh = 10, pcols) {
+    this.makePolygons = function (pfield, thresh = 10, pcols=undefined) {
         field = pfield;
         cols = pcols;
         bpos = [];
@@ -345,7 +347,7 @@ CSynth.MarchingCubes2Push = function (xnum, ynum, znum) {
     };
 
     // make the polygons and generate geometry
-    this.makeGeometry = function(pfield, thresh = 10, pcols) {
+    this.makeGeometry = function(pfield, thresh = 10, pcols=undefined) {
         const k = `makePolygons2Push ${xnum} ${ynum} ${znum} ${thresh} `
         const st = Date.now();
         if (CSynth.recordProfiles) console.profile(k);
@@ -355,10 +357,10 @@ CSynth.MarchingCubes2Push = function (xnum, ynum, znum) {
         msgfixlog('>>>> ind 2PUSH vertices', dd.bpos.length/3, 'tri', dd.indices.length/3, 'thresh', thresh, 'time', time);
 
         const mgeo = new THREE.BufferGeometry();
-        mgeo.addAttribute('position', new THREE.BufferAttribute( new Float32Array(dd.bpos), 3 ));
-        mgeo.addAttribute('normal', new THREE.BufferAttribute( new Float32Array(dd.bnorm), 3 ));
+        mgeo.setAttribute('position', new THREE.BufferAttribute( new Float32Array(dd.bpos), 3 ));
+        mgeo.setAttribute('normal', new THREE.BufferAttribute( new Float32Array(dd.bnorm), 3 ));
         if (cols)
-            mgeo.addAttribute('color', new THREE.BufferAttribute( new Float32Array(dd.bcol), 3 ));
+            mgeo.setAttribute('color', new THREE.BufferAttribute( new Float32Array(dd.bcol), 3 ));
         mgeo.setIndex(new THREE.BufferAttribute(new Uint32Array(dd.indices),1));
 
         return mgeo;

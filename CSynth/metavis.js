@@ -1,7 +1,7 @@
 'use strict';
 
-var THREE, numInstancesP2, numInstances, renderer, CSynth, uniforms, currentGenes, log, W, V, dat, guiFromGene,
-addgeneperm, copyFrom, CSynthFast, G, glsl, Marching, skelbuffer, springs, everyframe, onframe, isWebGL2, COL;
+var THREE, numInstancesP2, numInstances, renderer, CSynth, uniforms, log, W, V, dat, guiFromGene,
+addgeneperm, copyFrom, CSynthFast, G, glsl, Marching, skelbuffer, springs, everyframe, onframe, isWebGL2, COL, msgfixlog;
 
 /** simplified rendering for non-organic use */
 CSynth.Metavis = function() {
@@ -12,6 +12,7 @@ CSynth.Metavis = function() {
     const marching = V.metavis = new Marching(isWebGL2);
     const X = marching.X;
     X.sphereYin = true; // using springs, changes texture axis and scale
+    if (V.rawscene.metavis) V.rawscene.remove(V.rawscene.metavis);
     V.rawscene.add(marching.three);
     V.rawscene.metavis = marching.three;
     V.rawscene.metavis.visible = false;
@@ -37,12 +38,14 @@ CSynth.Metavis = function() {
             marching.three.scale.set(1,1,1);
         }
         const m = marching.three.material;
-        if (m) {
+        if (m && m.color) {
             const c = m.color;
+            guiMat.depthWrite = true;   // TODO, consider why normally false (for other materials)
             Object.assign(m, guiMat);
             m.color = c;
             m.color.copy(guiMat.color);
             X.dowire = guiMat.wireframe;
+            X.transparent = guiMat.transparent;
         }
     });
 
@@ -64,10 +67,10 @@ CSynth.Metavis = function() {
             set medial(v) {
                 if (v) {
                     X.isol = 0;
-                    X.medialNeg = 3339;
+                    X.medialNeg = CSynth.current.splitParticle || 3339;
                     X.medialThresh = 1e-20;
-                    X.radInfluence = 5;
-                    me.rad = 4;
+                    //X.radInfluence = 5;
+                    //me.rad = 4;
                     X.doubleSide = true;
                     X.funtype = 0;              // cubic has precise 0 value
                     X.trackStyle = 'trackMedial'
@@ -78,7 +81,7 @@ CSynth.Metavis = function() {
                     X.radInfluence = 2;
                     me.rad = 2;
                     X.doubleSide = false;
-                    X.trackStyle = 'trackNone';
+                    X.trackStyle = 'trackColor';
                 }
             },
             get organicMaterial() { return !!X.marchtexture},
@@ -112,8 +115,26 @@ CSynth.Metavis = function() {
         gui.add(X, 'showTriangles', 0, 0.02).step(0.001).listen().setToolTip('overlay surface with triangles');
         gui.add(xx, 'organicMaterial').listen().setToolTip('use organic 3d textured material');
         guiMat = CSynth.materialProperties();
-        CSynth.materialGui(guiMat, gui); // does not work, material redefined, need proxy or similar
+        CSynth.materialGui(guiMat, gui); // guiMat acts as prexy in case material redefined
         gui.add(X, 'rotateInside').listen().setToolTip('rotate rgb on back side of double-sided material');
+        CSynth.addColourGUI(gui, srcName => {
+            X.bedtexture = CSynth.getBed(srcName).texture;
+            // X.trackStyle = 'trackColor';
+        });
+        const help = `colour mixing for medial surface:
+* mix: 50% mix of the contributing colours
+* grade: yellow to blue grade based on field strength of each part
+. . . ignores colours defined on objects
+* left: use colour from 'left' object
+* right:  use colour from 'right' object
+* tri: interleave left and right colours by splitting triangles
+* cen: interleave left and right colours by growing from centre of triangles
+* other: use colour from 'other' side
+* this: use colour from 'this' side`;
+
+        const sources = 'mix grade left right tri cen other this none'.split(' ');
+        CSynth.medialColorStyleGui = gui.add(X, 'medialColorStyle', sources).name("medial Colour mix:").listen().setToolTip(help);
+        gui.add(X, 'medialColorBalance', 0, 1).step(0.01).listen().setToolTip('balance left and right medial colours');
 
         return gui;
     }

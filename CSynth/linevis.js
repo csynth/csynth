@@ -1,7 +1,7 @@
 // old code used for LMV and simple pre-organic rendering
 'use strict';
 
-var THREE, numInstancesP2, numInstances, renderer, CSynth, uniforms, currentGenes, log, W, V, dat, guiFromGene,
+var THREE, numInstancesP2, numInstances, renderer, CSynth, uniforms, log, W, V, dat, guiFromGene,
 addgeneperm, copyFrom, CSynthFast, G;
 
 /** simplified rendering for non-organic use, do not bother with overwriting three.js line material, just make new */
@@ -64,6 +64,15 @@ const linevisFragMaterial = `
     });
 
     var res;
+    var geometry;
+    var lineSegs = new THREE.LineSegments(geometry, material);
+    lineSegs.name = 'lineVis';
+    lineSegs.visible = false;  // initially, for now
+    lineSegs.frustumCulled = false;
+    V.rawscene.remove(V.rawscene.lineSegs);
+    V.rawscene.add(lineSegs);
+    V.rawscene.lineSegs = lineSegs;
+
     this.setres = function(n) {
         geometry = new THREE.BufferGeometry();
         const nl = n * (n-1)/2;  // number of lines
@@ -78,21 +87,12 @@ const linevisFragMaterial = `
             }
         }
         const att = new THREE.BufferAttribute( pairs, 2, false );
-        geometry.addAttribute( 'position', att ); // per mesh instance
-        geometry.maxInstancedCount = nl;
+        geometry.setAttribute( 'position', att ); // per mesh instance
+        geometry.instanceCount = nl;
         if (lineSegs) lineSegs.geometry = geometry;
     }
 
-    var geometry;
     this.setres(numInstances);
-
-    var lineSegs = new THREE.LineSegments(geometry, material);
-    lineSegs.name = 'lineVis';
-    lineSegs.visible = false;  // initially, for now
-    lineSegs.frustumCulled = false;
-    V.rawscene.remove(V.rawscene.lineSegs);
-    V.rawscene.add(lineSegs);
-    V.rawscene.lineSegs = lineSegs;
 
     this.createGUIVR = function() {
         var gui = dat.GUIVR.createX("linevis");

@@ -5,7 +5,7 @@ cylinderMesh, dat, V, col3, GLmolX, keysdown, Maestro, EX;
 var I={};
 var ima = {showing: 0}; // may be replaced by 'real' ima later
 
-extrakeys['Q'] = () => {
+extrakeys.Q = () => {
     EX.stopToFront();
     ima.randlooptime = 1e10;
 }
@@ -18,8 +18,8 @@ extrakeys['Q,D,X'] = () => {
     //I.ccc = VEC3(84.14429683333333, -5.000000015797923e-7, 105.16101333333333);
     //CSynth.xxxGlmol(1).allgroup.position.copy(I.ccc).multiplyScalar(-1);
     //CSynth.xxxGlmol(3).allgroup.position.copy(I.ccc).multiplyScalar(-1);
-    //canvkeydown('shift,home');
-    //canvkeydown('ctrl,home');
+    //runkeys('shift,Home');
+    //runkeys('ctrl,Home');
     I.points = {};
 }
 
@@ -134,6 +134,10 @@ extrakeys['Q,D'] = () => {
     I.points.last = cdir;
 }
 
+var point3 = VEC3(1, -1, -1).normalize();
+var point5 = VEC3(0, -1, -Plane.phi).normalize();
+var pointx = VEC3().crossVectors(point3, point5);
+
 I.resolve = function() {
 
     const p3 = I.points[ima.showing + '/3'];
@@ -148,7 +152,7 @@ I.resolve = function() {
         let qx = VEC3().crossVectors(point3, point5);
         const mq = new THREE.Matrix3().set(q3.x, q3.y, q3.z, q5.x, q5.y, q5.z, qx.x, qx.y, qx.z);
 
-        const mm = new THREE.Matrix3().multiplyMatrices(mp.getInverse(mp), mq);
+        const mm = new THREE.Matrix3().multiplyMatrices(mp.invert(), mq);
         const me = mm.elements;
         W.mm = mm;
         log('mm', mm);
@@ -162,9 +166,6 @@ I.resolve = function() {
     }
 }
 
-var point3 = VEC3(1, -1, -1).normalize();
-var point5 = VEC3(0, -1, -Plane.phi).normalize();
-var pointx = VEC3().crossVectors(point3, point5);
 
 // set scale to x on current
 I.imascale = function(x) {
@@ -192,6 +193,7 @@ I.findpoint = function(th = 0.05) {
     return r
 }
 //pts.forEach( (p,i) => { if ((z = p.angleTo(I.points.last)) < 0.2) log(p,i, z) })
+var fplast, fpplast, fpcentroid;
 extrakeys['Q,A'] = I.findpoint;
 extrakeys['Q,W'] = function() {
     // fplast = I.points.last.clone()
@@ -206,7 +208,6 @@ extrakeys['Q,G'] = function() {
     delete CSynth.polymesh["GeodesicIcosahedron25.polys"]
 }
 
-var fplast, fpplast, fpcentroid;
 extrakeys['Q,S'] = function() {
     const dir = I.closePoint();
     if (fpplast) {
@@ -251,7 +252,8 @@ I.symprims = []; I.symmats = [];
 I.sphereRad = 3;
 I.cylrad = 1;
 // draw symmetric point
-extrakeys['Q,X'] = extrakeys['Q,P'] = I.point = (pid = I.symprims.length, pdir, symmetric = true) => {
+// extrakeys['Q,X'] = // use for fxaa
+extrakeys['Q,P'] = I.point = (pid = I.symprims.length, pdir, symmetric = true) => {
     let dir = pdir;
     if (!dir)
         dir = I.getdir().multiplyScalar(100);
@@ -296,7 +298,7 @@ I.removefix = function(k) {const tt = I.symprims[k]; if (tt) tt.parent.remove(tt
 I.removeallfix = function() {for (let k in I.symprims) I.removefix(k)};
 
 // display symmetry points numbers
-extrakeys['Q,#222'] = extrakeys['Q,#'] = I.symnum = (pos) => {
+extrakeys['Q,#'] = extrakeys['Q,#'] = I.symnum = (pos) => {
     CSynth.rawgroup.remove(CSynth.textGroup);
     const tg = CSynth.textGroup = new THREE.Group();
     CSynth.rawgroup.add(tg);

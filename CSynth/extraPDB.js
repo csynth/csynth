@@ -1,3 +1,4 @@
+/* eslint-disable no-empty */
 
 'use strict';
 
@@ -8,7 +9,7 @@ distxyz, onframe, VEC3, msgfixlog, msgfixerror, performance, msgfix, GX, copyFro
 searchValues, ima, remotesave, S, Maestro, Plane, renderVR, lastdocx, lastdocy, CLeap, W, framenum, distarr3;
 
 CSynth.loadExtraPDB = async function CSynth_loadExtraPDB(sstruct = CSynth.current.extraPDB,
-    pgui = V.gui, pgroup = CSynth.rawgroup, filedata) {
+    pgui = V.gui, pgroup = CSynth.rawgroup, filedata=undefined) {
 
     if (!sstruct) return;
 
@@ -118,9 +119,10 @@ CSynth.loadExtraPDB = async function CSynth_loadExtraPDB(sstruct = CSynth.curren
         // EXPERIMENT HERE to align using computed centre of reference pdb
         // use one of the lines below
         // glmol.useCentre(c);  // use computed centre
-        glmol.applyMatrix(mm);  // compensate to match 5tc1
+        glmol.applyMatrix4(mm);  // compensate to match 5tc1
     }
 
+    let vgroup;
     const options = {
         get visible() {return vgroup.visible; },
         set visible(v) {
@@ -134,7 +136,7 @@ CSynth.loadExtraPDB = async function CSynth_loadExtraPDB(sstruct = CSynth.curren
     // gui for the extraPDB group
     const vgui = glmol.gui = dat.GUIVR.createX(shortname);
     pgroup.remove(CSynth.loadExtraPDB.chainlines[shortname]);  // in case old one
-    const vgroup = CSynth.loadExtraPDB.group[shortname] = glmol.allgroup = newgroupN('extraPDBGroup_' + shortname, glmol);
+    vgroup = CSynth.loadExtraPDB.group[shortname] = glmol.allgroup = newgroupN('extraPDBGroup_' + shortname, glmol);
     vgroup.visible = false;
     vgroup.options = options;
 
@@ -152,7 +154,8 @@ CSynth.loadExtraPDB = async function CSynth_loadExtraPDB(sstruct = CSynth.curren
 /** interface into new FoldSynth style version of cartoon.
  * draw each chain separately, and run async so as not to disturb view
 */
-CSynth.loadExtraPDBCartoon = async function CSynth_loadExtraPDBCartoon(sfid = CSynth.current.extraPDB, pgui, pgroup) {
+CSynth.loadExtraPDBCartoon = async function CSynth_loadExtraPDBCartoon(sfid = CSynth.current.extraPDB, pgui=undefined, pgroup=undefined) {
+    let group, glmol, options, mat, vgui; // for forward ref
     async function lazyload(time = 100) {
         // console.time('gen');
         CSynth.cleanGeometry(group);
@@ -173,7 +176,7 @@ CSynth.loadExtraPDBCartoon = async function CSynth_loadExtraPDBCartoon(sfid = CS
         if (mergeChains) {
             const mergeGeom = CSynth.catenateBufferGeometries(group.children.map(m =>m.geometry), mat);
             const mergeMesh = newmeshN(mergeGeom, mat, 'mergedChainCartoon_' + sfid, glmol);
-            mergeMesh.drawMode = group.children[0].drawMode;
+            // mergeMesh.draw Mode = group.children[0].draw Mode;
 
 
             CSynth.cleanGeometry(group);
@@ -201,16 +204,16 @@ CSynth.loadExtraPDBCartoon = async function CSynth_loadExtraPDBCartoon(sfid = CS
     }
 
     // define basic structure early so we can have gui from it
-    const glmol = CSynth.glmol[sfid];
+    glmol = CSynth.glmol[sfid];
     glmol.redrawCartoon = lazyload;
-    const group = glmol.cartoonGroup = CSynth.cartoonGroup[sfid] = newgroupN('cartoonGroup_' + sfid, glmol);
+    group = glmol.cartoonGroup = CSynth.cartoonGroup[sfid] = newgroupN('cartoonGroup_' + sfid, glmol);
     group.visible = false;
     // const mesh = group;   // temporary during transition
     pgroup.add(group);
-    const mat = glmol.cartoonMat = CSynth.defaultMaterial.clone();
+    mat = glmol.cartoonMat = CSynth.defaultMaterial.clone();
 
     let _colorBy = 'chain';
-    const options = group.options = {
+    options = group.options = {
         //TODO: clear up groupOrGeom related bits
         get visible() { return group.visible; },
         set visible(v) {
@@ -235,7 +238,7 @@ CSynth.loadExtraPDBCartoon = async function CSynth_loadExtraPDBCartoon(sfid = CS
     }
     group.options = options;    // for turning on by parents
 
-    const vgui = dat.GUIVR.createX('cartoon');
+    vgui = dat.GUIVR.createX('cartoon');
     vgui.add(options, 'colorBy', CSynth.colorBy.files).listen();
     vgui.myVisible = vgui.add(options, 'visible').listen().showInFolderHeader();
     const geoGui = dat.GUIVR.createX('geometry options');
@@ -267,7 +270,7 @@ CSynth.cartoonGroup = {};
 CSynth.bondGroup = {};
 
 
-CSynth.loadExtraPDBMywire = function CSynth_loadExtraPDBMywire(sfid = CSynth.current.extraPDB, pgui, pgroup) {
+CSynth.loadExtraPDBMywire = function CSynth_loadExtraPDBMywire(sfid = CSynth.current.extraPDB, pgui=undefined, pgroup=undefined) {
     const glmol = CSynth.glmol[sfid];
 
     const atoms = glmol.atoms;
@@ -301,8 +304,8 @@ CSynth.loadExtraPDBMywire = function CSynth_loadExtraPDBMywire(sfid = CSynth.cur
         }
         lastatom = atom;
     }
-    vgeom.addAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
-    vgeom.addAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+    vgeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+    vgeom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
 
     log('loadExtraPDB chains', sfid, chains.length, chains.join('.'));
     const group = glmol.wiregroup = CSynth.loadExtraPDB.chainlines[sfid];
@@ -366,6 +369,8 @@ CSynth.colorBy.files = ['chain', 'chaingroup', 'chainid', 'atom', 'structure', '
 
 CSynth.loadExtraPDBSmooth = function CSynth_loadExtraPDBSmooth(sfid, pgui, pgroup) {
     let currentSettings = {};
+    let vgui;  // forward refs
+    let options, glmol, mesh; // forward refs
     function lazyload() {
         currentSettings = {colorBy: options.colorBy, radInfluence: options.radInfluence};
         const u = undefined;
@@ -399,19 +404,19 @@ CSynth.loadExtraPDBSmooth = function CSynth_loadExtraPDBSmooth(sfid, pgui, pgrou
     }
 
     // define basic structure early so we can have gui from it
-    const glmol = CSynth.glmol[sfid];
+    glmol = CSynth.glmol[sfid];
     glmol.redrawSmooth = lazyload;
 
     const mat = glmol.smoothmat = CSynth.defaultMaterial.clone();
-    //  const groupOrGeom = glmol.smoothgeom = new THREE.Geometry();
+    //  const groupOrGeom = glmol.smoothgeom = new THREE. Geometry();
     mat.vertexColors = THREE.VertexColors; mat.side = THREE.DoubleSide;
-    const mesh = glmol.smoothMesh = new newmeshN(undefined,  glmol.smoothmat, 'smoothmesh' + sfid, glmol);
+    mesh = glmol.smoothMesh = new newmeshN(undefined,  glmol.smoothmat, 'smoothmesh' + sfid, glmol);
     mesh.visible = false;
     mesh.frustumCulled = false;
     pgroup.add(mesh);
 
     let _colorBy = 'chain';
-    const options = mesh.options = {
+    options = mesh.options = {
         get visible() { return mesh.visible; },
         set visible(v) {
             if ((v && !mesh.geometry.attributes.position)) lazyload() ;
@@ -422,22 +427,25 @@ CSynth.loadExtraPDBSmooth = function CSynth_loadExtraPDBSmooth(sfid, pgui, pgrou
         colDistNear: 110, colDistFar: 130,
         get colorBy() { return _colorBy; },
         set colorBy(v) { options.setColorBy(v); },
-        setColorBy: async function (v) {
-            if (v === _colorBy) return;
+        setColorBy: async function (v, force=false) {
+            if (v === _colorBy && !force) return;
             _colorBy = v;
             if (glmol.smoothMesh.geometry.objectId) {
+                const s = CSynth.forceColorBy;
+                CSynth.forceColorBy = true;// TODO PASS DOWN
                 await CSynth.colourSurfaceFromID(glmol, options, mesh);
+                CSynth.forceColorBy = s;
             }
         },
         usecols: false, useids: true, colorByTime: 0
     }
 
-    const vgui = glmol.smoothgui = dat.GUIVR.createX('smooth');
+    vgui = glmol.smoothgui = dat.GUIVR.createX('smooth');
     vgui.myVisible = vgui.add(options, 'visible').listen().showInFolderHeader();
     CSynth.materialGui(mat, vgui);
     vgui.add(options, 'colorBy', CSynth.colorBy.files).listen();
-    vgui.add(options, 'colDistNear', 0, 200).step(1).listen();
-    vgui.add(options, 'colDistFar', 0, 200).step(1).listen();
+    vgui.add(options, 'colDistNear', 0, 200).step(1).listen().onChange(() => options.setColorBy(_colorBy, true));
+    vgui.add(options, 'colDistFar', 0, 200).step(1).listen().onChange(() => options.setColorBy(_colorBy, true));
     vgui.add(options, 'radMult', 0, 10).step(0.01).listen();
     vgui.add(options, 'radInfluence', 1.01,3).step(0.01).listen();
     vgui.add(options, 'res', 50, 300).step(10).listen();
@@ -466,6 +474,7 @@ CSynth.loadExtraPDBSmooth = function CSynth_loadExtraPDBSmooth(sfid, pgui, pgrou
 CSynth.bondDistThresh = 2;
 /** this draws bonds for pairs using quadratic scan on distance, or just single atoms for useatoms = true */
 CSynth.loadExtraPDBBond = function CSynth_loadExtraPDBBond(sfid, pgui, pgroup, type = 'bond') {
+    let vgui; // forward refs
     const glmol = CSynth.glmol[sfid];
     let targ;                                  // structure of information in javascript terms
     const geom = new THREE.BufferGeometry();      // single geometry
@@ -506,7 +515,7 @@ CSynth.loadExtraPDBBond = function CSynth_loadExtraPDBBond(sfid, pgui, pgroup, t
         usecols: false, useids: true, colorByTime: 0
     }
 
-    const vgui = glmol.smoothgui = dat.GUIVR.createX(type);
+    vgui = glmol.smoothgui = dat.GUIVR.createX(type);
     vgui.myVisible = vgui.add(options, 'visible').listen().showInFolderHeader();
     CSynth.materialGui(mat, vgui);
     vgui.add(options, 'colorBy', CSynth.colorBy.files).listen();
@@ -596,10 +605,10 @@ CSynth.loadExtraPDBBond = function CSynth_loadExtraPDBBond(sfid, pgui, pgroup, t
 // CSynth.cleanGeometry(group);
 
 //         group.children = []; // get rid of previous ones
-//         const geom = new THREE.Geometry();  // pass this in isntead of group and it breaks
+//         const geom = new THREE. Geometry();  // pass this in isntead of group and it breaks
 //         glmol.drawBondsAsStick(group, glmol.atomlist, options.rad, options.rad*0.4, true, true, 0);  // 0.4 odd, experimental
 //         //below too inefficent to use
-//         //const geom = new THREE.Geometry();
+//         //const geom = new THREE. Geometry();
 //         //CSynth.mergeGeometry(geom, group);
 //         //const mesh = new newmeshN(geom, mat);
 //         //group.children = [];
@@ -742,7 +751,7 @@ CSynth.mol2Align = function(fid1="Hong_2017_15loops_5tc1.pdb", fid2="5tc1.pdb", 
 
     // xx * m1 = m2
     // xx = m2 * m1**-1
-    const mm1i = new THREE.Matrix4().getInverse(mm1);
+    const mm1i = new THREE.Matrix4().copy(mm1).invert();
     const xx = new THREE.Matrix4().multiplyMatrices(mm2, mm1i);
     msgfixlog ('align xx', xx.elements)
     msgfixlog ('align xxdet', xx.determinant())
@@ -916,7 +925,7 @@ CSynth.drawCyl = function CSynth_drawCyl(targ, pa, pb, acolid=0, bcolid=0, rad=1
 
 
 
-CSynth.startGeom = function(n = 10000, targ) {
+CSynth.startGeom = function(n = 10000, targ=undefined) {
     if (targ && targ.startSize === n) {
         targ.ipos = targ.ppos = 0;
         return targ;
@@ -1004,9 +1013,9 @@ CSynth.finishGeom = function(targ, geom) {
             geom = new THREE.BufferGeometry();  // case 3: create new geometry and set up buffers
         }
         geom.setIndex(new THREE.BufferAttribute(targ.indices, 1));
-        geom.addAttribute('position', new THREE.BufferAttribute(targ.positions, 3));
-        geom.addAttribute('normal', new THREE.BufferAttribute(targ.normals, 3));
-        geom.addAttribute('color', new THREE.BufferAttribute(targ.colors, 3));
+        geom.setAttribute('position', new THREE.BufferAttribute(targ.positions, 3));
+        geom.setAttribute('normal', new THREE.BufferAttribute(targ.normals, 3));
+        geom.setAttribute('color', new THREE.BufferAttribute(targ.colors, 3));
         geom.objectId = targ.ids;
     }
     return geom;
@@ -1054,7 +1063,7 @@ GLmolX.prototype.makeResSpheres = function CSynth_makeResSpheres() {
         r.max = VEC3(maxx + atrad, maxy + atrad, maxz + atrad);
         r.centre = VEC3((minx+maxx)*0.5, (miny+maxy)*0.5, (minz+maxz)*0.5);
         r.radius = r.min.distanceTo(r.max) / 2;
-    };
+    }
 
     // bounding spheres for chains
     for (let i = 0; i < this.chains.length; i++) {
@@ -1202,7 +1211,7 @@ CSynth.getrawray = function() {
 
     // and convert by rawgroup inverse transform
     const m = new THREE.Matrix4();
-    m.getInverse(CSynth.rawgroup.matrixWorld);
+    m.copy(CSynth.rawgroup.matrixWorld).invert();
     ray.ray.origin.applyMatrix4(m);
     const mn = new THREE.Matrix3().getNormalMatrix(m);
     ray.ray.direction.applyMatrix3(mn).normalize();
@@ -1344,7 +1353,7 @@ CSynth.catenateBufferGeometries = function(geometries) {
     // catenate all the attributes
     for (let attname in geometries[0].attributes) {
         const atts = CSynth.catenateAttributes(geometries.map(g => g.attributes[attname]))
-        geom.addAttribute(attname, atts);
+        geom.setAttribute(attname, atts);
         sattname = attname;
     }
 
@@ -1399,7 +1408,7 @@ CSynth.posStats = function(id) {
     const glmol = CSynth.xxxGlmol(id);
 
     if (glmol.chains[0].rpo) return;    // already done
-    for (let rn in glmol.residue) { const r = glmol.residue[rn]; r.atnum = 0; r.spos=VEC3(); };
+    for (let rn in glmol.residue) { const r = glmol.residue[rn]; r.atnum = 0; r.spos=VEC3(); }
     glmol.chains.forEach(r => {r.atnum = 0; r.spos=VEC3()});
     glmol.spos = VEC3();
     glmol.atnum = glmol.atoms.length;
@@ -1414,7 +1423,7 @@ CSynth.posStats = function(id) {
     for (let rn in glmol.residue) {
         const r = glmol.residue[rn];
         r.pos = r.spos.clone().multiplyScalar(1/r.atnum);
-    };
+    }
     glmol.chains.forEach(r => r.pos = r.spos.clone().multiplyScalar(1/r.atnum));
     glmol.pos = glmol.spos.multiplyScalar(1/glmol.atnum);
 }
@@ -1462,9 +1471,10 @@ CSynth.chainMorph = function(mesh) {
 /** clear complete group of morphTargets */
 CSynth.chainMorphSet = function(mesh, v) {
     // delete mesh.morphTargetInfluences;
-    if (mesh.material) {
+    if (mesh.isMesh) {
         mesh.material.morphTargets = v;
         mesh.material.needsUpdate = true;
+        if (!mesh.morphTargetInfluences) mesh.morphTargetInfluences = [0,0,0]; // added for three.js change (?150 or ?webgl2)
     }
     mesh.children.forEach(c => CSynth.chainMorphSet(c, v));
 }
@@ -1800,25 +1810,25 @@ CSynth.testsweep = async function(t = 2000, id = ima.showing, cols = false) {
         // 5 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         CSynth.msgtag('single');
         if (await mm('pre5')) return;
-        if (await S.rampP(sweepOptions, 'm5', 1.01/5, t, opts)) {};
-        if (await S.rampP(sweepOptions, 'm5', 2.01/5, t, opts)) {};
-        if (await S.rampP(sweepOptions, 'm5', 3.01/5, t, opts)) {};
-        if (await S.rampP(sweepOptions, 'm5', 4.01/5, t, opts)) {};
+        if (await S.rampP(sweepOptions, 'm5', 1.01/5, t, opts)) {}
+        if (await S.rampP(sweepOptions, 'm5', 2.01/5, t, opts)) {}
+        if (await S.rampP(sweepOptions, 'm5', 3.01/5, t, opts)) {}
+        if (await S.rampP(sweepOptions, 'm5', 4.01/5, t, opts)) {}
         //await sleep(t);
 
         // 2 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         //await CSynth.rotTo(Plane.axis2x, 0.03, false)
         //await CSynth.rotTo(Plane.axis2, 0.03, false)
         if (await mm('pre2')) return;
-        if (await S.rampP(sweepOptions, 'm2', 1.01/2, t, opts)) {};
+        if (await S.rampP(sweepOptions, 'm2', 1.01/2, t, opts)) {}
         //await sleep(t);
 
         // 3 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         //await CSynth.rotTo(Plane.axis2, 0.03, false)
         // await CSynth.rotTo(Plane.axis3, 0.03, false)
         if (await mm('pre3')) return;
-        if (await S.rampP(sweepOptions, 'm3', 1.01/3, t, opts)) {};
-        if (await S.rampP(sweepOptions, 'm3', 2.01/3, t, opts)) {};
+        if (await S.rampP(sweepOptions, 'm3', 1.01/3, t, opts)) {}
+        if (await S.rampP(sweepOptions, 'm3', 2.01/3, t, opts)) {}
         //await sleep(t);
 
         // 2x ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1826,7 +1836,7 @@ CSynth.testsweep = async function(t = 2000, id = ima.showing, cols = false) {
         // await CSynth.rotTo(Plane.axis2x, 0.03, false)
         //await CSynth.rotTo(VEC3(-0.809, 0.5, 0.309), 0.03, false)
         if (await mm('pre2x')) return;
-        if (await S.rampP(sweepOptions, 'm2x', 1.01/2, t, opts)) {};
+        if (await S.rampP(sweepOptions, 'm2x', 1.01/2, t, opts)) {}
 
         if (await mm('symend')) return;
         if (await mm('constrend')) return;

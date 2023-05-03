@@ -2,6 +2,10 @@
 //if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
 var THREE, FFTNayuki, getstats, location, BroadcastChannel; // keep netbeans happy
 
+var CSynth = {}; // to use CSynth bridge
+var copyFrom;
+
+var gnumInstances1;
 
 var requestAnimationFrame, W=window, alert, FileReader, posturi ;
 var renderer, scene1, scene2, mcamera, stats, material, canvas, savetext, triScene, triMaterial, sepColor, rawdata;
@@ -416,7 +420,7 @@ function sliderChange(evt) {
 
 /** show a viewport using saved rendertarget, then impose lines and lower triangle */
 function showvp(vp) {
-    renderer.setRenderTarget();
+    renderer.setRenderTarget(null);
     renderer.autoClear = false;
     renderer.setViewport(vp.x, vp.y, vp.w, vp.h);
     copymaterial.map = vp.renderTarget;
@@ -621,7 +625,7 @@ function newdata(positions, fid) {
     }
 
     var geometry = new THREE.BufferGeometry();
-    geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+    geometry.setAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
     geometry.computeBoundingBox();
 
     var points = new THREE.Points( geometry, material );
@@ -671,7 +675,6 @@ function newdata(positions, fid) {
         setxy(0,gminid*0.75 + gmaxid*0.25, gmaxid*0.75 + gminid*0.25);
 }
 
-var gnumInstances1;
 /** save position data packed into array for lookup */
 function saveArray() {
     gnumInstances1 = gnumInstances + 1;
@@ -1112,32 +1115,34 @@ function plot() {
 }
 plot.avg = 1;
 
-var CSynth = {};
-var copyFrom;
+/** used to communicate with federated CSynth */
 CSynth.bc = new BroadcastChannel('csynth');
 CSynth.bc.onmessage = function(ev) {
     const data = ev.data;
-    switch (data.command) {
-        case 'function':
-            const fun = CSynth[data.function] || window[data.function];
+    const cmd = data.command;
+    switch (cmd) {
+        case '!windowdata':
+            copyFrom(window, data);
+            break;
+        case '!info':
+            console.error('INFO message', data);
+            break;
+        case '!data':
+            newdata(new Float32Array(data.positions), 'fromCSynth');
+            break;
+        case '!nocontacts':
+            alert('no contact data for federated CSynth');
+            break;
+        default: {        // cmd is a function name
+            const fun = CSynth[cmd] || window[cmd];
             if (fun) {
                 fun(...data.args)
             } else {
-                console.error('bad message, no function', data);
+                console.error('bad message, no function', cmd, data);
             }
-            break;
-        case 'windowdata':
-            copyFrom(window, data);
-            break;
-        case 'info':
-            console.error('INFO message', data);
-            break;
-        case 'data':
-            newdata(new Float32Array(data.positions), 'fromCSynth');
-            break;
-        default:
-            console.error('bad message', data);
-            break;
+        }
     }
 };
-CSynth.bc.postMessage({command: 'evalq', args: ["CSynth.bc.postMessage({command: 'data', positions: ccc0.data})"]});
+/** request CSynth to send us initial data */
+CSynth.bc.postMessage({command: 'sendData', args: [2]});
+// CSynth.bc.postMessage({command: 'evalq', args: ["CSynth.bc.postMessage({command: '!data', positions: ccc0.data})"]});

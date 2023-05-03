@@ -4,11 +4,14 @@
         // corrected by updating global typescript, tsc --- version 3.7.3
         "target": "es2018",
         //"target": "es6",        // converts async/await into special wrapper and yield
-        "module": "ES6",
+        "module": "ES2020",
         "moduleResolution": "node",
         "outDir": "../JSTS/",     // was "../dist/" which sometimes results in organserver.js being module rather than webpack bundle.
         "sourceMap": true,
         "rootDirs": [".", "../TSServer"],
+        "lib": ["ES2018"],
+        //"noEmit": true, //as we build with webpack or esbuild, we don't want to emit js from tsc
+        ///... but then webpack isn't set up right...
         "experimentalDecorators": true
     }
 }

@@ -1,3 +1,14 @@
+
+#ifdef IMPLICIT
+float radius  = 1.;
+float gscale = 1.;
+float nstar = 4.;
+float stardepth = 0.;
+float ribdepth = 0.;
+float ribs = 8.;
+#endif
+
+
 // the horn code must not contain references to pickrt for OPMODE == OPPICK
 // because that makes the pickrt both input and output texture
 #if (OPMODE == OPPICK || defined(IMPLICIT))
@@ -39,9 +50,10 @@
 #define WALLID 2.
 uniform float _boxsize;   // #define _boxsize 1.25 // 500.
 
-#define rot4w (hornid == 2. ? mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1) : rot4)  // to allow for rot4 on walls
-#define rot4wl (lhornid == 2. ? mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1) : rot4)  // to allow for rot4 on walls
-#define rot4wc (colourid == 2. ? mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1) : rot4)  // to allow for rot4 on walls
+uniform mat4 cMapRot4;
+#define rot4w (hornid == 2. ? cMapRot4 : rot4)  // to allow for rot4 on walls
+#define rot4wl (lhornid == 2. ? cMapRot4 : rot4)  // to allow for rot4 on walls
+#define rot4wc (colourid == 2. ? cMapRot4 : rot4)  // to allow for rot4 on walls
 gene(capres, 0.1, 0,1, 0.001, 0.01, geom, frozen) // proportion of body to use for caps at ends
 
 #define round(c) floor(c+0.5)
@@ -49,24 +61,27 @@ vec4 parnumsa;
 vec4 parnumsb;
 
 uniform float numSegs;
-uniform float numInstancesP2;
+uniform float numInstances, numInstancesP2;
 uniform vec2 rtSize;
 
+uniform float lennum;
+uniform float radnum;
 
 
+// remove support for pre webgl2
+// #if __VERSION__ < 300
+// //https://machinesdontcare.wordpress.com/2008/03/10/glsl-cosh-sinh-tanh/
+// float tanh(float val)
+// {
+//     float tmp = exp(val);
+//     float tanH = (tmp - 1.0 / tmp) / (tmp + 1.0 / tmp);
+//     return tanH;
+// }
+// #endif
 
-#if __VERSION__ < 300
-//https://machinesdontcare.wordpress.com/2008/03/10/glsl-cosh-sinh-tanh/
-float tanh(float val)
-{
-    float tmp = exp(val);
-    float tanH = (tmp - 1.0 / tmp) / (tmp + 1.0 / tmp);
-    return tanH;
-}
-#endif
-
-#define max3(a,b,c) max(a, max(b,c)) /* max of three elements */
-#define max4(a,b,c,d) max(max(a,d), max(b,c)) /* max of 4 elements */
+float max3(float a, float b, float c) { return max(a, max(b,c));} /* max of three elements */
+float max3( vec3 v ) { return max( max( v.x, v.y ), v.z ); }
+float max4(float a, float b, float c, float d) { return max(max(a,d), max(b,c));} /* max of 4 elements */
 #define mixk(x,y,a) (a == 0. ? x : a == 1. ? y : mix(x,y,a)) /* mix with bug fix */
 //#define mix(x,y,a) ((1.-a) * x + a * y) /* mix with bug fix */
 //#defined ifNaN1(v, nan, ok) { float r = nan; if(v <= 0. || v >= 0.) r = ok; return r; }
@@ -77,6 +92,14 @@ bool isNaN(vec3 v) { return isNaN(v.x + v.y + v.z); }
 bool isNaN(vec4 v) { return isNaN(v.x + v.y + v.z + v.w); }
 #define ifNaN(v,nonan) {if (isNaN(v)) v = nonan; }
 //#define ifNaN(v,nonan) {}
+
+// n.b. 'safe' power, inconvenient to make more efficient as things like pow(vec3, 2.) don't work
+// and details need to change according to use anyway
+//#define spow(v, p) (sign(v) * pow(abs(v),p))
+//vec3 spow(vec3 v, float p) { return p == 1. ? v : pow(v, vec3(p)); }
+//vec3 spow(vec3 v, vec3 p) { return p.x == 1. ? v : pow(v, p); }
+//float spow(float v, float p) { return p == 1. ? v : v < 0. ? -pow(-v, p) : pow(v, p); }
+//vec3 spow(vec3 v, vec3 p) { return vec3(spow(v.x, p.x), spow(v.y, p.y), spow(v.z, p.z)); }
 
 #define D(a,b) length((a).xyz-(b).xyz) /* distance between 2 points, force 3d */
 #define pxyz vec3(x,y,z)	/* current position in transformation pipe */
@@ -101,7 +124,7 @@ bool isNaN(vec4 v) { return isNaN(v.x + v.y + v.z + v.w); }
 
 // 'standard' colour, sadly no array for gles 2
 // consider colour lookup texture. (bear in mind how this relates to other colour mapping features...)
-vec3 stdcol(float tv) {
+vec3 stdcolY(float tv) {
     // tv = round(tv);
     float k = 1./ceil(tv/7.);
     tv = mod(tv, 7.);
@@ -214,6 +237,11 @@ float map(const float v, const float min1, const float max1, const float min2, c
     return min2 + (v - min1) * (max2 - min2) / (max1 - min1);
 }
 
+// #define to make it polymorphic if needed
+#define scurvep(x) ((3. - 2. * (x)) * (x) * (x))
+float scurve(const float x) { return (3. - 2. * x) * x * x; }
+
+
 //////////////// end glslUtils //////////////////////////////////
 
 /** example
@@ -250,7 +278,11 @@ float S(const float r) { return (3. - 2. * r) * r * r; }
 #define histpos(p) texture2D(posNewvals, vec2(0, (p)))
 uniform sampler2D posHist;          // posHist is a 2d texture. 1st dim gives a circular buffer of positions at different times, second dimenstion is spring number
 uniform sampler2D posNewvals;       // posNewvals is effectively a 1d texture giving current position of each spring
+
+
 uniform sampler2D tadprop;		// sampler used for tadpole properties
+
+uniform vec2 screen;
 
 /**
 // rotation about axis, from https://en.wikipedia.org/wiki/Rotation_matrix#In_three_dimensions
@@ -298,3 +330,8 @@ mat3 axrot(vec3 axis, float angle)
                 oc * x * y + z * s,  oc * y * y + c,      oc * y * z - x * s,
                 oc * z * x - y * s,  oc * y * z + x * s,  oc * z * z + c);
 }
+
+// moved from hornmaker to make accessible by OPEDGE
+#define MAXPATHS 30
+uniform float ribsa[MAXPATHS];
+uniform float RIBS;

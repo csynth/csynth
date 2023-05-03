@@ -1,46 +1,88 @@
 'use strict';
 
 // main code for handling keys for both document and canvas
-var W, inputs, lastDispobj, showScaleVariants, newmain, processFile, CSynth, toggleSCLog, VH, msgfix,
+var W, inputs, lastDispobj, showScaleVariants, newmain, processFile, CSynth, toggleSCLog, VH, msgfix, msgfixerrorlog,
 onfrmae, NODO, oldlayerX, oldlayerY, height, camera, renderObj, setInput, ml, Maestro, pick,
 startKeystone, onframe, dragObj, canvas, V, vrresetall, vrresting, inedit, currentpick,
-saveundo, editobj, findMatop, trysetele, animStep, stepeleval, keysdown, handleF11, killev,
-Director, frameSaver, saven, keyname, restoreExtra, clearObjzoom, editgenex, editgeney,
-hornhighlight, renderObjs, renderQuad, kinectJupDyn, lastdocx, lastdocy, resetMat, currentGenes,
-springs, dotty, usewireframe, msgtrack, renderVR, renderObjsInner, snap, test2, usemask,
-refall, randobj, allunit, mousewhich, stopSC, running, isNode, xwin, nwwin, lastvps,
+saveundo, findMatop, trysetele, animStep, stepeleval, keysdown, killev, // handleF 11,
+Director, frameSaver, saven, restoreExtra, clearObjzoom, editgenex, editgeney,
+renderObjs, renderQuad, kinectJupDyn, lastdocx, lastdocy, resetMat, currentGenes, // hornhighlight,
+springs, HW, msgtrack, renderVR, renderObjsInner, snap, test2, usemask,
+refall, randobj, allunit, mousewhich, stopSC, running, isNode, xwin, nwwin, lastvps, exitfullscreen,
 
-mutate, randrule, scale, setSize, toggleFix, toggleShare, log, getserveroao, inputsanimsave,
+mutate, mutateXX, smtest, randrule, scale, setSize, toggleFix, toggleShare, log, getserveroao, inputsanimsave,
 FrameSaver, fileChooser, openfiles, saveSnap, copygenestoclip, clipboard, pastecliptogenes,
 save, showControls, loadOao, FractEVO, resize, getWebGalByNum, setshowstats, stats,
 updateGuiGenes, remakeShaders,  regenHornShader, setGUITranrule, reloadAllSynths, fadeOut,
-setMasterVolume, undo, toTargetNow, setViewports, savebig, saveimage, saveimage1, saveimage1high,
-brusselsNoAuto, autostep, qget, setInputg, simclick, runcommandphp, msgfixlog, camset, setImposterGUI,
+setMasterVolume, undo, toTargetNow, setViewports, savebig, saveimage, saveimage1, saveimage1high, saveSkeleton,
+brusselsNoAuto, autostep, qget, setInputg, simclick, runcommandphp, msgfixlog, camset, setImposterGUI, target, inps, enterfullscreen, onWindowResize, windowset,
 
-dockeydown, keymap, loadVariants, refts, loadVariant, copyFrom, vtarget, viveAnim, DispobjC, fitCanvasToWindow, customSettings,
-S, rot, applyMatop, G, nomess, loadopen, Tracker, startscript, centrescalenow,
-flatten, format, runTimedScript, lastTouchedDispobj, location, debugKey, setHolo, Holo, GX, makevr, tadpoleSystem, cMap, renderer;
+dockeydown, loadVariants, refts, loadVariant, copyFrom, vtarget, viveAnim, DispobjC, fitCanvasToWindow, customSettings,
+S, rot, applyMatop, G, nomess, loadopen, Tracker, startscript, centrescalenow, pastSelectGenes, currentObjects,
+flatten, format, lastTouchedDispobj, debugKey, setHolo, Holo, GX, makevr, tadpoleSystem, cMap, renderer,
+OrganicSpeech, bigimprep, feedbacktests, mutateVisibleGenes, fxaa, shangbig, currentHset, xxxhset, HornSet, resolveFilter, clearSelected,
+xxxgenes, hoverDispobj, resetCamera, slots, mainvp, nop, isCSynth, fullscreen, transferView, mutateColour, mutateForm, BrightonStyle, GUIInit, GUIwallkeys,
+niractcmd, randmuts, genmini, setBackgroundColor, home, toggleFullscreen, enterFullscreen, exitFullscreen
 
 var extrakeys = {}; // var for sharing
-canvkeydown.onup = [];      // handle 'undo' for certain key combinations
+var keysEmulateVR = false;     // set to true if we want to emulate some VT button experiences
+runkeys.onup = [];      // handle 'undo' for certain key combinations
+/** set up extra key combinations */
 function setExtraKey(key, msg, fun) {
     const k = extrakeys[key] = fun;
     k.extraname = msg;
 }
+setExtraKey.id = 0;
+/** set up extra key combinations with sound input, no key is spacer, fun===nop is new section */
+function setExtraKeyS(key = 'spacer' + (setExtraKey.id++), sound = undefined, msg = '', fun = nop) {
+    const k = extrakeys[key] = {fun, key};
+    k.extraname = msg;
+    k.sound = sound;
+    if (sound && OrganicSpeech) OrganicSpeech.commands[sound] = fun;
+    return k;
+}
 
-function canvkeydown(kkk, ff, evt) {
+function _xpick() { pick(lastDispobj, oldlayerX, oldlayerY,0,-1); }   // used for onunique, bot not being confused with first arg maestro event
+
+/** runkeys but catch errors */
+function  runkeysQuiet(kkkp, ff, evt = {}) {
+    let handled = false;
+    try {
+        handled = runkeys(kkkp, ff, evt);
+        msgfix('keys');
+    } catch (e) {
+        msgfixerrorlog('keys', 'invalid keys for current context', kkkp, `<br><small><white>${e.message}</white></small><br>`);
+        killev(evt);
+    }
+    return handled;
+}
+
+/** run keystroke combination, also allow array or blank separated list
+ * kkkp is the key list
+ * ff is the last key
+ * ext is the key event causing this call (if any)
+ * tryextra (default) allows just 'core' keys to run and ignores extrakeys
+ */
+function runkeys(kkkp, ff, evt = {}, tryextra = true) {
+    const kkka = Array.isArray(kkkp) ? kkkp : kkkp.split(' ');
+    if (kkka.length !== 1) { for (const k of kkka) runkeys(k); return true; }
+    const kkk = kkka[0];
 
     newmain();      // so animation gets going for 'game' keys even if not animating/autorotating
     var handled = true;
     var doNewmainIfHandled = true;
     var qq;
+    const lastg = xxxgenes(hoverDispobj);
+    const hdispobj = hoverDispobj !== NODO ? hoverDispobj : slots ? slots[mainvp].dispobj : undefined;
 
-    if (extrakeys[kkk] && !evt.repeat) {
-        extrakeys[kkk]();
+    const f = extrakeys[kkk];
+    if (f && !evt.repeat && tryextra) {
+        (f.fun || f)();
+        const ggg = GX.getgui(f.mostname); if (ggg) ggg.highlight();
     } else
 
-    switch(kkk) {
-        case 'ctrl,X': saveSnap(); break;       // save .oao snapshot of current situation
+    switch (kkk) {
+        case 'ctrl,shift,X': saveSnap(); break;       // save .oao snapshot of current situation
         case 'ctrl,C': copygenestoclip(); break;    // copy genes to clipboard
         case 'C':   // copy genes FROM main view to last clicked slot
             copyFrom(lastTouchedDispobj.genes, currentGenes);
@@ -49,38 +91,41 @@ function canvkeydown(kkk, ff, evt) {
         case 'V':  // show scale variants for given slot
             showScaleVariants(lastDispobj); return true;
             //break;
-        case 'space': // toggle mutator style animation
-        case 'pause/break':  // toggle mutator styleanimation
+        case ' ': case '': // spacebar, toggle mutator style animation, or Director running if in Director
+        case 'Pause':  // toggle mutator styleanimation, or Director running if in Director
+            if (Director.active) { Director.toggle(); return true; }
             setInput(W.doAnim, W.doAnim.checked = !W.doAnim.checked);
             if (inputs.doAnim && inputs.animSpeed === 0)
                 setInput(W.animSpeed, 0.4);
+            if (springs.isRunning) springs.stop(); else springs.start();
             return true;
             //break;
-        case 'scroll lock':  // toggle autorotation
+        case 'ScrollLock':  // toggle autorotation
         case 'A':    // toggle autorotation
             setInput(W.doAutorot, W.doAutorot.checked = !W.doAutorot.checked);
             return true;
             //break;
         case 'alt,S': CSynth.defaultSprings(); break;  // load csynth default springs
-        case 'alt,shift,S': CSynth.defaultSprings(); customSettings(); updateGuiGenes(); break;  // load csynth default springs
+        case 'alt,shift,S': CSynth.defaultSprings(); customSettings(); updateGuiGenes(); break;  // load csynth default springs + custom settings
         case 'O': CSynth.orient(); break;   // reorient for CSynth
         case 'shift,O': CSynth.bedorient(); break;  // orient bed for CSynth
-        case 'S': processFile(startscript); break;  // load csynth default springs
+        case 'S': if (startscript) processFile(startscript); break;  // rerun the CSynth startscript file
         case 'D': springs.settleHistory(); break;  // kill velocity of spring particles, dynamics keep going
         case 'G': springs.gotoParticle(); break; // centre on selected particle
-        case "shift,#222": toggleSCLog();  // shift, # is ~, toggle display of super collider log
+        case 'shift,~': // toggle display of super collider log
+        case 'shift,#': toggleSCLog();  // shift, # is ~, toggle display of super collider log
             break;
         case 'shift,P': if (VH) VH.positionGUI(); break;  // position csynth gui
-        case 'shift,0':  // zoom main vp,
-        case 'shift,1':  // zoom main vp,
-        case 'shift,2':  // zoom main vp
-        case 'shift,3':  // zoom main vp
-        case 'shift,4':  // zoom main vp
-        case 'shift,5':  // zoom main vp
-        case 'shift,6':  // zoom main vp
-        case 'shift,7':  // zoom main vp
-        case 'shift,8':  // zoom main vp
-        case 'shift,9':  // zoom main vp
+        case 'ContextMenu,0':  // zoom main vp,
+        case 'ContextMenu,1':  // zoom main vp,
+        case 'ContextMenu,2':  // zoom main vp
+        case 'ContextMenu,3':  // zoom main vp
+        case 'ContextMenu,4':  // zoom main vp
+        case 'ContextMenu,5':  // zoom main vp
+        case 'ContextMenu,6':  // zoom main vp
+        case 'ContextMenu,7':  // zoom main vp
+        case 'ContextMenu,8':  // zoom main vp
+        case 'ContextMenu,9':  // zoom main vp
             doNewmainIfHandled = false;
             var dispobj = lastDispobj;
             if (dispobj === NODO) return true;
@@ -88,7 +133,7 @@ function canvkeydown(kkk, ff, evt) {
             var s = ff === 'P' ? 80 : Math.pow(2, +ff/2);
             msgfix('zoom', s);
 
-            canvkeydown.save = {doAnim: inputs.doAnim, doAutorot: inputs.doAutorot };
+            runkeys.save = {doAnim: inputs.doAnim, doAutorot: inputs.doAutorot };
             setInput(W.doAnim, false);
             setInput(W.doAutorot, false);
 
@@ -97,11 +142,13 @@ function canvkeydown(kkk, ff, evt) {
             camera.setViewOffset(dispobj.width, dispobj.height, x, y,
                 dispobj.width/s,dispobj.height/s);
 
-            canvkeydown.onup.push(() => {
+            runkeys.onup.push(() => {
                 camera.clearViewOffset();  // setViewOffset(dispobj.width, dispobj.height, 0,0, dispobj.width, dispobj.height);
-                setInput(W.doAnim, canvkeydown.save.doAnim);
-                setInput(W.doAutorot, canvkeydown.save.doAutorot);
-                delete canvkeydown.save;
+                if (runkeys.save) {
+                    setInput(W.doAnim, runkeys.save.doAnim);
+                    setInput(W.doAutorot, runkeys.save.doAutorot);
+                    delete runkeys.save;
+                }
             });
             return true;
             //break;
@@ -119,17 +166,33 @@ function canvkeydown(kkk, ff, evt) {
             DispobjC.zoom = Math.pow(2, +ff/2);
             msgfix('zoom', DispobjC.zoom);
             break;
+
+        case 'ctrl,0':  // show zoomed area of mainvp in top right, pixel mult
+        case 'ctrl,1':  // show zoomed area of mainvp in top right, pixel mult
+        case 'ctrl,2':  // show zoomed area of mainvp in top right, pixel mult
+        case 'ctrl,3':  // show zoomed area of mainvp in top right, pixel mult
+        case 'ctrl,4':  // show zoomed area of mainvp in top right, pixel mult
+        case 'ctrl,5':  // show zoomed area of mainvp in top right, pixel mult
+        case 'ctrl,6':  // show zoomed area of mainvp in top right, pixel mult
+        case 'ctrl,7':  // show zoomed area of mainvp in top right, pixel mult
+        case 'ctrl,8':  // show zoomed area of mainvp in top right, pixel mult
+        case 'ctrl,9':  // show zoomed area of mainvp in top right, pixel mult
+            if (ml.capturingTime) break;  // do not allow this while capturing
+            DispobjC.zoom = +ff * 1/inps.renderRatioUi
+            msgfix('zoom', DispobjC.zoom);
+            break;
+
         case 'ctrl,alt,0':  // # renderRatio 1
-        case 'ctrl,alt,1':  // # renderRatio 1/4 (16x aa)
-        case 'ctrl,alt,2':  // # renderRatio 1/3 (9xaa)
-        case 'ctrl,alt,3':  // # renderRatio 1/2 (4xaa)
-        case 'ctrl,alt,4':  // # renderRatio 0.707 (2xaa)
+        case 'ctrl,alt,1':  // # renderRatio 0.707 (2xaa)
+        case 'ctrl,alt,2':  // # renderRatio 1/2 (4xaa)
+        case 'ctrl,alt,3':  // # renderRatio 1/3 (9xaa)
+        case 'ctrl,alt,4':  // # renderRatio 1/4 (16x aa)
         case 'ctrl,alt,5':  // # renderRatio 1
         case 'ctrl,alt,6':  // # renderRatio 1.414
         case 'ctrl,alt,7':  // # renderRatio 2
         case 'ctrl,alt,8':  // # renderRatio 3
         case 'ctrl,alt,9':  // # renderRatio 4
-            var rrs = [1, 1/4, 1/3, 1/2, Math.sqrt(1/2), 1, Math.sqrt(2), 2, 3, 4];
+            var rrs = [1, Math.sqrt(1/2), 1/2, 1/3, 1/4, 1,  Math.sqrt(2), 2, 3, 4];
             // setInput(W.renderRatioUi, Math.pow(2, ff-5));
             setInput(W.renderRatioUi, rrs[+ff]);
             msgfix('renderRatio', '$renderRatioUi');
@@ -150,14 +213,20 @@ function canvkeydown(kkk, ff, evt) {
                 // log('repeat p');
             }
             break;
-        case 'Q':  //pick and display what part of object identified; relies on repeat key to update
+        case 'Q,W':  //pick and display what part of object identified; relies on repeat key to update
             //onframe( function() { pick(lastDispobj, oldlayerX, oldlayerY); });
             // nb -1 not appropriate for CSynth ... should be 4, check if still used in CSynth
-            Maestro.on('postframe', function() { pick(lastDispobj, oldlayerX, oldlayerY,0,-1); }, {}, true);
+            // Maestro.on('postframe', function() { pick(lastDispobj, oldlayerX, oldlayerY,0,-1); }, {}, true);
+            Maestro.onUnique('postframe', _xpick, {}, true);
             return true;
             //break;
-        case 'Z': runTimedScript.next(); break; // move to next fixed point in script
-        case 'shift,Z': runTimedScript.interrupt(); break; // interrupt script
+        case 'Q,W,E':  // filter based on Q,W pick
+            if (currentHset.hornhighlight)
+                setInput(W.guifilter, currentHset.hornrun[currentHset.hornhighlight].hornname + '_ | ctrl,F3')
+            return true;
+            //break;
+        case 'Z': S.next(); break; // move to next fixed point in script
+        case 'shift,Z': S.interrupt(); break; // interrupt script
         case 'alt,K':  // pick for keystone
             var ki = startKeystone(oldlayerX, height - oldlayerY);
             if (ki !== undefined) {
@@ -169,16 +238,24 @@ function canvkeydown(kkk, ff, evt) {
             }
             break;
 
-        case 'K,T': CSynth.twist({sc:G.backboneScale * springs.numInstances**(1/3)}); break;   // set spring positions to twisted helix on torus
-        case 'K,Q': CSynth.twist({sc:G.backboneScale * springs.numInstances**(1/3), r: 0.05, n: springs.numInstances/10}); break; // set springs with chirality
+        case 'K,T': CSynth.twist({sc:2 * G.backboneScale * springs.numInstances**(1/3)}); break;   // set spring positions to twisted helix on torus
+        case 'K,Y': CSynth.twist({sc:G.backboneScale * springs.numInstances**(1/3), r: 0.05, n: springs.numInstances/10}); break; // set springs with chirality
         case 'K,C': CSynth.circle({sc:G.backboneScale * springs.numInstances**(1/3)}); break;  // set spring positions to circle
         case 'K,R': CSynth.randpos(G.backboneScale * 3); break;     // set random positions
         case 'K,N': tadpoleSystem.remakePositions(); break;         // set tadpole random grid posistions
         case 'K,H': loadopen(); break;                               //# set spring positions to helix
         case 'K,S': CSynth.hilbert(G.backboneScale * 4); break;     // set springs positions to speace filling (Hilbert) curve
         case 'K,;': springs.rotatePositions(); break;               // rotate all particles about their centroid
-        case 'K,#222': springs.reCentre(); break;                     // K,# centre all particles based on their centroid
+        case 'K,#': springs.reCentre(); break;                     // K,# centre all particles based on their centroid
         case 'K,W': cMap.toggle(); break;                           // toggle wall type
+
+        case 'K,-': HornSet.reduceHorns(lastTouchedDispobj, 0.8); break;            // reduce number of horns
+        case 'ctrl,K,-': HornSet.reduceHornsToLimit(lastTouchedDispobj); break;     // for dispobj, reduce number of horns to under the current max horns limit
+        case 'shift,K,-': HornSet.reduceAllHornsToLimit(); break;                   // reduce number of horns limit for all mutations
+        case 'K,A': HornSet.controlMutation(true); break;                           // start automatic control of mutation to reduce horns
+        case 'K,X': HornSet.controlMutation(false); break;                          // stop automatic control of mutation to reduce horns
+
+        currentHset.reduceHornsToLimit()
 
         case 'R': CSynth.randpos(); break; // set to random positions
         case 'X': CSynth.curstats(); break; // show stats for current
@@ -192,6 +269,12 @@ function canvkeydown(kkk, ff, evt) {
         case 'K,7': CSynth.kick(10); break;  // kick current particle position, 10
         case 'K,8': CSynth.kick(20); break;  // kick current particle position, 20
         case 'K,9': CSynth.kick(50); break;  // kick current particle position, 50
+
+        case 'K,L,B': BrightonStyle(); break; // Brighton style layout for mutation
+
+        case 'Q,B,1': springs.time(100); break;     // time 100 spring steps
+        case 'Q,B,2': springs.time(1000); break;     // time 1000 spring steps
+        case 'Q,B,3': springs.time(10000); break;     // time 10000 spring steps
 
         case 'J': ml.capture(); break;  // start capture of machine learning judgements
 
@@ -213,7 +296,8 @@ function canvkeydown(kkk, ff, evt) {
             break;
 
         // these below are not important enough to have these easy keys to themselves, at least for now.  sjpt 19 Jan 2017
-        // case 'B ': case 'C ': case 'T ': case 'O ': case 'S ': case 'G ': case 'R ': case 'A ': case 'F ': case 'W ': case 'alt,S ':
+        // ca se 'B': ca se 'C': ca se 'T': ca se 'O': ca se 'Q,S': ca se 'G': ca se 'R': ca se 'A': ca se 'F': ca se 'W': ca se 'alt,S':
+        case 'Q,S':     // add 'stack' to current horn
         case 'NEVER':   // commented out use of bend, twist etc keys
             // pick up an object to edit
             // if we don't see one at once, we can hunt for it with the mouse
@@ -226,16 +310,16 @@ function canvkeydown(kkk, ff, evt) {
                     if (currentpick !== "") saveundo();
                 }
                 if (currentpick !== "")
-                    editobj(kkk);
+                    HW.editobj(kkk);
                 findMatop(evt);  // things have changed, so repeat this test
             });
             return true;
             //break;
-        case 'ctrl,right arrow':  // perform single animation step (??? panning instead ???)
+        case 'ctrl,ArrowRight':  // perform single animation step (??? panning instead ???)
             animStep(false);
             trysetele("doAnim", "checked", false);
             break;
-        case 'ctrl,left arrow':  // perform single animation step backwards (??? panning instead ???)
+        case 'ctrl,ArrowLeft':  // perform single animation step backwards (??? panning instead ???)
             animStep(true);
             trysetele("doAnim", "checked", false);
             break;
@@ -245,26 +329,27 @@ function canvkeydown(kkk, ff, evt) {
         case 'shift,,':  // decrease animation speed
             stepeleval(W.animSpeed, -1);
             break;
-        case 'alt,home':  // set lots of things to unit transforms (not always useful)
+        case 'alt,Home':  // set lots of things to unit transforms (not always useful)
             allunit();
             break;
-        case 'shift,home':  // go to centre
-            G._camx = G._camy = G._camz = 0; G._fov = 100;
+        case 'shift,Home':  // go to centre
+            lastg._camx = lastg._camy = lastg._camz = 0; lastg._fov = 100;
+            hdispobj.render();
             break;
-        case 'ctrl,home':  // reset orientation of object
-            resetMat("all", currentGenes);
+        case 'ctrl,Home':  // reset orientation of object
+            resetMat(rot, lastg);
+            if (hdispobj) hdispobj.render();
             setInput(W.grot, 0);
             return true;
             //break;
-        case 'home':    // reset scale of object
-            var op = findMatop(evt);
-            if (mousewhich === 0 && keysdown.length === 0) op = undefined;
-            centrescalenow();
-            resetMat(op);
-            if (CSynth.autoscale) CSynth.autoscale();
-            return true;
-            //break;
-        case 'end': GX.normalizeRange(); break; // normalize the range of hovered GUI item
+        case 'Home': {    // reset scale of object, and camera
+            return home(hdispobj);
+            }//break;
+        case 'Home,A':    // home all
+            for (const o in currentObjects) centrescalenow(currentObjects[o]);
+            break;
+        case 'PageUp': transferView(); break;   // copy view from main view to all others
+        case 'End': GX.normalizeRange(); break; // normalize the range of hovered GUI item
         case 'cmd,Q': case 'alt,F4':    // quit Organic/CSymth program
                 if (stopSC) stopSC(); //TODO: work out why we still sometimes get zombie.
                 running = false;
@@ -280,35 +365,30 @@ function canvkeydown(kkk, ff, evt) {
                 //break;
         case 'U': snap(); break;  // capture current animation object and put in lru position, lru to dustbin
 
-        // note do NOT use pure arrows, they are used in game mode
-        case 'alt,right arrow': Director.step(1); break;  // director step frame forward
-        case 'alt,left arrow': Director.step(-1); break;  // director step frame backwards
-        case 'shift,right arrow': Director.step(10); break;  // director step frame forward 10 frames
-        case 'shift,left arrow': Director.step(-10); break;  // director step frame backward 10 frames
-        case '#222': test2(); break;  // '#':
+        case '#': test2(); break;  // '#':
 
-        case 'ctrl,alt,up arrow': applyMatop(1,2, -Math.PI/2, rot); break; // rotate front up 90 <>
-        case 'ctrl,alt,down arrow': applyMatop(1,2, Math.PI/2, rot); break; // rotate front down 90 <>
-        case 'ctrl,alt,left arrow': applyMatop(2,0, -Math.PI/2, rot); break; // rotate front left 90 <>
-        case 'ctrl,alt,right arrow': applyMatop(2,0, Math.PI/2, rot); break; // rotate front right 90 <>
-        case 'ctrl,alt,page up': applyMatop(0,1, -Math.PI/2, rot); break; // rotate clockwise 90 <>
-        case 'ctrl,alt,page down': applyMatop(0,1, Math.PI/2, rot); break; // rotate anitclockwise 90 <>
+        case 'ctrl,alt,ArrowUp': applyMatop(1,2, -Math.PI/2, rot); break; // rotate front up 90 <>
+        case 'ctrl,alt,ArrowDown': applyMatop(1,2, Math.PI/2, rot); break; // rotate front down 90 <>
+        case 'ctrl,alt,ArrowLeft': applyMatop(2,0, -Math.PI/2, rot); break; // rotate front left 90 <>
+        case 'ctrl,alt,ArrowRight': applyMatop(2,0, Math.PI/2, rot); break; // rotate front right 90 <>
+        case 'ctrl,alt,PageUp': applyMatop(0,1, -Math.PI/2, rot); break; // rotate clockwise 90 <>
+        case 'ctrl,alt,PageDown': applyMatop(0,1, Math.PI/2, rot); break; // rotate anitclockwise 90 <>
 
-        case 'ctrl,alt,shift,up arrow': applyMatop(1,2, -Math.PI/6, rot); break; // rotate front up 30 <>
-        case 'ctrl,alt,shift,down arrow': applyMatop(1,2, Math.PI/6, rot); break; // rotate front down 30 <>
-        case 'ctrl,alt,shift,left arrow': applyMatop(2,0, -Math.PI/6, rot); break; // rotate front left 30 <>
-        case 'ctrl,alt,shift,right arrow': applyMatop(2,0, Math.PI/6, rot); break; // rotate front right 30 <>
-        case 'ctrl,alt,shift,page up': applyMatop(0,1, -Math.PI/6, rot); break; // rotate clockwise 30 <>
-        case 'ctrl,alt,shift,page down': applyMatop(0,1, Math.PI/6, rot); break; // rotate anitclockwise 30 <>
+        case 'ctrl,alt,shift,ArrowUp': applyMatop(1,2, -Math.PI/6, rot); break; // rotate front up 30 <>
+        case 'ctrl,alt,shift,ArrowDown': applyMatop(1,2, Math.PI/6, rot); break; // rotate front down 30 <>
+        case 'ctrl,alt,shift,ArrowLeft': applyMatop(2,0, -Math.PI/6, rot); break; // rotate front left 30 <>
+        case 'ctrl,alt,shift,ArrowRight': applyMatop(2,0, Math.PI/6, rot); break; // rotate front right 30 <>
+        case 'ctrl,alt,shift,PageUp': applyMatop(0,1, -Math.PI/6, rot); break; // rotate clockwise 30 <>
+        case 'ctrl,alt,shift,PageDown': applyMatop(0,1, Math.PI/6, rot); break; // rotate anitclockwise 30 <>
 
-        case 'ctrl,alt,C,up arrow': applyMatop(1,999, -1, flatten); break; // mirror up/down <>
-        case 'ctrl,alt,C,down arrow': applyMatop(1,999, -1, flatten); break; // mirror up/down <>
-        case 'ctrl,alt,C,left arrow': applyMatop(0,999, -1, flatten); break; // mirror left/right <>
-        case 'ctrl,alt,C,right arrow': applyMatop(0,999, -1, flatten); break; // mirror left/right <>
-        case 'ctrl,alt,C,page up': applyMatop(2,999, -1, flatten); break; // mirror front/back <>
-        case 'ctrl,alt,C,page down': applyMatop(2,999, -1, flatten); break; // mirror front/back <>
+        case 'ctrl,alt,C,ArrowUp': applyMatop(1,999, -1, flatten); break; // mirror up/down <>
+        case 'ctrl,alt,C,ArrowDown': applyMatop(1,999, -1, flatten); break; // mirror up/down <>
+        case 'ctrl,alt,C,ArrowLeft': applyMatop(0,999, -1, flatten); break; // mirror left/right <>
+        case 'ctrl,alt,C,ArrowRight': applyMatop(0,999, -1, flatten); break; // mirror left/right <>
+        case 'ctrl,alt,C,PageUp': applyMatop(2,999, -1, flatten); break; // mirror front/back <>
+        case 'ctrl,alt,C,PageDown': applyMatop(2,999, -1, flatten); break; // mirror front/back <>
 
-        case 'ctrl,alt,home': // 'front' view with z up  <>
+        case 'ctrl,alt,Home': // 'front' view with z up  <>
             resetMat("all", currentGenes);
             setInput(W.grot, 0);
             applyMatop(1,2, -Math.PI/2, rot);
@@ -328,27 +408,29 @@ function canvkeydown(kkk, ff, evt) {
 
 
         // ca se 'ctrl,0': usemask=0; msgtrack('usemask'); break;  // set usemask 0 (technical)
-        case 'ctrl,1': usemask=1; msgtrack('usemask'); break;  // set usemask 1 (technical)
-        case 'ctrl,2': usemask=2; msgtrack('usemask'); break;  // set usemask 2 (technical)
-        case 'ctrl,3': usemask=3; msgtrack('usemask'); break;  // set usemask 3 (technical)
-        case 'ctrl,4': usemask=4; msgtrack('usemask'); break;  // set usemask 4 (technical)
+        // case 'ctrl,1': usemask=1; msgtrack('usemask'); break;  // set usemask 1 (technical)
+        // case 'ctrl,2': usemask=2; msgtrack('usemask'); break;  // set usemask 2 (technical)
+        // case 'ctrl,3': usemask=3; msgtrack('usemask'); break;  // set usemask 3 (technical)
+        // case 'ctrl,4': usemask=4; msgtrack('usemask'); break;  // set usemask 4 (technical)
         // ca se 'ctrl,-': usemask=-1; msgtrack('usemask'); break;  // set usemask -1 (technical)
         case 'ctrl,R': refall(); break;   // refresh all
         case 'ctrl,alt,R': randobj(); break;  // make random object (broken???)
         case 'ctrl,D':  // cycle display mode, solid, dots, lines
-            if (dotty) { dotty = false; usewireframe = true; msgfixlog('render', 'wireframe')}
-            else if (usewireframe) { dotty = false; usewireframe = false; msgfixlog('render', 'full')}
-            else { dotty = true; usewireframe = false;  msgfixlog('render', 'dotty')}
+            if (HW.dotty) { HW.dotty = false; HW.usewireframe = true; msgfixlog('render', 'wireframe')}
+            else if (HW.usewireframe) { HW.dotty = false; HW.usewireframe = false; msgfixlog('render', 'full')}
+            else { HW.dotty = true; HW.usewireframe = false;  msgfixlog('render', 'HW.dotty')}
             newmain();
             break;
         case 'shift,V': camset(); break; // random camera view
 
         case 'ctrl,N': currentGenes.latenormals = currentGenes.latenormals ? 0 : 1; msgtrack('latenormals'); break;  // toggle latenormals (technical)
-        case 'alt,V': case 'alt,3':   // fiddly with renderVR/renderObjsInner (technical)
+        case 'alt,V':    // fiddly with renderVR/renderObjsInner (technical)
             renderObjs = renderObjs === renderVR ? renderObjsInner : renderVR;  msgfix('renderVR', renderObjs === renderVR); break;
-        case 'ctrl,alt,V': renderVR.fs(true); break;  // go to VR (but use F2/F6?) (technical)
-        case 'ctrl,shift,alt,V': renderVR.fs(false); break;  // leave VR (use F4) (technical)
-        case 'alt,shift,4': renderObjs = renderObjs === renderQuad ? renderObjsInner : renderQuad; msgfix('renderQuad', renderObjs === renderQuad); break;
+        case 'ctrl,alt,V': renderVR.xrfs(true); break;  // go to VR (but use F2/F6?) (technical)
+        case 'ctrl,shift,alt,V': renderVR.xrfs(false); break;  // leave VR (use F4) (technical)
+
+        case 'alt,ContextMenu,4': // toggle renderObs and renderQuad
+            renderObjs = renderObjs === renderQuad ? renderObjsInner : renderQuad; msgfix('renderQuad', renderObjs === renderQuad); break;
         case 'ctrl,W': case 'alt,W':  {// kinect extra mouse mode (???broken???)
             var m = kinectJupDyn.extramouse.mode;
             let msgw;
@@ -366,25 +448,37 @@ function canvkeydown(kkk, ff, evt) {
         }
 
         case 'T,X':  // open texture
-            qq = window.location.href.indexOf('?') === -1 ? '?' : '';
-            window.location.href += qq + ";appToUse='Texture';"
+            window.location.href = window.location.href.pre('?') + "?appToUse=Texture&"
             break;
         case 'T,F':  // open fano
-            qq = window.location.href.indexOf('?') === -1 ? '?' : '';
-            window.location.href += qq + ";appToUse='Fano';"
+            window.location.href = window.location.href.pre('?') + "?appToUse=Fano&"
             break;
         case 'T,J':  // open Julia
-            qq = window.location.href.indexOf('?') === -1 ? '?' : '';
-            window.location.href += qq + ";appToUse='Julia';"
+            window.location.href = window.location.href.pre('?') + "?appToUse=Julia&"
             break;
         case 'T,H':  // open Horn
-            qq = window.location.href.indexOf('?') === -1 ? '?' : '';
-            window.location.href += qq + ";appToUse='Horn';"
+            window.location.href = window.location.href.pre('?') + "?appToUse=Horn&"
             break;
         case 'T,S':  // open ImplicitShape
-            qq = window.location.href.indexOf('?') === -1 ? '?' : '';
-            window.location.href += qq + ";appToUse='ImplicitShape';"
+            window.location.href = window.location.href.pre('?') + "?appToUse=ImplicitShape&"
             break;
+
+
+        case 'ctrl,shift,A': Director.setup(); break; // setup for Director
+        case 'alt,A': Director.toggle(); break; // toggle Director preview running on/off
+        case 'shift,A': Director.toggle(true); break;  // toggle Director preview on full frame
+        case 'alt,shift,A': Director.record(); break; // Director record
+        case 'ctrl,alt,shift,A': Director.record(true); frameSaver.quickout= true; break;  // Director record with quickstart
+        case 'ctrl,A': Director.prepLinear(); break; // Director prepare linear animation from current main object
+
+        // note do NOT use pure arrows, they are used in game mode
+        case 'alt,ArrowUp': Director.step(1); break;  // director step frame forward
+        case 'alt,ArrowDown': Director.step(-1); break;  // director step frame backwards
+        case 'shift,ArrowUp': Director.step(10); break;  // director step frame forward 10 frames
+        case 'shift,ArrowDown': Director.step(-10); break;  // director step frame backward 10 frames
+
+        case 'alt,D': toggleInput(W.showdirectorrules); break;          //# toggle director rules. PJT: conflicts with standard browser shortcut.
+
         case 'M,1':  CSynth.setMarkerFromSelection(0); break; // set marker 0 or marker pair 0,1
         case 'M,2':  CSynth.setMarkerFromSelection(1); break; // set marker 1 or marker pair 1,2
         case 'M,3':  CSynth.setMarkerFromSelection(2); break; // set marker 2 or marker pair 2,3
@@ -393,6 +487,7 @@ function canvkeydown(kkk, ff, evt) {
         case 'M,6':  CSynth.setMarkerFromSelection(5); break; // set marker 5 or marker pair 5,6
         case 'M,7':  CSynth.setMarkerFromSelection(6); break; // set marker 6 or marker pair 6,7
         case 'M,8':  CSynth.setMarkerFromSelection(7); break; // set marker 7 or marker pair 7,8
+        case 'M,Insert':  CSynth.setMarkerFromSelection(-9); break; // set marker(s) in free slots
         case 'M,C':  CSynth.contactClosest(); break; // move current to closest fixed contact point
 
         case 'M,U':  CSynth.orient('up'); break; // set UP particle for CSynth orientation
@@ -412,28 +507,24 @@ function canvkeydown(kkk, ff, evt) {
         case 'M,L': window.location.href='http://localhost:8800/csynth.html?startscript=CSynth/data/Lorentz/lorentz.js'; break; // Lorentx
 
 
-        case 'alt,A': Director.toggle(); break; // toggle Director on/off
-        case 'shift,A': Director.toggle(true); break;  // Director on
-        case 'alt,shift,A': Director.record(); break; // Director record
-        case 'ctrl,alt,shift,A': Director.record(true); frameSaver.quickout= true; break;  // Director record with quickstart
-        case 'ctrl,A': Director.prepLinear(); break; // Director prepare linear animation form current main object
-
         case '/': saven(); break;   // save state with unique name
         case '\\': break;  // reserved for 4d rotation
         case '8,\\':  // toggle PIXELS for feedback (technical)
             setInput(W.PIXELS, !inputs.PIXELS); msgfix("pixels", inputs.PIXELS);
             break;
 
-        case 'delete':   // piste step: simulate vr controller right click
-            simclick();
+        case 'Delete':   // piste step: simulate vr controller right click
+            if (keysEmulateVR) {simclick(); break;}
+            runkeys('Q,W');
             break;
-        case 'ctrl,delete':   // delete current object
-            simclick('lefttrigger');
+        case 'ctrl,Delete':   // simulate left click ... wrong
+        if (keysEmulateVR) {simclick('lefttrigger'); break;}
             break;
-        case 'insert':   // piste step: simulate vr controller left click
-            simclick('lefttrigger');
+        case 'Insert':   // piste step: simulate vr controller left click
+        if (keysEmulateVR) {simclick('lefttrigger'); break;}
+            // runkeys('Q,W');
             break;
-        case 'ctrl,insert':   // quick load curated
+        case 'ctrl,Insert':   // quick load curated
             copyFrom(vtarget, loadVariant(-1, 200));
             viveAnim.time = 200;
             break;
@@ -443,17 +534,30 @@ function canvkeydown(kkk, ff, evt) {
         case 'T,V':  loadVariants(); break; // load variants
         case 'I': CSynth.showPickDist(); break; // show pick distances
         case 'shift,I':   // toggle pick distance mode
-            if (canvkeydown.pickregid) {
-                Maestro.remove('postframe', canvkeydown.pickregid);
-                canvkeydown.pickregid = undefined;
+            if (runkeys.pickregid) {
+                Maestro.remove('postframe', runkeys.pickregid);
+                runkeys.pickregid = undefined;
             } else {
                 nomess('release');
-                canvkeydown.pickregid = Maestro.on('postframe', CSynth.showPickDist);
+                runkeys.pickregid = Maestro.on('postframe', CSynth.showPickDist);
             }
             break;
-        case 'L': setHolo(); break;
-        case ';': Holo.rot ^= true; msgfix('holoCam', Holo.rot ? 'old rotation' : 'skewed offset'); break;
-        case 'E': GX.html(); break;  // bring up edit box for GX style gui
+        // case 'L': setHolo(); break;
+        case ';': Holo.rot ^= true; msgfix('holoCam', Holo.rot ? 'old rotation' : 'skewed offset'); break; // toggle holo rotation
+        case 'E': killev(evt); GX.html(); break;  // bring up edit box for GX style gui
+        // case 'Insert,PageUp': GX.hscale(10); break;    // hover over gui slider: increase value and scale by factor of 10
+        // case 'Insert,PageDown': GX.hscale(1/10); break;    // hover over gui slider: decrease value and scale by factor of 10
+        // case 'alt,Insert,PageUp': GX.hscale(10, undefined, false); break;    // hover over gui slider: increase scale by factor of 10, value unchanged
+        // case 'alt,Insert,PageDown': GX.hscale(1/10, undefined, false); break;    // over over gui slider: decrease scale by factor of 10, value unchanged
+        // case 'Insert,Home': GX.hinitval(); break;        // restore initial value
+        // case 'Insert,End': GX.autoscale(); break;        // scale slider from current value
+        // case 'Insert,ArrowUp': GX.hstep(1); break;    // increase value for hover over gui slider
+        // case 'Insert,ArrowDown': GX.hstep(-1); break;    // increase value for hover over gui slider
+        // case 'Insert,-': GX.hide(); break;    // hide hovered element
+        case 'Insert,=': GX.show(); break;    // restore last hidden element
+        case 'Insert,Home': windowset(0); break;    // establish 'sensible' sized screen
+        case 'Delete,0': setBackgroundColor(0); break;  // black background
+        case 'Delete,1': setBackgroundColor(1); break;  // white background
         default:
             // kill any non-special keys in the canvas area
             // to reduce risk of errors such as overtype on rules
@@ -467,21 +571,21 @@ function canvkeydown(kkk, ff, evt) {
         return true;
     }
     return undefined;
-}
+}  // runkeys
 
-function canvkeyup(evt) {
-    canvkeydown.onup.forEach(f => f());     // cancel anything outstanding
-    canvkeydown.onup = [];
+function runkeysup(evt) {
+    runkeys.onup.forEach(f => f());     // cancel anything outstanding
+    runkeys.onup = [];
 
-    var ff = keyname(evt.keyCode);
+    var ff = getkey(evt);
 
     var i = keysdown.indexOf(ff);
     if (i !== -1) keysdown.splice(i,1);
     findMatop(evt); // refresh feedback about manipulation operation
     switch (ff) {
-        case  'F11': handleF11("up"); break;  // keyup on exit full screen
-        case 'V': restoreExtra(); return killev(evt);
-        case 'alt': return killev(evt);
+        // 16 June 2022, removed, do all F11 handling ourselvescase 'F 11': handleF 11("up"); break;  // keyup on exit full screen
+        case 'V': restoreExtra(); return killev(evt);   // restore extra objects
+        case 'alt': return killev(evt); // !techincal!
         case 'N':  // end burst of noise
             if (CSynth && CSynth.savenoiceforce !== undefined)
                 currentGenes.noiseforce = CSynth.savenoiceforce;
@@ -517,7 +621,7 @@ function canvkeyup(evt) {
     editgenex = undefined;
     inedit = false;
     findMatop(evt);
-    msgfix('hit'); hornhighlight = '';
+    msgfix('hit'); currentHset.hornhighlight
     msgfix('op');
     return undefined;
 }
@@ -530,29 +634,73 @@ function dockeydowninner(kkk, evt) {
         return true;
     }
     switch (kkk) {
-        case 'alt,F3': case 'F3': mutate(); break;  //# mutate
+        // Below assumes all separated gui folders are in nocamscene, and nothing else is.
+        // Need to review to clean all gui folder when in VR, or if nocamscene gets used for something other than guis TODO
+        case 'Insert,A': GX.savegui(); break;  // save gui
+        case 'alt,F1': V.nocamscene.visible = !V.nocamscene.visible; break;  //# toggle gui menu (nocamscene)
+        case 'alt,F3': mutate(); break;  //# mutate all free (old style)
+        case 'F3': mutateXX(); break;  //# mutate, free as checked in boxes
+        case 'Insert,F3': randmuts({k: 0.5, tag:'*'}); break;   //# random very widely (not mutate)
+        case 'ctrl,F3': mutate({filter: resolveFilter()}); break;  //# mutate only using filtered genes
+        case 'Q,F3': mutate({filter: resolveFilter(), mutateFrozen: 1}); break;  //# mutate only using filtered genes
+        case 'shift,F3': smtest(); break;   // # structure mutate
+        case 'alt,shift,F3': randobj(G, false); updateGuiGenes(); break;  //# mutate just the main object
+        case 'K,F3': mutateForm(); break; // mutate form only
+        case 'L,F3': mutateColour(); break; // mutate colours only
+        case 'L,W': clearSelected(); break; // wipe selection
         // case 'F4 ': randrulemutate(); break;        //# mutate, including structure mutation, currently not supported
-        // case 'alt,left window,R': setInput(W.NOMESS, !inputs.NOMESS); break;
-        case 'alt,left window,Q': setInput(W.NOMESS, !inputs.NOMESS); break;
+        // case 'alt,Meta,R': setInput(W.NOMESS, !inputs.NOMESS); break;
+        case 'alt,Meta,Q': setInput(W.NOMESS, !inputs.NOMESS); break;   // toggle nomess
         //  window.location.href += '' // another way to resart
-        case 'F5': if (xwin) xwin.restart(); else if (nwwin) nwwin.reload(); else handled = false; break; //# reload
+        case 'F5':
+            if (xwin) xwin.restart();
+            else if (nwwin) nwwin.reload();
+            else if (navigator.appVersion.match('Electron')) location.href += '';
+            else handled = false;
+            break; //# reload
         case 'ctrl,F5': if (xwin) xwin.restart(true); else if (nwwin) nwwin.reloadIgnoringCache(); else handled = false; break;  //# reload, ignoring cache
         case 'shift,F5': {  //# reload with current object
             let h = location.href;
-            if (!h.includes('?')) h += '?';
-            h += `;startobj="${currentGenes.name}"`;
+            // remove old startobj= if any
+            if (!h.includes('?')) {
+                h += '?';
+            } else {
+                h = (h + '&').replace(/startobj=.*?&/, '')
+            }
+            // add new startobj=
+            h += `&startobj=${loadOao.lastfn}`;
+            h = h.replace(/&&/, '&');
             location.href = h;
             break;
         }
 
         case 'shift,F4': randrule(); break;  //# generate random rule change
         // case 'F6 ': reformRule(); break;        //# reform rule
-        case 'F7': /*if (!repeat)*/ scale(currentGenes); break; // repeat wrong because of canvkeydown  //# scale current object (? obsolete version ?)
-        case 'F8': setSize(); break;  //# set size to screen
-        case 'shift,F8': setSize(1280, 720); break;  //# set size to 1280x720
+        case 'F7': /*if (!repeat)*/ scale(currentGenes); break; // repeat wrong because of runkeys  //# scale current object (? obsolete version ?)
+        // 'F8' used by devtools, break
+        // 'ctrl,F8' used by devtools
+        // 'alt,F8' used by Geoforce ???
+        // case 'alt,F8': debugger; break;  //# break with debugger statement
+        case 'shift,F8': debugger; break;  //# break with debugger statement
+        // ca se 'F8': setSize(); break;  //# set size to screen
+        // ca se 'shift,F8': setSize(1280, 720); break;  //# set size to 1280x720
         case 'F9': toggleFix(); break;    //# toggle whether
         case 'F10': toggleShare(); break;    //# toggle whether sharing session
-        case 'F11': if (nwwin) {  // toggle fullscreen
+
+        // 21 Sept 2022 moved to dockeydowninner from runkeys
+        // 16 June 2022, removed, do all F11 handling ourselves,. so document.fullscreenElement etc are reliable
+        // If we allow 'standard' F11 behaviour to work this does fullscreen almost independently and very difficult to detect, which really confuses things
+        // 23 Jan 2023, looks as if window.outerHeight === window.innerHeight is test to detect if we are in either (or both) fullscreen styles
+        case 'F11': handled = false; log('f11 detected'); break;  // standard toggle fullscreen, non-programmable old style, only in list for debug purposes
+        case 'ctrl,F11': toggleFullscreen(evt); break;  // toggle fullscreen (toggleFullscreen())
+        case 'shift,F11': enterFullscreen(evt); break; // enter fullscreen (enterFullscreen())
+        case 'alt,F11': exitFullscreen(evt); break; // exit fullscreen (exitFullscreen())
+        // ca se 'ctrl,F11': if (document.fullscreenElement) document.exit Fullscreen(); else fullscreen(); break;  // toggle request Fullscreen style fullscreen
+        // ca se 'shift,F11': fullscreen(); break; // enter request Fullscreen style fullscreen (fullscreen())
+        // ca se 'alt,F11': if (document.fullscreenElement) document.exit Fullscreen(); break; // exit request Fullscreen style fullscreen (exitFullscreen())
+        //??? case 'alt,shift,F11': document.exit Fullscreen(); break; // this is a complete force of exitFullscreen, for debug, causes error if not in fullscreen
+
+        case 'F11XX': if (nwwin) {  // toggle fullscreen
 
                 try {
                      nwwin.toggleFullscreen();
@@ -574,9 +722,11 @@ function dockeydowninner(kkk, evt) {
             if (nwwin) {
                 nwwin.showDevTools();
                 keysdown=[];   // real keyup is lost to devkit
+            } else if (navigator.userAgent.indexOf('Electron') !== -1) {
+                niractcmd('sendkeypress ctrl+shift+i')
             } else handled = false;
             break;
-        case 'ctrl,shift,W': getserveroao("files/web.oao"); break;
+        case 'ctrl,shift,W': getserveroao("files/web.oao"); break;  // load web.oao
 
         case 'ctrl,Q':  // set up fixed rotation and record  (???broken???)
             // special for William 14 Jan 2017, to generalize
@@ -590,7 +740,7 @@ function dockeydowninner(kkk, evt) {
             setInput(W.grot, 1);
 
 
-            frameSaver.type = "buffer";
+            frameSaver.type = isNode() ? "buffer" : "F32Array";
             //trysetele(W.animsave, 'checked', !inputs.animsave);
             inputsanimsave = !inputsanimsave;
             msgfix("saveanim", inputsanimsave ? "recording frames" : "END recording frames, ctrl-shift-Q to render them.");
@@ -609,7 +759,7 @@ function dockeydowninner(kkk, evt) {
         case 'ctrl,Y':      // load tempest and enter VR
             // getserveroao("gallery/York_15x_NewS2.oao");
             getserveroao("gallery/Tempest3ax8.oao");
-            renderVR.fs(true);
+            renderVR.xrfs(true);
             break;
         case 'ctrl,O': // open files
             W.fileDialog.onclick = function (evtp) { this.value = null; }
@@ -621,23 +771,31 @@ function dockeydowninner(kkk, evt) {
         case 'ctrl,shift,O':  // reopen last opened files (from drop or ctrl,o)
             openfiles();
             break;
-        case 'ctrl,shift,V': if (clipboard) pastecliptogenes(); else handled = false; break;
+        case 'ctrl,shift,V': if (clipboard) pastecliptogenes(); else handled = false; break;    // paste local clipboard into genes
+        case 'ctrl,X,F':    // paste form genes
+        case 'ctrl,X,C':    // paste colour genes
+        case 'ctrl,X,T':    // paste texture genes
+        case 'ctrl,X,S':    // paste surface genes
+        case 'ctrl,X,V':    // paste view genes
+        case 'ctrl,X,A':    // paste all genes
+            pastSelectGenes(kkk[7]);
+            break;
         // case 'ctrl,V'  // LEAVE THIS TO ONPASTE
-        case 'ctrl,S': save(); break;
-        case 'alt,.': springs.start(); break;
-        case 'alt,,': springs.stop(); break;
-        case 'alt,F': trysetele("fixcontrols", 'checked', !W.fixcontrols.checked); resize(); showControls(W.fixcontrols.checked); break;
-        case 'alt,G': trysetele("showgrid", 'checked', !W.showgrid.checked); W.showgrid.onchange(undefined); break;
+        case 'ctrl,S': save(); break;           // save
+        case 'alt,.': springs.start(); break;   // start springs running
+        case 'alt,,': springs.stop(); break;    // stop springs running
+        case 'alt,F': trysetele("fixcontrols", 'checked', !W.fixcontrols.checked); showControls(W.fixcontrols.checked); onWindowResize(true); break; // toggle fixed controls (not over canvas)
+        case 'alt,G': trysetele("showgrid", 'checked', !W.showgrid.checked); W.showgrid.onchange(undefined); break; // toggle showgrid
         case 'ctrl,L':  // load most recent used item, no view change
         case 'alt,L':  // load most recent used item, view change
-            loadOao(W.savename.value);
+            loadOao(loadOao.lastfn);
             break;
-        case 'alt,C': showControls("toggle"); break;
-        case 'alt,E': FractEVO.startEvolving(); break;
-        case 'alt,shift,E': FractEVO.scorePopulation(); FractEVO.watchExe(); break;
+        case 'alt,C': showControls("toggle"); break;    //  toggle fixed controls (over canvas)
+        case 'alt,E': FractEVO.startEvolving(); break;  // start FractEVO evolution
+        case 'alt,shift,E': FractEVO.scorePopulation(); FractEVO.watchExe(); break; // FractEVO score
         case 'ctrl,shift,L':  // load most recent item in gallery, no view change
         case 'alt,shift,L':  // load most recent item in gallery, view change
-            loadOao(getWebGalByNum(0).name);
+            loadOao(loadOao.lastfn);
             break;
         case 'alt,P':  // cycle stats, off,fps,ms
             if (!inputs.showstats) {
@@ -651,40 +809,39 @@ function dockeydowninner(kkk, evt) {
                 stats.setMode(stats.mode);
             }
             break;
-        case 'ctrl,/':
+        case 'ctrl,/':  // make random mutated object (random genes)
             randobj(currentGenes, false, 'pulse', true);
             updateGuiGenes();
             break;
-        case 'ctrl,M':
+        case 'ctrl,M':  // rebuild shaders
             console.log("ctrl,m hit >>>>>>>>>>>");
             remakeShaders(true);
             break;
-        case 'ctrl,alt,M':
+        case 'ctrl,alt,M':  // rebuild shaders and refresh all
             refts();
             break;
-        case 'ctrl,shift,M':
+        case 'ctrl,shift,M':    // remake all horn shaders
             msgfix('regen horn shaders', '<span class="errmsg">regen horn and rebuilding shader</span>');
             onframe( () => msgfix('regen horn shaders'), 2 );
             console.log("ctrl,shift,m hit >>>>>>>>>>>");
             // baseShaderChanged();  done in getShaders()
             regenHornShader();
             break;
-        case 'alt,D': toggleInput(W.showdirectorrules); break;          //# toggle director rules. PJT: conflicts with standard browser shortcut.
         case 'alt,R': toggleInput(W.showrules); break;                  //# toggle tranrules
         case 'alt,N': toggleInput(W.NOMESS); break;                     //# toggle nomess (message box, etc)
         case 'alt,O': toggleInput(W.showuiover); break;                 //# toggle gui overlay
         case 'alt,shift,N': nomess('release'); msgfix.all = true; break;//# force nomess('release') and all messages
         case 'alt,H': toggleInput(W.showhtmlrules); break;              //# toggle html rules
         case 'ctrl,H': loadopen(); break;                               //# load open helix
-        case 'alt,shift,R': setGUITranrule(); break;
-        case 'ctrl,shift,1': reloadAllSynths(); break;
-        case 'ctrl,shift,2': fadeOut(1); break;
+        case 'alt,shift,R': setGUITranrule(); break;                // ensure gui tranrule applied
+        case 'ctrl,ContextMenu,1': reloadAllSynths(); break;        // reload all synths
+        case 'ctrl,ContextMenu,2': fadeOut(1); break;               // fade
         case 'alt,M': if (setMasterVolume) setMasterVolume(-80); break; //# setMasterVolume
         // ca se 'ct rl, Z': undo(); break;
-        case 'alt,T': toTargetNow(); break;
-        case 'F2': case 'F6': log('f2/f6 seen for forcevr zzz'); renderVR.fs(true); break;  // special for odd sendKeys
-        case 'F4': case 'shift,F2':
-            renderVR.fs(false);
+        case 'alt,T': toTargetNow(); break;     // jump genes to target immediately
+        case 'F2': case 'F6': log('f2/f6 seen for forcevr zzz'); renderVR.xrfs(true); break;  // try to enter VR
+        case 'F4': case 'shift,F2':     // leave VR mode
+            renderVR.xrfs(false);
             onframe(() => { setViewports([0,0]); setSize(); fitCanvasToWindow(); }, 3); break;  // special for odd sendKeys
 
         case 'ctrl,alt,T': Tracker.init(); break;  // start tracker
@@ -696,34 +853,72 @@ function dockeydowninner(kkk, evt) {
             msgfix('!rot', '$_qux$ $_quy$ $_quz$ $_quw$');
             // msgfix('!lowrad', '$foldradius$ $foldradiuslowr$');
             break;
-        case '#223': case '`': savebig(); break;  // save current frame, #223 is backquote
+        case '`': savebig(); break;  // save current frame, # 223 is backquote
         case 'ctrl,I': saveimage(); break;  // save image of layout
         case 'alt,I': setImposterGUI(); break;  // toggle imposter
-        case 'ctrl,alt,I': saveimage1(); break; // save image of central object
-        case 'ctrl,shift,I': saveimage1high(); break; // save image of central object, high quality
+        case 'ctrl,alt,I': saveimage1(); break; // save image of central object at resolution set in gui
+        // nb f5 does not do devtools in Electron
+        case 'ctrl,shift,I': if (navigator.userAgent.indexOf('Electron') !== -1) handled = false; else saveimage1high(); break; // save image of central object, high quality
+        case 'ctrl,K': saveSkeleton(); break; // save current form (and colours) as skeleton for use in tadpoles
         case 'alt,0': setViewports([0,0]); break; // single viewport
         case 'alt,-': setViewports(lastvps); break; // switch to last viewports
         case 'alt,1': setInput(W.layoutbox, 0); setViewports([4,3]); break; // 12 viewports
-        case 'alt,8': setInput(W.layoutbox, 2); setViewports([8,8]); break; // 64 viewports
+        case 'alt,2': setInput(W.layoutbox, 2); setViewports([2,2]); break; // 2x2 viewports
+        case 'alt,3': setInput(W.layoutbox, 2); setViewports([3,3]); break; // 3x3 viewports
+        case 'alt,4': setInput(W.layoutbox, 2); setViewports([4,4]); break; // 4x4 viewports
+        case 'alt,5': setInput(W.layoutbox, 2); setViewports([5,5]); break; // 5x5 viewports
+        case 'alt,6': setInput(W.layoutbox, 2); setViewports([6,6]); break; // 6x6 viewports
+        case 'alt,7': setInput(W.layoutbox, 2); setViewports([7,7]); break; // 7x7 viewports
+        case 'alt,8': setInput(W.layoutbox, 2); setViewports([8,8]); break; // 8x8 viewports
         case 'ctrl,alt,shift,Z': brusselsNoAuto = !brusselsNoAuto; autostep(); msgfix("auto interaction", brusselsNoAuto ? 'off' : 'on'); break;  // toggle auto on off
-        case 'alt,Q':
-            var src = evt.target;
-            msgfix('evt', src.id, '/', src.value);
-            var name = src.id || src.value;
-            if (qget(name) !== undefined) msgfix(name, "$" + name);
-            break;
-        case 'ctrl,,': setInputg(W.resbaseui, inputs.resbaseui*1-1); msgtrack('resbaseui'); break;
-        case 'ctrl,.': setInputg(W.resbaseui, inputs.resbaseui*1+1); msgtrack('resbaseui'); break;
-        case 'ctrl,#222': springs.step(); break;
-        case 'ctrl,alt,,': setInputg(W.resbaseui, inputs.resbaseui*1-0.1); msgtrack('resbaseui'); break;
-        case 'ctrl,alt,.': setInputg(W.resbaseui, inputs.resbaseui*1+0.1); msgtrack('resbaseui'); break;
-        case 'ctrl,;': currentGenes.cubicmixuse = currentGenes.cubicmixuse ? 0 : 1; msgtrack('cubicmixuse'); break;
-        case 'ctrl,alt,/':
+        // case 'alt,Q':
+        //     var src = evt.target;
+        //     msgfix('evt', src.id, '/', src.value);
+        //     var name = src.id || src.value;
+        //     if (qget(name) !== undefined) msgfix(name, "$" + name);
+        //     break;
+        case 'ctrl,,': setInputg(W.resbaseui, inputs.resbaseui*1-1); msgtrack('resbaseui'); break;  // reduce horn base resolution (resbaseui)
+        case 'ctrl,.': setInputg(W.resbaseui, inputs.resbaseui*1+1); msgtrack('resbaseui'); break;  // increase horn base resolution (resbaseui)
+        case 'alt,#': springs.step(1); break;   // single spring step
+        case 'ctrl,alt,,': setInputg(W.resbaseui, inputs.resbaseui*1-0.1); msgtrack('resbaseui'); break;  // small reduce horn base resolution (resbaseui)
+        case 'ctrl,alt,.': setInputg(W.resbaseui, inputs.resbaseui*1+0.1); msgtrack('resbaseui'); break;  // smallincrease horn base resolution (resbaseui)
+        case 'ctrl,;': currentGenes.cubicmixuse = currentGenes.cubicmixuse ? 0 : 1; msgtrack('cubicmixuse'); break; // toggle cubemixuse (splining)
+        case 'ctrl,alt,/':      // (debug) show HTML element being hjovered
             msgfix('id hit', document.elementFromPoint(lastdocx, lastdocy).id);
             break;
         // ca se ';': if (debugKey) debugKey();
 
-        //case 'F11 ': handleF11("down"); break;  // chrome gets down when entering fs, and up on both enter and leave fs
+        case 'Q,1': bigimprep(0); break;    // ??? prepare to save big images
+        // case 'Q,2': bigimprep(2); break; // << does not work
+        case 'Q,3': bigimprep(3); break;    // ??? prepare to save big images
+        case 'Q,4': bigimprep(4); break;    // ??? prepare to save big images
+        case 'Q,5': bigimprep(5); break;    // ??? prepare to save big images
+        case 'Q,6': bigimprep(6); break;    // ??? prepare to save big images
+        case 'Q,G': location.href = "http://localhost:8800/threek.html?startobj=GalaxReflB"; break;
+        case 'Q,F': feedbacktests(); break; // perform feedback tests
+        case 'Q,V': mutateVisibleGenes(); break;    // mutate visible genes
+        case 'Q,X': fxaa.use = !fxaa.use; break;    // toggle use of fxaa
+        case 'Q,-': currentHset.hornhighlight = undefined; break;   // clear highlighting
+        case 'Q,Insert': fxaa.use = true; break;    // use FXAA
+        case 'Q,Delete': fxaa.use = false; break;   // turn off FXAA
+        case 'Q,O': shangbig(); break;              // shanghai big
+
+        case 'shift,W':
+            GX.makegxx();
+            GUIInit();
+            VH.positionGUI();
+            GUIwallkeys();
+            brusselsNoAuto = true;
+            inps.projvp = false;
+            enterfullscreen();
+            break;
+
+        case 'Insert,G': genmini(); break;
+        case 'shift,Insert,G': genmini({all: false}); break;
+
+
+        //16 June 2022, removed, do all F 11 handling ourselves
+        //case 'F 11 ': handleF 11("down"); break;  // chrome gets down when entering fs, and up on both enter and leave fs
         default:
             handled = false;
             //log("unhandled key", kkk);
@@ -732,44 +927,131 @@ function dockeydowninner(kkk, evt) {
     return handled;
 }
 
-/** find free keys for given modifier (eg 'alt,'), also set keys into gui */
-function dokeys(mod = '') {
-    let x = canvkeydown.toString();
-    x += dockeydowninner.toString();
-    // special cases in tracketc() in anim.ts
+/** get key from an event
+ * Compatible with our older _keyname() function (as below)
+ * We have kept a few odd features of the old function,
+ * but mostly changed code to match the evt.key style.
+ *
+ * We may change more code later to use evt.key directly, and phase out getkey.
+ */
+function getkey(evt) {
+    let ff = evt.key;
 
-    x = x.split("case '");
+    if (ff === 'Control') ff = 'ctrl';
+    if (ff === 'Alt') ff = 'alt';
+    if (ff === 'Shift') ff = 'shift';
+    if (evt.code.startsWith('Key')) return evt.code[3];
+    if (ff.length === 1 && 'a' <= ff && ff <= 'z') ff = ff.toUpperCase();
+    return ff;
+}
+
+/** keep these around for now, renamed with _ */
+var _keymap = {
+    8: "backspace", 9: "tab", 13: "enter", 16: "shift", 17: "ctrl", 18: "alt", 19: "pause/break",
+    20: "caps lock", 27: "escape", 33: "PageUp", 34: "PageDown", 35: "end", 36: "home", 37: "ArrowLeft",
+    38: "ArrowUp", 39: "ArrowRight", 40: "ArrowDown", 45: "insert", 46: "delete", 91: "left window",
+    92: "right window", 93: "select key", 96: "numpad 0", 97: "numpad 1", 98: "numpad 2", 99: "numpad 3",
+    100: "numpad 4", 101: "numpad 5", 102: "numpad 6", 103: "numpad 7", 104: "numpad 8", 105: "numpad 9",
+    106: "multiply", 107: "add", 109: "subtract", 110: "decimal point", 111: "divide", 112: "F1", 113: "F2",
+    114: "F3", 115: "F4", 116: "F5", 117: "F6", 118: "F7", 119: "F8", 120: "F9", 121: "F10", 122: "F11",
+    123: "F12", 144: "num lock", 145: "scroll lock", 186: ";", 187: "=", 188: ",", 189: "-", 190: ".",
+    191: "/", 192: "`", 219: "[", 220: "\\", 221: "]", 32: "space"
+    // 222: "#", # uk ' us?
+};
+
+(function () {
+    for (var i = 65; i <= 90; i++) _keymap[i] = String.fromCharCode(i);
+    for (i = 48; i <= 57; i++) _keymap[i] = String.fromCharCode(i);
+})();
+
+function _keyname(k) {
+    if (_keymap[k]) return _keymap[k];
+    return '#' + k;
+}
+
+
+// 17 ctrl => Control (left)
+// 91 left window => Meta
+// 18 alt => Alt (left alt)
+
+// 32 space =>   ??? ' '
+
+// 18 alt => AltGraph (right alt gr)
+//                    (fn no record)
+//
+// 93 select key => ContextMenu
+// 17 ctrl => Control (right)
+
+
+
+// 92 right window =>
+
+// 144 num lock => NumLock
+// !!! no numpad events firing !!!???
+// 20 caps lock => CapsLock
+
+// print screen no fire
+// 145 scroll lock => ScrollLock
+// 19 pause/break => Pause
+//
+
+
+
+/** find free keys for given modifier (eg 'alt,'), also set keys into gui */
+function _dokeys(mod = '') {
+
+    let tx = runkeys.toString();
+    tx += dockeydowninner.toString();
+
     const set = {};
-    let h = [''];  // html
-    x.forEach( function(k) {
-        const line = k.pre('\n');
-        const comment = line.post('//') || 'no comment';
-        const s = line.pre("':");
-        if (s.length < 25) {
-            if (set[s]) {
-                console.error('duplicate key', s);
-            } else {
-                set[s] = comment;
-                h.push(`<div class="key")><div class="keystring">'${s}'</div><div class="keycomment">${comment}</div></div>`);
+    const h = [''];  // html
+    // special cases in tracketc() in anim.ts
+    const lines = tx.split('\n');
+    for (const line of lines) {
+        const comment = line.post('//') || ('~~~ ' + line);
+        const x = line.pre('//').trim().split('case ');
+        if (x.shift() !== '') {
+            // console.error('??? parse in _dokeys', line)
+            continue;
+        }
+        for (const k of x) {
+            const s = k.pre("':");
+            if (s.length < 25) {
+                if (set[s]) {
+                    console.error('duplicate key', s);
+                } else {
+                    set[s] = comment;
+                    h.push(`<div class="key")><div class="keystring">${s}'</div><div class="keycomment">${comment}</div></div>`);
+                }
             }
         }
-    } );
+    }
+
     h.push('');
     W.xset = set;
     W.keysgui.innerHTML = h.join('\n');
 
     var fset = [];
     var xfset = new Set();
-    for (let k in keymap) {
-        if (!Object.prototype.hasOwnProperty.call(set, mod + keymap[k])) fset.push(keymap[k]);
+    for (let k in _keymap) {
+        if (!Object.prototype.hasOwnProperty.call(set, mod + _keymap[k])) fset.push(_keymap[k]);
     }
     return fset;
 }
-dokeys();  // so gui set up
+_dokeys();  // so gui set up
 
 function toggleInput(input) {
     if (input.id) input = input.id;
     inputs[input] = W[input].checked = !W[input].checked;
     if (W[input].onchange)
         W[input].onchange(undefined);
+}
+
+/** operate on a click on the key part of gui */
+function keyclick(e) {
+    let targ = e.target;
+    let text = targ.innerText;
+    if (text[0] !== "'") text = targ.previousSibling.innerText;
+    const key = text.replace(/'/g, "");
+    runkeys(key);
 }

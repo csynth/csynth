@@ -24,6 +24,7 @@
  *  frameName:  name of frame counter field within frameOwner: defaults to 'framenum'
  *              It is the user program responsibility to update frameOwner[frameName].
  *              Framecounting will depend on exactly where in the frame cycle the start call and framenum update happen.
+ *  filter:     regex to filter which gl functions are patched
  *
  * As a shortcut Gldebug.start() may be called with an integer (frames) or a string (action)
  *
@@ -46,12 +47,23 @@ var Gldebug = { // var for sharing, was const
         if (typeof opts === 'string') opts = {action: opts};
         else if (typeof opts === 'number') opts = {frames: opts};
         else if (typeof opts !== 'object') opts = {};                       // most likely boolean
+        const filter = opts.filter || '';
 
         let {gl, action = 'logerr', frames = Infinity, frameOwner = window, frameName = 'framenum'} = opts;
 
         gl = gl || Gldebug.gl || window.gl;
         if (!gl) {Gldebug.showbaderror('cannot find gl context for Gldebug.start()'); return; }
         Gldebug.log('Gldebug.start at frame', frameOwner[frameName]);
+
+        if (!Gldebug.consts) {
+            Gldebug.consts = {};
+            for (const n in gl) {
+                const v = gl[n];
+                if (typeof v === 'number' && v > 8)
+                    Gldebug.consts[v] = n + '/' + v;  // allow for multiple???
+            }
+        }
+
         // compute gllist list of extensions
         function allglex() {
             const gllist = [gl];
@@ -74,7 +86,7 @@ var Gldebug = { // var for sharing, was const
             ggl = gllist[i];
             ggl.old = {};
             for (let f in ggl) {  // iterate over functions within ggl
-                if (typeof ggl[f] === "function" && f !== "getError" && f !== "finish") {
+                if (typeof ggl[f] === "function" && f !== "getError" && f !== "finish" && f.match(filter)) {
                     ggl.old[f] = ggl[f];
                     (function (ff, of, ggll) {
                         ggll[ff] = function () {
@@ -118,9 +130,10 @@ var Gldebug = { // var for sharing, was const
         gl.finish();
         let rc = gl.getError();
         let errmsg = (rc) ? findval(gl, rc) : 'OK';
+        const ff = x => Gldebug.consts[x] || (x+'').substring(0, 20);
 
         if (args) {
-            msg += "  (" + [].slice.call(args).join(", ").substring(0, 50) + ")";
+            msg += "  (" + [].slice.call(args).map(ff).join(", ") + ")";
         }
 
         if (action.indexOf('logall') !== -1)

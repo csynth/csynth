@@ -5,6 +5,8 @@
 //  can also draw an object with the depth texture -- debug
 var THREE, render_camera, render_depth, WebGLRenderTarget, trysetele, saveInputToLocal, cdispose, dat, V, inputs, renderVR,
 copyFrom, isWebGL2, _boxsize;
+
+ShadowP.extraWidth = 1.7; // w.i.p.
 function ShadowP (pnum) {
     var s = this;
     var num = pnum;  // shadow number
@@ -61,6 +63,7 @@ function ShadowP (pnum) {
             s.m_camera.aspect = 1;
             let r = _boxsize * Math.sqrt(3);  // box encompassing radius: _boxsize is half-width
             let ang = Math.asin(r/cd);
+            ang *= ShadowP.extraWidth;
             s.m_camera.fov = Math.min(175, 2 * ang * 180/Math.PI);  // fov is independent of _boxsize; just under 20 degrees
         } else {
             s.m_camera.position.x = lx;
@@ -80,7 +83,7 @@ function ShadowP (pnum) {
         s.m_camera.updateMatrix();
         s.m_camera.updateMatrixWorld();
         s.m_camera.updateProjectionMatrix();
-        s.m_camera.matrixWorldInverse.getInverse(s.m_camera.matrixWorld);
+        s.m_camera.matrixWorldInverse.copy(s.m_camera.matrixWorld).invert();
 
         uniforms['lightProjectionMatrix' + num].value = s.m_camera.projectionMatrix;
         uniforms['lightViewMatrix' + num].value = s.m_camera.matrixWorldInverse;
@@ -115,11 +118,11 @@ function ShadowP (pnum) {
         s.m_depthRenderTarget = WebGLRenderTarget(targetRes,targetRes, {
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
-            //format: THREE.LuminanceFormat,
+            //format: THREESingleChannelFormat,
             format: THREE.RGBAFormat,
             // type: THREE.FloatType},
             type: THREE.UnsignedByteType   // now that we are using the depth map this data is ignore, make as small as poaaible
-        }, 'shadows');
+        }, 'shadows' + num);
              //type: THREE.UnsignedByteType} );
         s.m_depthRenderTarget.texture.generateMipmaps = false;
         s.m_depthRenderTarget.depthTexture = s.m_depthTexture;
@@ -131,12 +134,12 @@ function ShadowP (pnum) {
             uniforms['lightProjectionMatrix' + num] = { type: "m4", value: new THREE.Matrix4() };
             uniforms['lightViewMatrix' + num] = { type: "m4", value: new THREE.Matrix4() };
             uniforms['depthTexture' + num] = { type: "t"  }; // fill in value dynamically later
-            uniforms['light_camd' + num] = { type: "v4", value: new THREE.Vector2()  }; // fill in value dynamically later
+            uniforms['light_camd' + num] = { type: "v4", value: new THREE.Vector4()  }; // fill in value dynamically later
         }
         uniforms.textureResolution.value = targetRes;
         trysetele("shadr" + targetRes, "checked", true);
         saveInputToLocal();
-    };
+    }
 
     /** cleanup resources */
     s.cleanup = function shadowclean() {
@@ -144,8 +147,7 @@ function ShadowP (pnum) {
         s.m_depthRenderTarget = undefined;
     };
 
-};
-
+}
 ShadowP.size = 512;   // default
 
 /** set the size, new ones will be made as and when needed */
@@ -153,12 +155,13 @@ ShadowP.setSize = function(size) {
     ShadowP.size = size;
     ShadowP.cleanup();
 };
+
+var Shadows = [ new ShadowP(0), new ShadowP(1), new ShadowP(2) ];
 ShadowP.cleanup = function() {
     for (var s =0 ; s<Shadows.length; s++) Shadows[s].cleanup();
 };
 
 
-var Shadows = [ new ShadowP(0), new ShadowP(1), new ShadowP(2) ];
 
 function makeShadowGUIVR() {
     if (!(dat && V)) return;

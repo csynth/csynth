@@ -12,7 +12,7 @@ export async function startWatchingSynthDefSourceFiles() {
     //recompile any synthdef sources that were modified since the latest binary was modified....
     var watchedFiles = [];
     function watchSourceFile(f) {
-        sclogS("[sclang] started watching " + f);
+        // sclogS("[sclang] started watching " + f);
         watchedFiles.push(f);
         fs.watchFile(f, { persistent: true, interval: 500 }, function () {
             recompile(f);
@@ -103,7 +103,7 @@ export const startWatchingSynthDefBinFiles = async function () {
             sclogS("[scsynth] ignoring file " + f + " because it isn't .scsyndef");
             return;
         }
-        sclogS("[scsynth] started watching " + f); //I could make this less noisy.
+        // sclogS("[scsynth] started watching " + f); //I could make this less noisy.
         watchedFiles.push(f);
         var name = f.substring(f.lastIndexOf("/") + 1, f.lastIndexOf("."));
         try {

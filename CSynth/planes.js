@@ -1,5 +1,5 @@
 var V, CSynth, posturi, xyzReader, THREE, random, seed, log, col3, dat, GLmolX, VEC3, msgfix, msgfixerror, msgfixlog,
-    toKey, newmeshN, canvas, I, XX, onframe;
+    toKey, newmeshN, canvas, I, XX, onframe, Maestro;
 // var consoleTime, consoleTimeEnd;
 
 function Poly(..._points) {
@@ -89,7 +89,7 @@ function Plane(_dir, _p = _dir, icolor = col3().setHSV( Math.random(), 1, 0.5)) 
         }
     }
     // return transformed clone, m assumed rotation for now, keep track of original
-    me.transform = function plane_transform(m, col = me.color, symnum) {
+    me.transform = function plane_transform(m, col = me.color, symnum=undefined) {
         const tdir = dir.clone().applyMatrix4(m);
         const p = new Plane(tdir, dist, col);
         p.source = {plane: me, matrix: m, symnum};
@@ -128,7 +128,7 @@ Plane.xxxPlane = function plane_xxxPlane(p) {
 
 Plane.drawSetGroups = {};
 Plane.drawSetLog = msgfix;
-Plane.drawSet = function plane_drawSet(ppset, id = toKey(ppset), defs) {
+Plane.drawSet = function plane_drawSet(ppset, id = toKey(ppset), defs=undefined) {
     // consoleTime('drawSet');
     let pset = ppset;
     if (pset.a !== undefined) pset = Plane.ab2Plane(pset);
@@ -241,7 +241,7 @@ Plane.drawProcessedSetCyl = function Plane_drawProcessedSetCyl(pset, id, pgroup,
         const targ = CSynth.startGeom();
         //+ replace window.cylinderMesh with CSynth.drawCyl; more efficient merge
         //+ Still a ??? bug in CSynth.drawCyl, sometimes misses some altogether ???
-        //+ const geom = new THREE.Geometry();
+        //+ const geom = new THREE. Geometry();
         pset.forEach(plane => {
             plane.poly.points.forEach( (p, i, ppp) => {
                 const o = ppp[(i+1)%ppp.length];
@@ -276,11 +276,11 @@ Plane.drawProcessedSet = function Plane_drawProcessedSet(pset, id, pgroup, pgui)
     });
     // log('size', b.positions.length);
     const geom = new THREE.BufferGeometry();
-    geom.addAttribute('position', new THREE.BufferAttribute(new Float32Array(b.positions), 3));
-    geom.addAttribute('normal', new THREE.BufferAttribute(new Float32Array(b.normals), 3));
-    geom.addAttribute('color', new THREE.BufferAttribute(new Float32Array(b.colors), 3));
+    geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(b.positions), 3));
+    geom.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(b.normals), 3));
+    geom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(b.colors), 3));
     if (Plane.setuvs) {
-        geom.addAttribute('uv', new THREE.BufferAttribute(new Float32Array(b.uvs), 2));
+        geom.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(b.uvs), 2));
         // temp setup of texture to use with uvs
         if (!Plane.canvastexture) {
             Plane.canvastexture = new THREE.Texture(canvas, undefined, undefined, undefined, undefined, THREE.LinearFilter)
@@ -597,8 +597,9 @@ Plane.planesetSymset = function Plane_planesetSymset(planes, symmat = CSynth.sym
     let rr = [];            // result planeset
     let keyPlanes = [];     // key planes actually used, in plane format
     for (let i=0; i<planes.length; i++) {
-        const p = Plane.xxxPlane(planes[i], i);
+        const p = Plane.xxxPlane(planes[i]);
         if (!p) continue;
+        p.tileid = i;
         keyPlanes.push(p);
         // let pset = symmat.map((m,j) => p.transform(m, CSynth.symCol[j], j));
         let pset = symmat.map((m,j) => p.transform(m, undefined, j));  // leave colouring to parent sphere
@@ -610,7 +611,7 @@ Plane.planesetSymset = function Plane_planesetSymset(planes, symmat = CSynth.sym
 
 
 /** make 60 copies using 'fixed' symmetry matrices CSynth.symMatrix */
-CSynth.applySym = function CSynth_applySym(pobj, symMatrix = CSynth.symMatrix, pgroup = CSynth.rawgroup, oldgroup, usenewmat=false) {
+CSynth.applySym = function CSynth_applySym(pobj, symMatrix = CSynth.symMatrix, pgroup = CSynth.rawgroup, oldgroup=undefined, usenewmat=false) {
     // check to remove indirection level in easy case
     let obj = pobj;
     let gmatrix;
@@ -700,7 +701,7 @@ CSynth.applyBiomt = function CSynth_applyBiomt(glmolp, toReplicate, symset) {
 CSynth.biomtMatrices = {};
 
 // experimental interactive generator of 60 symmetric planes
-var Maestro, lastdocx, width, lastdocy, height;
+var lastdocx, width, lastdocy, height;
 CSynth.tryDynPlanes = function() {
     var mmmm, mof;
     CSynth.rawgroup.remove(mmmm);
@@ -767,7 +768,7 @@ CSynth.symrepl = function CSynth_symrepl(omesh, pgroup) {
 
 CSynth.polymesh = {};
 
-CSynth.tiles = function(fid = 'sv40lines.wrl', pgroup = CSynth.rawgroup, pgui = V.gui, defs) {
+CSynth.tiles = function(fid = 'sv40lines.wrl', pgroup = CSynth.rawgroup, pgui = V.gui, defs=undefined) {
     // use using our meshes handle immediately
     let fidkey;
     if (typeof fid === 'object') {
@@ -810,11 +811,11 @@ CSynth.tiles = function(fid = 'sv40lines.wrl', pgroup = CSynth.rawgroup, pgui = 
         pgroup.add(ppmesh);
     }
 
-    var ppgeom = new THREE.Geometry();
+    var ppgeom = new THREE.BufferGeometry();
 
     let rr;
     if (fid.endsWith('.wrl')) {  // this is to use CSynth style cylinders sv40lines.wrl
-        ppgeom = new THREE.BufferGeometry();
+        // ppgeom = new THREE.BufferGeometry();
         rr = CSynth._wrl(fid, ppgeom);
         ppmesh.material.vertexColors = 0;
     }
@@ -840,17 +841,17 @@ CSynth.tiles = function(fid = 'sv40lines.wrl', pgroup = CSynth.rawgroup, pgui = 
     return ppmesh;
 }
 
-CSynth._poly = function(fid = "icos14.polys", ppgeom) {
+CSynth._poly = function(fid = "icos14.polys", ppgeom=undefined) {
     var dd = posturi(CSynth.current.fullDir + fid);
 
     dd = dd.replace(/V(\d*)/g, 'v[$1]')
     dd = 'let v=[]; let sqrt = Math.sqrt; //' + dd;
 
-    dd = dd.replaceall('(', 'VEC3(');
-    dd = dd.replaceall('sqrtVEC3(', 'sqrt(');
-    dd = dd.replaceall('{', '[')
-    dd = dd.replaceall('}', '],')
-    dd = dd.replaceall('Faces:', 'let faces=[')
+    dd = dd.replace(/\(/g, 'VEC3(');
+    dd = dd.replace(/sqrtVEC3\(/g, 'sqrt(');
+    dd = dd.replace(/{/g, '[')
+    dd = dd.replace(/}/g, '],')
+    dd = dd.replace(/Faces:/g, 'let faces=[')
     dd += ']; return {v, faces}'
     const rr = new Function(dd)();
     const {faces, v} = rr;
@@ -908,7 +909,7 @@ CSynth._poly = function(fid = "icos14.polys", ppgeom) {
 }
 
 
-CSynth._wrl = function(fid = 'sv40lines.wrl', ppgeom) {
+CSynth._wrl = function(fid = 'sv40lines.wrl', ppgeom=undefined) {
     var dd = posturi(CSynth.current.fullDir + fid);
     var lines = dd.split('\n')
     const rad = 1;
@@ -960,7 +961,7 @@ CSynth._wrl = function(fid = 'sv40lines.wrl', ppgeom) {
     return {centre: sumv.multiplyScalar(0.5 / n), scale: 0.5, pairs};
 }
 
-CSynth._pts = function(thresh = 0.3, ppgeom) {
+CSynth._pts = function(thresh = 0.3, ppgeom=undefined) {
     const pts = CSynth._sv40pts;
     const p=[];
     const rad = 0.1;

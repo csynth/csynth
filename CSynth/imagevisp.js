@@ -19,7 +19,7 @@
 
 'use strict';
 
-var CSynth, V, THREE, dat, planeg, W, currentGenes, CSynthFast, disposeArray, VH,
+var CSynth, V, THREE, dat, HW, W, CSynthFast, disposeArray, VH,
 copyFrom, badshader, log, renderMainObject, VEC3, VEC2, msgfixerror, G, serious, gl,
 addgene, testmaterial, guiFromGene, Maestro, newTHREE_DataTextureNamed;
 
@@ -114,7 +114,7 @@ CSynth.Grad = function(f32data, xnum, ynum, znum, xsc=1, ysc=1, zsc=1) {
         gynumx = ynumx;
         gynumz = gynum / gynumx;
 
-        if (gxnum*gynumx > maxtex || gynum*gynumz > maxtex || gynumz % 1 !== 0) {
+        if (gxnum*gynumx > maxtex || gynumz*gznum > maxtex || gynumz % 1 !== 0) {
             serious('gradTexture', 'cannot use texture details given', {gxnum, gynum, gznum, gynumx, gynumz, maxtex} )
             return;
         }
@@ -344,8 +344,9 @@ CSynth.ImageVisp = function(_data, _fid) {
         createGUIVR();
 
         newmapgrid();  // this is visible at once
-        const grad = new CSynth.Grad(f32data, xnum, ynum, znum);
-        if (G.gradforce) grad.gradUse();
+        const gradFuns = me.gradFuns = new CSynth.Grad(f32data, xnum, ynum, znum);
+        G.gradforce = 0.01;
+        if (G.gradforce) gradFuns.gradUse();
     }
 
     function makepoints() {
@@ -357,7 +358,7 @@ CSynth.ImageVisp = function(_data, _fid) {
         //uniforms.ynum.value = ynum;
         //uniforms.znum.value = znum;
 
-        // geo = planeg(ynum, znum, ynum-1, znum-1, xnum);
+        // geo = HW.planeg(ynum, znum, ynum-1, znum-1, xnum);
         geo =  new THREE.BufferGeometry();
         const pos = new Int16Array(sss*3);
         let o = 0;
@@ -367,13 +368,13 @@ CSynth.ImageVisp = function(_data, _fid) {
                     pos[o++] = x - xnum/2; pos[o++] = y - ynum/2; pos[o++] = z - znum/2;
                 }
             }
-        };
-        geo.addAttribute( 'position', new THREE.BufferAttribute( pos, 3 ));//.onUpload( () => f32data = null ) );
+        }
+        geo.setAttribute( 'position', new THREE.BufferAttribute( pos, 3 ));//.onUpload( () => f32data = null ) );
 
 
         //const f = new Float32Array(xnum*ynum*znum).map((v,i)=>i);
-        //geo.addAttribute( 'id', new THREE.BufferAttribute( f, 1 ));//.onUpload( () => f = null ) );
-        geo.addAttribute( 'val', new THREE.BufferAttribute( f32data, 1 ));//.onUpload( () => f32data = null ) );
+        //geo.setAttribute( 'id', new THREE.BufferAttribute( f, 1 ));//.onUpload( () => f = null ) );
+        geo.setAttribute( 'val', new THREE.BufferAttribute( f32data, 1 ));//.onUpload( () => f32data = null ) );
 
         if (!mat) me.newmat();
 
@@ -486,7 +487,7 @@ CSynth.gradLines = function(nlines = 1, rad = 100, thresh=0.1, maxlen = 20) {
     const inst = CSynth.imageVispInst;
     const header = inst.header;
     const rawd = inst.f32data;
-    const gradd = inst.grad();
+    const gradd = inst.gradFuns.grad().gf;
 
     const {nx, ny, nz, nxstart, nystart, nzstart, dmin, dmax} = header;
     // let mesh, geom, mat;
@@ -535,8 +536,8 @@ CSynth.gradLines = function(nlines = 1, rad = 100, thresh=0.1, maxlen = 20) {
         }
     }
     const geom = CSynth.gradLineMesh.geometry;
-    geom.addAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
-    geom.addAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+    geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+    geom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
     geom.attributes.position.needsUpdate = true
 
     function grad(x,y,z) {

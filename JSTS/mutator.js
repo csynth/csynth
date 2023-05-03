@@ -8,44 +8,43 @@
 "use strict";
 var WA = W;
 /** for encapsulation verification */
-/** mutate given object, filter will only mutate matching genes */
-function mutateReplace(vn, marryFun = marry, filter) {
-    saveundo();
-    //vn = vn || 1;
-    if (!vn)
-        return undefined;
-    // marryFun = marryFun || marry;
-    //sort objects by health, then select parents from somewhat near the 'best'
-    //could also consider sort by distance to current
-    //for now, just choose the healthiest specimen and marry it with the currentGenes
-    let selObj, mHealth = Number.MIN_VALUE;
-    for (let o in currentObjects) {
-        var dispobj = currentObjects[o];
-        if (dispobj.hoverHealth > mHealth) {
-            selObj = xxxgenes(dispobj);
-        }
-    }
-    var sobj = marryFun(currentGenes, selObj, filter);
-    // at least for now, do not mutate as well as smutate
-    /// easier for debug!
-    if ((!HornWrap) || marryFun !== HornWrap.randrulemarry)
-        sobj = mutateObj(sobj, getmutrate(), filter);
-    setgenes(vn, sobj);
-    /* I don't know about this... skipping
-    // structure mutation can be slow, so render results as found
-    if (marryFun === randrulemarry) {
-        newmain();
-        console.log("mutated " + vn + ">" + xxxgenes(vn).tranrule);
-        setTimeout(function() { mutate(start+1, marryFun); }, 1000);
-        return;
-        //render(xxxgenes(vn), vn);
-    }*/
-    //autofillfun = function() {};
-    //forcerefresh = true;
-    //newmain();
-    //renderObj(sobj, vn);
-    return sobj;
-}
+// /** mutate given object, filter will only mutate matching genes */
+// function mutateReplace(vn: number, marryFun: MarryFun = marry, filter?: [string], mutateFrozen: number = 0) {
+//     saveundo();
+//     //vn = vn || 1;
+//     if (!vn) return undefined;
+//     // marryFun = marryFun || marry;
+//     //sort objects by health, then select parents from somewhat near the 'best'
+//     //could also consider sort by distance to current
+//     //for now, just choose the healthiest specimen and marry it with the currentGenes
+//     let selObj: Genes, mHealth: number = Number.MIN_VALUE;
+//     for (let o in currentObjects) {
+//         var dispobj = currentObjects[o];
+//         if (dispobj.hoverHealth > mHealth) {
+//             selObj = xxxgenes(dispobj);
+//         }
+//     }
+//     var sobj = marryFun(currentGenes, selObj, filter);
+//     // at least for now, do not mutate as well as smutate
+//     /// easier for debug!
+//     if ((!HW) || marryFun !== HW.randrulemarry)
+//         sobj = _mutateObj(sobj, getmutrate(), filter, mutateFrozen);
+//     setgenes(vn, sobj);
+//     /* I don't know about this... skipping
+//     // structure mutation can be slow, so render results as found
+//     if (marryFun === randrulemarry) {
+//         newmain();
+//         console.log("mutated " + vn + ">" + xxxgenes(vn).tranrule);
+//         setTimeout(function() { mutate(start+1, marryFun); }, 1000);
+//         return;
+//         //render(xxxgenes(vn), vn);
+//     }*/
+//     //autofillfun = function() {};
+//     //forcerefresh = true;
+//     //newmain();
+//     //renderObj(sobj, vn);
+//     return sobj;
+// }
 function myMutate(genes, res, mutrate) { }
 function myMarry(genes, res) { }
 function reformRule() { }
@@ -56,19 +55,33 @@ function randswap(a) {
     a[swapi] = a[swapi + 1];
     a[swapi + 1] = o;
 }
-var mutvary = 2; /* range of 10^2 = 100, 10 each way */
-/** mutate and object, return new one */
-const mutateObj = function (genes, mutrate, filter = undefined) {
+var mutvary = 0; /* range of 10^2 = 100, 10 each way, random */
+var mutvarybyslot = 10; /* vary mutation rate from top of screen to bottom, regular */
+var mutUseCurated = 0.1; /** proportion of curated to mix */
+var mutCurated = []; /** candidate curated */
+var postmutFixgenes = {}; /** forced values for genes after mutation */
+var mutateOrientation = false; /** true to mutate orentation values such as _qux, _panx */
+/** mutate an object, return new one */
+const _mutateObj = function (genes, mutrate, filter, mutateFrozen, slotw = 0) {
+    let res = {};
+    if (mutUseCurated > 0 && mutCurated.length > 0 && Math.random() < mutUseCurated) {
+        copyFrom(res, randfrom(mutCurated));
+        newframe(res);
+        return res;
+    }
     for (var tryy = 0; tryy < 5; tryy++) {
-        filter = filter || "";
-        var res = clone(genes); // to pick up _camz etc etc
+        // filter = filter || "";
+        // var res = clone(genes);  // to pick up _camz etc etc
+        copyFrom(res, genes);
         // todo: XXX consider something less liberal
-        var xrate = Math.pow(10, mutvary * (Math.random() - 0.5));
+        const mutvaryslot = mutvarybyslot * (slotw / realNumslots - 0.5);
+        var xrate = Math.pow(10, (mutvary * (Math.random() - 0.5) + mutvaryslot) * 0.1); // decibels=>linear
+        // log(`mutate object slot=${slot} ${realvn}, mutvaryslot=${mutvaryslot}, xrate=${xrate}, final=${xrate*mutrate}`);
         for (var gn in genedefs) {
-            if (gn.indexOf(filter) === -1)
+            if (!(gn in filter))
                 continue;
             var gdef = genedefs[gn];
-            var ar = gdef.activerate();
+            var ar = gdef.activerate(mutateFrozen);
             if (ar === 0)
                 continue;
             var v = genes[gn];
@@ -78,7 +91,7 @@ const mutateObj = function (genes, mutrate, filter = undefined) {
             var max = gdef.max;
             var step = gdef.delta * ar;
             var vv1 = v + xrate * mutrate * step * (Math.random() - 0.5);
-            var vv2 = mutateObj.ignoreRange ? vv1 : Math.min(max, Math.max(min, vv1));
+            var vv2 = _mutateObj.ignoreRange ? vv1 : Math.min(max, Math.max(min, vv1));
             res[gn] = vv2;
             //setval(i, vv2);
         }
@@ -88,22 +101,27 @@ const mutateObj = function (genes, mutrate, filter = undefined) {
         // centre and scale the objects, and check the result reasonable
         // return if ok, otherwise look to try again
         var rr;
-        if (!inputs.GPUSCALE && W.centrescale)
-            rr = centrescale(res, "now", 1); // for GPUSCALE done on display
-        if (zoomdef)
-            res._camz = currentGenes._camz; // did use zoomdef.camz0 * basescale, changed 8 Feb 2019
+        if (!inputs.NOSCALE && !mutateOrientation && W.centrescale) {
+            centrescale.lastgenes = undefined; // force repeat of centrescale, same genes object, but content changed
+            rr = centrescale(res, "now", 1, false); // for GPUSCALE done on display
+        }
+        // did use zoomdef.camz0 * basescale, changed 8 Feb 2019
+        // removed completely 28 June 2022, currentGenes may not be a sensible parent,
+        // and _camz probably not muated anyway as not in genedefs
+        // if (zoomdef) res._camz = currentGenes._camz;
         if (!rr)
             break; // no cnetrescale in fano
         if (rr.hx - rr.lx > 1 && rr.hy - rr.ly > 1 && rr.hz - rr.lz > 1 && rr.gscale > 0.01 && !isNaN(rr.gscale))
             break;
         //console.log("mutation rejected, retry " + tryy);
-    }
+    } // loop of tries
     newframe(res);
     return res;
 };
+var m_mutateObj = window.m_mutateObj = _mutateObj;
 /* crossover probability */ var xprob = 0.2;
 /** marry two objects, and return result. */
-function marry(o1, o2) {
+function marry(o1, o2, filter) {
     if (o1 === undefined)
         o1 = o2;
     if (o2 === undefined)
@@ -111,7 +129,7 @@ function marry(o1, o2) {
     var ch = o1;
     var res = {};
     for (var gn in o1) {
-        res[gn] = ch[gn];
+        res[gn] = ch[gn]; // ??? filter has no sensible role here ???
         if (Math.random() < xprob)
             ch = ch === o1 ? o2 : o1;
     }
@@ -123,74 +141,103 @@ function marry(o1, o2) {
 /** random rules mutate, mutation objects */
 //function randrulemutate() {
 //    throwe("OBSOLETE CODE");
-//    mutate(1, HornWrap.randrulemarry);
+//    mutate(1, HW.randrulemarry);
 //}
 /** marry two objects with structure mutation:
 * by default, just return the first
  * */
-function randrulemarry(obj1, obj2) { return obj1; }
+let randrulemarry = function (obj1, obj2) { return obj1; };
 /** random rules, just the current object*/
-function randrule() {
+function randrule(genes = currentGenes) {
     saveundo();
     var res = WA.randrules(); // where is randrules defined
-    setGUITranrule();
+    setGUITranrule(genes);
     //setMaterial(res);  // done on demand
     currentGenes.tranrule = res;
     target.tranrule = res;
-    setGUITranrule();
+    setGUITranrule(genes);
     return res;
 }
-/** mutate currentGenes to new target */
-function mutate1() {
-    //saveundo(); //this will happen in settarget
-    settarget(mutateObj(currentGenes, getmutrate()));
-}
+// /** mutate currentGenes to new target */
+// function mutate1(filter: Genes = resolveFilter(), mutateFrozen: number) {
+//     //saveundo(); //this will happen in settarget
+//     settarget( _mutateObj(currentGenes, getmutrate(), filter, mutateFrozen));
+// }
 var reserveSlots = 0; // number of slots to reserve from mutation
+var mutreserved = {}; // speciic reserved slots
 /** mutate selected objects to fill non-selected, filter will only mutate matching genes
  * initnosel is list to replace: if not specified replace all non-selected.
- * pjt: Not much fun having such a long list of arguments, especially when it's the last
- * one's we're interested in, so added mutateAsync below.
  * */
-function mutate(initnosel, marryFun = marry, filter, animate, onIndividualDone, onPopulationDone) {
-    //        animate = true; // temp TODO |||
+function mutate({ nosel, marryFun = marry, filter, structmutate, animate, onIndividualDone, onPopulationDone, mutateFrozen = 0 } = {}) {
+    filter = resolveFilter(filter || ''); // if filter not given we want to choose all, regardless of
+    if (!mutateFrozen) {
+        for (const gn in filter)
+            if (!genedefs[gn] || genedefs[gn].free === 0)
+                delete filter[gn];
+        // log(Object.keys(filter));
+    }
+    // help keep correct scale between mutations (no easy recover and restore csale genes in GPUSCALE? TODO)
+    // BUT this has now been resolved (I hope) Stephen, 27 Oct 2022
+    // setInput(W.GPUSCALE, false);
     if (!currentGenes)
         debugger;
     saveundo();
+    if (nosel)
+        nosel = nosel.map(d => xxxdispobj(d));
     //marryFun = marryFun || marry;
-    var sel = [], nosel = [];
+    var sel = [], _nosel = [];
     // separate selected and not selected
     for (var o in currentObjects) {
         var dispobj = currentObjects[o];
-        if ((dispobj.selected || (WA.parentvps && parentvps.indexOf(dispobj.vn) !== -1)) &&
-            //vp.col === vps[0]-1 &&
-            dispobj.genes &&
-            dispobj.genes.tranrule === currentGenes.tranrule)
+        if ((dispobj.selected || (WA.parentvps && parentvps.indexOf(dispobj.vn) !== -1))
+            && dispobj.genes
+            && !(dualmode && dispobj.vn === mainvp)
+        //vp.col === vps[0]-1 && dispobj.genes.tranrule === currentGenes.tranrule
+        ) {
             sel.push(dispobj);
-        else if (dispobj.vn <= reserveSlots) { } // do not replace reserved slots
-        else
-            nosel.push(dispobj);
+        }
+        else if (dispobj.vn <= reserveSlots && dispobj.genes) {
+            // do not replace reserved slots (unless they are empty)
+        }
+        else if (mutreserved[dispobj.vn]) {
+            // do not use mutreserved slots
+        }
+        else {
+            _nosel.push(dispobj);
+        }
     }
-    if (initnosel)
-        nosel = initnosel;
+    if (nosel)
+        _nosel = nosel;
     if (sel.length === 0) {
-        sel = [slots[mainvp].dispobj];
-        removeElement(nosel, slots[mainvp].dispobj);
+        sel = [slots[dualmode ? 1 : mainvp].dispobj];
+        removeElement(_nosel, sel[0]); // don't mutate force selected element
     }
+    removeElement(_nosel, slots[mainvp].dispobj); // never mutate main element
+    removeElement(_nosel, sel); // or selected object if different
     // make the objects with slots play out in slot order
-    nosel.sort(function (a, b) { return a.vn - b.vn; });
-    _mut(sel, nosel, marryFun, filter, getmutrate(), animate, onIndividualDone, onPopulationDone);
+    _nosel.sort(function (a, b) { return a.vn - b.vn; });
+    _mut(sel, _nosel, marryFun, structmutate, filter, mutateFrozen, getmutrate(), animate, onIndividualDone, onPopulationDone);
     autofillfun = mutate;
     // clampAllGeneRanges();    // much to extreme, eg for frozen genes sjpt 11 Aug 17
     //forcerefresh = true;  // not needed if done one at a time
     newframe();
 }
+/** mutate, maybe overwrite mutrate */
+function clickmutate(evt) {
+    if (evt.shiftKey)
+        inps.mutrate = 20;
+    if (evt.ctrlKey)
+        inps.mutrate = -20;
+    mutate();
+}
 /**
  * Mutate with asyncronous callbacks for when each individual is done,
  * and when the entire population is.
+ * Added when mutate took long list of arguments, now almost equivalent (except onIndividualDone, onPopulationDone required arguments)
  * @returns {undefined}
  */
 function mutateAsync(onIndividualDone, onPopulationDone) {
-    mutate(null, null, null, null, onIndividualDone, onPopulationDone);
+    mutate({ onIndividualDone, onPopulationDone });
 }
 ;
 // var mutaterlist = [-5, 5, 15], mutaterpos = 0;
@@ -206,7 +253,7 @@ function mutater() {
 var slowMutate = true; // number = interval between batches, true is 100ms, false does all as one batch
 var mutateBatch = 1; // batch size of mutate group, ignored for slowMutate = false
 /** mutate new values for slots nosel using sel as parents */
-function _mut(sel, nosel, marryFun, filter, mutrate, animate, onIndividualDone, onPopulationDone) {
+function _mut(sel, nosel, marryFun, structmutate, filter, mutateFrozen, mutrate, animate, onIndividualDone, onPopulationDone) {
     if (!marryFun)
         marryFun = marry;
     // animate=true; // TEMP
@@ -216,6 +263,7 @@ function _mut(sel, nosel, marryFun, filter, mutrate, animate, onIndividualDone, 
             if (onPopulationDone)
                 onPopulationDone();
             Maestro.trigger("populationDone");
+            // onframe(() => centreall());    // should have been done for frames that needed it, but ...??? 7 Oct 2022
             if (Director)
                 Director.framesFromSlots();
             return;
@@ -232,11 +280,15 @@ function _mut(sel, nosel, marryFun, filter, mutrate, animate, onIndividualDone, 
         var sgenes2 = sdo2.genes;
         //if (sdo1 !== sdo2)
         //    log("marry " + xxxdispobj(sel[svn1]).vn + "." +  xxxdispobj(sel[svn2]).vn + "->" + targDispobj.vn);
+        if (structmutate) {
+            sgenes1 = structmutate(sgenes1, sdo1, targDispobj); // <<< ??? should this use filter in some way ???
+        }
         var sgenes = marryFun(sgenes1, sgenes2, filter);
         // at least for now, do not mutate as well as smutate
         /// easier for debug!
-        if ((!WA.HornWrap) || marryFun !== HornWrap.randrulemarry)
-            sgenes = mutateObj(sgenes, mutrate, filter);
+        if ((!WA.HW) || marryFun !== HW.randrulemarry)
+            sgenes = _mutateObj(sgenes, mutrate, filter, mutateFrozen, slots[targDispobj.vn].realvn);
+        copyFrom(sgenes, postmutFixgenes);
         targDispobj.genes = sgenes;
         targDispobj.lastTouchedDate = targDispobj.createDate = Date.now();
         // pjt hacking in some sound effects... TODO use Maestro or something for this instead
@@ -247,21 +299,31 @@ function _mut(sel, nosel, marryFun, filter, mutrate, animate, onIndividualDone, 
         }
         if (onIndividualDone)
             onIndividualDone(targDispobj, sdo1, sdo2);
-        Maestro.trigger("individualDone");
+        Maestro.trigger("individualDone", { targDispobj, sdo1, sdo2 });
         // !!! code below animates move of object from first parent position to correct slot
         if (animate) {
             targDispobj.cx = sdo1.cx;
             targDispobj.cy = sdo1.y;
         }
         newframe(targDispobj);
+        centrescale.lastgenes = undefined; // force centrescale to do its job, (stop bad optimization)
+        if (mutateOrientation) {
+            genestoRot4(sgenes); // ensure the orientation genes are captured in _rot4_ele
+        }
+        else {
+            centrescale(targDispobj, undefined, 1);
+        }
     } //end  batch
     // structure mutation can be slow, so render results as found
     //console.log("mutated " + vn + ">" + xxxgenes(vn).tranrule);
     function nextmut() {
-        _mut(sel, nosel, marryFun, filter, mutrate, animate, onIndividualDone, onPopulationDone);
+        _mut(sel, nosel, marryFun, structmutate, filter, mutateFrozen, mutrate, animate, onIndividualDone, onPopulationDone);
     }
     //if (slowMutate !== false || marryFun === randrulemarry) {
-    setTimeout(nextmut, slowMutate === true ? 100 : slowMutate);
+    if (slowMutate === 1)
+        onframe(nextmut);
+    else
+        setTimeout(() => onframe(nextmut), slowMutate === true ? 100 : slowMutate);
     //    return;
     //} else {
     //    // iterate the loopnextmut();
@@ -280,6 +342,8 @@ var randobj = function (genes = currentGenes, reset = true, filter, all) {
     var gg = resolveFilter(filter);
     for (var gn in gg) {
         var gd = genedefs[gn];
+        if (!gd)
+            continue;
         if (gd.free || all) {
             genes[gn] = gd.min + random() * (gd.max - gd.min);
             if (gn.indexOf('red') + gn.indexOf('green') + gn.indexOf('blue') !== -3)
@@ -313,7 +377,7 @@ function randlots(n, genes, keys, data) {
         }
         data = [];
         data.push(keys.join("\t"));
-        data.push(currentGenes.tranrule.replaceall("\r", "\\r").replaceall("\n", "\\n"));
+        data.push(currentGenes.tranrule.replace(/\r/g, "\\r").replace(/\n/g, "\\n"));
     }
     else {
         var fid = currentGenes.name + n + ".jpg";
@@ -325,7 +389,7 @@ function randlots(n, genes, keys, data) {
     }
     if (n <= 0) {
         // log(data.join("\n"));
-        nwfs.writeFileSync(dir + currentGenes.name + "_features.txt", data.join("\n"));
+        writetextremote(dir + currentGenes.name + "_features.txt", data.join("\n"));
         return;
     }
     setTimeout(function () { randlots(n - 1, genes, keys, data); }, 5);
@@ -334,5 +398,21 @@ function randlots(n, genes, keys, data) {
 /** get the current mutation rate appropriately scaled */
 function getmutrate() {
     return +W.mutrate.min === inputs.mutrate ? 0 : Math.pow(10, inputs.mutrate * 0.1);
+}
+// shorthand, especially useful in debug, moved up for use in combined code
+//delete window.G;
+//Object.defineProperty(window, 'G', { get : function() { return currentGenes; } });
+function setupViewMutation() {
+    addgene('_qux', 0, -1, 1, 0.1, 0.1, 'orient', 'orient', 1);
+    addgene('_quy', 0, -1, 1, 0.1, 0.1, 'orient', 'orient', 1);
+    addgene('_quz', 0, -1, 1, 0.1, 0.1, 'orient', 'orient', 1);
+    addgene('_quw', 0, -1, 1, 0.1, 0.1, 'orient', 'orient', 1);
+    addgene('_panx', 0, -2000, 2000, 10, 10, 'orient', 'orient', 1);
+    addgene('_pany', 0, -2000, 2000, 10, 10, 'orient', 'orient', 1);
+    addgene('_panx', 0, -2000, 2000, 10, 10, 'orient', 'orient', 1);
+    addgene('_uScale', 1, 0, 20, 0.01, 0.01, 'orient', 'orient', 1);
+    mutateOrientation = true;
+    delete postmutFixgenes._uScale;
+    // setAllLots('', {free:0}); setAllLots('orient', {free:1}); updateGuiGenes()
 }
 //# sourceMappingURL=mutator.js.map

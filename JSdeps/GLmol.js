@@ -23,11 +23,12 @@ THREE.ShaderLib.lambert.vertexShader = THREE.ShaderLib.lambert.vertexShader.repl
 
 const TV3 = THREE.Vector3, TF3 = THREE.Face3, TCo = THREE.Color;
 
-THREE.Geometry.prototype.colorAll = function (color) {
-   for (let i = 0; i < this.faces.length; i++) {
-      this.faces[i].color = color;
-   }
-};
+// if (THREE. Geometry)
+// THREE. Geometry.prototype.colorAll = function (color) {
+//    for (let i = 0; i < this.faces.length; i++) {
+//       this.faces[i].color = color;
+//    }
+// };
 
 THREE.Matrix4.prototype.isIdentity = function() {
    for (let i = 0; i < 4; i++)
@@ -535,7 +536,7 @@ GLmol.prototype.useCentre = function(cen = this.findCentre()) {
    return cen;
 }
 
-GLmol.prototype.applyMatrix = function(m) {
+GLmol.prototype.applyMatrix4 = function(m) {
    const atoms = this.atoms;
    const v = new TV3();
    for (let i = 0; i < atoms.length; i++) {
@@ -588,43 +589,43 @@ GLmol.prototype.subdivide = function(_points, DIV) { // points as Vector3
    return ret;
 };
 
-GLmol.prototype.drawAtomsAsSphere = function(group, atomlist, defaultRadius, forceDefault, scale) {
-   const sphereGeometry = new THREE.SphereGeometry(1, this.sphereQuality, this.sphereQuality); // r, seg, ring
-   for (let i = 0; i < atomlist.length; i++) {
-      const atom = this.atoms[atomlist[i]];
-      if (atom === undefined) continue;
+// GLmol.prototype.drawAtomsAsSphere = function(group, atomlist, defaultRadius, forceDefault, scale) {
+//    const sphereGeometry = new THREE.SphereGeometry(1, this.sphereQuality, this.sphereQuality); // r, seg, ring
+//    for (let i = 0; i < atomlist.length; i++) {
+//       const atom = this.atoms[atomlist[i]];
+//       if (atom === undefined) continue;
 
-      const sphereMaterial = this.mat || new (THREE.MeshLambertMaterial)({color: atom.color});
-      const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-      let r = (!forceDefault && this.vdwRadii[atom.elem] !== undefined) ? this.vdwRadii[atom.elem] : defaultRadius;
-      if (!forceDefault && scale) r *= scale;
-      sphere.scale.x = sphere.scale.y = sphere.scale.z = r;
-      sphere.position.x = atom.x;
-      sphere.position.y = atom.y;
-      sphere.position.z = atom.z;
-      if (group.mergeMesh)
-         group.mergeMesh(sphere);
-      else
-         group.add(sphere);
-   }
-};
+//       const sphereMaterial = this.mat || new (THREE.MeshLambertMaterial)({color: atom.color});
+//       const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+//       let r = (!forceDefault && this.vdwRadii[atom.elem] !== undefined) ? this.vdwRadii[atom.elem] : defaultRadius;
+//       if (!forceDefault && scale) r *= scale;
+//       sphere.scale.x = sphere.scale.y = sphere.scale.z = r;
+//       sphere.position.x = atom.x;
+//       sphere.position.y = atom.y;
+//       sphere.position.z = atom.z;
+//       if (group.mergeMesh)
+//          group.mergeMesh(sphere);
+//       else
+//          group.add(sphere);
+//    }
+// };
 
-// about two times faster than sphere when div = 2
-GLmol.prototype.drawAtomsAsIcosahedron = function(group, atomlist, defaultRadius, forceDefault) {
-   const geo = this.IcosahedronGeometry();
-   for (let i = 0; i < atomlist.length; i++) {
-      const atom = this.atoms[atomlist[i]];
-      if (atom === undefined) continue;
+// // about two times faster than sphere when div = 2
+// GLmol.prototype.drawAtomsAsIcosahedron = function(group, atomlist, defaultRadius, forceDefault) {
+//    const geo = this.IcosahedronGeometry();
+//    for (let i = 0; i < atomlist.length; i++) {
+//       const atom = this.atoms[atomlist[i]];
+//       if (atom === undefined) continue;
 
-      const mat = new (this.mat || THREE.MeshLambertMaterial)({color: atom.color});
-      const sphere = new THREE.Mesh(geo, mat);
-      sphere.scale.x = sphere.scale.y = sphere.scale.z = (!forceDefault && this.vdwRadii[atom.elem] !== undefined) ? this.vdwRadii[atom.elem] : defaultRadius;
-      group.add(sphere);
-      sphere.position.x = atom.x;
-      sphere.position.y = atom.y;
-      sphere.position.z = atom.z;
-   }
-};
+//       const mat = new (this.mat || THREE.MeshLambertMaterial)({color: atom.color});
+//       const sphere = new THREE.Mesh(geo, mat);
+//       sphere.scale.x = sphere.scale.y = sphere.scale.z = (!forceDefault && this.vdwRadii[atom.elem] !== undefined) ? this.vdwRadii[atom.elem] : defaultRadius;
+//       group.add(sphere);
+//       sphere.position.x = atom.x;
+//       sphere.position.y = atom.y;
+//       sphere.position.z = atom.z;
+//    }
+// };
 
 GLmol.prototype.isConnected = function(atom1, atom2) {
    const s = atom1.bonds.indexOf(atom2.serial);
@@ -646,59 +647,59 @@ GLmol.prototype.isConnected = function(atom1, atom2) {
    return 1;
 };
 
-GLmol.prototype.drawBondAsStickSub = function(group, atom1, atom2, bondR, order) {
-   let delta, tmp;
-   if (order > 1) delta = this.calcBondDelta(atom1, atom2, bondR * 2.3);
-   const p1 = new TV3(atom1.x, atom1.y, atom1.z);
-   const p2 = new TV3(atom2.x, atom2.y, atom2.z);
-   const mp = p1.clone().add(p2).multiplyScalar(0.5);
+// GLmol.prototype.drawBondAsStickSub = function(group, atom1, atom2, bondR, order) {
+//    let delta, tmp;
+//    if (order > 1) delta = this.calcBondDelta(atom1, atom2, bondR * 2.3);
+//    const p1 = new TV3(atom1.x, atom1.y, atom1.z);
+//    const p2 = new TV3(atom2.x, atom2.y, atom2.z);
+//    const mp = p1.clone().add(p2).multiplyScalar(0.5);
 
-   const c1 = new TCo(atom1.color), c2 = new TCo(atom2.color);
-   if (order === 1 || order === 3) {
-      this.drawCylinder(group, p1, mp, bondR, atom1.color);
-      this.drawCylinder(group, p2, mp, bondR, atom2.color);
-   }
-   if (order > 1) {
-      tmp = mp.clone().add(delta);
-      this.drawCylinder(group, p1.clone().add(delta), tmp, bondR, atom1.color);
-      this.drawCylinder(group, p2.clone().add(delta), tmp, bondR, atom2.color);
-      tmp = mp.clone().sub(delta);
-      this.drawCylinder(group, p1.clone().sub(delta), tmp, bondR, atom1.color);
-      this.drawCylinder(group, p2.clone().sub(delta), tmp, bondR, atom2.color);
-   }
-};
+//    const c1 = new TCo(atom1.color), c2 = new TCo(atom2.color);
+//    if (order === 1 || order === 3) {
+//       this.drawCylinder(group, p1, mp, bondR, atom1.color);
+//       this.drawCylinder(group, p2, mp, bondR, atom2.color);
+//    }
+//    if (order > 1) {
+//       tmp = mp.clone().add(delta);
+//       this.drawCylinder(group, p1.clone().add(delta), tmp, bondR, atom1.color);
+//       this.drawCylinder(group, p2.clone().add(delta), tmp, bondR, atom2.color);
+//       tmp = mp.clone().sub(delta);
+//       this.drawCylinder(group, p1.clone().sub(delta), tmp, bondR, atom1.color);
+//       this.drawCylinder(group, p2.clone().sub(delta), tmp, bondR, atom2.color);
+//    }
+// };
 
-GLmol.prototype.drawBondsAsStick = function(group, atomlist, bondR, atomR, ignoreNonbonded, multipleBonds, scale) {
-   const sphereGeometry = new THREE.SphereGeometry(1, this.sphereQuality, this.sphereQuality);
-   let nAtoms = atomlist.length, mp;
-   const forSpheres = [];
-   if (multipleBonds) bondR /= 2.5;
-   for (let _i = 0; _i < nAtoms; _i++) {
-      const i = atomlist[_i];
-      const atom1 = this.atoms[i];
-      if (atom1 === undefined) continue;
-      for (let _j = _i + 1; _j < _i + 30 && _j < nAtoms; _j++) {
-         const j = atomlist[_j];
-         const atom2 = this.atoms[j];
-         if (atom2 === undefined) continue;
-         const order = this.isConnected(atom1, atom2);
-         if (order === 0) continue;
-         atom1.connected = atom2.connected = true;
-         this.drawBondAsStickSub(group, atom1, atom2, bondR, (multipleBonds) ? order : 1);
-      }
-      for (let _j = 0; _j < atom1.bonds.length; _j++) {
-         const j = atom1.bonds[_j];
-         if (j < i + 30) continue; // be conservative!
-         if (atomlist.indexOf(j) === -1) continue;
-         const atom2 = this.atoms[j];
-         if (atom2 === undefined) continue;
-         atom1.connected = atom2.connected = true;
-         this.drawBondAsStickSub(group, atom1, atom2, bondR, (multipleBonds) ? atom1.bondOrder[_j] : 1);
-      }
-      if (atom1.connected) forSpheres.push(i);
-   }
-   if (atomR) this.drawAtomsAsSphere(group, forSpheres, atomR, !scale, scale);
-};
+// GLmol.prototype.drawBondsAsStick = function(group, atomlist, bondR, atomR, ignoreNonbonded, multipleBonds, scale) {
+//    const sphereGeometry = new THREE.SphereGeometry(1, this.sphereQuality, this.sphereQuality);
+//    let nAtoms = atomlist.length, mp;
+//    const forSpheres = [];
+//    if (multipleBonds) bondR /= 2.5;
+//    for (let _i = 0; _i < nAtoms; _i++) {
+//       const i = atomlist[_i];
+//       const atom1 = this.atoms[i];
+//       if (atom1 === undefined) continue;
+//       for (let _j = _i + 1; _j < _i + 30 && _j < nAtoms; _j++) {
+//          const j = atomlist[_j];
+//          const atom2 = this.atoms[j];
+//          if (atom2 === undefined) continue;
+//          const order = this.isConnected(atom1, atom2);
+//          if (order === 0) continue;
+//          atom1.connected = atom2.connected = true;
+//          this.drawBondAsStickSub(group, atom1, atom2, bondR, (multipleBonds) ? order : 1);
+//       }
+//       for (let _j = 0; _j < atom1.bonds.length; _j++) {
+//          const j = atom1.bonds[_j];
+//          if (j < i + 30) continue; // be conservative!
+//          if (atomlist.indexOf(j) === -1) continue;
+//          const atom2 = this.atoms[j];
+//          if (atom2 === undefined) continue;
+//          atom1.connected = atom2.connected = true;
+//          this.drawBondAsStickSub(group, atom1, atom2, bondR, (multipleBonds) ? atom1.bondOrder[_j] : 1);
+//       }
+//       if (atom1.connected) forSpheres.push(i);
+//    }
+//    if (atomR) this.drawAtomsAsSphere(group, forSpheres, atomR, !scale, scale);
+// };
 
 GLmol.prototype.defineCell = function() {
     const p = this.protein;
@@ -719,23 +720,23 @@ GLmol.prototype.defineCell = function() {
                * Math.sin(Math.PI / 180.0 * p.beta) - p.cy * p.cy);
 };
 
-GLmol.prototype.drawUnitcell = function(group) {
-    const p = this.protein;
-    if (p.a === undefined) return;
+// GLmol.prototype.drawUnitcell = function(group) {
+//     const p = this.protein;
+//     if (p.a === undefined) return;
 
-    const vertices = [[0, 0, 0], [p.ax, p.ay, p.az], [p.bx, p.by, p.bz], [p.ax + p.bx, p.ay + p.by, p.az + p.bz],
-          [p.cx, p.cy, p.cz], [p.cx + p.ax, p.cy + p.ay,  p.cz + p.az], [p.cx + p.bx, p.cy + p.by, p.cz + p.bz], [p.cx + p.ax + p.bx, p.cy + p.ay + p.by, p.cz + p.az + p.bz]];
-    const edges = [0, 1, 0, 2, 1, 3, 2, 3, 4, 5, 4, 6, 5, 7, 6, 7, 0, 4, 1, 5, 2, 6, 3, 7];
+//     const vertices = [[0, 0, 0], [p.ax, p.ay, p.az], [p.bx, p.by, p.bz], [p.ax + p.bx, p.ay + p.by, p.az + p.bz],
+//           [p.cx, p.cy, p.cz], [p.cx + p.ax, p.cy + p.ay,  p.cz + p.az], [p.cx + p.bx, p.cy + p.by, p.cz + p.bz], [p.cx + p.ax + p.bx, p.cy + p.ay + p.by, p.cz + p.az + p.bz]];
+//     const edges = [0, 1, 0, 2, 1, 3, 2, 3, 4, 5, 4, 6, 5, 7, 6, 7, 0, 4, 1, 5, 2, 6, 3, 7];
 
-    const geo = new THREE.Geometry();
-    for (let i = 0; i < edges.length; i++) {
-       geo.vertices.push(new TV3(vertices[edges[i]][0], vertices[edges[i]][1], vertices[edges[i]][2]));
-    }
-   const lineMaterial = new THREE.LineBasicMaterial({linewidth: 1, color: 0xcccccc});
-   const line = new THREE.Line(geo, lineMaterial);
-   line.type = THREE.LinePieces;
-   group.add(line);
-};
+//     const geo = new THREE. Geometry();
+//     for (let i = 0; i < edges.length; i++) {
+//        geo.vert ices.push(new TV3(vertices[edges[i]][0], vertices[edges[i]][1], vertices[edges[i]][2]));
+//     }
+//    const lineMaterial = new THREE.LineBasicMaterial({linewidth: 1, color: 0xcccccc});
+//    const line = new THREE.Line(geo, lineMaterial);
+//    line.type = THREE.LinePieces;
+//    group.add(line);
+// };
 
 // TODO: Find inner side of a ring
 GLmol.prototype.calcBondDelta = function(atom1, atom2, sep) {
@@ -767,180 +768,180 @@ GLmol.prototype.calcBondDelta = function(atom1, atom2, sep) {
    return delta;
 };
 
-GLmol.prototype.drawBondsAsLineSub = function(geo, atom1, atom2, order) {
-   let delta, tmp, vs = geo.vertices, cs = geo.colors;
-   if (order > 1) delta = this.calcBondDelta(atom1, atom2, 0.15);
-   const p1 = new TV3(atom1.x, atom1.y, atom1.z);
-   const p2 = new TV3(atom2.x, atom2.y, atom2.z);
-   const mp = p1.clone().add(p2).multiplyScalar(0.5);
+// GLmol.prototype.drawBondsAsLineSub = function(geo, atom1, atom2, order) {
+//    let delta, tmp, vs = geo.vert ices, cs = geo.colors;
+//    if (order > 1) delta = this.calcBondDelta(atom1, atom2, 0.15);
+//    const p1 = new TV3(atom1.x, atom1.y, atom1.z);
+//    const p2 = new TV3(atom2.x, atom2.y, atom2.z);
+//    const mp = p1.clone().add(p2).multiplyScalar(0.5);
 
-   const c1 = new TCo(atom1.color), c2 = new TCo(atom2.color);
-   if (order === 1 || order === 3) {
-      vs.push(p1); cs.push(c1); vs.push(mp); cs.push(c1);
-      vs.push(p2); cs.push(c2); vs.push(mp); cs.push(c2);
-   }
-   if (order > 1) {
-      vs.push(p1.clone().add(delta)); cs.push(c1);
-      vs.push(tmp = mp.clone().add(delta)); cs.push(c1);
-      vs.push(p2.clone().add(delta)); cs.push(c2);
-      vs.push(tmp); cs.push(c2);
-      vs.push(p1.clone().sub(delta)); cs.push(c1);
-      vs.push(tmp = mp.clone().sub(delta)); cs.push(c1);
-      vs.push(p2.clone().sub(delta)); cs.push(c2);
-      vs.push(tmp); cs.push(c2);
-   }
-};
+//    const c1 = new TCo(atom1.color), c2 = new TCo(atom2.color);
+//    if (order === 1 || order === 3) {
+//       vs.push(p1); cs.push(c1); vs.push(mp); cs.push(c1);
+//       vs.push(p2); cs.push(c2); vs.push(mp); cs.push(c2);
+//    }
+//    if (order > 1) {
+//       vs.push(p1.clone().add(delta)); cs.push(c1);
+//       vs.push(tmp = mp.clone().add(delta)); cs.push(c1);
+//       vs.push(p2.clone().add(delta)); cs.push(c2);
+//       vs.push(tmp); cs.push(c2);
+//       vs.push(p1.clone().sub(delta)); cs.push(c1);
+//       vs.push(tmp = mp.clone().sub(delta)); cs.push(c1);
+//       vs.push(p2.clone().sub(delta)); cs.push(c2);
+//       vs.push(tmp); cs.push(c2);
+//    }
+// };
 
-GLmol.prototype.drawBondsAsLine = function(group, atomlist, lineWidth) {
-   const geo = new THREE.Geometry();
-   const nAtoms = atomlist.length;
+// GLmol.prototype.drawBondsAsLine = function(group, atomlist, lineWidth) {
+//    const geo = new THREE. Geometry();
+//    const nAtoms = atomlist.length;
 
-   for (let _i = 0; _i < nAtoms; _i++) {
-      const i = atomlist[_i];
-      const  atom1 = this.atoms[i];
-      if (atom1 === undefined) continue;
-      for (let _j = _i + 1; _j < _i + 30 && _j < nAtoms; _j++) {
-         const j = atomlist[_j];
-         const atom2 = this.atoms[j];
-         if (atom2 === undefined) continue;
-         const order = this.isConnected(atom1, atom2);
-         if (order === 0) continue;
+//    for (let _i = 0; _i < nAtoms; _i++) {
+//       const i = atomlist[_i];
+//       const  atom1 = this.atoms[i];
+//       if (atom1 === undefined) continue;
+//       for (let _j = _i + 1; _j < _i + 30 && _j < nAtoms; _j++) {
+//          const j = atomlist[_j];
+//          const atom2 = this.atoms[j];
+//          if (atom2 === undefined) continue;
+//          const order = this.isConnected(atom1, atom2);
+//          if (order === 0) continue;
 
-         this.drawBondsAsLineSub(geo, atom1, atom2, order);
-      }
-      for (let _j = 0; _j < atom1.bonds.length; _j++) {
-          const j = atom1.bonds[_j];
-          if (j < i + 30) continue; // be conservative!
-          if (atomlist.indexOf(j) === -1) continue;
-          const atom2 = this.atoms[j];
-          if (atom2 === undefined) continue;
-          this.drawBondsAsLineSub(geo, atom1, atom2, atom1.bondOrder[_j]);
-      }
-    }
-   const lineMaterial = new THREE.LineBasicMaterial({linewidth: lineWidth});
-   lineMaterial.vertexColors = true;
+//          this.drawBondsAsLineSub(geo, atom1, atom2, order);
+//       }
+//       for (let _j = 0; _j < atom1.bonds.length; _j++) {
+//           const j = atom1.bonds[_j];
+//           if (j < i + 30) continue; // be conservative!
+//           if (atomlist.indexOf(j) === -1) continue;
+//           const atom2 = this.atoms[j];
+//           if (atom2 === undefined) continue;
+//           this.drawBondsAsLineSub(geo, atom1, atom2, atom1.bondOrder[_j]);
+//       }
+//     }
+//    const lineMaterial = new THREE.LineBasicMaterial({linewidth: lineWidth});
+//    lineMaterial.vertexColors = true;
 
-   const line = new THREE.Line(geo, lineMaterial);
-   line.type = THREE.LinePieces;
-   group.add(line);
-};
+//    const line = new THREE.Line(geo, lineMaterial);
+//    line.type = THREE.LinePieces;
+//    group.add(line);
+// };
 
-GLmol.prototype.drawSmoothCurve = function(groupOrGeom, _points, width, colors, div) {
-   if (_points.length === 0) return;
+// GLmol.prototype.drawSmoothCurve = function(groupOrGeom, _points, width, colors, div) {
+//    if (_points.length === 0) return;
 
-   div = (div === undefined) ? 5 : div;
+//    div = (div === undefined) ? 5 : div;
 
-   const geo = groupOrGeom.isGeometry ? groupOrGeom : new THREE.Geometry();
-   const poff = geo.vertices.length;
-   const points = this.subdivide(_points, div);
+//    const geo = groupOrGeom.isGeometry ? groupOrGeom : new THREE. Geometry();
+//    const poff = geo.vert ices.length;
+//    const points = this.subdivide(_points, div);
 
-   for (let i = 0; i < points.length; i++) {
-      geo.vertices.push(points[i]);
-      geo.colors.push(new TCo(colors[(i === 0) ? 0 : Math.round((i - 1) / div)]));
-  }
-  if (!groupOrGeom.isGeometry) {
-   const group = groupOrGeom;
-   const lineMaterial = new THREE.LineBasicMaterial({linewidth: width});
-   lineMaterial.vertexColors = true;
-   const line = new THREE.Line(geo, lineMaterial);
-   line.type = THREE.LineStrip;
-   group.add(line);
-  }
-};
+//    for (let i = 0; i < points.length; i++) {
+//       geo.vert ices.push(points[i]);
+//       geo.colors.push(new TCo(colors[(i === 0) ? 0 : Math.round((i - 1) / div)]));
+//   }
+//   if (!groupOrGeom.isGeometry) {
+//    const group = groupOrGeom;
+//    const lineMaterial = new THREE.LineBasicMaterial({linewidth: width});
+//    lineMaterial.vertexColors = true;
+//    const line = new THREE.Line(geo, lineMaterial);
+//    line.type = THREE.LineStrip;
+//    group.add(line);
+//   }
+// };
 
-GLmol.prototype.drawAsCross = function(group, atomlist, delta) {
-   const geo = new THREE.Geometry();
-   const points = [[delta, 0, 0], [-delta, 0, 0], [0, delta, 0], [0, -delta, 0], [0, 0, delta], [0, 0, -delta]];
+// GLmol.prototype.drawAsCross = function(group, atomlist, delta) {
+//    const geo = new THREE. Geometry();
+//    const points = [[delta, 0, 0], [-delta, 0, 0], [0, delta, 0], [0, -delta, 0], [0, 0, delta], [0, 0, -delta]];
 
-   for (let i = 0, lim = atomlist.length; i < lim; i++) {
-      const atom = this.atoms[atomlist[i]]; if (atom === undefined) continue;
+//    for (let i = 0, lim = atomlist.length; i < lim; i++) {
+//       const atom = this.atoms[atomlist[i]]; if (atom === undefined) continue;
 
-      const c = new TCo(atom.color);
-      for (let j = 0; j < 6; j++) {
-         geo.vertices.push(new TV3(atom.x + points[j][0], atom.y + points[j][1], atom.z + points[j][2]));
-         geo.colors.push(c);
-      }
-  }
-  const lineMaterial = new THREE.LineBasicMaterial({linewidth: this.lineWidth});
-  lineMaterial.vertexColors = true;
-  const line = new THREE.Line(geo, lineMaterial, THREE.LinePieces);
-  group.add(line);
-};
+//       const c = new TCo(atom.color);
+//       for (let j = 0; j < 6; j++) {
+//          geo.vert ices.push(new TV3(atom.x + points[j][0], atom.y + points[j][1], atom.z + points[j][2]));
+//          geo.colors.push(c);
+//       }
+//   }
+//   const lineMaterial = new THREE.LineBasicMaterial({linewidth: this.lineWidth});
+//   lineMaterial.vertexColors = true;
+//   const line = new THREE.Line(geo, lineMaterial, THREE.LinePieces);
+//   group.add(line);
+// };
 
-// FIXME: Winkled...
-GLmol.prototype.drawSmoothTube = function(groupOrGeom, _points, colors, radii) {
-   if (_points.length < 2) return;
+// // FIXME: Winkled...
+// GLmol.prototype.drawSmoothTube = function(groupOrGeom, _points, colors, radii) {
+//    if (_points.length < 2) return;
 
-   const circleDiv = this.tubeDIV, axisDiv = this.axisDIV;
-   const geo = groupOrGeom.isGeometry ? groupOrGeom : new THREE.Geometry();
-   const poff = geo.vertices.length;
-   const points = this.subdivide(_points, axisDiv);
-   let prevAxis1 = new TV3(), prevAxis2;
+//    const circleDiv = this.tubeDIV, axisDiv = this.axisDIV;
+//    const geo = groupOrGeom.isGeometry ? groupOrGeom : new THREE. Geometry();
+//    const poff = geo.vert ices.length;
+//    const points = this.subdivide(_points, axisDiv);
+//    let prevAxis1 = new TV3(), prevAxis2;
 
-   for (let i = 0, lim = points.length; i < lim; i++) {
-      let r, idx = (i - 1) / axisDiv;
-      if (i === 0) r = radii[0];
-      else {
-         if (idx % 1 === 0) r = radii[idx];
-         else {
-            const floored = Math.floor(idx);
-            const tmp = idx - floored;
-            r = radii[floored] * tmp + radii[floored + 1] * (1 - tmp);
-         }
-      }
-      let delta, axis1, axis2;
+//    for (let i = 0, lim = points.length; i < lim; i++) {
+//       let r, idx = (i - 1) / axisDiv;
+//       if (i === 0) r = radii[0];
+//       else {
+//          if (idx % 1 === 0) r = radii[idx];
+//          else {
+//             const floored = Math.floor(idx);
+//             const tmp = idx - floored;
+//             r = radii[floored] * tmp + radii[floored + 1] * (1 - tmp);
+//          }
+//       }
+//       let delta, axis1, axis2;
 
-      if (i < lim - 1) {
-         delta = new TV3().subVectors(points[i], points[i + 1]);
-         axis1 = new TV3(0, - delta.z, delta.y).normalize().multiplyScalar(r);
-         axis2 = new TV3().crossVectors(delta, axis1).normalize().multiplyScalar(r);
-//      const dir = 1, offset = 0;
-         if (prevAxis1.dot(axis1) < 0) {
-                 axis1.negate(); axis2.negate();  //dir = -1;//offset = 2 * Math.PI / axisDiv;
-         }
-         prevAxis1 = axis1; prevAxis2 = axis2;
-      } else {
-         axis1 = prevAxis1; axis2 = prevAxis2;
-      }
+//       if (i < lim - 1) {
+//          delta = new TV3().subVectors(points[i], points[i + 1]);
+//          axis1 = new TV3(0, - delta.z, delta.y).normalize().multiplyScalar(r);
+//          axis2 = new TV3().crossVectors(delta, axis1).normalize().multiplyScalar(r);
+// //      const dir = 1, offset = 0;
+//          if (prevAxis1.dot(axis1) < 0) {
+//                  axis1.negate(); axis2.negate();  //dir = -1;//offset = 2 * Math.PI / axisDiv;
+//          }
+//          prevAxis1 = axis1; prevAxis2 = axis2;
+//       } else {
+//          axis1 = prevAxis1; axis2 = prevAxis2;
+//       }
 
-      for (let j = 0; j < circleDiv; j++) {
-         const angle = 2 * Math.PI / circleDiv * j; //* dir  + offset;
-         const c = Math.cos(angle), s = Math.sin(angle);
-         geo.vertices.push(new TV3(
-         points[i].x + c * axis1.x + s * axis2.x,
-         points[i].y + c * axis1.y + s * axis2.y,
-         points[i].z + c * axis1.z + s * axis2.z));
-      }
-   }
+//       for (let j = 0; j < circleDiv; j++) {
+//          const angle = 2 * Math.PI / circleDiv * j; //* dir  + offset;
+//          const c = Math.cos(angle), s = Math.sin(angle);
+//          geo.vert ices.push(new TV3(
+//          points[i].x + c * axis1.x + s * axis2.x,
+//          points[i].y + c * axis1.y + s * axis2.y,
+//          points[i].z + c * axis1.z + s * axis2.z));
+//       }
+//    }
 
-   let offset = poff;
-   for (let i = 0, lim = points.length - 1; i < lim; i++) {
-      const c =  new TCo(colors[Math.round((i - 1)/ axisDiv)]);
+//    let offset = poff;
+//    for (let i = 0, lim = points.length - 1; i < lim; i++) {
+//       const c =  new TCo(colors[Math.round((i - 1)/ axisDiv)]);
 
-      let reg = 0;
-      let r1 = new TV3().subVectors(geo.vertices[offset], geo.vertices[offset + circleDiv]).lengthSq();
-      let r2 = new TV3().subVectors(geo.vertices[offset], geo.vertices[offset + circleDiv + 1]).lengthSq();
-      if (r1 > r2) {r1 = r2; reg = 1;};
-      for (let j = 0; j < circleDiv; j++) {
-          geo.faces.push(new TF3(offset + j, offset + (j + reg) % circleDiv + circleDiv, offset + (j + 1) % circleDiv));
-          geo.faces.push(new TF3(offset + (j + 1) % circleDiv, offset + (j + reg) % circleDiv + circleDiv, offset + (j + reg + 1) % circleDiv + circleDiv));
-          geo.faces[geo.faces.length -2].color = c;
-          geo.faces[geo.faces.length -1].color = c;
-      }
-      offset += circleDiv;
-   }
+//       let reg = 0;
+//       let r1 = new TV3().subVectors(geo.vert ices[offset], geo.vert ices[offset + circleDiv]).lengthSq();
+//       let r2 = new TV3().subVectors(geo.vert ices[offset], geo.vert ices[offset + circleDiv + 1]).lengthSq();
+//       if (r1 > r2) {r1 = r2; reg = 1;};
+//       for (let j = 0; j < circleDiv; j++) {
+//           geo.faces.push(new TF3(offset + j, offset + (j + reg) % circleDiv + circleDiv, offset + (j + 1) % circleDiv));
+//           geo.faces.push(new TF3(offset + (j + 1) % circleDiv, offset + (j + reg) % circleDiv + circleDiv, offset + (j + reg + 1) % circleDiv + circleDiv));
+//           geo.faces[geo.faces.length -2].color = c;
+//           geo.faces[geo.faces.length -1].color = c;
+//       }
+//       offset += circleDiv;
+//    }
 
-   if (!groupOrGeom.isGeometry) {
-      geo.computeFaceNormals();
-      geo.computeVertexNormals(false);
-      const group = groupOrGeom;
-      const mat = new (this.mat || THREE.MeshLambertMaterial)();
-      mat.vertexColors = THREE.FaceColors;
-      const mesh = new THREE.Mesh(geo, mat);
-      mat.side = THREE.DoubleSide; // mesh.doubleSided = true;
-      group.add(mesh);
-   }
-};
+//    if (!groupOrGeom.isGeometry) {
+//       geo.computeFaceNormals();
+//       geo.computeVertexNormals(false);
+//       const group = groupOrGeom;
+//       const mat = new (this.mat || THREE.MeshLambertMaterial)();
+//       mat.vertexColors = THREE.FaceColors;
+//       const mesh = new THREE.Mesh(geo, mat);
+//       mat.side = THREE.DoubleSide; // mesh.doubleSided = true;
+//       group.add(mesh);
+//    }
+// };
 
 
 GLmol.prototype.drawMainchainCurve = function(group, atomlist, curveWidth, atomName, div) {
@@ -967,124 +968,124 @@ GLmol.prototype.drawMainchainCurve = function(group, atomlist, curveWidth, atomN
     this.drawSmoothCurve(group, points, curveWidth, colors, div);
 };
 
-GLmol.prototype.drawMainchainTube = function(group, atomlist, atomName, radius) {
-   let points = [], colors = [], radii = [];
-   let currentChain, currentResi;
-   for (let i in atomlist) {
-      const atom = this.atoms[atomlist[i]];
-      if (atom === undefined) continue;
+// GLmol.prototype.drawMainchainTube = function(group, atomlist, atomName, radius) {
+//    let points = [], colors = [], radii = [];
+//    let currentChain, currentResi;
+//    for (let i in atomlist) {
+//       const atom = this.atoms[atomlist[i]];
+//       if (atom === undefined) continue;
 
-      if ((atom.atom === atomName) && !atom.hetflag) {
-         if (currentChain !== atom.chain || currentResi + 1 !== atom.resi) {
-            this.drawSmoothTube(group, points, colors, radii);
-            points = []; colors = []; radii = [];
-         }
-         points.push(new TV3(atom.x, atom.y, atom.z));
-         if (radius === undefined) {
-            radii.push((atom.b > 0) ? atom.b / 100 : 0.3);
-         } else {
-            radii.push(radius);
-         }
-         colors.push(atom.color);
-         currentChain = atom.chain;
-         currentResi = atom.resi;
-      }
-   }
-   this.drawSmoothTube(group, points, colors, radii);
-};
+//       if ((atom.atom === atomName) && !atom.hetflag) {
+//          if (currentChain !== atom.chain || currentResi + 1 !== atom.resi) {
+//             this.drawSmoothTube(group, points, colors, radii);
+//             points = []; colors = []; radii = [];
+//          }
+//          points.push(new TV3(atom.x, atom.y, atom.z));
+//          if (radius === undefined) {
+//             radii.push((atom.b > 0) ? atom.b / 100 : 0.3);
+//          } else {
+//             radii.push(radius);
+//          }
+//          colors.push(atom.color);
+//          currentChain = atom.chain;
+//          currentResi = atom.resi;
+//       }
+//    }
+//    this.drawSmoothTube(group, points, colors, radii);
+// };
 
-GLmol.prototype.drawStrip = function(groupOrGeom, p1, p2, colors, div, thickness) {
-   if ((p1.length) < 2) return;
-   div = div || this.axisDIV;
-   p1 = this.subdivide(p1, div);
-   p2 = this.subdivide(p2, div);
-   if (!thickness) return this.drawThinStrip(groupOrGeom, p1, p2, colors, div);
+// GLmol.prototype.drawStrip = function(groupOrGeom, p1, p2, colors, div, thickness) {
+//    if ((p1.length) < 2) return;
+//    div = div || this.axisDIV;
+//    p1 = this.subdivide(p1, div);
+//    p2 = this.subdivide(p2, div);
+//    if (!thickness) return this.drawThinStrip(groupOrGeom, p1, p2, colors, div);
 
-   const geo = groupOrGeom.isGeometry ? groupOrGeom : new THREE.Geometry();
-   const poff = geo.vertices.length;
-   const vs = geo.vertices, fs = geo.faces;
-   let axis, p1v, p2v, a1v, a2v;
-   for (let i = 0, lim = p1.length; i < lim; i++) {
-      vs.push(p1v = p1[i]); // 0
-      vs.push(p1v); // 1
-      vs.push(p2v = p2[i]); // 2
-      vs.push(p2v); // 3
-      if (i < lim - 1) {
-         const toNext = p1[i + 1].clone().sub(p1[i]);
-         const toSide = p2[i].clone().sub(p1[i]);
-         axis = toSide.cross(toNext).normalize().multiplyScalar(thickness);
-      }
-      vs.push(a1v = p1[i].clone().add(axis)); // 4
-      vs.push(a1v); // 5
-      vs.push(a2v = p2[i].clone().add(axis)); // 6
-      vs.push(a2v); // 7
-   }
-   const faces = [[0, 2, -6, -8], [-4, -2, 6, 4], [7, 3, -5, -1], [-3, -7, 1, 5]];
-   let a,b,c,d;
-   for (let i = 1, lim = p1.length; i < lim; i++) {
-      let offset = 8 * i + poff, color = new TCo(colors[Math.round((i - 1)/ div)]);
-      for (let j = 0; j < 4; j++) {
-         //  const f = new THREE.Face4(offset + faces[j][0], offset + faces[j][1], offset + faces[j][2], offset + faces[j][3], undefined, color);
-         [a,b,c,d] = [offset + faces[j][0], offset + faces[j][1], offset + faces[j][2], offset + faces[j][3]];
-         const f = new THREE.Face3(c,a,b, undefined, color);
-         const f1 = new THREE.Face3(a,c,d, undefined, color);
-         fs.push(f,f1);
-      }
-   }
-   let vsize = vs.length - 8; // Cap
-   for (let i = 0; i < 4; i++) {vs.push(vs[i * 2]); vs.push(vs[vsize + i * 2])};
-   vsize += 8;
+//    const geo = groupOrGeom.isGeometry ? groupOrGeom : new THREE. Geometry();
+//    const poff = geo.vert ices.length;
+//    const vs = geo.vert ices, fs = geo.faces;
+//    let axis, p1v, p2v, a1v, a2v;
+//    for (let i = 0, lim = p1.length; i < lim; i++) {
+//       vs.push(p1v = p1[i]); // 0
+//       vs.push(p1v); // 1
+//       vs.push(p2v = p2[i]); // 2
+//       vs.push(p2v); // 3
+//       if (i < lim - 1) {
+//          const toNext = p1[i + 1].clone().sub(p1[i]);
+//          const toSide = p2[i].clone().sub(p1[i]);
+//          axis = toSide.cross(toNext).normalize().multiplyScalar(thickness);
+//       }
+//       vs.push(a1v = p1[i].clone().add(axis)); // 4
+//       vs.push(a1v); // 5
+//       vs.push(a2v = p2[i].clone().add(axis)); // 6
+//       vs.push(a2v); // 7
+//    }
+//    const faces = [[0, 2, -6, -8], [-4, -2, 6, 4], [7, 3, -5, -1], [-3, -7, 1, 5]];
+//    let a,b,c,d;
+//    for (let i = 1, lim = p1.length; i < lim; i++) {
+//       let offset = 8 * i + poff, color = new TCo(colors[Math.round((i - 1)/ div)]);
+//       for (let j = 0; j < 4; j++) {
+//          //  const f = new THREE.Face4(offset + faces[j][0], offset + faces[j][1], offset + faces[j][2], offset + faces[j][3], undefined, color);
+//          [a,b,c,d] = [offset + faces[j][0], offset + faces[j][1], offset + faces[j][2], offset + faces[j][3]];
+//          const f = new THREE.Face3(c,a,b, undefined, color);
+//          const f1 = new THREE.Face3(a,c,d, undefined, color);
+//          fs.push(f,f1);
+//       }
+//    }
+//    let vsize = vs.length - 8; // Cap
+//    for (let i = 0; i < 4; i++) {vs.push(vs[i * 2]); vs.push(vs[vsize + i * 2])};
+//    vsize += 8;
 
-   // fs.push(new THREE.Face4(vsize, vsize + 2, vsize + 6, vsize + 4, undefined, fs[0].color));
-   [a,b,c,d] = [vsize, vsize + 2, vsize + 6, vsize + 4];
-   fs.push(new THREE.Face3(c,a,b, undefined, fs[0].color));
-   fs.push(new THREE.Face3(a,c,d, undefined, fs[0].color));
+//    // fs.push(new THREE.Face4(vsize, vsize + 2, vsize + 6, vsize + 4, undefined, fs[0].color));
+//    [a,b,c,d] = [vsize, vsize + 2, vsize + 6, vsize + 4];
+//    fs.push(new THREE.Face3(c,a,b, undefined, fs[0].color));
+//    fs.push(new THREE.Face3(a,c,d, undefined, fs[0].color));
 
-   // fs.push(new THREE.Face4(vsize + 1, vsize + 5, vsize + 7, vsize + 3, undefined, fs[fs.length - 3].color));
-   [a,b,c,d] = [vsize + 1, vsize + 5, vsize + 7, vsize + 3];
-   fs.push(new THREE.Face3(c,a,b, undefined, fs[fs.length - 3].color));
-   fs.push(new THREE.Face3(a,c,d, undefined, fs[fs.length - 3].color));
+//    // fs.push(new THREE.Face4(vsize + 1, vsize + 5, vsize + 7, vsize + 3, undefined, fs[fs.length - 3].color));
+//    [a,b,c,d] = [vsize + 1, vsize + 5, vsize + 7, vsize + 3];
+//    fs.push(new THREE.Face3(c,a,b, undefined, fs[fs.length - 3].color));
+//    fs.push(new THREE.Face3(a,c,d, undefined, fs[fs.length - 3].color));
 
-   if (!groupOrGeom.isGeometry) {
-      geo.computeFaceNormals();
-      geo.computeVertexNormals(false);
-      const group = groupOrGeom;
-      const material =  new (this.mat || THREE.MeshLambertMaterial)();
-      material.vertexColors = THREE.FaceColors;
-      const mesh = new THREE.Mesh(geo, material);
-      material.side = THREE.DoubleSide; // mesh.doubleSided = true;
-      group.add(mesh);
-   }
-};
+//    if (!groupOrGeom.isGeometry) {
+//       geo.computeFaceNormals();
+//       geo.computeVertexNormals(false);
+//       const group = groupOrGeom;
+//       const material =  new (this.mat || THREE.MeshLambertMaterial)();
+//       material.vertexColors = THREE.FaceColors;
+//       const mesh = new THREE.Mesh(geo, material);
+//       material.side = THREE.DoubleSide; // mesh.doubleSided = true;
+//       group.add(mesh);
+//    }
+// };
 
 
-GLmol.prototype.drawThinStrip = function(groupOrGeom, p1, p2, colors, div) {
-   const geo = groupOrGeom.isGeometry ? groupOrGeom : new THREE.Geometry();
-   const poff = geo.vertices.length;
-   for (let i = 0, lim = p1.length; i < lim; i++) {
-      geo.vertices.push(p1[i]); // 2i
-      geo.vertices.push(p2[i]); // 2i + 1
-   }
-   for (let i = 1, lim = p1.length; i < lim; i++) {
-      // const f = new THREE.Face4(2 * i, 2 * i + 1, 2 * i - 1, 2 * i - 2);
-      const [a,b,c,d] = [2 * i, 2 * i + 1, 2 * i - 1, 2 * i - 2];
-      const f = new THREE.Face3(c+poff,a+poff,b+poff);
-      const f1 = new THREE.Face3(a+poff,c+poff,d+poff);
-      f.color = new TCo(colors[Math.round((i - 1)/ div)]);
-      f1.color = new TCo(colors[Math.round((i - 1)/ div)]);
-      geo.faces.push(f, f1);
-   }
-   if (!groupOrGeom.isGeometry) {
-       geo.computeFaceNormals();
-       geo.computeVertexNormals(false);
-      const group = groupOrGeom;
-      const material =  new (this.mat || THREE.MeshLambertMaterial)();
-      material.vertexColors = THREE.FaceColors;
-      const mesh = new THREE.Mesh(geo, material);
-      material.side = THREE.DoubleSide; // mesh.doubleSided = true;
-      group.add(mesh);
-   }
-};
+// GLmol.prototype.drawThinStrip = function(groupOrGeom, p1, p2, colors, div) {
+//    const geo = groupOrGeom.isGeometry ? groupOrGeom : new THREE. Geometry();
+//    const poff = geo.vert ices.length;
+//    for (let i = 0, lim = p1.length; i < lim; i++) {
+//       geo.vert ices.push(p1[i]); // 2i
+//       geo.vert ices.push(p2[i]); // 2i + 1
+//    }
+//    for (let i = 1, lim = p1.length; i < lim; i++) {
+//       // const f = new THREE.Face4(2 * i, 2 * i + 1, 2 * i - 1, 2 * i - 2);
+//       const [a,b,c,d] = [2 * i, 2 * i + 1, 2 * i - 1, 2 * i - 2];
+//       const f = new THREE.Face3(c+poff,a+poff,b+poff);
+//       const f1 = new THREE.Face3(a+poff,c+poff,d+poff);
+//       f.color = new TCo(colors[Math.round((i - 1)/ div)]);
+//       f1.color = new TCo(colors[Math.round((i - 1)/ div)]);
+//       geo.faces.push(f, f1);
+//    }
+//    if (!groupOrGeom.isGeometry) {
+//        geo.computeFaceNormals();
+//        geo.computeVertexNormals(false);
+//       const group = groupOrGeom;
+//       const material =  new (this.mat || THREE.MeshLambertMaterial)();
+//       material.vertexColors = THREE.FaceColors;
+//       const mesh = new THREE.Mesh(geo, material);
+//       material.side = THREE.DoubleSide; // mesh.doubleSided = true;
+//       group.add(mesh);
+//    }
+// };
 
 
 GLmol.prototype.IcosahedronGeometry = function() {
@@ -1204,62 +1205,62 @@ GLmol.prototype.drawStrand = function(group, atomlist, num, div, fill, coilWidth
    if (fill) this.drawStrip(group, points[0], points[num - 1], colors, div, thickness);
 };
 
-GLmol.prototype.drawNucleicAcidLadderSub = function(geo, lineGeo, atoms, color) {
-//        color.r *= 0.9; color.g *= 0.9; color.b *= 0.9;
-   if (atoms[0] !== undefined && atoms[1] !== undefined && atoms[2] !== undefined &&
-       atoms[3] !== undefined && atoms[4] !== undefined && atoms[5] !== undefined) {
-      const baseFaceId = geo.vertices.length;
-      for (let i = 0; i <= 5; i++) geo.vertices.push(atoms[i]);
-          geo.faces.push(new TF3(baseFaceId, baseFaceId + 1, baseFaceId + 2));
-          geo.faces.push(new TF3(baseFaceId, baseFaceId + 2, baseFaceId + 3));
-          geo.faces.push(new TF3(baseFaceId, baseFaceId + 3, baseFaceId + 4));
-          geo.faces.push(new TF3(baseFaceId, baseFaceId + 4, baseFaceId + 5));
-          for (let j = geo.faces.length - 4, lim = geo.faces.length; j < lim; j++) geo.faces[j].color = color;
-    }
-    if (atoms[4] !== undefined && atoms[3] !== undefined && atoms[6] !== undefined &&
-       atoms[7] !== undefined && atoms[8] !== undefined) {
-       const baseFaceId = geo.vertices.length;
-       geo.vertices.push(atoms[4]);
-       geo.vertices.push(atoms[3]);
-       geo.vertices.push(atoms[6]);
-       geo.vertices.push(atoms[7]);
-       geo.vertices.push(atoms[8]);
-       for (let i = 0; i <= 4; i++) geo.colors.push(color);
-       geo.faces.push(new TF3(baseFaceId, baseFaceId + 1, baseFaceId + 2));
-       geo.faces.push(new TF3(baseFaceId, baseFaceId + 2, baseFaceId + 3));
-       geo.faces.push(new TF3(baseFaceId, baseFaceId + 3, baseFaceId + 4));
-       for (let j = geo.faces.length - 3, lim = geo.faces.length; j < lim; j++) geo.faces[j].color = color;
-    }
-};
+// GLmol.prototype.drawNucleicAcidLadderSub = function(geo, lineGeo, atoms, color) {
+// //        color.r *= 0.9; color.g *= 0.9; color.b *= 0.9;
+//    if (atoms[0] !== undefined && atoms[1] !== undefined && atoms[2] !== undefined &&
+//        atoms[3] !== undefined && atoms[4] !== undefined && atoms[5] !== undefined) {
+//       const baseFaceId = geo.vert ices.length;
+//       for (let i = 0; i <= 5; i++) geo.vert ices.push(atoms[i]);
+//           geo.faces.push(new TF3(baseFaceId, baseFaceId + 1, baseFaceId + 2));
+//           geo.faces.push(new TF3(baseFaceId, baseFaceId + 2, baseFaceId + 3));
+//           geo.faces.push(new TF3(baseFaceId, baseFaceId + 3, baseFaceId + 4));
+//           geo.faces.push(new TF3(baseFaceId, baseFaceId + 4, baseFaceId + 5));
+//           for (let j = geo.faces.length - 4, lim = geo.faces.length; j < lim; j++) geo.faces[j].color = color;
+//     }
+//     if (atoms[4] !== undefined && atoms[3] !== undefined && atoms[6] !== undefined &&
+//        atoms[7] !== undefined && atoms[8] !== undefined) {
+//        const baseFaceId = geo.vert ices.length;
+//        geo.vert ices.push(atoms[4]);
+//        geo.vert ices.push(atoms[3]);
+//        geo.vert ices.push(atoms[6]);
+//        geo.vert ices.push(atoms[7]);
+//        geo.vert ices.push(atoms[8]);
+//        for (let i = 0; i <= 4; i++) geo.colors.push(color);
+//        geo.faces.push(new TF3(baseFaceId, baseFaceId + 1, baseFaceId + 2));
+//        geo.faces.push(new TF3(baseFaceId, baseFaceId + 2, baseFaceId + 3));
+//        geo.faces.push(new TF3(baseFaceId, baseFaceId + 3, baseFaceId + 4));
+//        for (let j = geo.faces.length - 3, lim = geo.faces.length; j < lim; j++) geo.faces[j].color = color;
+//     }
+// };
 
-GLmol.prototype.drawNucleicAcidLadder = function(group, atomlist) {
-   const geo = new THREE.Geometry();
-   const lineGeo = new THREE.Geometry();
-   const baseAtoms = ["N1", "C2", "N3", "C4", "C5", "C6", "N9", "C8", "N7"];
-   let currentChain, currentResi, currentComponent = new Array(baseAtoms.length);
-   let color = new TCo(0xcc0000);
+// GLmol.prototype.drawNucleicAcidLadder = function(group, atomlist) {
+//    const geo = new THREE. Geometry();
+//    const lineGeo = new THREE. Geometry();
+//    const baseAtoms = ["N1", "C2", "N3", "C4", "C5", "C6", "N9", "C8", "N7"];
+//    let currentChain, currentResi, currentComponent = new Array(baseAtoms.length);
+//    let color = new TCo(0xcc0000);
 
-   for (let i in atomlist) {
-      const atom = this.atoms[atomlist[i]];
-      if (atom === undefined || atom.hetflag) continue;
+//    for (let i in atomlist) {
+//       const atom = this.atoms[atomlist[i]];
+//       if (atom === undefined || atom.hetflag) continue;
 
-      if (atom.resi !== currentResi || atom.chain !== currentChain) {
-         this.drawNucleicAcidLadderSub(geo, lineGeo, currentComponent, color);
-         currentComponent = new Array(baseAtoms.length);
-      }
-      const pos = baseAtoms.indexOf(atom.atom);
-      if (pos !== -1) currentComponent[pos] = new TV3(atom.x, atom.y, atom.z);
-      if (atom.atom === 'O3\'') color = new TCo(atom.color);
-      currentResi = atom.resi; currentChain = atom.chain;
-   }
-   this.drawNucleicAcidLadderSub(geo, lineGeo, currentComponent, color);
-   geo.computeFaceNormals();
-   const mat = new (this.mat || THREE.MeshLambertMaterial)();
-   mat.vertexColors = THREE.VertexColors;
-   const mesh = new THREE.Mesh(geo, mat);
-   mat.side = THREE.DoubleSide; // mesh.doubleSided = true;
-   group.add(mesh);
-};
+//       if (atom.resi !== currentResi || atom.chain !== currentChain) {
+//          this.drawNucleicAcidLadderSub(geo, lineGeo, currentComponent, color);
+//          currentComponent = new Array(baseAtoms.length);
+//       }
+//       const pos = baseAtoms.indexOf(atom.atom);
+//       if (pos !== -1) currentComponent[pos] = new TV3(atom.x, atom.y, atom.z);
+//       if (atom.atom === 'O3\'') color = new TCo(atom.color);
+//       currentResi = atom.resi; currentChain = atom.chain;
+//    }
+//    this.drawNucleicAcidLadderSub(geo, lineGeo, currentComponent, color);
+//    geo.computeFaceNormals();
+//    const mat = new (this.mat || THREE.MeshLambertMaterial)();
+//    mat.vertexColors = THREE.VertexColors;
+//    const mesh = new THREE.Mesh(geo, mat);
+//    mat.side = THREE.DoubleSide; // mesh.doubleSided = true;
+//    group.add(mesh);
+// };
 
 GLmol.prototype.drawNucleicAcidStick = function(group, atomlist) {
    let currentChain, currentResi, start = null, end = null;
@@ -1287,42 +1288,42 @@ GLmol.prototype.drawNucleicAcidStick = function(group, atomlist) {
                         new TV3(end.x, end.y, end.z), 0.3, start.color, true);
 };
 
-GLmol.prototype.drawNucleicAcidLine = function(group, atomlist) {
-   let currentChain, currentResi, start = null, end = null;
-   const geo = new THREE.Geometry();
+// GLmol.prototype.drawNucleicAcidLine = function(group, atomlist) {
+//    let currentChain, currentResi, start = null, end = null;
+//    const geo = new THREE. Geometry();
 
-   for (let i in atomlist) {
-      const atom = this.atoms[atomlist[i]];
-      if (atom === undefined || atom.hetflag) continue;
+//    for (let i in atomlist) {
+//       const atom = this.atoms[atomlist[i]];
+//       if (atom === undefined || atom.hetflag) continue;
 
-      if (atom.resi !== currentResi || atom.chain !== currentChain) {
-         if (start !== null && end !== null) {
-            geo.vertices.push(new TV3(start.x, start.y, start.z));
-            geo.colors.push(new TCo(start.color));
-            geo.vertices.push(new TV3(end.x, end.y, end.z));
-            geo.colors.push(new TCo(start.color));
-         }
-         start = null; end = null;
-      }
-      if (atom.atom === 'O3\'') start = atom;
-      if (atom.resn === '  A' || atom.resn === '  G' || atom.resn === ' DA' || atom.resn === ' DG') {
-         if (atom.atom === 'N1')  end = atom; //  N1(AG), N3(CTU)
-      } else if (atom.atom === 'N3') {
-         end = atom;
-      }
-      currentResi = atom.resi; currentChain = atom.chain;
-   }
-   if (start !== null && end !== null) {
-      geo.vertices.push(new TV3(start.x, start.y, start.z));
-      geo.colors.push(new TCo(start.color));
-      geo.vertices.push(new TV3(end.x, end.y, end.z));
-      geo.colors.push(new TCo(start.color));
-    }
-   const mat =  new THREE.LineBasicMaterial({linewidth: 1, linejoin: false});
-   mat.linewidth = 1.5; mat.vertexColors = true;
-   const line = new THREE.Line(geo, mat, THREE.LinePieces);
-   group.add(line);
-};
+//       if (atom.resi !== currentResi || atom.chain !== currentChain) {
+//          if (start !== null && end !== null) {
+//             geo.vert ices.push(new TV3(start.x, start.y, start.z));
+//             geo.colors.push(new TCo(start.color));
+//             geo.vert ices.push(new TV3(end.x, end.y, end.z));
+//             geo.colors.push(new TCo(start.color));
+//          }
+//          start = null; end = null;
+//       }
+//       if (atom.atom === 'O3\'') start = atom;
+//       if (atom.resn === '  A' || atom.resn === '  G' || atom.resn === ' DA' || atom.resn === ' DG') {
+//          if (atom.atom === 'N1')  end = atom; //  N1(AG), N3(CTU)
+//       } else if (atom.atom === 'N3') {
+//          end = atom;
+//       }
+//       currentResi = atom.resi; currentChain = atom.chain;
+//    }
+//    if (start !== null && end !== null) {
+//       geo.vert ices.push(new TV3(start.x, start.y, start.z));
+//       geo.colors.push(new TCo(start.color));
+//       geo.vert ices.push(new TV3(end.x, end.y, end.z));
+//       geo.colors.push(new TCo(start.color));
+//     }
+//    const mat =  new THREE.LineBasicMaterial({linewidth: 1, linejoin: false});
+//    mat.linewidth = 1.5; mat.vertexColors = true;
+//    const line = new THREE.Line(geo, mat, THREE.LinePieces);
+//    group.add(line);
+// };
 
 GLmol.prototype.drawCartoonNucleicAcid = function(group, atomlist, div, thickness) {
         this.drawStrandNucleicAcid(group, atomlist, 2, div, true, undefined, thickness);
@@ -1392,28 +1393,28 @@ GLmol.prototype.drawStrandNucleicAcid = function(group, atomlist, num, div, fill
       this.drawSmoothCurve(group, points[j], 1 ,colors, div);
 };
 
-GLmol.prototype.drawDottedLines = function(group, points, color) {
-    const geo = new THREE.Geometry();
-    const step = 0.3;
+// GLmol.prototype.drawDottedLines = function(group, points, color) {
+//     const geo = new THREE. Geometry();
+//     const step = 0.3;
 
-    for (let i = 0, lim = Math.floor(points.length / 2); i < lim; i++) {
-        const p1 = points[2 * i], p2 = points[2 * i + 1];
-        const delta = p2.clone().sub(p1);
-        const dist = delta.length();
-        delta.normalize().multiplyScalar(step);
-        const jlim =  Math.floor(dist / step);
-        for (let j = 0; j < jlim; j++) {
-           const p = new TV3(p1.x + delta.x * j, p1.y + delta.y * j, p1.z + delta.z * j);
-           geo.vertices.push(p);
-        }
-        if (jlim % 2 === 1) geo.vertices.push(p2);
-    }
+//     for (let i = 0, lim = Math.floor(points.length / 2); i < lim; i++) {
+//         const p1 = points[2 * i], p2 = points[2 * i + 1];
+//         const delta = p2.clone().sub(p1);
+//         const dist = delta.length();
+//         delta.normalize().multiplyScalar(step);
+//         const jlim =  Math.floor(dist / step);
+//         for (let j = 0; j < jlim; j++) {
+//            const p = new TV3(p1.x + delta.x * j, p1.y + delta.y * j, p1.z + delta.z * j);
+//            geo.vert ices.push(p);
+//         }
+//         if (jlim % 2 === 1) geo.vert ices.push(p2);
+//     }
 
-    const mat = new THREE.LineBasicMaterial({color: color.getHex()});
-    mat.linewidth = 2;
-    const line = new THREE.Line(geo, mat, THREE.LinePieces);
-    group.add(line);
-};
+//     const mat = new THREE.LineBasicMaterial({color: color.getHex()});
+//     mat.linewidth = 2;
+//     const line = new THREE.Line(geo, mat, THREE.LinePieces);
+//     group.add(line);
+// };
 
 GLmol.prototype.getAllAtoms = function() {
    const ret = [];
@@ -1455,7 +1456,7 @@ GLmol.prototype.getProteins = function(atomlist = this.atomlist) {
 };
 
 // TODO: Test
-GLmol.prototype.excludeAtoms = function(atomlist = this.atomlist, deleteList) {
+GLmol.prototype.excludeAtoms = function(atomlist = this.atomlist, deleteList=undefined) {
    const ret = [];
    const blackList = {}; // new Object();
    for (let _i in deleteList) blackList[deleteList[_i]] = true;
@@ -1480,7 +1481,7 @@ GLmol.prototype.getSidechains = function(atomlist = this.atomlist) {
    return ret;
 };
 
-GLmol.prototype.getAtomsWithin = function(atomlist = this.atomlist, extent) {
+GLmol.prototype.getAtomsWithin = function(atomlist = this.atomlist, extent=undefined) {
    const ret = [];
 
    for (let i in atomlist) {
@@ -1515,7 +1516,7 @@ GLmol.prototype.getExtent = function(atomlist = this.atomlist) {
    return [[xmin, ymin, zmin], [xmax, ymax, zmax], [xsum / cnt, ysum / cnt, zsum / cnt]];
 };
 
-GLmol.prototype.getResiduesById = function(atomlist = this.atomlist, resi) {
+GLmol.prototype.getResiduesById = function(atomlist = this.atomlist, resi=undefined) {
    const ret = [];
    for (let i in atomlist) {
       const atom = this.atoms[atomlist[i]]; if (atom === undefined) continue;
@@ -1525,7 +1526,7 @@ GLmol.prototype.getResiduesById = function(atomlist = this.atomlist, resi) {
    return ret;
 };
 
-GLmol.prototype.getResidueBySS = function(atomlist = this.atomlist, ss) {
+GLmol.prototype.getResidueBySS = function(atomlist = this.atomlist, ss=undefined) {
    const ret = [];
    for (let i in atomlist) {
       const atom = this.atoms[atomlist[i]]; if (atom === undefined) continue;
@@ -1535,7 +1536,7 @@ GLmol.prototype.getResidueBySS = function(atomlist = this.atomlist, ss) {
    return ret;
 };
 
-GLmol.prototype.getChain = function(atomlist = this.atomlist, chain) {
+GLmol.prototype.getChain = function(atomlist = this.atomlist, chain=undefined) {
    const ret = [], chains = {};
    chain = chain.toString(); // concat if Array
    for (let i = 0, lim = chain.length; i < lim; i++) chains[chain.substr(i, 1)] = true;
@@ -1548,7 +1549,7 @@ GLmol.prototype.getChain = function(atomlist = this.atomlist, chain) {
 };
 
 // for HETATM only
-GLmol.prototype.getNonbonded = function(atomlist = this.atomlist, chain) {
+GLmol.prototype.getNonbonded = function(atomlist = this.atomlist, chain=undefined) {
    const ret = [];
    for (let i in atomlist) {
       const atom = this.atoms[atomlist[i]]; if (atom === undefined) continue;
@@ -1697,7 +1698,7 @@ GLmol.prototype.colorByResidue = function(atomlist = this.atomlist, residueColor
    }
 };
 
-GLmol.prototype.colorAtoms = function(atomlist = this.atomlist, c) {
+GLmol.prototype.colorAtoms = function(atomlist = this.atomlist, c=undefined) {
    for (let i in atomlist) {
       const atom = this.atoms[atomlist[i]]; if (atom === undefined) continue;
 
@@ -1711,7 +1712,7 @@ GLmol.prototype.defaultResidueColors = {};
 GLmol.prototype.RESIDUES.forEach((r,i) =>
    GLmol.prototype.defaultResidueColors[r] = col3().setHSV(i / GLmol.prototype.RESIDUES.length, 1, 1));
 
-GLmol.prototype.colorByPolarity = function(atomlist = this.atomlist, polar, nonpolar) {
+GLmol.prototype.colorByPolarity = function(atomlist = this.atomlist, polar=undefined, nonpolar=undefined) {
    //would be good to have properties available for application to things other than color
    //also, hydrophabicity etc seem to be missing in GLMol.
    const polarResidues = ['ARG', 'HIS', 'LYS', 'ASP', 'GLU', 'SER', 'THR', 'ASN', 'GLN', 'CYS'];
@@ -1722,7 +1723,7 @@ GLmol.prototype.colorByPolarity = function(atomlist = this.atomlist, polar, nonp
    this.colorByResidue(atomlist, colorMap);
 };
 
-GLmol.prototype.colorByDist = function(atomlist = this.atomlist, near, far) {
+GLmol.prototype.colorByDist = function(atomlist = this.atomlist, near=undefined, far=undefined) {
    const colfun = CSynth.genColfun(near, far);
    const col = col3();
    for (let i in atomlist) {
@@ -1735,7 +1736,7 @@ GLmol.prototype.colorByDist = function(atomlist = this.atomlist, near, far) {
 // TODO: Add near(atomlist, neighbor, distanceCutoff)
 // TODO: Add expandToResidue(atomlist)
 
-GLmol.prototype.colorChainbow = function(atomlist = this.atomlist, colorSidechains) {
+GLmol.prototype.colorChainbow = function(atomlist = this.atomlist, colorSidechains=undefined) {
    let cnt = 0;
    let atom, i;
    for (i in atomlist) {
@@ -1859,7 +1860,7 @@ GLmol.prototype.initializeScene = function() {
    this.setupLights(this.scene);
 };
 
-GLmol.prototype.zoomInto = function(atomlist = this.atomlist, keepSlab) {
+GLmol.prototype.zoomInto = function(atomlist = this.atomlist, keepSlab=undefined) {
    const tmp = this.getExtent(atomlist);
    let center = new TV3(tmp[2][0], tmp[2][1], tmp[2][2]);//(tmp[0][0] + tmp[1][0]) / 2, (tmp[0][1] + tmp[1][1]) / 2, (tmp[0][2] + tmp[1][2]) / 2);
    if (this.protein.appliedMatrix) {center = this.protein.appliedMatrix.multiplyVector3(center);}
@@ -2149,7 +2150,8 @@ GLmol.prototype.drawFluidCartoon = function* ({
    console.time('collect CA'); //also 'P'... nb, other sources refer to 'O', etc...
    //http://plato.cgl.ucsf.edu/trac/chimera/browser/trunk/libs/Ribbon/base.py#L73
 
-   const caListAll = atomlist.map(i => this.atoms[i]).filter(a => a.atom === 'CA' || a.atom === 'P');
+   let caListAll = atomlist.map(i => this.atoms[i]).filter(a => a.atom === 'CA' || a.atom === 'P');
+   if (caListAll.length === 0) caListAll = atomlist.map(i => this.atoms[i]);  // all if no CA or P
    //group CA atoms by chain. Assume they're guaranteed to be in order?
    //there might be a quicker / better way of getting chains.
    const chains = caListAll.reduce((a, b) => {
@@ -2566,50 +2568,43 @@ GLmol.prototype.drawFluidCartoon = function* ({
 
       ////// Indices /////
       console.time(name + ' indices');
-      const indData = new Uint32Array(4 * divU * divV); //nb, Uint16 too small...
-      let nextIndex = 0;
-      const addIndex = function addIndex(v) {
-         indData[nextIndex++] = v;
-      }
-      for (let v=0; v<divV; v+=1) { //XXX: was += 2, and indData size was (2 * divU * div)
-         const _nv = (v+1) % divV;
-         // run along each 'column' (u), adding two points along each
-         for (let u=0; u<divU; u++) {
-            addIndex(u * divV + v);
-            addIndex(u * divV + _nv);
-         }
-         const nv2 = (_nv + 1) % divV;
+      const indData = new Uint32Array(6 * (divU-1) * divV); //nb, Uint16 too small...
+      // used to use triangle strip, but no longer supported by three.js
+      const d = indData;
+      let i = 0;
+      for (let v = 0; v < divV; v++) {
+         const v1 = (v+1) % divV;
+         for (let u = 0; u < divU-1; u++) {
+            const u1 = u+1;
+            d[i++] = (u  * divV + v);
+            d[i++] = (u1 * divV + v);
+            d[i++] = (u1 * divV + v1);
 
-         //if (v != divV - 1) { //this left a strip missing.
-				// if odd number, leave last return journey
-				// next point along run back should complete triangle between (divU-?, nv) & (end point)
-				// indexBuffer.put(1 + (divU-2-1)*divV + nv2);
-				// run back along u
-            for (let u = divU - 1; u >= 0; u--) {
-               addIndex(u * divV + _nv);
-               addIndex(u * divV + nv2);
-            }
-         //}
+            d[i++] = (u  * divV + v);
+            d[i++] = (u1 * divV + v1);
+            d[i++] = (u  * divV + v1);
+         }
       }
+      if (i !== d.length) console.error('wrong i on drawfluidcartoon', i, d.length);
       console.timeEnd(name + ' indices');
 
       const geometry = new THREE.BufferGeometry();
       geometry.setIndex(new THREE.BufferAttribute(indData, 1));
-      geometry.addAttribute('position', new THREE.BufferAttribute(posData, 3));
-      geometry.addAttribute('normal',   new THREE.BufferAttribute(nrmData, 3));
+      geometry.setAttribute('position', new THREE.BufferAttribute(posData, 3));
+      geometry.setAttribute('normal',   new THREE.BufferAttribute(nrmData, 3));
       if (tangentSpace)  {
-         geometry.addAttribute('binormal', new THREE.BufferAttribute(binrmData, 3));
-         geometry.addAttribute('tangent',  new THREE.BufferAttribute(tanData, 3));
+         geometry.setAttribute('binormal', new THREE.BufferAttribute(binrmData, 3));
+         geometry.setAttribute('tangent',  new THREE.BufferAttribute(tanData, 3));
       }
-      geometry.addAttribute('color',    new THREE.BufferAttribute(colData, 3));
-      geometry.addAttribute('uv',       new THREE.BufferAttribute(uvData, 2));
+      geometry.setAttribute('color',    new THREE.BufferAttribute(colData, 3));
+      geometry.setAttribute('uv',       new THREE.BufferAttribute(uvData, 2));
       geometry.objectId = objectId;
       geometry.attributes.color.normalized = true;
 
       const mat = this.cartoonMat || new (THREE.MeshLambertMaterial)();
       mat.vertexColors = THREE.VertexColors;
       const mesh = new THREE.Mesh(geometry, mat);
-      mesh.drawMode = THREE.TriangleStripDrawMode;
+      // mesh.draw Mode = THREE.TriangleStripDraw Mode;
       mesh.name = 'fluidCartoon ' + name;
       group.add(mesh);
       console.timeEnd('chain ' + name);

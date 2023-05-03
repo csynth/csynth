@@ -8,5 +8,7 @@ void main()
   tpos =  position.xy * textureToUse + 0.5;
 
   // overkill, but not significantly expensive and will work under many situations
-  gl_Position = projectionMatrix * viewMatrix * modelMatrix * xmatrix * vec4( position, 1.0 ); 
+  gl_Position = projectionMatrix * viewMatrix * modelMatrix * xmatrix *  vec4( position, 1.0 );
+  // works whatever camera is used when this shader in invoked; helps with cheatxr
+  // gl_Position = vec4( position * 2., 1.0 );
 }

@@ -1,5 +1,5 @@
 // This loads  the 'old' data as provided around January 2017
-springdemo( {
+window.springdemo( {
 	redcontacts: 'redobserved.contacts',
 	whitecontacts: 'whiteobserved.contacts',
 	bed: 'redwhite.bed',

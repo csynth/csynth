@@ -1,7 +1,7 @@
 'use strict';
 
-var V, resoverride, THREE, getBody, renderer, init, currentGenes, uniforms, springs, CSynth,
-    log, res, showsprings, stats, W,
+var V, HW, THREE, getBody, renderer, init, currentGenes, uniforms, springs, CSynth,
+    log, res, showsprings, stats, W, U,
     genedefs, updateGuiGenes, G, shadows, setSize, cMap, fitCanvasToWindow, getfiledata,
     minimizeSkelbuffer, Maestro, onframe, centrescalenow, serious, startscript, processFile,
     addgeneperm, format, readWebGlFloat, skelbuffer, startvr, pick, msgfix, showpick, writetextremote,
@@ -9,13 +9,13 @@ var V, resoverride, THREE, getBody, renderer, init, currentGenes, uniforms, spri
     adduniform, addtaggeduniform, oxcsynth, S, currentLoadingFile, location, msgfixerror, copyFrom, trimstrings, getFileExtension, getFileName,
     customLoadDone, nop, guiFromGene, otraverse, canvas, setAllLots, settings, initialSettings,
     searchValues, currentLoadingData, PICKNUM, readdir,
-    scaleDampTarget1, nomess, nwfs, posturi, GX, msgfixlog, objfilter, geneOverrides, col3, inworker, loadTime,
+    scaleDampTarget1, nomess, posturi, GX, msgfixlog, objfilter, geneOverrides, col3, inworker, loadTime,
     currentLoadingDir, resetMat, slowinit, GO, renderVR, sleep, myRequestAnimationFrame, htmlDefines, maxTextureSize,
-    Gldebug, startWsListener, distxyz, downloadImage, downloadImageHigh;
+    Gldebug, startWsListener, distxyz, downloadImage, downloadImageHigh, FIRST, writeBintri, runkeys, STL;
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 var CSynthFast;  // set to true even from outside to use fast graphics defaults
 //TODO: fragment more extensively into something like CSynth.ShaderChunks[]
-CSynth.CommonFragmentShaderCode = () => `
+CSynth.CommonFragmentShaderCode = () => /*glsl*/`
     ${htmlDefines()}    //
     #define round(c) floor(c+0.5)
     #define PICKNUM ${PICKNUM}
@@ -33,7 +33,6 @@ CSynth.CommonFragmentShaderCode = () => `
     uniform sampler2D posNewvals;
     uniform sampler2D posHist;
     uniform sampler2D t_ribboncol, t_ribbonrad;  // general textures if needed
-    uniform float colmix;
     uniform float histtime;
     uniform float HISTLEN;
     uniform float numSegs, numInstancesP2;
@@ -85,7 +84,7 @@ CSynth.CommonFragmentShaderCode = () => `
     // for example, while rendering 'p', should it be considered in range of 'pr' which is a picked particle?
     // returns 1 or 0 for in/out (areas within 'smooth' range will fade)
     // -- not sure how useful this approach to 'smooth' is - ends up feathering end of selection even when pointing to middle...
-    float isInPickRange(float p, float pr, float smooth, sampler2D bed) {
+    float isInPickRange(float p, float pr, float psmooth, sampler2D bed) {   // 'float smooth' fails to compile, why???
         // p /= NormalisedToTexCo; //
         vec4 r = getPickRange(pr, bed); // texture2D(t_ribboncol, vec2(p/NormalisedToTexCo, 0.75));
         // Next lines prevent the end spheres failing to reduce near the ends.
@@ -93,8 +92,8 @@ CSynth.CommonFragmentShaderCode = () => `
         // We extend them very significantly so we get full pick effect at ends.
         if (r.y == 0.) r.y = -1.;
         if (r.z == 1.) r.z = 2.;
-        float v = smoothstep(r.y, r.y+smooth, p);
-        v = min(v, 1. - smoothstep(r.z-smooth, r.z, p));
+        float v = smoothstep(r.y, r.y+psmooth, p);
+        v = min(v, 1. - smoothstep(r.z-psmooth, r.z, p));
         return v;
     }
     vec3 getPickColor(const in int i) {
@@ -227,30 +226,33 @@ CSynth.CommonFragmentShaderCode = () => `
     // so requires 4 lookups for 1d cubic interpolation.
     // Exact registration in the y axis is important so that the lookups in y
     // hit exact pixel positions and do not get (effective) linear interpolation.
-    // x axis does linear interpolation in the usual way.
+    // x axis does linear interpolation in the usual way. DO NOT ATTEMPT TO CHANGE IT.
     vec4 textureCubic(sampler2D sampler, vec2 texCoords){
-        vec2 texSize = vec2(HISTLEN, numInstancesP2);
-        vec2 invTexSize = 1.0 / texSize;
+        float texSize = numInstancesP2;
+        float invTexSize = 1.0 / texSize;
 
-        texCoords = texCoords * texSize - 0.5;
+        float ty = texCoords.y * texSize - 0.5;
 
-        vec2 fxy = fract(texCoords);
-        texCoords -= fxy;
-        vec4 yc = cubicCat(fxy.y);
+        float fy = fract(ty);
+        ty -= fy;
+        vec4 yc = cubicCat(fy);
 
-        texCoords.y -= 0.5;
-        vec4 s1 = texture2D(sampler, vec2(texCoords * invTexSize));
-        texCoords.y += 1.;
-        vec4 s2 = texture2D(sampler, vec2(texCoords * invTexSize));
-        texCoords.y += 1.;
-        vec4 s3 = texture2D(sampler, vec2(texCoords * invTexSize));
-        texCoords.y += 1.;
-        vec4 s4 = texture2D(sampler, vec2(texCoords * invTexSize));
+        texCoords.y = (ty - 0.5) * invTexSize;
+        vec4 s1 = texture2D(sampler, texCoords);
+        texCoords.y = (ty + 0.5) * invTexSize;
+        vec4 s2 = texture2D(sampler, texCoords);
+        texCoords.y = (ty + 1.5) * invTexSize;
+        vec4 s3 = texture2D(sampler, texCoords);
+        texCoords.y = (ty + 2.5) * invTexSize;
+        vec4 s4 = texture2D(sampler, texCoords);
+        // if (((by-0.5)-histtime)*(histtime-(by+0.5)) < 0.) s1 = s2;
+        // if (((by+1.5)-histtime)*(histtime-(by+2.5)) < 0.) s4 = s3;
         return s1 * yc.x + s2 * yc.y + s3 * yc.z + s4 * yc.w;
     }
 
-    #define histpostBicubic(p,t) textureBicubic(posHist, vec2(histtime - (t), (p)))
-    #define histpostCubic(p,t) textureCubic(posHist, vec2(histtime - (t), (p)))
+
+    #define histpostBicubic(p,t) textureBicubic(posHist,  vec2(fract(1. + histtime - (t), (p)))
+    #define histpostCubic(p,t) textureCubic(posHist, vec2(fract(1. + histtime - (t)), (p)))
 
     // 'standard' colour, sadly no array for gles 2
     // consider colour lookup texture. (bear in mind how this relates to other colour mapping features...)
@@ -286,14 +288,14 @@ CSynth.CommonFragmentShaderCode = () => `
 
 
         // for helix striping
-        // if (fract(opos.x*5000. + opos.y) < 0.1) col = stdcol(6.);
-        col = mix(col, rbow, colmix);
+        // if (fract(opos.x*5000. + opos.y) < 0.1) col = std col(6.);
 
         return col;
     }
         //CSynth.CommonFragmentShaderCode() --------------
 `;
-CSynth.CommonShaderCode = () => `
+
+CSynth.CommonShaderCode = () => /*glsl*/`
     //CSynth.CommonShaderCode() --------------
     ${CSynth.CommonFragmentShaderCode()}
 // in case we're embedded in a THREE shader, avoid re-defining these properties
@@ -332,7 +334,6 @@ CSynth.getCommonUniforms = () => {
         _camd: u._camd,
         t_ribboncol: u.t_ribboncol,
         t_ribbonrad: u.t_ribbonrad,
-        colmix: u.colmix,
         numSegs : u.numSegs, numInstancesP2 : u.numInstancesP2,
         userPicks : u.userPicks,
         HISTLEN : u.HISTLEN,
@@ -368,7 +369,10 @@ function DNASprings(xlow, num, thresh) {
     springs.setup();
 }
 
-/** core function to create springs from contacts data */
+/** core function to create springs from contacts data
+ * NOTE, this is obsolete now we have the contact texture map <<<<
+ *
+ */
 CSynth.contactsToSprings = function(contact, plow, num, thresh) {
     if (!CSynth.useOldSprings) return;   // do not create springs this way with new (post Oct 18) model
     if (!contact && CSynth.current) contact = CSynth.current.contacts[0];
@@ -545,15 +549,18 @@ function loadfree() {
 
 /** go to the open helix position, try to settle and the then object should fold from there */
 function loadopen() {
-    uniforms.stepsSoFar.value = 0;
+    // uniforms.stepsSoFar.value = 0;           // TODO to remove Oct 2020
     target = {};
     CSynth.xyzClear();
     DNASprings.dostretch();
+    const sc = G.springlen / 32.42 * numInstances * 5;
+    springs.loadopen({sc});
     onframe(() => {
         DNASprings.dostretch();
-        springs.step(1);
-        springs.settleHistory();
-        springs.step(1);
+        springs.loadopen({sc});
+        // springs.step(1);
+        // springs.settleHistory();
+        // springs.step(1);
     }, 1);
     onframe(() => centrescalenow(), 2);
 }
@@ -584,6 +591,7 @@ CSynth.restorewide = function() {
 /** load a very stretched version */
 function loadwide() {
    //CSynth.applyXyzs('..spread..');
+   let savenoise = G.noiseforce;
    if (!CSynth.widesave) {
         // settings below will take hold in 8 seconds after the spread is more or less complete
         const tout = setTimeout( () => { target.damp = 0.9; target.stepsPerStep = 2; target.noiseforce = savenoise; }, 8000);
@@ -599,7 +607,6 @@ function loadwide() {
    target.springspreaddist = CSynth.current.numInstances * 1.4 * G.springlen; // ?? * G.springlen
    DNASprings.fixends = true;
    DNASprings.stretch = true;
-   let savenoise = G.noiseforce;
    target.noiseforce = 0;
    target.springforce = 0.9;
    // target.pushapartforce = G.pushapartforce * 0.1; // too big and it stretches the entire chain
@@ -875,7 +882,7 @@ CSynth.startdemo = function() {
             document.getElementById('springgui').style.display = 'none';
     }
 
-    if (startscript) {
+    if (startscript) { //
     } else {
         startscript = 'CSynth/data/noConfig.js';
         startWsListener();
@@ -951,7 +958,7 @@ CSynth.handlefileset = function(evt, data) {
                 log('handlefileset, file not used for auto configuration:', path);
                 break;
         }
-    };
+    }
     if (o.contacts.length + o.xyzs.length > 0) {
         log('handlefileset, auto config generated as no config file');
         springdemo(o);
@@ -978,7 +985,8 @@ CSynth.settingsObject = function(k) {
 var SS = new Proxy({}, {
     get : (ig, name) => {
         const o = CSynth.settingsObject(name);
-        const r = name === 'ownKeys' ? () => Reflect.ownKeys(uniforms) :
+        const r = name === 'ownKeys' ?
+            () => Reflect.ownKeys(uniforms) :
             o ? o[name] : undefined;
         return r;
         },
@@ -995,7 +1003,7 @@ var SS = new Proxy({}, {
 
     ownKeys : (o) => {
         let x = Reflect.ownKeys(uniforms);
-        log('...', x);
+        // log('...', x);
         return x;
     }   // Object.keys(U) calls this, and x is ok, but returns []
     // !!! enumerate maynot work ...
@@ -1116,7 +1124,10 @@ async function springdemoinner(defs) {
         return;
     }
 
-    uniforms.stepsSoFar.value = 0;  // early in case explicitly overridden
+    // uniforms.stepsSoFar.value = 0;  // early in case explicitly overridden
+    const toload = () => CSynth.twist({sc:2 * G.backboneScale * springs.numInstances**(1/3)}); // was loadopen
+    toload();
+    onframe(toload, 2);   // in case springs are reconfigured and thus reset
     updateGuiGenes();
     currentGenes.stepsPerStep = 2;
 
@@ -1128,13 +1139,14 @@ async function springdemoinner(defs) {
     let lennum = isNaN(numInstances) ? 1000 : Math.max(numInstances * 10, 10000);
     let radnum = 19;
     if (CSynthFast) { lennum = numInstances; radnum = 5; }
-    resoverride = { lennum, radnum, skelends: 0, skelnum: numInstances - 1 }
+    HW.resoverride = { lennum, radnum, skelends: 0, skelnum: numInstances - 1 }
 
     // tidy up the graphics, there may be other bits that need similar change
     if (VH.SphereParticles)
         VH.SphereParticles.setInstances();
 
     DNASprings();       // set up a few spring details such as numInstances
+    const cc = CSynth.current;
     if (cc.fixedPoints) CSynth.loadFixedPoints(cc.fullDir + cc.fixedPoints);
 
     CSynth.useExtraContacts();
@@ -1166,7 +1178,7 @@ async function springdemoinner(defs) {
         }
 
         onframe(()=>Maestro.trigger('demoready'), 2);
-        onframe(()=>Gldebug.start(2), 10);      // run a short gldebug test, this will report errors
+        // onframe(()=>Gldebug.start(2), 10);      // run a short gldebug test, this will report errors
     }
 
     if (numInstances === -1) serious('Cannot run system as no instances set');
@@ -1177,20 +1189,20 @@ async function springdemoinner(defs) {
 
     /** refresh the stretch and a few other details each frame in case values have changed  */
     Maestro.onUnique('prespringstep', () => {
-        const cc = CSynth.current;
-        if (!cc.contacts) return;
+        const _cc = CSynth.current;
+        if (!_cc.contacts) return;
         DNASprings.dostretch();
         if (G.contactforce !== 0) {
             //PJT: cc.contacts empty array?
-            const contacts = cc.contacts[cc.selectedSpringSource];
+            const contacts = _cc.contacts[_cc.selectedSpringSource];
             if (contacts && !contacts.texture) {
                 CSynth.applyContacts(contacts);
             }
         }
 
-        let repv = cc.representativeContact;  // unless set otherwise
-        const ccc = cc.contacts[cc.selectedSpringSource];
-        const ccc0 = cc.contacts[0];
+        let repv = _cc.representativeContact;  // unless set otherwise
+        const ccc = _cc.contacts[_cc.selectedSpringSource];
+        const ccc0 = _cc.contacts[0];
         const reps = CSynth.separateRepresentatives;  // representative source
         let ifrat;
         if (ccc && reps !== 'none') {
@@ -1209,14 +1221,19 @@ async function springdemoinner(defs) {
         }
         uniforms.representativeContact.value = repv;
 
-        if (G.contactforce === 0 || cc.representativeContact === 0 || cc.contacts.length === 0) {
+        if (G.contactforce === 0 || _cc.representativeContact === 0 || _cc.contacts.length === 0) {
             G.contactforcesc = 0;
         } else {
             G.contactforcesc = G.contactforce * 1e-6 / repv;
         }
-        uniforms.contactforcesc.value = G.contactforcesc;
 
-        if (cc.contacts.length === 0 && G.xyzforce === 0 ) G.xyzforce = 0.5;
+        // this was added without allowing for geneGoverrides in rev 8126, 7 Aug 2020, no indication why needed.
+        // this broke lorentz example; no comment as to what it fixed or why it was needed
+        // corrected to allow for geneOverrides, 9 April 2021
+        uniforms.contactforcesc.value = ('contactforcesc' in geneOverrides ? geneOverrides : G).contactforcesc;
+
+        if (_cc.contacts.length === 0 && G.xyzforce === 0 ) G.xyzforce = 0.5;
+        if (!U.distbuff) G.xyzforce = 0;
     });
 
     // everything is settled, do any specific overrides the user wants
@@ -1267,12 +1284,12 @@ CSynth.getProperty = function(cccx, reps) {
 function highres() {
     let lennum = Math.floor(uniforms.t_ribbonrad.value.image.width / (1 - G.capres));
     lennum = Math.max(lennum, 5000);
-    resoverride = { lennum, radnum: 19, skelends: 0, skelnum: numInstances - 1 }
+    HW.resoverride = { lennum, radnum: 19, skelends: 0, skelnum: numInstances - 1 }
     shadows(7);  //  probably overkill
     setSize();
 }
 function lowres() {
-    resoverride = { lennum: 200, radnum: 3, skelends: 0, skelnum: numInstances - 1 }
+    HW.resoverride = { lennum: 200, radnum: 3, skelends: 0, skelnum: numInstances - 1 }
     shadows(0);
     cMap.updateRate = 1e20;  // should really not be being used anyway
     setSize(512, 512);
@@ -1352,9 +1369,11 @@ CSynth.showpick = function (callback) {
     if (CSynth.guidetail >= 2) var pos = springs.getpos();
     for (let i = 0; i < pick.array.length; i++) {
         let p = pick.array[i];
-        let partid = Math.floor(p * numInstances);
-        let bp = p * cc.range + cc.minid;
-        let pname = pnames ? pnames[partid] : Number(Math.round(bp)).toLocaleString()+'bp';
+        const partidf = p * (numInstances - 1);
+        let partid = Math.floor(partidf);
+        // let bp = p * cc.range + cc.minid;
+        let bp = CSynth.getBPFromNormalisedIndex(p);
+        let pname = (pnames ? pnames[partid] : typeof bp === 'number' ? Number(Math.round(bp)).toLocaleString() : bp)+'bp';
         CSynth.picks[i] = CSynth.picks[CSynth.pickslots[i]] = undefined;
         if (!CSynth.pickslots[i]) continue;   // this pick slot not used
         if (!(0 < p && p < 1)) continue;      // this slots indicates no pick
@@ -1369,7 +1388,7 @@ CSynth.showpick = function (callback) {
             partid += ' (' + format(pp.x) + ',' + format(pp.y) + ',' + format(pp.z) + ')';
             stst.pos = pp;
         }
-        r.push(CSynth.pickslots[i] + ': ' + pname + '/' + partid + '   ' + bedt);
+        r.push(CSynth.pickslots[i] + ': ' + pname + '/' + format(partidf) + '   ' + bedt);
     }
     let m1 = pick.array[4], m2 = pick.array[5];   // preselect matrix
     if (m1 > 998 ) { m1 = pick.array[12]; m2 = pick.array[13]; }  // select matrix
@@ -1396,7 +1415,7 @@ CSynth.showpick = function (callback) {
     if (CSynth.bc && CSynth.picks[4] && CSynth.picks[5]) {
         const x = CSynth.picks[4].partid, y = CSynth.picks[5].partid;
         if (x !== CSynth.bc.last.x || y !== CSynth.bc.last.y) {
-            CSynth.bc.postMessage({command: 'function', function: 'setxyShow', args: [0, x, y]})
+            CSynth.bc.postMessage({command: 'setxyShow', args: [0, x, y]})
             CSynth.bc.last = {x, y};
         }
     }
@@ -1564,7 +1583,7 @@ CSynth.orient = function (p, top, useforward) {
 }
 
 /** use orientation to compute new coords */
-CSynth.orientCoords = function (p = springs.getpos(), top, useforward) {
+CSynth.orientCoords = function (p = springs.getpos(), top=undefined, useforward=undefined) {
     const m = CSynth.orientMatrix(p, top, useforward);
     let r = [];
     for (let i = 0; i < p.length; i++)
@@ -1634,6 +1653,7 @@ CSynth.savexyz = function (fid) {
 
 /** choose a given bed for all bed functions */
 CSynth.chooseBed = function (bed) {
+    if (!CSynth.colourGUIs) CSynth.colourGUIs = [];
     if (CSynth.parseBioMart.sourceGUI)
         CSynth.parseBioMart.sourceGUI.userData.setValue(bed);  // may not be if only constant, rainbow
     CSynth.colourGUIs.forEach(g => g.userData.setValue(bed));
@@ -1642,6 +1662,7 @@ CSynth.chooseBed = function (bed) {
 
 /** add (or replace) top level bed gui, and children if any */
 CSynth.refreshBedGUIs = function (modes = V.modesgui) {
+    if (!modes) return;
     const bedname = "BED data source:";
     let index;
     if (CSynth.bedgui) {
@@ -1649,15 +1670,16 @@ CSynth.refreshBedGUIs = function (modes = V.modesgui) {
         index = CSynth.bedgui.guiIndex;
     }
 
-    const sources = CSynth.current.beds.map(b=>b.shortname);
-    sources.push('constant');
-    sources.push('rainbow');
+    const sources = CSynth.current.beds.map(b=>b.shortname).concat(Object.keys(CSynth.fixedBeds));
     const n = CSynth.bedgui = modes.add({x:sources[0]}, 'x', sources).name(bedname).listen().onChange(CSynth.chooseBed);
     n.index = index;
 
     CSynth.refreshColourGUIs();
     CSynth.refreshTextSource();
 }
+
+VH.handheldGUIScale = 80;
+VH.handheldGUIDistance = 10;
 
 /** make a gui, if force is set remake even if already there
  * if force is a function, call it to insert extra nodes at stop of tree
@@ -1684,6 +1706,8 @@ CSynth.makegui = async function(force) {
             { func: CSynth.savexyz, tip: "Save current positions as xyz file.", text: 'savexyz' },
             { func: CSynth.savepdb, tip: "Download current positions as PDB file.", text: 'savepdb' },
             { func: GX.savegui, tip: "Save current settings from the gui,\n+orientation.", text: 'savegui' },
+            { func: () => STL.output('obj'), tip: "Save current form as obj file.", text: 'save obj' },
+            { func: () => STL.output('stl'), tip: "Save current form as stl file.", text: 'save stl' },
             { func: () => downloadImage(cc.project_name, 'png', true), tip: "Download current image\ncurrent resolution", text: 'save image' },
             { func: () => downloadImage(cc.project_name, 'png', false), tip: "Download current image\nwithout gui\ncurrent resolution", text: 'save image\nno gui' },
             { func: () => downloadImageHigh(3840, cc.project_name, 'png', false), tip: "Download current image\nwithout gui\nlarge dimension 3840\ncurrent aspect ratio", text: 'save big image\nno gui' }
@@ -1821,6 +1845,7 @@ ${cci.filename}`,
         { func: CSynth.autoscale, tip: "autoscale to the current conformation\nHome key", text: 'Auto scale' },
         { func: springs.reCentre, tip: "recentre particles (e.g. in case of simulation drift)", text: 'Recentre' },
         { func: loadwide, tip: "stretch out (loadwide)\n", text: 'Stretch' },
+        {},
         {
             func: CSynth.randpos, tip:
 `set new pseudo-random positions
@@ -1828,10 +1853,16 @@ and allow conformation to reform.
 If seed (below) is non-0 it will be used as a seed,
 otherwise a random seed will be used.
 
-R key`, text: 'Random'
+R key, or K,R keys`, text: 'Random'
         },
+        { func: ()=>runkeys('K,H'), tip: "Refold from helix conformation\n\nK,H keys", text: 'Helix' },
+        { func: ()=>runkeys('K,T'), tip: "Refold from twisted helix\n\nK,T", text: 'Twist'},
+        { func: ()=>runkeys('K,S'), tip: "Refold from space filling curve\n\nK,S", text: 'Space filling'},
+
         { func: ()=>GX.restoregui('>initial.settings'), tip: "Restore initial settings", text: 'Reset' },
-        { func: ()=>GX.restoregui('>previous.settings'), tip: "Restore settings from previous session", text: 'Previous' }
+        { func: ()=>GX.restoregui('>previous.settings'), tip: "Restore settings from previous session", text: 'Previous' },
+        { func: ()=> springs.recordCycle(), tip: 'Record single cycle of spring history', text: 'Record Cycle'},
+
         //{ func: loadopen, tip: "open to helix\nand allow conformation to reform\nctrl-H keys", text: 'Helix' },
         //{ func: ()=>CSynth.kick(10), tip: "kick\nIf selection, kick selected\nelse kick all", text: '<Kick' },
         //{ func: ()=>CSynth.kick(50), tip: "big kick\nIf selection, kick selected\nelse kick all", text: '>Kick' },
@@ -1929,8 +1960,6 @@ R key`, text: 'Random'
     r.onChange( s => setInput(W.yzrot, s));
     view.add(V, 'angleOptions', [0, 1, 2, 3]).name('laser angle').listen();
 
-    VH.handheldGUIScale = 80;
-    VH.handheldGUIDistance = 10;
     //TODO: GUIVR bugfixing relating to this...
 
     view.add(CSynth, 'modesToHand').listen().setToolTip('attach modes to hand when possible');
@@ -1943,7 +1972,8 @@ R key`, text: 'Random'
     const savebuttons = [5,
         { func: ()=>CSynth.saveRuns({nruns:1000}), tip:'run up to 1000 tests', text: "Run tests"},
         { func: ()=>CSynth.compareRuns.break = true, tip:'stop tests', text: "Stop tests"},
-        { func: CSynth.startLMV, tip:'start large matrix viewer in another window', text: "LMV"}
+        { func: CSynth.startLMV, tip:'start large matrix viewer in another window', text: "LMV"},
+        { func: writeBintri, tip:'save bintri files', text: "save bintri"}
     ];
     extras.addImageButtonPanel.apply(extras, savebuttons).setRowHeight(0.15);
 
@@ -1957,8 +1987,8 @@ R key`, text: 'Random'
     }
 
     gGui.add(gxx, 'aares', 0.5, 4).step(0.1).listen().setToolTip('antiAlias factor');
-    gGui.add(resoverride, 'lennum', 1000, 64000).step(1).listen().setToolTip('graphics resolution along ribbon');
-    gGui.add(resoverride, 'radnum', 3, 30).step(1).listen().setToolTip('graphics resolution around ribbon');
+    gGui.add(HW.resoverride, 'lennum', 1000, 64000).step(1).listen().setToolTip('graphics resolution along ribbon');
+    gGui.add(HW.resoverride, 'radnum', 3, 30).step(1).listen().setToolTip('graphics resolution around ribbon');
     extras.add(gGui);
 
     const next = ()=>G.stepsPerStep=2;
@@ -2109,7 +2139,8 @@ CSynth.removeFromParent = function(v) {
 
 CSynth.modesToHand = true;  // attach modes to hand when possible
 Maestro.on('preframe', () => {  // monitor each frame to ensure appropriate attachment
-    if (renderVR.invr()) {
+    if (!V.gui) return;
+    if (renderVR.invr() && !VH.fixguiForVR) {
         if (V.gpL && CSynth.modesToHand ) {
             CSynth.attachModesToHand();
         }
@@ -2120,6 +2151,12 @@ Maestro.on('preframe', () => {  // monitor each frame to ensure appropriate atta
     } else {
         CSynth.detachModesFromHand();
         if (V.modesgui && !V.modesgui.parent) V.nocamscene.add(V.modesgui);
+        // below mainly applies immediately on leaving VR, or entering tad.headResting
+        if (VH.fixguiForVR && V.gui.position.z !== 0)  {
+            VH.positionGUI();
+            V.gui.add(V.modesgui);  // should have happened but ???
+            V.modesgui.open();
+        }
     }
 });
 
@@ -2147,10 +2184,14 @@ CSynth.press = function(ii) {
 
 
 /** make dropdown for file, and replace in place if needed */
-CSynth.updateAvailableFiles = function(parent = V.saveloadgui) {
+CSynth.updateAvailableFiles = function(parent = V.lastsavegui || V.saveloadgui, newname) {
+    V.lastsavegui = parent;
     const cc = CSynth.current;
+    if (!cc) return;
     const dir = cc.fullDir;
-    cc.availableFiles = readdir(dir);
+    if (newname === '>!auto.settings') return;
+    // ??? better than above ??? if (cc.availableFiles && cc.availableFiles[newname]) return;
+    cc.availableFiles = dir ? readdir(dir) : [];
     const xx = {x:''};
     let files = Object.keys(cc.availableFiles).filter(x => x.endsWith('.settings') || x.endsWith('.xyz'));
     files = files.concat(GX.locallist());
@@ -2159,7 +2200,11 @@ CSynth.updateAvailableFiles = function(parent = V.saveloadgui) {
     if (fstr === CSynth.updateAvailableFiles.last) return;
     CSynth.updateAvailableFiles.last = fstr;
     //What if files array is empty?
-    if (V.filesgui) parent.remove(V.filesgui);
+    let place = undefined;
+    if (V.filesgui) {
+        place = V.filesgui.guiIndex;
+        parent.remove(V.filesgui);
+    }
     V.filesgui = undefined;
     if (files.length === 0) return;
     const nnn = V.filesgui = parent.add(xx, 'x', files).name("Files:").onChoose(fn => {
@@ -2170,6 +2215,7 @@ CSynth.updateAvailableFiles = function(parent = V.saveloadgui) {
         if (fn.endsWith('.xyz'))
             CSynth.xyzFileToFix(fn);
     });
+    if (place !== undefined) V.filesgui.guiIndex = place;
 
     CSynth.filedropgui = nnn;
 }
@@ -2397,7 +2443,7 @@ CSynth.extrudeDouble = async function(a, b, t = 2000, marker = 0) {
  */
 
 // tests on simplified springs
-var FIRST, cc;
+var cc;
 CSynth.springtest = function(a,b,c,d) {
     const tt = FIRST(a, 1e-6);
     // test exact springs
@@ -2444,4 +2490,4 @@ CSynth.springtest = function(a,b,c,d) {
 
 
 // test for fixed -> distance and whether it jumps
-// springs.settleHistory(); CSynth.xyzsExact(0); springs.settleHistory(); CSynth.applyXyzs(0); springs.step(); springs.settleHistory();
+// springs.settleHistory(); CSynth.xyzsExact(0); springs.settleHistory(); CSynth.applyXyzs(0); springs.step(1); springs.settleHistory();

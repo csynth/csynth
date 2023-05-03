@@ -11,13 +11,14 @@ uniform float pointSize;
 
 //attribute vec3 position;
 //#if OPMODE == OPMAKESKELBUFF
-#if __VERSION__ < 300
-	attribute float instanceID;
-#else
+int versionvv = __VERSION__;
+//#if __VERSION__ < 300
+//	attribute float instanceID;
+//#else
 	#define instanceID float(gl_InstanceID)  // needs 1.40 or above, but use with gles  300 es
-#endif
+//#endif
 
-#if (OPMODE == OPREGULAR || OPMODE == OPOPOS || OPMODE == OPTEXTURE)
+#if (OPMODE == OPREGULAR || OPMODE == OPOPOS || OPMODE == OPTEXTURE || OPMODE == OPMAKEGBUFFX)
 	varying vec4 opos;         // original position passed, ????? // ??? todox should not need to pass this always, but ... temp to help USESKELBUFF
 #else
 	vec4 opos;  // some time remove this and references to it, but optimizer should do that anyway ???
@@ -91,6 +92,70 @@ vec4 logdepth (in vec4 ooo) {
 
 void main()	{
 
+	// option only to use first numScalePositionActive horns for scaling
+    {
+    #if OPMODE == OPPOSITION
+    if (instanceID >= numScalePositionActive) {
+        gl_Position = vec4(1e20, 1e20, 1e20, 0.);
+        opos = vec4(9999999,9999999,9999999,1);
+        return;
+    }
+    float vid = float(gl_VertexID);
+
+    float q = mod(vid, 8.);
+    float iii = floor(vid / 8.);
+    vec2 vv = vec2(mod(iii, skelnum), floor(iii / skelnum));
+    //vec2 vv = vec2(floor(iii / skelnum), float(gl_InstanceID));
+    vec2 vvv = (vv+0.5) / skelbufferRes;
+    vec4 shapepos = texture(skelbuffer, vvv);
+    //vec4 shapepos = texelFetch(skelbuffer, ivec2(vv));
+
+    float r = shapepos.w;
+    r = 0.; // temp
+
+    // put the coord into one of 8 slots, thus gather mins and maxs
+    // assume there is a total of 8 slots with 2 unused
+    // there will be slightly random sampling of sample->value recorded,
+    // but plenty good enough to give adequate value
+    gl_PointSize = 1.;
+    // float q = mod(p.x * lennum +  p.y * radnum, 8.);
+    float l;  // to hold the value that will be passed
+    vec4 rr;  // to hold gl_Position
+    if (q < 1.) { l = -shapepos.x + r ; rr.x = -7./8.; }
+    else if (q < 2.) { l = shapepos.x + r; rr.x = -5./8.; }
+    else if (q < 3.) { l = -shapepos.y + r; rr.x = -3./8.; }
+    else if (q < 4.) { l = shapepos.y + r; rr.x = -1./8.; }
+    else if (q < 5.) { l = -shapepos.z + r; rr.x = 1./8.; }
+    else if (q < 6.) { l = shapepos.z + r; rr.x = 3./8.; }
+    else if (q < 7.) { l = -shapepos.w; rr.x = 5./8.; }
+    //else if (q < 999.) { l = shapepos.z; rr.x = 3./8.; }
+    else { l = shapepos.w; rr.x = 7./8.; }
+    rr.y = 0.;
+    // map rl to range -1 to 1, right for depth buffer
+    // rl in -1 to 1 maps to ll=0 ~~~ this means we can't scale tiny objects
+    // rl > 1 maps to negative values, rl < -1 maps to negative values
+    // extreme or incorrect values (eg NaN) are ignored
+    // with tr/l scale 128 as below we can go down to around 1/100, an up to around 1e6
+    // The scaling and other l=>ll code does not affect scalVary itself,
+    // it only affects the value in the depth buffer to ensure appropriate min/max
+    float rl = l * 128.;
+    float ll = 0.;
+    if (rl > 1.) ll = - log(rl) / 20.;
+    if (rl < -1.) ll = log(-rl) / 20.;
+    if (ll < -1. || ll > 1.) rr.x = 999.;      // ignore points computed wrong  ll in range [-1 .. 1]
+    if (ll != ll) rr.x = 999.;                 // ignore points computed wrong
+    rr.z = ll; rr.w = 1.;
+    gl_Position = rr;
+    //#ifdef GPUSCALE		// NO always use this and get data with readWebGLFloat
+        scaleVary = l;      // pass the full floating point number for easy use in GPU, and on GPU by readWebGLFloat
+    //#else
+    //    scaleVary = ll;     // pass the log to help turn to integer and scale for transfer to CPU
+    //#endif
+    return;
+    #endif
+    }
+
+
     float id = instanceID;              // used for instancing version
     vec4 p;
     #if 1==2
@@ -98,11 +163,13 @@ void main()	{
         p = vec4(position, 1.);
         p.z += id;
     #elif defined(GPUGRIDN) && ( OPMODE == OPOPOS || OPMODE == OPPOSITION || OPMODE == OPSHADOWS ) // || OPMODE == OPMAKESKELBUFF )
-        #if (1==2)  // vertexid not supported on webgl 1.0
+        #ifdef ISES300  // vertexid not supported on webgl 1.0
             float vid = float(gl_VertexID);
         #else
             float vid = float(positioni);
         #endif
+
+
 		{
 		#if (OPMODE == OPMAKESKELBUFF)  // not working right now
 			float i = 0.;
@@ -132,7 +199,7 @@ void main()	{
 		opos = p;
 		return;
 
-    #elif (OPMODE == OPOPOS2COL || OPMODE == OPSHAPEPOS || OPMODE == OPTSHAPEPOS2COL || OPMODE == OPTEXTURE || OPMODE == OPBUMPNORMAL)
+    #elif (OPMODE == OPOPOS2COL || OPMODE == OPSHAPEPOS || OPMODE == OPTSHAPEPOS2COL || OPMODE == OPTEXTURE || OPMODE == OPBUMPNORMAL || OPMODE == OPEDGE)
         // operations that work on image buffer->buffer
         //?p.x += 0.5; p.y += 0.5;     // to range 0 .. 1  including both ends
 		//?opos = p;
@@ -144,7 +211,7 @@ void main()	{
         #else
             p.x += 0.5; p.y += 0.5;     // to range 0 .. 1  including both ends
             // p.z += modelMat rix[3][2];   // used to pass extra instance information for old style horn render
-            #if (OPMODE != OPTSHAPEPOS2COL)
+            #if (OPMODE != OPTSHAPEPOS2COL && OPMODE != OPMAKEGBUFFX)
                 if (NORMTYPE >= 5.) p.y *= 0.5;  // only forward facing parts needed with NORMTYPE=5
             #endif
         #endif
@@ -180,8 +247,9 @@ void main()	{
         #if (OPMODE == OPMAKEGBUFFX)
             objpos = shapepos;
             objpos.w = 1.; // xr;
-            gl_PointSize = 1.;
-            gl_Position =  vec4(buffpointscreen(p.xyz, lennum, radnum), 0., 1.);
+            gl_PointSize = 0.1; // small helps make sure the line below hits the right points exactly
+            // p ranges from 0 to 1 inclusive but the corresponding points need to hit the 0.5 points on the screen grid
+            gl_Position =  vec4(( (p.xy * (gbufferres-1.) + 0.5)/gbufferres) * 2. - 1., 0., 1.);
             return;
         #elif OPMODE == OPPOSITION
             // put the coord into one of 8 slots, thus gather mins and maxs
@@ -206,7 +274,7 @@ void main()	{
             // rl in -1 to 1 maps to ll=0 ~~~ this means we can't scale tiny objects
             // rl > 1 maps to negative values, rl < -1 maps to negative values
             // extreme or incorrect values (eg NaN) are ignored
-            // with tr/l scale 128 as below we can go down to around 1/00, an up to around 1e6
+            // with tr/l scale 128 as below we can go down to around 1/100, an up to around 1e6
             // The scaling and other l=>ll code does not affect scalVary itself,
             // it only affects the value in the depth buffer to ensure appropriate min/max
             float rl = l * 128.;
@@ -226,7 +294,8 @@ void main()	{
         #endif
 
         vec4 trpos = shapepos * rot4;           // do our 4d rotation NOT OPTEST
-        trpos = vec4(trpos.xyz, 1.);            // for gl, flatten to 3d
+        trpos /= trpos.w;                       // flatten to 3d
+        // trpos = vec4(trpos.xyz, 1.);            // for gl, flatten to 3d
         vec4 ooo;
         #if (OPMODE == OPTSHAPEPOS2COL || OPMODE == OPOPOS2COL || OPMODE == OPTEXTURE || OPMODE == OPSHAPEPOS)
             // camera is passed in but should not be used for this stage,

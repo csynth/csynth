@@ -5,8 +5,8 @@ var isProjected = false;
 function MessageHandler( event )
 {
         isProjected = true;
-        var func = event.data['func'];
-        var arg = event.data['arg'];
+        var func = event.data.func;
+        var arg = event.data.arg;
 
         console.log(func);
         console.log(arg);

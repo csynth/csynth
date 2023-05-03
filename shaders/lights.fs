@@ -25,9 +25,15 @@ gene(flulow, 0.5, 0, 1, 0.1, 0.01, gtex, frozen)  //  position of fluor band
 genet(fluwidth, 0.5, 0, 1, 0.01, 0.01, texture, free)  //  width of fluor band within texture
 gene(flurange, 1, 0, 3, 0.01, 0.001, gtex, frozen)  //  range of flu hue variety along horn
 
-gene(opacity, 1, 0, 1, 0.01, 0.001, gtex, frozen)  //  opacity, not generally used
-gene(badnormals, 2, 0, 4, 1, 1, system, frozen)  // choice to take for backward facing normals<br>0=yellow, 1=ignore, 2=coerce, 3=flip, 4=coerce/flip
-gene(edgeprop, 1, 0,1, 0.1, 0.01, gtex, frozen)    // strength for edges vs shading, only used if EDGES set
+gene(opacity, 1, 0, 1, 0.01, 0.001, gtex, frozen)   //  opacity, not generally used
+gene(badnormals, 2, 0, 4, 1, 1, system, frozen)     // choice to take for backward facing normals<br>0=yellow, 1=ignore, 2=coerce, 3=flip, 4=coerce/flip
+gene(edgeprop, 1, 0,1, 0.1, 0.01, gtex, frozen)     // strength for edges vs shading, 1 for black, only used if EDGES set, edgeprop == 0 && fillprop == 0 gives no edges
+gene(fillprop, 0, 0,1, 0.1, 0.01, gtex, frozen)     // whiteness for non-edges, 1 for white, only used if EDGES set
+uniform vec3 edgecol, fillcol;   					// 'target' colour for edges and fill
+gene(edgeidlow, 0, 0,32, 1, 1, gtex, frozen)        // low id for which edges apply
+gene(edgeidhigh, 31, -1,31, 1, 1, gtex, frozen)     // high id for which edges apply
+gene(edgethresh, 4, -1,5, 1, 1, gtex, frozen)       // threshold number of neighbours to count as 'fill'
+
 
 gene(colribs, 0, -1,1, 0.1, 0.01, gtex, frozen)    // multiplier for colouring different ribs with different colour
 
@@ -37,9 +43,14 @@ gene(fogb, 0.1, 0,1, 0.1, 0.01, gtex, frozen)    // blue for fog
 gene(fogstartdist, 0, 0,4000, 10, 1, gtex, frozen)    // dist at which fog starts applying
 gene(foghalfdepth, 0, 0,4000, 10, 1, gtex, frozen)    // half depth for fog, 0 for no fog
 
+gene(lightoutpower, 1, 0,3, 0.01, 0.01, gtex, frozen)   // power for output of lighting stage
+
 // gene for debug
 gene(xxposprop, 0, 0,1, 1,0.1, gtex, frozen) // proportion of 'position' color to use, 0 for normal colouring
 gene(xxnormprop, 0, 0,1, 1,0.1, gtex, frozen) // proportion of 'normal' color to use, 0 for normal colouring
+
+gene(useProjectionImage, 0, 0,5,0.1,0.1, gtex, frozen) // 0, no projection image, larger for greater strength
+uniform sampler2D projectionImage;
 
 uniform mat4 lightProjectionMatrix0;
 uniform mat4 lightViewMatrix0;
@@ -552,7 +563,7 @@ vec3 getBumpedNormal(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, o
     rotpos = (/**!!! NO viewMatrix * **/ trpos).xyz;  // rotpos will allow for rotation and camera position, model space
     if (! (ymin <= rotpos.y && rotpos.y <= ymax) ) discard; // do not show reflection above water
 
-    mat3 rotNormal = mat3(rot4wc);    // rotation for normals
+    mat3 rotNormal = mat3(rot4wc);    // rotation for normals. not necessarily unit size, scaled by _uScale
 // opposition values are stored inconsistently, they use pre-rotation values for form,
 //if (colourid == 2.) rotNormal = mat3(1.365967365967366,0,0, 0,1,0, 0,0,1);  // NOTR test uses different rot4
 //if (colourid == 2.) rotNormal = mat3(1,0,0, 0,1,0, 0,0,1);  // NOTR test uses different rot4
@@ -561,6 +572,8 @@ vec3 getBumpedNormal(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, o
     // todo: correct this code suspect for 4d objects
     // float dd = oposx.x < 0.5 ? 1. : -1.;  // + or - 1 to stop distortion at extreme ends
     vec3 mnormal = -xbnorm * rotNormal * reflnorm;  // bumped normal in world space
+    mnormal = normalize(mnormal);                   // allow for rot4wc not unit
+
 
     // normals may get backwards because of twisting in the tranrule application
     // or becuase of bump mapping
@@ -569,12 +582,6 @@ vec3 getBumpedNormal(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, o
     // mmnormal is in the correct direction towards eye.
     // vec3 campos1 = -modelViewMatrix[3].xyz; // vec3(0., 0., -viewMatrix[3][2]);
 
-	// TODO remove this and next comment lines after Sept 2017
-	// !!! NO cameraPosition has already been allowed for in computing rotpos
-	// !!! NO as cameraPosition is part of the viewMatrix.
-	// !!! NO I suspect this bug arose as originally we did not allow for camera rotation
-	// !!! NO and allowed for camera position here ...
-	// !!! NO viewMatrix allows for both, and so 'cameraPosition -' does double allowance
     // Original code was correct WITHOUT viewMatrix above, as lighting is in model spaceO
     // It may be (???) that the use of viewMatrix above was meant to move the lights with the camera????
     // Version with cameraPosition and no viewMatrix verified with frontlight.oag and camset(0,0,-1800), sjpt July 2017
@@ -645,6 +652,7 @@ virtual vec4 cookie2(const in vec2 uv) {
 /** perform the lighting and shadow computation */
 virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos) {
     #ifdef SIMPLESHADE
+        return vec4(fract(texpos * 0.1), 1.); // p.s. red1 rtc may involve lookup in COL table
         return vec4(red1, green1, blue1, 1.);
     #endif
 	vec3 viewdir; // set by getBumpedNormal
@@ -700,15 +708,27 @@ virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos) 
     // but even in general case should be based on some configurable fresnel term.
 		// note, GetReflection taked out of conditional
         // maybe should use NONU
-		vec4 rrr = GetReflection(viewdir, mmnormal, texpos) * vec4(reflred, reflgreen, reflblue, 1.);
+        vec4 rrr = GetReflection(viewdir, mmnormal, texpos) * vec4(reflred, reflgreen, reflblue, 1.);
         vec4 refl = colsurf.col.w == 0. ? vec4(0.0,0.0,0.0,1.0) : rrr;
         // make feedback part of wall (and other objects) have shadows ... approx method
-        refl.rgb *= (visibilityL0 * light0s + light1s + light2s + ambient) / (light0s + light1s + light2s + ambient);
+        refl.rgb *= (visibilityL.L0.a * light0s + visibilityL.L1.a * light1s + visibilityL.L2.a * light2s + ambient) / (light0s + light1s + light2s + ambient);
     #else
         vec4 refl = vec4(0.0,0.0,0.0,1.0);
     #endif
 
-    vec4 res = mix(col, refl, colsurf.col.w);
+    vec4 res;
+    if (useProjectionImage != 0. && colourid != WALLID) {
+        // w.i.p. use image from Kinect; registration very hard wired to view and Kinect details for now
+        vec2 pp = gl_FragCoord.xy * screen;
+        pp.y = 1. - pp.y;
+        pp.x = (pp.x - 0.5) * (screen.y / screen.x) / (32. / 26.) + 0.5;    // nb screen values are inverse of #pixels
+        float rrr = (sqrt(texture2D(projectionImage, pp).x) -0.5) * useProjectionImage; // lots of tuning todo here
+        // rrr = sqrt(rrr);
+        res = vec4(col.xyz * (1. + rrr), 1);
+    } else {
+        res = mix(col, refl, colsurf.col.w);
+    }
+
     #ifdef FLUORESC
 	if (fluwidth != 0.) {
         if (fluwidth < 0.) {
@@ -814,7 +834,10 @@ virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos) 
 
 }
 
-/** extended lighting mainly for debug: adds position and normal as possible colours */
+/** extended lighting
+mainly used for edges
+also for debug: adds position and normal as possible colours
+*/
 virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, const vec3 texpos) {
     #ifdef SETCOL
         colourid = xhornid;	// unless overwritten elsewhere
@@ -833,9 +856,17 @@ virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, 
         NONU(})
 
     #ifdef EDGES
-        // extract number of edges k and recreate real normal
-        float k = floor ((xmnormal.z + 2.) / 16.);
-        xmnormal.z -= 16. * k;
+        // extract number of non-edges neighbours and recreate real normal
+        // multiplexing a normal switching for -ve camera aspect interact really badly, TODO improve below
+        if (cameraAspect < 0.) xmnormal.z *= -1.;
+        // float nonedgenum = floor ((xmnormal.z + 2.) / 16.);
+        // xmnormal.z -= 16. * nonedgenum;
+		// >= gives single width eges, == gives double width (repeated for each side)
+
+        float nonedgenum = edgewidth == 1. ?
+            (float(haa >= h00) + float(hab >= h00) + float(hba >= h00) + float(hbb >= h00)) :
+            (float(haa == h00) + float(hab == h00) + float(hba == h00) + float(hbb == h00));
+        if (cameraAspect < 0.) xmnormal.z *= -1.;
     #endif
 
 	vec4 licol = lighting(xmnormal, trpos, texpos);
@@ -845,16 +876,24 @@ virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, 
 		vec4(  (texpos+300.)/600.,   1.) * xxposprop;
 
     #ifdef EDGES
+        // nonedgenum == 4 indicates all neighbours same object as here, eg no edge
+        // nonedgenum is originally calculated in four.fs (getPosNormalColid()) before being multiplexed with xmnormal
         #ifdef WHITE
-            vec4 ecol = (k == 4.) ? vec4(1.,1.,1.,1.) : vec4(0.,0.,0.,1.);
+            // this part largely replaced by fillprop = 1 below, left for backwards compatability
+            vec4 ecol = (nonedgenum == 4.) ? vec4(1.,1.,1.,1.) : vec4(0.,0.,0.,1.);
             r = mix(r, ecol, edgeprop);
         #else
-            vec4 ecol = vec4(0.,0.,0.,1.);
-            if (k != 4.) r = mix(r, ecol, edgeprop);
+        if (edgeidlow <= colourid && colourid <= edgeidhigh) {
+            if (nonedgenum < edgethresh)
+                r = mix(r, vec4(edgecol,1.), edgeprop);
+            else
+                r = mix(r, vec4(fillcol,1.), fillprop);
+        }
         #endif
         //r = mix(r, ecol, edgeprop);
     #endif
 
+    if (lightoutpower != 1.) r = pow(r, vec4(vec3(lightoutpower), 1));
 
     return r;
 }

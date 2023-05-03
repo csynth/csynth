@@ -2,8 +2,8 @@
 // template taken from HistoryTrace
 'use strict';
 
-var CSynth, V, THREE, dat, planeg, W, currentGenes, CSynthFast, disposeArray, VH, copyFrom, Maestro,
-camera, badshader;
+var CSynth, V, THREE, dat, W, CSynthFast, disposeArray, VH, copyFrom, Maestro,
+camera, badshader, HW;
 
 // aside: good article on 3d image options
 // http://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002519
@@ -103,7 +103,7 @@ CSynth.ImageVis3 = function() {
         uniforms.ynum.value = ynum;
         uniforms.znum.value = znum;
 
-        geo = planeg(100, 100, 1,1, Math.floor(uniforms.planes.value));
+        geo = HW.planeg(100, 100, 1,1, Math.floor(uniforms.planes.value));
         //const pos = geo.attributes.position.array;
         //for (let i=2; i<pos.length; i += 3) pos[i] *= -1; // reverse the z values
 
@@ -141,11 +141,11 @@ CSynth.ImageVis3 = function() {
         tiffTexInvMat.premultiply(b);
         tiffTexInvMat.premultiply(mesh.matrixWorld);
         tiffTexInvMat.premultiply(camera.matrixWorldInverse);
-        tiffTexInvMat.getInverse(tiffTexInvMat);
+        tiffTexInvMat.copy(tiffTexInvMat).invert();
         return;
 
         // tiffTexInvMat.copy(camera.matrixWorld);
-        tiffTexInvMat.getInverse(uniforms.rot4.value);
+        tiffTexInvMat.copy(uniforms.rot4.value).invert();
 
         tiffTexInvMat.scale( {x: 100.01, y: 100.01, z: -1 });
         tiffTexInvMat.setPosition( {x: 0, y: 0, z: 0 });

@@ -2,7 +2,7 @@
 // We do not have contact data at the resolution corresponding to the xyz data.
 // Therefore we generate dummy data for the range, and the contacts buttons become irrelevant.
 // This version averages the 1200 data points over groups of 16 to give 75 particles.
-springdemo( {
+window.springdemo( {
 	dir: 'longxyz',
 	redcontacts: {num: 1200/16, low: 32001350, step: 4000},
 	whitecontacts: {num: 1200/16, low: 32001350, step: 4000},

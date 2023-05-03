@@ -4,7 +4,7 @@ alert("test script");
 // We do not have contact data at the resolution corresponding to the xyz data.
 // Therefore we generate dummy data for the range, and the contacts buttons become irrelevant.
 // This version uses the full data without averaging to give 1200 particles.
-springdemo( {
+window.springdemo( {
 	dir: 'longxyz',
 	redcontacts: {num: 1200, low: 32001350, step: 250},
 	whitecontacts: {num: 1200, low: 32001350, step: 250},

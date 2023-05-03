@@ -7,9 +7,9 @@ let sclang: ChildProcess;
 
 async function findLangPath() {
     let p;
-    //TODO check if sclang in path.
+    //TODO check if sclang in path, search likely places?
     //review https://github.com/springernature/hasbin/blob/master/lib/hasbin.js
-    if (process.platform === 'darwin') p = "/Applications/SuperCollider/SuperCollider.app/Contents/MacOS/sclang";
+    if (process.platform === 'darwin') p = "/Applications/SuperCollider.app/Contents/MacOS/sclang";
     if (process.platform === 'win32') p = "C:/Program Files/SuperCollider-3.10.3/sclang.exe";  //pending...
     //if (process.platform === 'linux') p = "sclang"; //hope for the best?
 

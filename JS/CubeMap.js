@@ -25,9 +25,9 @@ var W, renderer, THREE, uniforms, genedefs, currentGenes, target, gl, permgenes,
     render_camera, opmode, OPTSHAPEPOS2COL, OPREGULAR, newframe, newscene, log, getMaterial, addgeneperm,
     newmain, inputs, setInput, qscene, HornWrapFUN, rrender, setlots, vivehtml, resolveFilter, updateGuiGenes,
     frametime, renderVR, framenum, serious, cdispose, rtt1, rtt2, alert, location, selcol, slots, alwaysNewframe,
-    Maestro, _boxsize, mix, G, S, runTimedScript, oneside, setAllLots, vrresting, V, viveAnim, nop, onframe, filterDOMEv,
+    Maestro, _boxsize, mix, G, S, oneside, setAllLots, vrresting, V, viveAnim, nop, onframe, filterDOMEv,
     WebGLRenderTarget, camera, renderPipe, camToGenes, blackcol, copyFrom, olength, debugCurrentObjectsSize, fitCanvasToWindow,
-    extraSlots, currentObjects, setViewports, DispobjC, oxcsynth;
+    extraSlots, currentObjects, setViewports, DispobjC, oxcsynth, HW, deferRender, objeq, usemask;
 var WALLID = 2;
 // singleton
 var CubeMap = new function () {
@@ -40,40 +40,44 @@ var CubeMap = new function () {
 
     var loadCount = 0;
     var mapper = { cubeleft: 0, cuberight: 1, cubeup: 2, cubedown: 3, cubefront: 4, cubeback: 5 };
-    cMap.rot4 = new THREE.Matrix4(); cMap.rot4.identity();
+    cMap.rot4 = uniforms.cMapRot4.value = new THREE.Matrix4(); cMap.rot4.identity();
 
     /** called from GUI to set 6 fixed image textures  */
     cMap.UploadTexture = function (element) {
         var i = mapper[element.id];
         var tl = new THREE.TextureLoader();
         cMap.m_urls[i] = element.files[0].path;    // the id is the axis in this case
-        cMap.textures[i] = tl.load(cMap.m_urls[i]);;
-    };
+        cMap.textures[i] = tl.load(cMap.m_urls[i]);
+    }
 
-    // TODO, refactor other functions
-    /** loading cubemap values from settings (? unused utility function?) */
-    cMap.Load = function (settings) {
-        if (oxcsynth) return;
-        // init urls
-        cMap.m_urls = settings.urls;
-        cMap.Init();
+    // // TODO, refactor other functions
+    // /** loading cubemap values from settings (? unused utility function?) */
+    // cMap.Load = function (settings) {
+    //     if (oxcsynth) return;
+    //     // init urls
+    //     cMap.m_urls = settings.urls;
+    //     cMap. Init();
 
-        // face status
-        var i = 0;
-        var end = settings.faces.length;
-        for (i; i < end; i++) {
-            cMap.skyMesh.material.materials[i].opacity = settings.faces[i].opacity;
-        }
-        // render status
-        cMap.SetRenderState(settings.enabled);
-        newframe();
-    };
+    //     // face status
+    //     var i = 0;
+    //     var end = settings.faces.length;
+    //     for (i; i < end; i++) {
+    //         cMap.skyMesh.material.materials[i].opacity = settings.faces[i].opacity;
+    //     }
+    //     // render status
+    //     cMap.SetRenderState(settings.enabled);
+    //     newframe();
+    // };
+
     /** default initializer. Called on lack of saved data, and changed _boxsize */
-    cMap.Init = function (dotext = true) {
+    cMap.Init = function (dotext, genes) {
         if (oxcsynth) return;
+        cMap.Colours(genes);
+        if (cMap.renderState === 'color') return;
+
+        cMap.wallScene = newscene('cMap.wallScene');
 
         if (dotext) {
-            cMap.wallScene = newscene('cMap.wallScene');
 
             cMap.textures = [];
             loadCount = 0;
@@ -96,76 +100,98 @@ var CubeMap = new function () {
             }
         }
 
-        cMap.newmesh();
+        // cMap.newmesh(undefined, genes);
         var w = 2 * _boxsize;       // width/height/depth of box
         var dr = 1;         // depth ratio for extra long side walls, not used while we have front wall pushaway below ...
         var dd = w * dr;      // depth
         var cmr = cMap.wallres; // 20;       // box resolution so vPosition accurate enough, needed if pixel distortion used distortion does not get out of control
         // for some reason (unknown, July16) using w and BackSide did not work correctly for single sided, but -w and FrontSize does
         // cMap.wallMesh.material will be filled in j.i.t. depending on opmode
-        cMap.newmesh();
+        cMap.newmesh(undefined, genes);
         cMap.wallScene.matrixAutoUpdate = true;
-        cMap.rot4 = new THREE.Matrix4();
+        cMap.rot4 = uniforms.cMapRot4.value = new THREE.Matrix4();
         cMap.rot4.identity();
         cMap.rot4.elements[11] = (dd - w) / 2;  // zpan so box at right depth
 
         // add wall mesh to the wallScene
         cMap.wallScene.addX(cMap.wallMesh);
-
-        cMap.Colours();
-
     };
     cMap.wallres = 100;  // was 20, needs to be higher for superegg walls, else sections sometimnes go missing when near wall
 
-    cMap.newmesh = function (n) {
+    cMap.boxtdef = {x:1, y:1, z:1, fixFloor:undefined};
+    /**
+     * @param {*} n
+     * @param {*} genes
+     */
+    cMap.newmesh = function (n = cMap.wallres, genes = currentGenes, tsize = cMap.boxtdef) {
+        // if (deferRender) { Maestro.onUnique('firstRealRender', () => cMap.newmesh(n, genes = currentGenes, tsize = cMap.boxtdef)); return; }
+        if (cMap.renderState === 'color') return;
+        if (n === cMap.wallres && uniforms._boxsize.value === _boxsize && objeq(tsize, cMap.lastboxdef)
+            && genes.wallFrontExtra === cMap.wfx && genes.wallBackExtra === cMap.wbx) return;
+
         uniforms._boxsize.value = _boxsize;
+        cMap.boxtdef = tsize;
+        cMap.lastboxdef = Object.assign({}, tsize);
         var w = 2 * _boxsize;       // width/height/depth of box
         var dr = 1;         // depth ratio for extra long side walls, not used while we have front wall pushaway below ...
         var dd = w * dr;      // depth
         var cmr = cMap.wallres = n || cMap.wallres; // 20;       // box resolution so vPosition accurate enough, needed if pixel distortion used distortion does not get out of control
         // for some reason (unknown, July16) using w and BackSide did not work correctly for single sided, but -w and FrontSize does
         // cMap.wallMesh.material will be filled in j.i.t. depending on opmode
-        cMap.wallMesh = new THREE.Mesh(new THREE.BoxGeometry(-w, -w, -dd, cmr, cmr, cmr * dr));
+        cMap.wallMesh = new THREE.Mesh(new THREE.BoxGeometry(-w*tsize.x, -w*tsize.y, -dd*tsize.z, cmr, cmr, cmr * dr));
         cMap.wallMesh.frustumCulled = false;
         //cMap.wallMesh.geometry.computeFaceNormals();
         //cMap.wallMesh.geometry.computeVertexNormals();
 
         // push the front vertices out of the way
-        const wfx = currentGenes.wallFrontExtra;
+        cMap.wfx = genes.wallFrontExtra, cMap.wbx = genes.wallBackExtra;
         const dd2 = (dd - 0.00001)/2;
-        if (wfx) {
-            var vv=cMap.wallMesh.geometry.vertices;
-            for (let i=0; i<vv.length; i++) if (vv[i].z >= dd2) vv[i].z *= wfx;
+        const vv = cMap.wallMesh.geometry.getAttribute('position').array;
+        if (cMap.wfx) {
+            for (let i=2; i<vv.length; i+=3) if (vv[i] >= dd2) vv[i] *= cMap.wfx;  // move over the z's, 2 is the z's
+        }
+        if (cMap.wbx) {
+            for (let i=2; i<vv.length; i+=3) if (vv[i] <= -dd2) vv[i] *= cMap.wbx;  // move over the z's, 2 is the z's
+        }
+        const ff = tsize.fixFloor;
+        if (ff !== undefined) {
+            for (let i=1; i<vv.length; i+=3) if (vv[i] < 0) vv[i] = ff;     // fix the floor, 1 is the y's
         }
 
         //note, material set at render ... TODO choose wallScene or rot4
     }
 
     // make genes for wall color/texture (initially copied from horn)
-    cMap.Colours = function () {
+    cMap.Colours = function (genes) {
+        if (cMap.ColoursDone) return;
+        cMap.ColoursDone = true;
+        function agp(name, def, min, max, delta, step, help, tag, free) {
+            return addgeneperm(name, def, min, max, delta, step, help, tag, free, false, genes);
+        }
         for (var name in genedefs) {
             var gd = genedefs[name];
             if (gd.tag !== "texture") continue;
             var myname = "wall_" + name;
-            var gdef = currentGenes[name] === undefined ? gd.def : currentGenes[name];
+            var gdef = genes[name] === undefined ? gd.def : genes[name];
             if (name.endsWith("scale")) {
-                addgeneperm(myname, gdef * 10, gd.min * 10, gd.max * 10, gd.delta * 10, gd.step * 10, gd.help, "wallcol", gd.free);
+                agp(myname, gdef * 10, gd.min * 10, gd.max * 10, gd.delta * 10, gd.step * 10, gd.help, "wallcol", gd.free);
             } else {
-                addgeneperm(myname, gdef, gd.min, gd.max, gd.delta, gd.step, gd.help, "wallcol", gd.free);
+                agp(myname, gdef, gd.min, gd.max, gd.delta, gd.step, gd.help, "wallcol", gd.free);
             }
         }
 
         // make sure genes added early so they are included in display
-        // addgeneperm('feedscale', 1.1,  0.5, 2, 0.1, 0.01, "scale used for feedback", "feedback", 0);
-        addgeneperm('feedxrot', 0, -90, 90, 0.1, 0.01, "xrot for feedold (degrees)", "feedoldenv", 0);
-        addgeneperm('feedyrot', 0, -90, 90, 0.1, 0.01, "yrot for feedold (degrees)", "feedoldenv", 0);
-        addgeneperm('feedzrot', 0, -360, 360, 5, 0.5, "zrot for feedold (degrees)", "feedoldenv", 0);
-        addgeneperm('feedr', 1, 0, 1, 0.1, 0.01, "red for feedold", "feedoldenv", 0);
-        addgeneperm('feedg', 1, 0, 1, 0.1, 0.01, "blue for feedold", "feedoldenv", 0);
-        addgeneperm('feedb', 1, 0, 1, 0.1, 0.01, "green for feedold", "feedoldenv", 0);
-        addgeneperm('wallAspect', 1, -3, 3, 0.1, 0.01, "aspect ratio for walls,<br>for +ve values RELATIVE to frame aspect ratio,<br>for -ve values absolute", "wallgeom", 0);
-        addgeneperm('wallSize', 1, 0, 3, 0.1, 0.01, "height for walls", "wallgeom", 0);
-        addgeneperm('wallFrontExtra', 0, 0, 100, 1, 1, "extra push for front walls", "wallgeom", 0);
+        // agp('feedscale', 1.1,  0.5, 2, 0.1, 0.01, "scale used for feedback", "feedback", 0);
+        agp('feedxrot', 0, -90, 90, 0.1, 0.01, "xrot for feedold (degrees)", "feedoldenv", 0);
+        agp('feedyrot', 0, -90, 90, 0.1, 0.01, "yrot for feedold (degrees)", "feedoldenv", 0);
+        agp('feedzrot', 0, -360, 360, 5, 0.5, "zrot for feedold (degrees)", "feedoldenv", 0);
+        agp('feedr', 1, 0, 1, 0.1, 0.01, "red for feedold", "feedoldenv", 0);
+        agp('feedg', 1, 0, 1, 0.1, 0.01, "blue for feedold", "feedoldenv", 0);
+        agp('feedb', 1, 0, 1, 0.1, 0.01, "green for feedold", "feedoldenv", 0);
+        agp('wallAspect', 1, -3, 3, 0.1, 0.01, "aspect ratio for walls,<br>for +ve values RELATIVE to frame aspect ratio,<br>for -ve values absolute", "wallgeom", 0);
+        agp('wallSize', 1, 0, 3, 0.1, 0.01, "height for walls", "wallgeom", 0);
+        agp('wallFrontExtra', 0, 0, 100, 1, 1, "extra push for front walls", "wallgeom", 0);
+        agp('wallBackExtra', 0, 0, 100, 1, 1, "extra push for back walls", "wallgeom", 0);
     }
 
     /** rendering each pass: (TODO remove interface layer, just change render() when sure)   */
@@ -176,16 +202,17 @@ var CubeMap = new function () {
     // simple rendering function. Takes the current renderer and camera from mutbase.js
     // permit an override scene, eg for mask phases
     function renderwall(main_camera, render_texture, oscene, genes) {
-        if (uniforms._boxsize.value !== _boxsize) cMap.Init(false);   // variant of newmesh()?
+        if (usemask === -98) return;
+        if (uniforms._boxsize.value !== _boxsize) cMap.Init(false, genes);   // variant of new mesh()?
         if (oxcsynth) return;
-        if (!permgenes.wall_red1) cMap.Colours();  // sometimes Init called so soon that the genes are not registered, TODO clean
+        if (!permgenes.wall_red1) cMap.Colours(genes);  // sometimes Init called so soon that the genes are not registered, TODO clean
         if (cMap.renderState !== 'color' && cMap.renderState !== 'walls' && !inputs.REFLECTION) setInput(W.REFLECTION, true);
 
         var wallScene = oscene || cMap.wallScene;
         if (!cMap.renderBack) return;
 
         // this must be refreshed often for the different opmodes/passes
-        var mat = getMaterial("NOTR");
+        var mat = getMaterial("NOTR", genes);
         if (wallScene === qscene)
             mat.depthTest = mat.depthWrite = false;
         mat.transparent = opmode === OPTSHAPEPOS2COL || opmode === OPREGULAR;
@@ -205,9 +232,8 @@ var CubeMap = new function () {
         wallScene.children[0].material = mat;
 
         var save = uniforms.rot4.value;  // save and move to local matrix
-        // uniforms.rot4.value = cMap.wallScene.matrixWorld; // cMap.rot4;
-        // warning, wallSize != 1 gets shadows wrong
-        var asp = genes.wallAspect > 0 ? genes.wallAspect * render_texture.width / render_texture.height : -genes.wallAspect;
+        // warning, wallSize != 1 or asp !== 1 got shadows wrong, fixed by addition of uniforms.cMapRot4, 25/07/2021
+        var asp = cMap.computedWallAspect = genes.wallAspect === 0 ? 1 : genes.wallAspect > 0 ? genes.wallAspect * render_texture.width / render_texture.height : -genes.wallAspect;
         cMap.rot4.elements[0] = asp * genes.wallSize;
         cMap.rot4.elements[5] = genes.wallSize;
         uniforms.rot4.value = cMap.rot4;
@@ -215,14 +241,14 @@ var CubeMap = new function () {
         uniforms.hornid.value = WALLID;
 
         // force this late as sometimes was getting overwritten ???
-        cMap.wallMesh.material.side = THREE.FrontSide;
+        cMap.wallMesh.material.side = camera.aspect > 0 ? THREE.FrontSide : THREE.BackSide;
 
-//        if (!HornWrapFUN.cubeEarly)   // no, only getting called with correct opmode, for which we do need it
+//        if (!HW.cubeEarly)   // no, only getting called with correct opmode, for which we do need it
             rrender("wall", wallScene, main_camera, render_texture, false);
         uniforms.hornid.value = shid;
 
         uniforms.rot4.value = save;  // return to the old position
-    };
+    }
 
 
     /** set up CubeMap with various presets for simple situations */
@@ -234,6 +260,7 @@ var CubeMap = new function () {
         log('cMap.SetRenderState', cMap.renderState, '=>', value);
         if (!uniforms.cubeMap) uniforms.cubeMap = { type: "t" };
         if (!uniforms.flatMap) uniforms.flatMap = { type: "t" };
+        cMap.wallType = ['none', 'none', 'none', 'none', 'none', 'none'];
 
         if (oxcsynth) return;
         if (value === 'colour') value = 'color';
@@ -242,11 +269,14 @@ var CubeMap = new function () {
 
         selcol.setRGB(0.13, 0.13, 0.2);
 
-        if (!cMap.textures) cMap.Init();
+        if (!cMap.textures) cMap.Init(true, genes);
 
         cMap.renderBack = true;
         cMap.renderMap = true;
-        cMap.wallType = ['rt', 'rt', 'rt', 'rt', 'rt', 'rt'];  // rt for feedback, camera, 0..6 for fixed image texture map
+        cMap.wallType.fill('rt');  // rt for feedback, camera, 0..6 for fixed image texture map
+
+        // set up some 'standard' things that may have been lost
+        setAllLots('wall_refl[rgb]', {value:1, free: 0});
 
         selcol.setRGB(0.8, 1, 1);
         switch (value) {
@@ -262,9 +292,11 @@ var CubeMap = new function () {
             case 'walls':
                 cMap.renderMap = false;
                 genes.wall_refl1 = genes.wall_refl2 = genes.wall_refl3 = 0;
+                cMap.wallType.fill('plain');
                 break;
             case 'allsolid':
                 setlots(genes, 'refl1 | refl2 | refl3', 0);  // sets for all objects including walls
+                cMap.wallType.fill('plain');
                 break;
             case 'allreflective':
                 setlots(genes, 'refl1 | refl2 | refl3', 1);  // sets for all objects including walls
@@ -282,7 +314,6 @@ var CubeMap = new function () {
                 break;
             case 'fixpeekfeedbackNOSET':
                 cMap.wallType = ['fixview', 'fixview', 'fixview', 'fixview', 'fixview', 'fixview'];  // nb only 5'th used for flat map
-                // cMap.fixres = 2048;
                 setInput(W.FLATMAP, true);
                 setInput(W.FLATWALLREFL, false);
                 break;
@@ -298,12 +329,14 @@ var CubeMap = new function () {
                 setAllLots('wall_refl2', {value:0.5, free: 0});
                 setAllLots('wall_bumpstrength', {value:0.2, free: 0});
                 setAllLots('wall_bumpscale', {value:400, free: 0});
-                setAllLots('walltype', {value:2, free: 0});
+                // setAllLots('walltype', {value:2, free: 0});
                 setAllLots('superwall', {value:0.4, free: 0});
                 setAllLots('centrerefl', {value:1, free: 0});
                 setInput(W.FLATMAP, true);
                 setInput(W.FLATWALLREFL, false);
-
+                break;
+            case 'fixpeekfeedbackbase':
+                cMap.wallType = ['fixview', 'fixview', 'fixview', 'fixview', 'fixview', 'fixview'];  // nb only 5'th used for flat map
                 break;
             case 'texturefeedback':
                 genes.wall_refl1 = genes.wall_refl2 = genes.wall_refl3 = 0.5;
@@ -361,6 +394,12 @@ var CubeMap = new function () {
                 genes.wall_refl2 = 0;
                 genes.wall_band1 = genes.wall_band3 = 1;
                 genes.wall_band2 = 0.25;
+                cMap.wallType = ['webcam', 'webcam', 'webcam', 'webcam', 'webcam', 'webcam'];
+                break;
+            case 'webcamnotex':
+                genes.wall_refl1 = genes.wall_refl2 = genes.wall_refl3 = 1;
+                genes.wall_band1 = genes.wall_band3 = 0;
+                genes.wall_band2 = 1;
                 cMap.wallType = ['webcam', 'webcam', 'webcam', 'webcam', 'webcam', 'webcam'];
                 break;
             case 'screenshare':
@@ -427,8 +466,11 @@ var CubeMap = new function () {
         }
     }
 
-    /** render a single frame from the fixed camera for feedback */
+    /** render a single frame from the fixed camera for feedback
+     * major side-effect is to set uniforms.flatMap.value or uniforms.cubeMap.value
+     */
     cMap.renderFeedback = function (dispobj) {
+        if (cMap.wallscene === 'walls' || cMap.renderState === 'color' || cMap.renderState === 'walls' || usemask === -98) return;
         if (inputs.FLATMAP && cMap.wallType) {  // very temp while sorting out
             const mat = {};  // << temporary silly interface, sjpt 1 Dec 2017
             const wt =  cMap.wallType[5];  // << temporary silly interface
@@ -440,8 +482,11 @@ var CubeMap = new function () {
         }
     }
 
+    cMap.fixFilter = THREE.LinearFilter;
+    cMap.fixWrapping = THREE.ClampToEdgeWrapping;
+
     /** render a single frame from the fixed camera for feedback, return the map.mat, which will also be in uniforms.flatMap.value */
-    cMap.renderFixview = function () {
+    cMap.renderFixview = function(genes) {
         if (framenum === cMap.lastFixedFrame)  // do not render same fixed camera multiple times
             return cMap.lastfix;
         cMap.lastFixedFrame = framenum;
@@ -449,10 +494,12 @@ var CubeMap = new function () {
         const r = cMap.fixres;
         if (!cMap.fixtarget1 || cMap.fixtarget1.width !== r) {
             const opts = {
-                format: THREE.RGBAFormat,
+                format: THREE.RGBFormat,
                 type: THREE.FloatType,
-                minFilter: THREE.LinearFilter,
-                magFilter: THREE.LinearFilter,
+                minFilter: cMap.fixfilter,
+                magFilter: cMap.fixFilter,
+                wrapS: cMap.fixWrapping,
+                wrapT: cMap.fixWrapping,
                 stencilBuffer: false,
                 depthBuffer: false,
                 depthTest: false,
@@ -482,7 +529,7 @@ var CubeMap = new function () {
         camera = render_camera = cMap.fixcamera; cMap.renderfeedbackCube = nop;
         uniforms.cutx.value = uniforms.cuty.value = 0.01;
 
-        camToGenes();
+        camToGenes(genes);
         let matmap;
         try {
             let rtf;
@@ -500,13 +547,13 @@ var CubeMap = new function () {
             renderer.clearColor();
 
             rrender.xtag.push('fixview');
-            renderPipe(currentGenes, uniforms, rtf, 3);
+            renderPipe(genes, uniforms, rtf, 3);
 if (V.renderfeed) rrender('extraspecialfeedback', V.rawscene, camera, rtf);
             rrender.xtag.pop();
             // renderObjsInner(rtf);
         } finally {
             [camera, render_camera, cMap.renderfeedbackCube, uniforms.cutx.value, uniforms.cuty.value] = save;
-            camToGenes();
+            camToGenes(genes);
         }
         return cMap.lastfix;
     }
@@ -528,9 +575,9 @@ if (V.renderfeed) rrender('extraspecialfeedback', V.rawscene, camera, rtf);
         } else if (wt === 'plain') {
             mat.map = undefined;
         } else if (wt === 'rt') {
-            mat.map = rt.texture;
+            mat.map = (V.usePrecamTexture && V.precamRT ? V.precamRT : rt).texture;
         } else if (wt === 'fixview') {
-            mat.map = cMap.renderFixview()[0];
+            mat.map = cMap.renderFixview(genes)[0];
         } else if (wt === 'rtg') {
             if (!cMap.canvastexture) {
                 cMap.canvastexture = new THREE.Texture(canvas, undefined, undefined, undefined, undefined, THREE.LinearFilter);
@@ -607,9 +654,9 @@ if (V.renderfeed) rrender('extraspecialfeedback', V.rawscene, camera, rtf);
 
         // prepare cubemap generation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         if (!cMap.cubeCamera || !cMap.cubemats || cMap.cubeCamera.renderTarget.width !== cMap.width) {
-
             var w = 1000;
-            cMap.cubeCamera = new THREE.CubeCamera(1, w * 2, cMap.width); // parameters: near, far, resolution
+            cMap.cubeRenderTarget = new THREE.WebGLCubeRenderTarget(cMap.width)
+            cMap.cubeCamera = new THREE.CubeCamera(1, 2000, cMap.cubeRenderTarget)
             cMap.cubeCamera.renderTarget.texture.minFilter = THREE.LinearFilter;
             cMap.cubeCamera.renderTarget.texture.magFilter = THREE.LinearFilter;
             cMap.cubeCamera.renderTarget.texture.generateMipmaps = true; //<<<
@@ -695,30 +742,65 @@ cMap.lastUpdate = 0;
 
 
 /** render single faceted sphere for test */
-cMap.spheretest = function (a = 11, b = 5) {
+cMap.spheretest = function (a = 11, b = 5, genes = currentGenes) {
     // this comes up faceted as the shapepos phase does not know it is a sphere
     // that can be a good thing if faceting is required
-    currentGenes.walltype = 0;
+    genes.walltype = 0;
     cMap.wallMesh.geometry = new THREE.SphereGeometry(-_boxsize, a, b);
 }
 
+/** get a device based on key match */
+cMap.devices = async function(lkey) {
+    const mediaDevices = await navigator.mediaDevices.enumerateDevices();
+    let r;
+    mediaDevices.forEach(mediaDevice => {
+        log('device:', mediaDevice.kind, mediaDevice.label)
+        if (mediaDevice.kind === 'videoinput') {
+            if (mediaDevice.label.match(lkey)) r = mediaDevice;
+        }
+    });
+    return r;
+}
 
-// from http://jeromeetienne.github.io/threex.videotexture/threex.webcamtexture.js
-navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+/** set up webcam, prefer Kinect */
+cMap.setupwebcam = async function (ctype='Kinect', cwidth=1920, cheight=1080) {
+    var video = cMap.webcamvideo;
+    if (video) {
+        const ss = cMap.webcamvideo.captureStream();
+        for (const s of ss.getTracks()) s.stop()
+        video = cMap.webcamvideo = undefined;
+    }
+    if (ctype === 'none') return;
+    // if (!video) {
+        video = document.createElement('video');
+        video.width = cwidth;
+        video.height = cheight;
+        video.autoplay = true;
+        video.loop = true;
+        // expose video as this.video
+        cMap.webcamvideo = video;
+    // }
 
-cMap.setupwebcam = function () {
-    var video = document.createElement('video');
-    video.width = 320;
-    video.height = 240;
-    video.autoplay = true;
-    video.loop = true;
-    // expose video as this.video
-    cMap.webcamvideo = video;
-
-    navigator.getUserMedia({ video: true },
-        function (stream) { video.src = URL.createObjectURL(stream); },
-        function () { alert('no WebRTC webcam available'); }
-    );
+//     navigator.getUserMedia({ video: true },
+//         function (stream) { video.src = URL.createObjectURL(stream); },
+//         function () { alert('no WebRTC webcam available'); }
+//     );
+    log('getting webcam');
+    const k = await cMap.devices(ctype); // ('Kinect');
+    log(k ? 'using camera ' + k.label: 'no kinect camera, use default');
+    const vc = { video: { width: cwidth, height: cheight }};
+    if (k) vc.video.deviceId = k.deviceId;
+    navigator.mediaDevices.getUserMedia(vc)
+        .then(function(stream) {  /* use the stream */
+            cMap.lastStream = stream;
+            log('webcam stream ready');
+            video.srcObject = stream; // URL.createObjectURL(stream);
+            log('webcam stream used for video');
+        })
+        .catch(function(err) {
+            console.error('no video', err); /* handle the error */
+         }
+     );
 
     cMap.webcamtexture = new THREE.Texture(video, undefined, undefined, undefined, undefined, THREE.LinearFilter);
     cMap.webcamtexture.generateMipmaps = false;
@@ -834,78 +916,80 @@ function startScreenStreamFrom(streamId) {
         });
 }
 
-/** called to prodice pseudo-random twisted walls, based on time
+/** called to produce pseudo-random twisted walls, based on time
 op = start or stop to start and stop, standard to return to stanadard walls */
-cMap.walltwister = function (op = cMap.walltwister) {
-    currentGenes.walltype = 0;
+cMap.walltwister = function (op = cMap.walltwister, genes = currentGenes) {
+    genes.walltype = 0;
     if (op.msgtype) op = cMap.walltwister;  // in case called via Maestro
     if (op === 'start') { if (!cMap.walltwister.id) cMap.walltwister.id = Maestro.on('preframe', cMap.walltwister); return; }
     if (op === 'stop') { if (cMap.walltwister.id) Maestro.remove('preframe', cMap.walltwister.id); cMap.walltwister.id = 0; return; }
     if (op === 'standard') { cMap.walltwister('stop'); cMap.walltwister({ base: 500, var: 0 }); return; }
 
-    if (cMap.wallres !== 1) { cMap.wallres = 1; cMap.newmesh(); }
-    const v = cMap.wallMesh.geometry.vertices;
+    if (cMap.wallres !== 1) { cMap.wallres = 1; cMap.newmesh(undefined, genes); }
+    const pa = cMap.wallMesh.geometry.getAttribute('position');
+    const a = pa.array;
     const t = frametime / 1000 / cMap.walltwister.rate;
     const sin = Math.sin;
     const s = Math.sign;
     const base = op.base;
     const varr = op.var;
-    for (let i = 0; i < v.length; i++) {
-        const p = v[i];
-        p.x = s(p.x) * (base + varr * sin(t * (20 + i) / 25 * 3.14159));
-        p.y = s(p.y) * (base + varr * sin(t * (17 + i) / 22 * 3.14159));
-        p.z = s(p.z) * (base + varr * sin(t * (23 + i) / 28 * 3.14159));
+    for (let i = 0; i < a.length; i+=3) {
+        a[i] = s(a[i]) * (base + varr * sin(t * (20 + i) / 25 * 3.14159));
+        a[i+1] = s(a[i+1]) * (base + varr * sin(t * (17 + i) / 22 * 3.14159));
+        a[i+1] = s(a[i+1]) * (base + varr * sin(t * (23 + i) / 28 * 3.14159));
     }
-    cMap.wallMesh.geometry.verticesNeedUpdate = true;
+    pa.needsUpdate = true;
+    // cMap.wallMesh.geometry.vert icesNeedUpdate = true;
 
 }
 cMap.walltwister.rate = 10;
 cMap.walltwister.base = 750;
 cMap.walltwister.var = 250;
 
-cMap.wallwilliam = function () {
-    currentGenes.walltype = 0;
-    if (!cMap.wallwilliam.loop) {
-        cMap.wallwilliam.loop = Maestro.onUnique('postframe', cMap.wallwilliam);
-        addgeneperm('wallwa', _boxsize, 0, _boxsize * 2, _boxsize / 20, _boxsize / 20, 'depth of wall at edge', 'wallgeom', 0);
-        addgeneperm('wallwb', _boxsize * 2, 0, _boxsize * 2, _boxsize / 20, _boxsize / 20, 'depth of wall at middle', 'wallgeom', 0);
-        addgeneperm('wallws', 0.5, 0, 1, 0.1, 0.1, 'wall amount out', 'wallgeom', 0);
-    }
-    if (cMap.renderState === 'color') cMap.SetRenderState('walls');
-    if (cMap.wallres !== 8) {
-        cMap.newmesh(8);
-        cMap.basev = cMap.wallMesh.geometry.vertices;
-        cMap.newmesh(1);
-        cMap.newmesh(8);
-    }
+// needs update for no THREE. Geometry if to be reused
+// cMap.wallwilliam = function () {
+//     current Genes.walltype = 0;
+//     if (!cMap.wallwilliam.loop) {
+//         cMap.wallwilliam.loop = Maestro.onUnique('postframe', cMap.wallwilliam);
+//         addgene perm('wallwa', _boxsize, 0, _boxsize * 2, _boxsize / 20, _boxsize / 20, 'depth of wall at edge', 'wallgeom', 0);
+//         addgene perm('wallwb', _boxsize * 2, 0, _boxsize * 2, _boxsize / 20, _boxsize / 20, 'depth of wall at middle', 'wallgeom', 0);
+//         addgene perm('wallws', 0.5, 0, 1, 0.1, 0.1, 'wall amount out', 'wallgeom', 0);
+//     }
+//     if (cMap.renderState === 'color') cMap.SetRenderState('walls');
+//     if (cMap.wallres !== 8) {
+//         cMap.new mesh(8);
+//         cMap.basev = cMap.wallMesh.geometry.vert ices;
+//         cMap.new mesh(1);
+//         cMap.new mesh(8);
+//     }
 
-    const iv = cMap.basev;
-    const ov = cMap.wallMesh.geometry.vertices;
-    for (let i = 0; i < iv.length; i++) {
-        const ip = iv[i];
-        const op = ov[i];
-        const walla = currentGenes.wallwa;  // size at edges
-        const wallb = currentGenes.wallwb;  // size at back
-        const walls = currentGenes.wallws;  // abound in/out
-        if (ip.z === -_boxsize) {
-            switch (Math.abs(ip.x / _boxsize * 4)) {
-                case 0: op.x = 0; op.z = -wallb; break;
-                case 1: op.z = -wallb; break;
-                case 2: op.x = mix(1 / 4, 3 / 4, walls) * _boxsize * Math.sign(ip.x); op.z = -mix(walla, wallb, walls); break;
-                case 3: op.z = -walla; break;
-                case 4: op.z = -walla; break;
-                default:
-                    log('wrong values');
-                    break;
-            }
-        }
-        cMap.wallMesh.geometry.verticesNeedUpdate = true;
-    }
-}
+//     const iv = cMap.basev;
+//     const ov = cMap.wallMesh.geometry.vert ices;
+//     for (let i = 0; i < iv.length; i++) {
+//         const ip = iv[i];
+//         const op = ov[i];
+//         const walla = current Genes.wallwa;  // size at edges
+//         const wallb = current Genes.wallwb;  // size at back
+//         const walls = current Genes.wallws;  // abound in/out
+//         if (ip.z === -_boxsize) {
+//             switch (Math.abs(ip.x / _boxsize * 4)) {
+//                 case 0: op.x = 0; op.z = -wallb; break;
+//                 case 1: op.z = -wallb; break;
+//                 case 2: op.x = mix(1 / 4, 3 / 4, walls) * _boxsize * Math.sign(ip.x); op.z = -mix(walla, wallb, walls); break;
+//                 case 3: op.z = -walla; break;
+//                 case 4: op.z = -walla; break;
+//                 default:
+//                     log('wrong values');
+//                     break;
+//             }
+//         }
+//         cMap.wallMesh.geometry.verticesNeedUpdate = true;
+//     }
+// }
 
-cMap.setegg = function() {
+cMap.setegg = function(genes = currentGenes) {
     G.walltype = 2; // for superegg
-    cMap.newmesh(40);
+    cMap.newmesh(40, genes);
     cMap.SetRenderState('objswallr');
     vrresting.bypassResting = true;
     V.resting = false;
@@ -938,58 +1022,58 @@ cMap.setegg = function() {
     updateGuiGenes();
 }
 
-cMap.wallscript = function* cwallscript() {
-    cMap.setegg();
-    const save = { viveAnim, wallframe: V.wallframe };
-    viveAnim = nop; V.wallframe = nop;
+// cMap.wallscript = function* cwallscript(genes = currentGenes) {
+//     cMap.setegg();
+//     const save = { viveAnim, wallframe: V.wallframe };
+//     viveAnim = nop; V.wallframe = nop;
 
 
-    G.walltype = 0; // standard
-    yield 'preframe'; yield 'preframe';  // in case needs to compile shaders
+//     G.walltype = 0; // standard
+//     yield 'preframe'; yield 'preframe';  // in case needs to compile shaders
 
-    const t = 5000;
+//     const t = 5000;
 
-    // william tests
-    G.wallwa = 500;
-    G.wallwb = 500;
-    G.wallws = 0;
-    Maestro.onUnique('postframe', cMap.wallwilliam);
-    yield S.ramp(G, 'wallwb', 1000, t)
-    yield S.ramp(G, 'wallws', 1, t);
-    yield S.ramp(G, 'wallwa', 1000, t);
-    Maestro.remove('postframe', cMap.wallwilliam);
+//     // william tests
+//     G.wallwa = 500;
+//     G.wallwb = 500;
+//     G.wallws = 0;
+//     Maestro.onUnique('postframe', cMap.wallwilliam);
+//     yield S.ramp(G, 'wallwb', 1000, t)
+//     yield S.ramp(G, 'wallws', 1, t);
+//     yield S.ramp(G, 'wallwa', 1000, t);
+//     Maestro.remove('postframe', cMap.wallwilliam);
 
-    yield 2000;
+//     yield 2000;
 
-    G.walltype = 2;
-    cMap.newmesh(40);
+//     G.walltype = 2;
+//     cMap.newmesh(40, genes);
 
-    G.superwall = 0;
-    yield S.ramp(G, 'superwall', 1, t * 2);
+//     G.superwall = 0;
+//     yield S.ramp(G, 'superwall', 1, t * 2);
 
-    yield S.ramp(G, 'superwall', 1/2, t);
+//     yield S.ramp(G, 'superwall', 1/2, t);
 
-    yield 2000;
-    G.walltype = 0;
-    cMap.spheretest(11, 5);
-    yield 2000;
-    cMap.spheretest(7, 3);
-    yield 2000;
-    cMap.spheretest(17, 13);
-    yield 2000;
-    cMap.spheretest(27, 23);
+//     yield 2000;
+//     G.walltype = 0;
+//     cMap.spheretest(11, 5);
+//     yield 2000;
+//     cMap.spheretest(7, 3);
+//     yield 2000;
+//     cMap.spheretest(17, 13);
+//     yield 2000;
+//     cMap.spheretest(27, 23);
 
-    for (let i = 0; i < 4; i++) {
-        yield 1000;
-        G.walltype = 1;
-        yield 1000;
-        G.walltype = 0;
-    }
+//     for (let i = 0; i < 4; i++) {
+//         yield 1000;
+//         G.walltype = 1;
+//         yield 1000;
+//         G.walltype = 0;
+//     }
 
-    viveAnim = save.viveAnim; V.wallframe = save.wallframe;
-}
+//     viveAnim = save.viveAnim; V.wallframe = save.wallframe;
+// }
 
-cMap.runwall = function () { runTimedScript(cMap.wallscript()); }
+// cMap.run wall = function () { run TimedScript(cMap.wallscript()); }
 
 /** load a diamond wall file */
 cMap.diamond = function () {
@@ -998,8 +1082,8 @@ cMap.diamond = function () {
     loader.load('Diamond.obj', cMap.diamondloader);
 }
 /** prepared loaded diamond, external function for easier debug */
-cMap.diamondloader = function (object) {
-    currentGenes.walltype = 0;
+cMap.diamondloader = function (object, genes = currentGenes) {
+    genes.walltype = 0;
     if (cMap.renderState === 'color') cMap.SetRenderState('walls');
     cMap.diamondobj = object;
     cMap.wallMesh.geometry = object.children[0].geometry;
@@ -1040,17 +1124,17 @@ cMap.fixedtest = function() {
     G.light1s = G.light2s = 0;
     G.light0dirx = 9999;
 
-    HornWrapFUN.cubeEarly = 1;
+    HW.cubeEarly = 1;
 }
 
-function extraSlot(s = 200) {
+function extraSlot(s = 200, genes = currentGenes) {
     setViewports();  // clean up previous extraSlots
 
     const vn = renderVR.invr() ? 0 : 1;
     const slot = {col: 0, cx:s/2, cy:s/2, height:s, width: s, x: 0, y: 0};
     const dispobj = new DispobjC();
     dispobj.vn = vn;
-    dispobj.genes = currentGenes;
+    dispobj.genes = genes;
     slots[vn] = slot;
     copyFrom(dispobj, slot);
     slot.dispobj = dispobj;
@@ -1064,4 +1148,42 @@ function extraSlot(s = 200) {
     }
 
     return slot;
+}
+
+/** feedback tests
+ * k=5; camera.setViewOffset(width*k, height*k, 0,0, width, height)
+ * cMap.fixFilter = 1003; cMap.fixtarget1 = 0
+ * cMap.fixFilter = 1006; cMap.fixtarget1 = 0
+ *
+ * feedback control (wall)
+ * inputs.FLATWALLREFL: true for maximum flexibility; allows mix of flat position and reflected direction
+ * inputs.FLATMAP: true for maximum flexibility
+ * G.flatwallreflp: 0 is pure reflection, 1 is pure 'paste feedback on wall'
+ * G.wall_bumpscale: (needs to understand overall scale?)
+ * G.wall_bumpstrength
+ * G.wall_reflr/g/b
+ * G.wall_refl1/2/3 (for bands, sometimes only 1 band)
+ * G.feedscale
+ * G.centrerefl only use central part of feedback; for oval window in VR ?????
+ * cMap.fixcamera: (not if setting up, do lookAt(0,0,0) again)
+ *     fixcam.fov = 30; fixcam.up.set(0,1,0); fixcam.lookAt(0,0,0); fixcam.updateMatrix(); fixcam.matrix
+ * cMap.wallType: array of 6 for 6 walls, rt and fixview most interesting
+ *     cMap.wallType.fill('fixview')
+ *
+ * not used?:
+ * G.feedr/g/b
+ * G.feedxrot (& y,z) rotation of feeedback (? only applies to full cube)
+ *
+ * related:
+ * G.wall_fluwidth = 0
+ * V.wallAspect, G.wallAspect makes room look different
+ * tad.colorCyclePerMin=0
+ */
+
+cMap.obs = function() {
+    cMap.setupwebcam('OBS');
+    cMap.SetRenderState('webcamnotex')
+    cMap.webcamtexture.flipY = true;
+    cMap.webcamtexture.center.set(0.5, 0.5);
+    cMap.webcamtexture.rotation = Math.PI;
 }

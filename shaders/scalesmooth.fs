@@ -1,3 +1,5 @@
+precision highp float;
+precision highp sampler2D;
 uniform sampler2D scaleRenderTarget;  // contains coord ranges for target
 uniform sampler2D scaleDampTarget;  // contains current values to take part in smoothing, scaleDampTarget and output flipflop
 uniform float basescale;	// expected size of object based on camera
@@ -12,7 +14,7 @@ float gv(float px, float py) {
     return r;
 }
 
-void main() 
+void main()
 {
     // collect the various values from the last real scale pass
     float lx = -gv(1./16. ,0.5);
@@ -35,7 +37,7 @@ void main()
 
     // and save the result in the output for use by the real shaders later
 	// << todo, decide how to multiplex to get 4 pos + scale
-    vec4 targ = (basescale == 0. || len == 0.) ? vec4(0.,0.,0.,1.) : vec4(cx,cy,cz, basescale/len);  
+    vec4 targ = (basescale == 0. || len == 0.) ? vec4(0.,0.,0.,1.) : vec4(cx,cy,cz, basescale/len);
     if (dampval == 1.) { gl_FragColor = targ; return; }
     vec4 now = texture2D(scaleDampTarget, vec2(0.5, 0.5), 0.);
     if (now != now) now = targ;    // repair any polluted value

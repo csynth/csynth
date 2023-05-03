@@ -4,10 +4,12 @@
 "use strict";
 
 var oldlayerX, oldlayerY, lastDispobj = NODO;  // last offset for delta moves, last Dispobj for keys on dispobj
+var lastDownLayerX, lastDownLayerY;             // last down position
 var lastTouchedDispobj = NODO;
-var staticAudio = false, playingAudioEl;
+var playingAudioEl;
 var downTime, interactDownTime, taptime = 300;
 var nomousetime = 1000;  // time after touch to ignore mouse
+var canvTransEnabled = true;
 
 var debugsavedragObjDispobj; // debug
 
@@ -18,10 +20,28 @@ function badmouse(evt) {
         touchlog("threw away mouse event " + evt.type);
         return true;
     }
+
+    // searchValues.onebutton makes it behave like a mouse with single button
+    // relies on using code using evt.xwhich instead of evt.which
+    evt.xwhich = evt.which;
+    if (searchValues.onebutton) {
+        evt.xwhich = evt.which ? 1 : 0;
+        switch(evt.type) {
+            case 'mousemove': return false;
+            case 'mousedown': if ([1,2,4,8,16,32,64].indexOf(evt.buttons) === -1) return log('ignoredown', evt.buttons); break;
+            case 'mouseup': if (evt.buttons !== 0) return log('ignoreup', evt.buttons); break;
+        }
+    }
     return false;
 }
+
+var _overmain;
+
 /** mouse down on render area, find vp and make its object the target */
 var canvmousedown: ((evt)=>void) & {lastActive?} = function(evt) {
+    if (!canvTransEnabled) return;
+    _canvdownGX = GX.interactions && GX.interactions.length !== 0;
+    if (_canvdownGX) return;
     interacted(evt);  // signal to automode
     interactDownTime = Date.now();
     if (badmouse(evt)) return killev(evt);
@@ -33,10 +53,10 @@ var canvmousedown: ((evt)=>void) & {lastActive?} = function(evt) {
     // document.body.focus();  // does not work
     (document.activeElement as any).blur();
 
-    if( W.UICom.m_isProjVersion && evt.which === 3 ) return killev( evt ); // no pan in proj version?? or interaction with gestures
+    if( W.UICom.m_isProjVersion && evt.xwhich === 3 ) return killev( evt ); // no pan in proj version?? or interaction with gestures
 
-    if (evt.which !== 0)            // needed where t2() touch events are abused as mouse events.
-        mousewhich |= 1<<evt.which;  // silly javascript, I must remember accumulated mouse buttons
+    if (evt.xwhich !== 0)            // needed where t2() touch events are abused as mouse events.
+        mousewhich |= 1<<evt.xwhich;  // silly javascript, I must remember accumulated mouse buttons
 
     var dispobj = getDispobj(evt);
     touchlog("mousedown " + evt.type + " dispobj=" + dispobj + " $mousewhich$lastDispobj$lastTouchedDispobj$dragObj");
@@ -47,13 +67,14 @@ var canvmousedown: ((evt)=>void) & {lastActive?} = function(evt) {
     }
     lastDispobj = lastTouchedDispobj = dispobj;
     if (dispobj === NODO) return undefined;
+    if (WA.showrules.checked && dispobj.genes) setInput(WA.tranrulebox, dispobj.genes.tranrule)
 
     vpmousedown(evt, dispobj);
     var op = findMatop(evt);        // update mouse status message
 
-    if (dragmode && lastDispobj.vn !== mainvp && (mousewhich === 2 || mousewhich === 32 || mousewhich === 34)) {
+    if (inputs.dragmode && lastDispobj.vn !== mainvp && (mousewhich === 2 || mousewhich === 32 || mousewhich === 34)) {
         dragObj = {dispobj: dispobj};
-        dragObj.dispobj.overmain = false;
+        _overmain = false;
     }
 
     //
@@ -75,16 +96,18 @@ var canvmousedown: ((evt)=>void) & {lastActive?} = function(evt) {
 
 
     // for director or pseudo-rover
-    if (mousewhich === 8 && dispobj !== NODO && dispobj.vn !== mainvp) {
+    if (mousewhich === 8 && dispobj !== NODO && dispobj.vn !== mainvp && !dualmode) {
+        W.hoverdisplay.style.display = "none";
         canvmousemove(evt);
     }
 
-    return killev(evt);
+    //~~~~ return killev(evt);
 }   // canvmousedown
 
 var maxSelected = 6;
 /** select slot and maybe deselect another */
 function selectDispobj(dispobj) {
+    if (dualmode && dispobj.vn === mainvp) return;  // can't select mainvp when in dual mode
     dispobj.selected = Date.now();
     // find count, and oldest (we may want to deselect oldest rather than this???)
     var oldestdate = dispobj.selected;
@@ -107,8 +130,11 @@ function selectDispobj(dispobj) {
     showSelectedSlots();
 }
 
+var canvtap = () => {}; // unless set otherwise, eg by mutateTad
+
 /** click on render area, find vp and make its object the target */
 function canvmouseup(evt) {
+    if (!canvTransEnabled) return;
     if (badmouse(evt)) return killev(evt);
     oldlayerX = offx(evt);  // I would have expected to see a move first, but we don't
     oldlayerY = offy(evt);
@@ -118,6 +144,7 @@ function canvmouseup(evt) {
             downTime.dispobj.selected = false; /*updatevp(downTime.vn);*/ newframe();
             //if (WA.interfaceSounds) interfaceSounds.bip2.play();
         }
+        canvtap();
 
         // TODO >>> we should probably send the event rather than wrapping it
         // and we need offx etc
@@ -128,8 +155,8 @@ function canvmouseup(evt) {
             Maestro.trigger('tap', {clientX: oldlayerX, clientY: oldlayerY});
         }
     }
-    lastsrc = undefined;
-    mousewhich &= ~(1<<evt.which);
+    currentDownTarget = undefined;
+    mousewhich &= ~(1<<evt.xwhich);
     touchlog("mouseup " + evt.type + "  $mousewhich");
     var op = findMatop(evt);
     if( !W.UICom.m_isProjVersion ) {    // canvmouseup so autorot gets going again after a bit
@@ -148,38 +175,47 @@ function isDragobj(dispobj) {
 }
 
 function endDrag() {
+    if (searchValues.simpledrag) { dragObj = undefined; return; }
     if (dragObj && dragObj.dispobj) {
-        //var newSlot = getSlotForXY(dragObj.dispobj.cx, dragObj.dispobj.cy);
-        //if (newSlot === mainvp)
-        //    swapvp(slots[newSlot].dispobj, dragObj.dispobj);
-        if (dragObj.dispobj.overmain) {
-            // B    A   C     AX is the new main, clone of A
-            //      AX
-            // ->
-            // B    A   A
-            var o = dragObj.dispobj.overmain;
-            var A = o.A, AX = o.AX;
-            swapvp(A, AX);
-            slots[mainvp].dispobj = A;  // just in case
-            A.placeatslot(mainvp);   // stop anim of main slot
-            newframe(A);
-            AX.visible = false;
-            dragObj.dispobj.overmain = undefined;
-            snap();  // so we don't lose A
-            correctSlots();
+        if (_overmain) {
+            if (dualmode) {
+                //??? dualdrag(A);
+                serious('missing')
+            } else {
+                const xxxvp = extraDispobj.vn;
+                const lrudo = lru();
+                const lruvn = lrudo.vn;
+                const dbdo = slots[dustbinvp].dispobj;
+                extraDispobj.selected = false;
+                slots[lruvn].dispobj = extraDispobj; extraDispobj.vn = lruvn;
+                slots[dustbinvp].dispobj = lrudo;
+
+                extraDispobj = slots[xxxvp].dispobj = dbdo; extraDispobj.vn = xxxvp
+                extraDispobj.visible = false; extraDispobj.cx = 99999;
+
+                lrudo.lastTouchedDate = dbdo.lastTouchedDate = extraDispobj.lastTouchedDate = Date.now();
+            }
+            _overmain = undefined;
         }
         dragObj = undefined;
     }
 }
+
 /** handle mouse movement */
 var dragObj = undefined; // dispobj being dragged
+var _canvdownGX;
 
 function canvmousemove(evt) {
+    if (!canvTransEnabled) return;
+    if ( (GX.interactions && GX.interactions.length !== 0) || _canvdownGX) return;
+    interacted(evt);  // signal to automode
+
     if (badmouse(evt)) return killev(evt);
 
-    //###if (lastsrc !== undefined) return;  // moving on document
+    //###if (currentDownTarget !== undefined) return;  // moving on document
     var ddispobj = getDispobj(evt);
-    touchlog("move button:" + evt.button + " "  + evt.which + "  type=" + evt.type + " dispobj=" + ddispobj + " $mousewhich$lastDispobj$lastTouchedDispobj$dragObj");
+    if (ddispobj) W.hovermessage.innerHTML = ddispobj.hoverMessage;   // make sure up to date
+    touchlog("move button:" + evt.button + " "  + evt.xwhich + "  type=" + evt.type + " dispobj=" + ddispobj + " $mousewhich$lastDispobj$lastTouchedDispobj$dragObj");
     if (ddispobj.name) msgfix('dispobj name', ddispobj.name); else msgfix('dispobj name');
 
     var dx = offx(evt) - oldlayerX;
@@ -206,48 +242,58 @@ function canvmousemove(evt) {
         var x = dragObj.dispobj.cx += dx;  // drag
         var y = dragObj.dispobj.cy -= dy;
         var newSlot = getSlotForXY(x, y);  // potential I have dragged over
-        if (newSlot !== NOVN && newSlot !== dragObj.dispobj.vn) {  // it has found new place
+        let change = true;
+        if (newSlot === NOVN) change = false;
+        if (newSlot === dragObj.dispobj.vn) change = false;
+        if (newSlot === mainvp && _overmain) change = false;
+
+        if (change) {  // it has found new place
             if (newSlot === dustbinvp) {
                 killDispobj(dragObj.dispobj);
-            } else if (dragObj.dispobj.overmain) {     // move out of mainvp
-                // AX == mainvp has animated version of dragger which will be lost
-                // will be replaced by original
-                // B    A   C     AX is the new main, clone of A
-                //      AX
-                // ->
-                // C    B   A
-                var o = dragObj.dispobj.overmain;
-                var A = o.A, B = o.B, AX = o.AX;
-                //log("pre2 vns A B AX", A.vn, B.vn, AX.vn);
+            } else if (_overmain) {     // move out of mainvp
 
-                var C = slots[newSlot].dispobj;
-                swapvp(A, AX);      // to get the bit renderTarget onto A
-                swapvp(B, C);       // temp move of B to rhs
-                swapvp(A, B);       // get A, B all ok
-                AX.visible = false;
-                A.overmain = undefined;
+                // nb very similar to enter mainvp
+                const xxxvp = extraDispobj.vn;
+                const overdo = slots[newSlot].dispobj;  // dispobj I'm pushing out
+                const lrudo = lru();
+                const lruvn = lrudo.vn;
+                const dbdo = slots[dustbinvp].dispobj;
+                slots[lruvn].dispobj = overdo; overdo.vn = lruvn;                   // send one I've just hit to lru
+                slots[newSlot].dispobj = extraDispobj; extraDispobj.vn = newSlot;   // send drag to lru position (still dragging so won't move there yet)
+                slots[dustbinvp].dispobj = lrudo; lrudo.vn = dustbinvp;             // send lru to distbin
+
+                extraDispobj = slots[xxxvp].dispobj = dbdo; dbdo.vn = xxxvp         // recycle dustbin's dispobj as new extraDispobj
+                dbdo.visible = false; dbdo.cx = 99999;
+                lrudo.lastTouchedDate = dbdo.lastTouchedDate = extraDispobj.lastTouchedDate = Date.now();
+                _overmain = false;
+
+
                 //kinect.remap();  // leave to kinect code auto remap
                 //log("post2 vns  A B AX", A.vn, B.vn, AX.vn);
-            } else if (newSlot === mainvp) {            // move onto mainvp
-                // A    B   C     A is dragObj.dispobj, B is main
-                // ->
-                // B    A   C     AX is the new main, clone of A
-                //      AX
-                // get there by putting AX into old A position, then swapping AX and B
-                // (swapping with mainvp handles the renderTarget swap)
-                A = dragObj.dispobj; B = slots[mainvp].dispobj; AX = extraDispobj;
-debugsavedragObjDispobj = A;
-                A.overmain = {A: A, B: B, AX: AX};
-                //log("pre1 vns  A B AX", A.vn, B.vn, AX.vn);
-                AX.visible = true;  // extraDispobj takes snap of dragObj.dispobj
-                AX.genes = clone(A.genes);
-                var oldvn = A.vn;
-                AX.vn = oldvn; slots[oldvn].dispobj = AX;
-                AX.placeatslot(oldvn);
-                A.vn = mainvp;  // but not the 'main' mainvp
-                newframe(AX); newframe(B);
-                swapvp(B, AX);
-                correctSlots();
+            } else if (newSlot === mainvp) {            // enter mainvp
+                if (searchValues.simpledrag) {
+                    const temp = copyFrom({}, currentGenes);
+                    copyFrom(currentGenes, dragObj.dispobj.genes);
+                    copyFrom(dragObj.dispobj.genes, temp);
+                    dragObj = undefined;
+                    mousewhich = 0;
+                    centrescalenow();   // ?? we may not always want this, may want to make conditional, or fire event trigger
+                } else {
+                    let A = dragObj.dispobj, AX = extraDispobj;
+                    AX.visible = true;
+                    _overmain = true;
+                    copyFrom(AX.genes, currentGenes);
+                    copyFrom(currentGenes, A.genes);
+                    newframe(AX);
+                    var oldxx = extraDispobj.vn;
+                    var oldvn = A.vn;
+                    A.vn = oldxx; extraDispobj = slots[oldxx].dispobj = A;
+                    AX.vn = oldvn; slots[oldvn].dispobj = AX;
+                    AX.cx = A.cx; AX.cy = A.cy;
+                    centrescalenow();   // ?? we may not always want this, may want to make conditional, or fire event trigger
+                }
+
+
                 //kinect.remap();  // leave to kinect code auto remap
                 //log("post1 vns  A B AX", A.vn, B.vn, AX.vn);
 //renderFrame();
@@ -258,7 +304,7 @@ debugsavedragObjDispobj = A;
                     var b = newSlot;
                     var dir = a>b ? -1 : 1;
                     //log(">>>>swap", a, b);
-                    o = a;
+                    let o = a;
                     for (var i=a + dir; o !== b ; i += dir) {
                         if (!slots[i] || i === mainvp) continue;
                         //log("swap", o, i);
@@ -277,34 +323,38 @@ debugsavedragObjDispobj = A;
         return undefined;
     }  // dragObj || dragObj.dispobj
 
-    // separate code for Director
-    if (mousewhich === 8 && ddispobj !== NODO && ddispobj.vn !== mainvp && ddispobj.vn <= reserveSlots) {
-        var vn = ddispobj.vn;
-        let dxx = (oldlayerX - ddispobj.cx) / ddispobj.width;
-        if (vps[0] === 1) dxx = (oldlayerY - height + ddispobj.cy) / ddispobj.height;
-        //log("anim", vn, dx);
-        Director.stop();            // stop automatic animating (if any)
-        Director.gotoSlot(vn, dxx);  // and go to correct place
-        //msgfix("draganim", vn, dx);
-        canvas.style.cursor = "move";  // temp, better than nothing
-        return undefined;
-    }
+    // right mouse drag for Director or pseudo-Rover
+    if (mousewhich === 8 && ddispobj !== NODO && ddispobj.vn !== mainvp && !dualmode) {
+        const cx = oldlayerX;
+        const cy = height - oldlayerY;
 
-    // separate code for pseudo-Rover
-    if (mousewhich === 8 && ddispobj !== NODO && ddispobj.vn !== mainvp && ddispobj.vn >= reserveSlots && lastTouchedDispobj.vn !== mainvp) {
-        // forceCPUScale();  // to revisit ??? TODO commented out 14 Feb 19
-        var cx = oldlayerX;
-        var cy = height - oldlayerY;
-        for (let oo in currentObjects) {
-            var dispobj = currentObjects[oo];
-            dispobj.ppp = Math.min(999, Math.pow((dispobj.cx-cx)*(dispobj.cx-cx) + (dispobj.cy-cy)*(dispobj.cy-cy), -1));
+        // separate code for Director
+        if (ddispobj.vn <= reserveSlots) {
+            const vn = ddispobj.vn;
+            let dxx = (oldlayerX - ddispobj.cx) / ddispobj.width;
+            if (vps[0] === 1) dxx = (oldlayerY - height + ddispobj.cy) / ddispobj.height;
+            //log("anim", vn, dx);
+            Director.stop();            // stop automatic animating (if any)
+            Director.gotoSlot(vn, dxx);  // and go to correct place
+            //msgfix("draganim", vn, dx);
+            canvas.style.cursor = "move";  // temp, better than nothing
+            // return undefined;
         }
-        makeaverage();
-        //var kk = (ddispobj.cx-cx > 0 ? 0 : 1) + (ddispobj.cy-cy > 0 ? 0 : 2);
-        //var cc = ['n', 'e', 'ne', 'se'][kk];
-        //cc = "nwse";
-        //msgfix("kk", kk, cc);
-        //canvas.style.cursor = cc + "-resize";  // temp, better than nothing
+
+        // separate code for pseudo-Rover
+        if (ddispobj.vn >= reserveSlots && lastTouchedDispobj.vn !== mainvp) {
+            // forceCPUScale();  // to revisit ??? TODO commented out 14 Feb 19
+            for (let oo in currentObjects) {
+                var dispobj = currentObjects[oo];
+                dispobj.ppp = Math.min(999, Math.pow((dispobj.cx-cx)*(dispobj.cx-cx) + (dispobj.cy-cy)*(dispobj.cy-cy), -1));
+            }
+            makeaverage();
+            //var kk = (ddispobj.cx-cx > 0 ? 0 : 1) + (ddispobj.cy-cy > 0 ? 0 : 2);
+            //var cc = ['n', 'e', 'ne', 'se'][kk];
+            //cc = "nwse";
+            //msgfix("kk", kk, cc);
+            //canvas.style.cursor = cc + "-resize";  // temp, better than nothing
+        }
         canv2d.style.display = "";
         var ctx = canv2d.getContext("2d");
         ctx.clearRect(0,0,width, height);
@@ -327,21 +377,36 @@ debugsavedragObjDispobj = A;
     lastDispobj = newDispobj;
     if (isnewDispobj) findMatop(evt);  // to update msg
     hoverMutate(lastDispobj);
-    if (evt.which === 0 && evt.type !== "touchmove") return true;  // on unexpected event, no which and not simulated
+
+    // separate code for interactive edit
+    if (editgenex) {
+        var gn = editgenex.name;
+        var val = currentGenes[gn];
+        val += evt.movementX * editgenex.delta / 100;
+        setval(gn, val);
+        if (editgeney) {
+            let gnn = editgeney.name;
+            let vall = currentGenes[gnn];
+            vall += evt.movementY * editgeney.delta / 100;
+            setval(gnn, vall);
+        }
+    }
+
+    if (evt.xwhich === 0 && evt.type !== "touchmove") return true;  // on unexpected event, no which and not simulated
     if (mousewhich === 0) return true;        // extra for firefoxx
     newframe();
-    //msgfix("button =", evt.button + " "  + evt.which);
+    //msgfix("button =", evt.button + " "  + evt.xwhich);
 
     var sss = -0.01;
     var op = findMatop(evt);  // find the op, and display it
-    var U = undefined;
+    var u = undefined;
     var ltg = lastTouchedDispobj.genes;
     // so only rotate on z for web
     if (op === rot && !inputs.doxrot && !inputs.doyrot && inputs.dozrot) op = rotz;
     lastTraninteracttime = frametime;
     switch (op) {
         case rot:
-            if (inputs.doAutorot) {
+            if (inputs.doAutorot && lastTouchedDispobj.vn === mainvp) {
                 canvdamp(dx, dy);
             } else {
                 applyMatop(0,2, dx*sss, op, ltg); applyMatop(1,2, -dy*sss, op, ltg);
@@ -354,10 +419,10 @@ debugsavedragObjDispobj = A;
                 applyMatop(0,3, dx*sss, rot, ltg); applyMatop(1,3, -dy*sss, rot, ltg);
             }
             break;
-        case pan:   applyMatop(0,U, dx*sss, op, ltg); applyMatop(1,U, -dy*sss, op, ltg); break;
+        case pan:   applyMatop(0,u, dx*sss, op, ltg); applyMatop(1,u, -dy*sss, op, ltg); break;
         case skew:  applyMatop(0,2, dx*sss, op, ltg); applyMatop(1,2, -dy*sss, op, ltg); break;
-        case persp: applyMatop(0,U, dx*sss, op, ltg); applyMatop(1,U, -dy*sss, op, ltg); break;
-        case zoom:  applyMatop(U,U, -dx*sss, op, ltg); applyMatop(U,U, dy*sss, op, ltg); break;
+        case persp: applyMatop(0,u, dx*sss, op, ltg); applyMatop(1,u, -dy*sss, op, ltg); break;
+        case zoom:  applyMatop(u,u, -dx*sss, op, ltg); applyMatop(u,u, dy*sss, op, ltg); break;
         case rotz:
             if (inputs.doAutorot) {
                 canvdampz(dx-dy);
@@ -368,45 +433,39 @@ debugsavedragObjDispobj = A;
         case rotzw:  applyMatop(2,3, dx*sss, rot, ltg); applyMatop(2,3, -dy*sss, rot, ltg); break;
 
         case matnop:
-            if (editgenex) {
-                var gn = editgenex.name;
-                var val = currentGenes[gn];
-                val += evt.webkitMovementX * editgenex.delta / 100;
-                setval(gn, val);
-                if (editgeney) {
-                    let gnn = editgeney.name;
-                    let vall = currentGenes[gnn];
-                    vall += evt.webkitMovementY * editgeney.delta / 100;
-                    setval(gnn, vall);
-                }
-            }
             break;
         default: throwe("unimplemented matop " + op);
     }
-
 
     interacttime = Date.now();
     return undefined;
     //return  killev(evt);
 }  // canvmousemove
 
-/** repeat down/up on document for wider reliability, but leave in canvas to ensure they are registered before findMatop */
-document.addEventListener("mousedown", function(evt) {
-     if (badmouse(evt)) return killev(evt);
-     mousewhich |= 1<<evt.which; findMatop(evt); touchlog("docdown$mousewhich"); return undefined;});
+/** set up handlers once canvas etc ready */
+function canvready() {
+    /** repeat down/up on document for wider reliability, but leave in canvas to ensure they are registered before findMatop */
+    document.addEventListener("mousedown", function(evt) {
+        if (badmouse(evt)) return killev(evt);
+        mousewhich |= 1<<(evt as any).xwhich; findMatop(evt); touchlog("docdown$mousewhich"); return undefined;});
 
-document.addEventListener("mouseup", function(evt) {
-     if (badmouse(evt)) return killev(evt);
-     mousewhich &= ~(1<<evt.which); findMatop(evt);touchlog("docup$mousewhich"); return undefined;});
+    document.addEventListener("mouseup", function(evt) {
+        if (badmouse(evt)) return killev(evt);
+        mousewhich &= ~(1<<(evt as any).xwhich); findMatop(evt);touchlog("docup$mousewhich"); return undefined;});
+}
 
 function canvmouseover(evt) {
-      clearkeys(evt);  // reduce risk of polluted keys
-     findMatop(evt);
-     lastDispobj = getDispobj(evt);  // make sure lastDispobj registered for key events
+    if (!canvTransEnabled) return;
+    interacted(evt);  // signal to automode
+    clearkeys(evt);  // reduce risk of polluted keys
+    findMatop(evt);
+    lastDispobj = getDispobj(evt);  // make sure lastDispobj registered for key events
 }
 
 function canvmouseout(evt) {
+    // if (!canvTransEnabled) return;  // we'll let this one happen
     clearkeys(evt);  // reduce risk of polluted keys
+    // dispmouseout(evt, lastDispobj); // NO .. gets confused when it goes eg onto hovercontrols
     // lastDispobj = NODO;  // TODO XXX this should be onblur
 }
 
@@ -471,6 +530,7 @@ function canvdampz(dz) {
 
 /** function for mouse wheel, probably dead??? NOT DEAD Oct 2014 */
 function canvmousewheel(evt) {
+    if (!canvTransEnabled) return;
     // applyScale does not use pow
     var wheelk = 1.1;
     var sc = Math.pow(wheelk, -evt.wheelDelta / 100);
@@ -478,15 +538,17 @@ function canvmousewheel(evt) {
     newframe(lastTouchedDispobj);
     return killev(evt);
 }
-/** function for mouse wheel */
+/** function for mouse wheel, apply scale to current (hover) dispobj by moving camera in/out */
 function canvwheel(evt) {
     // applyScale does not use pow
+    if (hoverDispobj === 'nodispobj') return;
     var wheelk = 1.1;
     // wheelDelta for Chrome etc, deltaY for Firefoxx
     var d = evt.wheelDelta ? -evt.wheelDelta/120 : evt.deltaY;
     var sc = Math.pow(wheelk, d);
-    applyScale(sc, lastTouchedDispobj.genes);
-    newframe(lastTouchedDispobj);
+    applyScale(sc, hoverDispobj.genes);
+    hoverDispobj.render();
+    // newframe(lastTouchedDispobj);
     return killev(evt);
 }
 
@@ -495,6 +557,7 @@ var canvdblclick: ((evt)=>void) & {lastdispobj?:Dispobj} = function(evt) {
     if( W.UICom.m_isProjVersion ) return undefined; // canvdblclick is disabled for the projection version
     var dispobj = getDispobj(evt);  // nb used layerX to help Firefoxx, but gives different answer than what I need
     if (dispobj === NODO) return undefined;
+    if (dualmode) { dualdrag(dispobj); killev(evt); return false}
     if (dispobj.genes) {
         if (dispobj.vn === mainvp) {
             if (canvdblclick.lastdispobj) {
@@ -505,9 +568,11 @@ var canvdblclick: ((evt)=>void) & {lastdispobj?:Dispobj} = function(evt) {
         } else {
             copyFrom(currentGenes, dispobj.genes);
             // resetMat();
+            centrescalenow();
             newmain();
             canvdblclick.lastdispobj = dispobj;
             updateGuiGenes();
+            if (dispobj.vn <= reserveSlots) Director.gotoSlot(dispobj.vn);
         }
         Director.stop();
         //document.body.focus();
@@ -526,9 +591,9 @@ function canvoncontextmenu(evt) {
     return killev(evt);
 }
 
-/** handle in down/up, and do not propogate click */
+/** handle in canvmousedown/up, and do not propogate click */
 function canvclick(evt) {
-    return killev(evt);
+    // return killev(evt);
 }
 
 /** find Dispobj for event */
@@ -556,6 +621,7 @@ function getDispobjp(x, y) {
             rdo = dj; break;
         }
     }
+    // if (dualmode && rdo.vn === mainvp) rdo = NODO  // do in selected
     return rdo;
 }
 
@@ -577,39 +643,50 @@ function getSlotForXY(x, y) {
 
 function vpmousedown(evt, dispobj) {
     dispobj.lastTouchedDate = Date.now();
-    oldlayerX = offx(evt);
-    oldlayerY = offy(evt);
+    lastDownLayerX = oldlayerX = offx(evt);
+    lastDownLayerY = oldlayerY = offy(evt);
+
     var genes = dispobj.genes;
     if (!genes) return;
-    if (dispobj.genes) {
-        if (staticAudio) playStaticAudio(dispobj.vn);
-        if (evt.ctrlKey) {
-            dispobj.selected = !dispobj.selected;
-            //forcerefresh = true;
-            showSelectedSlots();
-        } else {
-            // mouse down only brings object to middle if not animating
-            // removed UICom condition for steering in the proj version
-            if (!inputs.doAnim || !hoverSteerMode || W.UICom.m_isProjVersion ) {  // ordinary vp click
-                //updatevp(vn);
-                //if (view ports[lastTouchedDispobj] ) {
-                //    updatevp(lastTouchedDispobj);
-                //}
+    if (WA.staticAudio) playStaticAudio(dispobj.vn);
+    if (evt.ctrlKey) {
+        dispobj.selected = !dispobj.selected;
+        //forcerefresh = true;
+        showSelectedSlots();
+    } else {
+        // mouse down only brings object to middle if not animating
+        // removed UICom condition for steering in the proj version
+        if (!inputs.doAnim || !hoverSteerMode || W.UICom.m_isProjVersion ) {  // ordinary vp click
+            //updatevp(vn);
+            //if (view ports[lastTouchedDispobj] ) {
+            //    updatevp(lastTouchedDispobj);
+            //}
 
-                // target related stuff moved to vpchoose
+            // target related stuff moved to vpchoose
 
 
-                if (healthMutateSettings.touchHealth) healthTarget = dispobj;
+            if (healthMutateSettings.touchHealth) healthTarget = dispobj;
 
-                // >>> NO STEMS loadStemForView port(vn);
-            }
+            // >>> NO STEMS loadStemForView port(vn);
         }
     }
+    setGUITranrule(genes);
 }
 
-var dragmode = true;  // whether working in drag mode or conventional
+setInput('dragmode', false); // whether working in drag mode or conventional
+setInput('hovermode', true);  // whether to allow hover menu over mutations panes
+
+// /** mouse has just left lDispobj; can be confused when mouse goes on to hover controls so we get unwanted 'leave' which removes controls */
+// function dispmouseout(evt, lDispobj) {
+//     W.hoverdisplay.style.display = 'none';
+//     lastDispobj = NODO;  // TODO ??? this should be onblur
+// }
+
+var hoverDispobj: any = NODO; // was let ... var for sharing with .js files
+
 /** mouse has just moved over nDispobj */
-function dispmouseover(evt, nDispobj, lDispobj) {
+function dispmouseover(evt, nDispobj: Dispobj, lDispobj?) {
+    hoverDispobj = nDispobj;        // do this anyway
     if (!W.hoverdisplay) return;
     var de = canvas;
     if (nDispobj === NODO) {
@@ -619,13 +696,29 @@ function dispmouseover(evt, nDispobj, lDispobj) {
     }
     if (nDispobj.genes) msgfix("obj", nDispobj.genes.name);
 
-    if (!dragmode) {  // do not use highlights in dragmode
-        var border = 1;
-        W.hoverborder.style.width = (nDispobj.width - border * 2.5) +'px';
-        W.hoverborder.style.height = (nDispobj.height - border )+'px';
-        W.hoverdisplay.style.left = (de.offsetLeft + nDispobj.left ) + "px";
-        W.hoverdisplay.style.top = (de.offsetTop + de.offsetHeight - nDispobj.top ) + "px";
-        W.hoverdisplay.style.display = "";
+    if (inputs.hovermode) {  // do not use highlights in dragmode
+        // TODO layout below wrong when canvas not mapped 1..1 (eg width !== style.width)
+        const ismain = nDispobj.vn === mainvp;
+        var border = ismain ? 0 : 1;
+        const canvr = +canvas.style.width.replace('px','') / canvas.width;
+        let  rr = canvr; //  / devicePixelRatio;
+        W.hoverborder.style.width = (nDispobj.width - border * 2.5) * rr + 'px';
+        W.hoverborder.style.height = (nDispobj.height - border ) * rr + 'px';
+        W.hoverdisplay.style.left = (de.offsetLeft + nDispobj.left - 1) * rr + "px";
+        W.hoverdisplay.style.top = (de.offsetTop + height - nDispobj.top ) * rr + "px";
+        W.hovercontrols.style.left = (border*2) * rr + "px";
+        W.hovercontrols.style.fontSize = 75 * rr + '%';
+        W.hoverdisplay.style.width = '';
+
+        if (nDispobj.width + nDispobj.left > width - 50) {
+            W.hoverdisplay.style.width = '9999px';
+            W.hovercontrols.style.left = "-4em";
+        }
+        W.hoverdisplay.style.display = mousewhich === 8 ? 'none' : '';
+        W.hovercontrols.style.display = ismain ? 'none' : '';
+        W.hoverborder.style.display = vps[0] < 2 && vps[1] < 2 ? 'none' : '';
+
+        W.hovermessage.innerHTML = nDispobj.hoverMessage;
     }
 }
 
@@ -670,7 +763,7 @@ function setCanvasEvents() {
     canvas.onmousemove = canvmousemove;
     canvas.onmouseover = canvmouseover;
     canvas.onmouseout = canvmouseout;
-    canvas.onmousewheel = canvmousewheel;  //  dead?
+    (canvas as any).onmousewheel = canvmousewheel;  //  dead?
     canvas.onwheel = canvwheel;
     canvas.oncontextmenu = canvoncontextmenu;
 }
@@ -683,11 +776,23 @@ function clearCanvasEvents() {
     canvas.onmousemove = undefined;
     canvas.onmouseover = undefined;
     canvas.onmouseout = undefined;
-    canvas.onmousewheel = undefined;  //  dead?
+    (canvas as any).onmousewheel = undefined;  //  dead?
     canvas.onwheel = undefined;
     canvas.oncontextmenu = undefined;
     canvas.onkeydown = undefined;
     canvas.onkeyup = undefined;
     canvas.onfocus = undefined;
     canvas.onblur = undefined;
+}
+
+/** drop or paste onto canvas */
+function canvdroppaste(text, evt) {
+    if (text.match(/{\s*"genes"\:/)) {
+        const ngenes = JSON.parse(text).genes;
+        const genes = xxxgenes(hoverDispobj);
+        copyFrom(genes, ngenes);
+        hoverDispobj.render();
+        return true;
+    }
+    return false;
 }

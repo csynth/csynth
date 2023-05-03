@@ -34,8 +34,7 @@ CLeap.startLeap = function() {
     let node = CLeap.node = new THREE.Group();
     node.name = "leap";
     V.camscene.add(node);
-    Leap.loopController.use('boneHand', {scene: node, arm: false, opacity: 0.2,
-        handMeshCallback: CLeap.handMeshCallback});
+    Leap.loopController.use('boneHand', {scene: node, arm: false, opacity: 0.2, handMeshCallback: CLeap.handMeshCallback});
     //THREE.JSONLoader = THREE.LegacyJSONLoader;
     //Leap.loopController.use('riggedHand');
 
@@ -174,7 +173,7 @@ CLeap._onframe = function CLeap__onframe(frame) {
     CLeap.last = {ld: d, ldir: dir, lpos: pos, lmenud: menud, lclenchn: clenchn, lpinchn: pinchn};
 
     if (hands.length === 1 && h0.pinchStrength > 0.7) {
-
+        /**/
     }
 
     // experiments with showing text (and menu?) at hand
@@ -426,13 +425,14 @@ CLeap.makeButton = ( {
     hoverMesh.position.y = y;
     hoverMesh.position.z = 0.001;
 
+    const textNode = dat.GUIVR.textCreator.create(text, {color: textCol, scale: 0.3});
     button.plane.hover(
         m => { hoverMat.opacity = 0.6; textNode.visible = true; },
         m => { hoverMat.opacity = 0.0; textNode.visible = !image; }
     );
-    const textNode = dat.GUIVR.textCreator.create(text, {color: textCol, scale: 0.3});
     textNode.position.x = x - textNode.computeWidth()/2;
     textNode.position.y = y - textNode.computeHeight()/2;
+
     textNode.position.z = 0.002;
     textNode.visible = !image;
     // // parent is defaulted for now, but ...
@@ -559,6 +559,6 @@ CLeap.mouseClick = function() {
             // CLeap.lastClickTime = Date.now();
             b.pressFunc();
         }
-    };
+    }
 }
 onframe(() => canvas.addEventListener('click', () => CLeap.mouseClick()), 5);

@@ -2,7 +2,7 @@
 // The xyz data is used at full resolution without averaging to give 2640 particles.
 // There is no contact data at this resolution so we generate dummy contact data
 // and the contact datqa buttons become irrelevant
-springdemo( {
+window.springdemo( {
 	dir: 'polymer',
 	redcontacts: {num: 2640, low: 29902001, step: 4000},
 	whitecontacts: {num: 2640, low: 29902001, step: 4000},

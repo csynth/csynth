@@ -4,8 +4,8 @@
  */
 "use strict";
 /** for encapsulation verification */
-var W, NODO, inputs, currentObjects, currentGenes, genedefs, dustbinvp, mainvp, trygetele, throwe,  isSteeringInteraction, xxxgenes,
-serious, settarget, clone, reserveSlots, showObjectHealth;
+var W, NODO, inputs, currentObjects, genedefs, dustbinvp, mainvp, trygetele, throwe,  isSteeringInteraction, xxxgenes,
+serious, settarget, clone, reserveSlots, showObjectHealth, extraDispobj;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ hover mutate options
 var hoverMutateMode = false;
@@ -90,8 +90,13 @@ function lru() {
     var oldest;
     for (var o in currentObjects) {
         var dispobj = currentObjects[o];
-        if (dispobj.vn !== dustbinvp && dispobj.vn !== mainvp && dispobj.vn !== -1 && dispobj.vn > reserveSlots)
-        if (!oldest || dispobj.lastTouchedDate < oldest.lastTouchedDate)
+        if (dispobj.vn !== dustbinvp
+            && dispobj.vn !== mainvp
+            && dispobj.vn !== -1
+            && dispobj.vn > reserveSlots
+            && dispobj !== extraDispobj
+            && (!oldest || dispobj.lastTouchedDate < oldest.lastTouchedDate)
+        )
             oldest = dispobj;
     }
     return oldest;

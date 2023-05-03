@@ -61,7 +61,7 @@ type AnnotDesc = {
                 // add a pass to get source particle positions every frame (after main spring simulation, before ours)
                 // we need to render into g.springs.posnewvals, from springs.posnewvals
                 // output vertex is buffer coordinate derived from destIndex attribute
-                const posCopyVert = `
+                const posCopyVert = /*glsl*/`
                     ${CSynth.CommonShaderCode()}
                     uniform float destWorkHistTime;
                     uniform bool isInit;
@@ -99,7 +99,7 @@ type AnnotDesc = {
                         //like ~take the point closest to centroid?)
                     }
                 `;
-                const posCopyFrag = `
+                const posCopyFrag = /*glsl*/`
                     precision highp float;
                     varying vec4 posData;
                     void main() {
@@ -117,7 +117,7 @@ type AnnotDesc = {
                 const dInstP2 = g.springs.numInstancesP2;
 
                 const posCopyMaterial = new THREE.RawShaderMaterial({
-                    vertexShader: posCopyVert, fragmentShader: posCopyFrag, uniforms: posCopyUniforms,
+                    vertexShader: posCopyVert, fragmentShader: posCopyFrag, uniforms: posCopyUniforms as any,
                     depthTest: false, depthWrite: false, //might help?
                     side: THREE.DoubleSide //could easily have wrong winding order...
                 });
@@ -145,11 +145,11 @@ type AnnotDesc = {
                 })));
 
                 posCopyGeom.setIndex(new THREE.BufferAttribute(geoIndex, 1));
-                posCopyGeom.addAttribute('clipPos', new THREE.BufferAttribute(clipPos, 2));
-                posCopyGeom.addAttribute('sourceIndex', new THREE.BufferAttribute(sourceIndex, 1));
-                posCopyGeom.addAttribute('sourceRange', new THREE.BufferAttribute(sourceRange, 3));
-                posCopyGeom.addAttribute('initJitter', new THREE.BufferAttribute(initJitter, 3));
-                posCopyGeom.addAttribute('destIndex', new THREE.BufferAttribute(destIndexInit, 1));
+                posCopyGeom.setAttribute('clipPos', new THREE.BufferAttribute(clipPos, 2));
+                posCopyGeom.setAttribute('sourceIndex', new THREE.BufferAttribute(sourceIndex, 1));
+                posCopyGeom.setAttribute('sourceRange', new THREE.BufferAttribute(sourceRange, 3));
+                posCopyGeom.setAttribute('initJitter', new THREE.BufferAttribute(initJitter, 3));
+                posCopyGeom.setAttribute('destIndex', new THREE.BufferAttribute(destIndexInit, 1));
 
                 const posCopyMesh = new THREE.Mesh(posCopyGeom, posCopyMaterial);
                 posCopyMesh.frustumCulled = false;
@@ -386,11 +386,29 @@ type AnnotDesc = {
         group.initSpring = (parent = g) => {};
         group.annotParticleIndex = i * (numInstances-1) / numInstancesP2;
 
+        var vertpre2='', fragpre2='';
+        if (isWebGL2) {
+            vertpre2 += "precision highp float;\n";
+            vertpre2 += "#define attribute in\n";
+            vertpre2 += "#define varying out\n";
+            vertpre2 += "#define texture2D texture\n";
+
+
+            fragpre2 += "precision highp float;\n";
+            fragpre2 += "#define attribute in\n";
+            fragpre2 += "#define varying in\n";
+            fragpre2 += "#define texture2D texture\n";
+            fragpre2 += "#define gl_FragColor glFragColor\n";
+            fragpre2 += "out vec4 glFragColor;\n";
+        }
+
         //a new version of the shader that knows about spring positions etc.
         //also aware of (pre)selection etc.
         //annotation visibility should possibly taper along with ribbon radius.
-        const vertexShader = `
+        const vertexShader = /*glsl*/`
             // annotation display vertex
+            // #extension EXT_color_buffer_float : enable
+            ${vertpre2}
             ${CSynth.CommonShaderCode()}
             ${inputs.U360 ? '#define U360' : ''}
             attribute float particleIndex; // index of particle used for transform
@@ -491,11 +509,13 @@ type AnnotDesc = {
 
         // at time of writing, no different to standard SDF fragmentShader
         // but we might want to modify color based on (pre)selection etc.
-        const textFragmentShader = `
+        const textFragmentShader = /*glsl*/`
+            ${fragpre2}
             // annotation display fragment
             #ifdef GL_OES_standard_derivatives
             #extension GL_OES_standard_derivatives : enable
             #endif
+            // #extension EXT_color_buffer_float : enable
             precision highp float;
             uniform float opacity;
             uniform vec3 color;
@@ -505,11 +525,14 @@ type AnnotDesc = {
             varying float selAlpha;
             float aastep(float value) {
                 //TODO: adapt shader (particularly as used in GUI) to correct for gamma.
-                #ifdef GL_OES_standard_derivatives
+        // the second choice here didn't work sensibly
+        // GL_OES_standard_derivatives not defined in webgl2,
+        // so just hope the first version will be available
+       //         #ifdef GL_OES_standard_derivatives
                     float afwidth = length(vec2(dFdx(value), dFdy(value))) * 0.70710678118654757;
-                #else
-                    float afwidth = (1.0 / 32.0) * (1.4142135623730951 / (2.0 * gl_FragCoord.w));
-                #endif
+       //         #else
+       //             float afwidth = (1.0 / 32.0) * (1.4142135623730951 / (2.0 * gl_FragCoord.w));
+       //         #endif
                 return smoothstep(0.5 - afwidth, 0.5 + afwidth, value);
             }
             void main() {
@@ -535,7 +558,7 @@ type AnnotDesc = {
         function addParticleAttributes(geometry) {
             const particleIndex = new Float32Array(geometry.attributes.position.count);
             particleIndex.fill(group.annotParticleIndex);
-            geometry.addAttribute('particleIndex', new THREE.BufferAttribute(particleIndex, 1));
+            geometry.setAttribute('particleIndex', new THREE.BufferAttribute(particleIndex, 1));
             //this can be consolidated with above in vec4
             const n = geometry.attributes.position.count * 3;
             const particleRange = new Float32Array(n);
@@ -543,7 +566,7 @@ type AnnotDesc = {
             for (let j = 0; j < n; j += 3) {
                 particleRange.set(range, j);
             }
-            geometry.addAttribute('particleRange', new THREE.BufferAttribute(particleRange, 3));
+            geometry.setAttribute('particleRange', new THREE.BufferAttribute(particleRange, 3));
         }
 
         function replaceTextVertexShader(threeObj) {
@@ -575,6 +598,7 @@ type AnnotDesc = {
                 vertexShader: vertexShader, fragmentShader: textFragmentShader, uniforms: uniforms, transparent: !CSynthFast,
                 depthTest: true, name: 'annotationDisplayMaterial'
             });
+            if (isWebGL2) newMat.glslVersion = THREE.GLSL3;
             threeObj.material = newMat;
         }
 
@@ -582,19 +606,20 @@ type AnnotDesc = {
             //const w = group.computeWidth(), h = group.computeHeight();
             const padding = 120;
             const w = group.layout.width, h = group.layout.height;
-            const geo = planeg(w+padding, h+padding, 1, 1) as THREE.BufferGeometry;
+            const geo = HW.planeg(w+padding, h+padding, 1, 1) as THREE.BufferGeometry;
             const translate = new THREE.Matrix4();
 
             translate.setPosition(w/2, -h/2 + padding/8, -2);
-            geo.applyMatrix(translate);
+            geo.applyMatrix4(translate);
             addParticleAttributes(geo);
 
             //this might be wrong UVs, maybe not using now but could be useful for outline etc. & need vertex attrib anyway
-            geo.addAttribute('uv', new THREE.BufferAttribute(new Float32Array([0,0,1,0,0,1,1,1]), 2));
+            geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0,0,1,0,0,1,1,1]), 2));
 
             //should be compatible with vertexShader used for text.
             //May be worth having a different vertex shader though for padding, adding bedColor without incurring cost in text...
-            const backFragmentShader = `
+            const backFragmentShader = /*glsl*/`
+            ${fragpre2}
                 // annotation display background fragment
                 ${CSynth.CommonFragmentShaderCode()}
                 precision highp float;
@@ -617,6 +642,8 @@ type AnnotDesc = {
                 vertexShader: vertexShader, fragmentShader: backFragmentShader, uniforms: uniforms, transparent: !CSynthFast,
                 depthTest: true, name: 'annotationBackgroundMaterial', side: THREE.DoubleSide
             });
+            if (isWebGL2) mat.glslVersion = THREE.GLSL3;
+
             const mesh = new THREE.Mesh(geo, mat);
             mesh.frustumCulled = false;
             group.add(mesh);
@@ -636,17 +663,19 @@ type AnnotDesc = {
                 const attributes = c.geometry.attributes;
                 //if it so happens that we're inside a consolidated buffer, we should really rebuild the whole thing.
                 const n = attributes.position.count;
-                let attrib = attributes.particleIndex;
                 let arr = new Float32Array(n);
                 arr.fill(ai);
-                attrib.setArray(arr);
-                attrib.needsUpdate = true;
+                c.geometry.setAttribute('particleIndex', new THREE.BufferAttribute(arr, 1));
+                // let attrib = attributes.particleIndex;  // for old three.js revision
+                // attrib.setArray(arr);
+                // attrib.needsUpdate = true;
 
-                attrib = attributes.particleRange;
                 arr = new Float32Array(n * 3);
                 arr.fill(ai);
-                attrib.setArray(arr);
-                attrib.needsUpdate = true;
+                c.geometry.setAttribute('particleRange', new THREE.BufferAttribute(arr, 3));
+                // attrib = attributes.particleRange;
+                // attrib.setArray(arr);
+                // attrib.needsUpdate = true;
             });
 
             group.visible = true;
@@ -691,3 +720,15 @@ CSynth.consolidateTextBuffers = (group = CSynth.annotationGroup) => {
     //     a.children = p;
     // })
 };
+
+/*
+help for debug, remove Nov 2020 TODO
+ag = V.rawscene.children[7]
+mm = ag.children[0]
+mat = mm.material
+mattex = mat.uniforms.map.value
+GX.setValue(/textscale/, 2)
+GX.setValue(/ribbon\/vis/, false)
+GX.setValue(/matrix\/vis/, false)
+
+ */

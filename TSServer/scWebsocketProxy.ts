@@ -6,9 +6,10 @@ import * as conf from './scconfig';
 import {addSynthdefReloadListener, removeSynthdefReloadListener} from './synthdefWatch';
 import * as osc from '@supercollider/osc'
 import {http_request, selectProtocol} from "./serverUtils";
+import { sclogSE } from './sclog';
 
 const source_host = '',
-source_port = conf.WS_PROXY_PORT,
+WS_PROXY_PORT = conf.WS_PROXY_PORT,
 target_host = conf.HOST,
 target_port = conf.TCP_PORT;
 let webServer: http.Server, wsServer: WS.Server;
@@ -94,7 +95,9 @@ let new_client = function(client: WS) {
             client.on('close', function(code, reason) {
                 if (targetBad('client close')) return;
                 logc('WebSocket client disconnected: ' + code + ' [' + reason + ']' + ' myTry:' + myTry);
-                target.end(target.destroy);
+                // target.end(target.destroy); //hit an exception (once? on 25/11/20), maybe we shouldn't pass target.destroy
+                // docs say it's only necessary in case of errors.
+                target.end();
                 //target.destroy();
                 target = undefined;
             });
@@ -113,14 +116,38 @@ let new_client = function(client: WS) {
 
 
 
-export let startProxyServer = function startServer() {
+export let startProxyServer = async function startServer(attempt = 0) {
+    if (webServer) { console.log('continue using scsynth proxy webServer'); return; }
     console.log("Running minimal WebSocket proxy.  Settings: ");
-    console.log("    - proxying from " + source_host + ":" + source_port +
+    console.log("    - proxying from " + source_host + ":" + WS_PROXY_PORT +
                 " to " + target_host + ":" + target_port);
-    webServer = http.createServer(http_request);
 
-    webServer.listen(source_port, function() {
-        wsServer = new WS.Server({server: webServer, handleProtocols: selectProtocol});
-        wsServer.on('connection', new_client);
+    return new Promise<void>((resolve, reject) => {
+        try {
+            webServer = http.createServer(http_request);
+            // if (attempt < 3) throw new Error('scWebsocketProxy: test error');
+            webServer.listen(WS_PROXY_PORT, function() {
+                wsServer = new WS.Server({server: webServer, handleProtocols: selectProtocol});
+                wsServer.on('connection', (ws) => {
+                    new_client(ws);
+                });
+                wsServer.on('error', (error) => {
+                    console.error('wsserver failed to work', error);
+                })
+                resolve();
+            });
+            webServer.on('error', error=>{ console.error('webserver for proxy error', error) });
+            webServer.on('clientError', error=>{ console.error('webserver for proxy client error', error) });
+        } catch (e) {
+            //reject(e);
+            if (attempt > 10) {
+                reject(e);
+            } else {
+                sclogSE(`Error '${e}' starting websocket proxy server, retrying in 0.5 seconds (${attempt+1}/10)`);
+                setTimeout(() => {
+                    startServer(attempt + 1).then(resolve);//.catch(reject);
+                }, 500);
+            }
+        }
     });
 }

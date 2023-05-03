@@ -11,18 +11,19 @@ Genes appear in several guises:
 ////$ = (function() {
 "use strict";
 // for working towards encapsulation
-var W, currentGenes, mainvp, guigenes, genedefs,
+var W, /** @type Object */ currentGenes, mainvp, guigenes, genedefs,
         Water, CubeMap, rows, getShaders, Maestro, // nextmutsynthID
         inAnimate, healthMutateSettings, hoverMutateMode, startOSCBundle,
-        inputs, framenum, nwfs, baseroot, OrgAud, Cilly,
-        getGal, usedgenes, toggleFree, lastDispobj, clearPostCache, setHornSet, getHornSet, onframe, remakeShaders, newframeNotanim,
-        healthMutateStep, globalSynthUpdate, testcputimes, checkglerror, animate, renderVR, requestAnimationFrame, updateGuiGenes,
-        $, performance, lastTime, perftimes,  trygeteleval, genBoundsFromPrefixGal, genBoundsFromPrefixFS, log, saveundo,
-        clone, setGUITranrule, lasttargtime, throwe, alwaysNewframe, renderer, target, uniforms, slots,
-        myRequestAnimationFrame, makeRegexp, DispobjC, exhibitionMode, filterDOMEv, msgfix
-
+        inputs, framenum, baseroot, OrgAud, Cilly,
+        getGal, usedgenes, toggleFree, lastDispobj, clearPostCache, HW, onframe, remakeShaders, newframeNotanim,
+        healthMutateStep, globalSynthUpdate, testcputimes, checkglerror, animate, renderVR, updateGuiGenes,
+        $, /** @type any */ _performance = performance, lastTime, perftimes,  trygeteleval, genBoundsFromPrefixGal, genBoundsFromPrefixFS, log, saveundo,
+        clone, setGUITranrule, lasttargtime, throwe, alwaysNewframe, renderer, target, uniforms, slots, mutate, mutateStructHs,
+        myRequestAnimationFrame, makeRegexp, DispobjC, exhibitionMode, filterDOMEv, msgfix, fileExists, reserveSlots, canvas, setAllLots, copyFrom,
+        hoverDispobj, msgfixerror, lastdocx, lastdocy, RG, centrescalenow, S
         ;
 
+var _showControlsdone, _showControlssetFromToggle
 var uid = 0;
 const ipad = navigator.userAgent.toLowerCase().indexOf("ipad") !== -1;
 /** array of objects used to display extra_objects, may be slots or ...??? */
@@ -31,6 +32,8 @@ var forcerefresh = false;  // true to force a single frame refresh of all slots
 
 var currentObjects = {};  // set of current objects
 
+var NODO = 'nodispobj';
+var NOVN = 'no vn';
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 /** get vn for an xxx */
@@ -42,7 +45,7 @@ function xxxvn(xxx) {
 }
 
 /** return dispobj for an xxx */
-function xxxdispobj(xxx) {
+function xxxdispobj(xxx = mainvp) {
     const tt = typeof xxx;
 
     if (tt === "object") {
@@ -68,13 +71,16 @@ function xxxdispobj(xxx) {
 
 /** >>>>>> bridge function ~ return genes for a variety of inputs */
 function xxxgenes(xxx) {
+    if (xxx === undefined || xxx === NODO) return currentGenes ?? xxxgenes(mainvp);
     const tt = typeof xxx;
 
     if (tt === "object") {
+        if (xxx instanceof DispobjC) return xxx.genes;  // eg a dispobj
         if ("tranrule" in xxx) return xxx;  // already genes
         if ("_rot4_ele" in xxx) return xxx;  // already genes
         if ("_camz" in xxx) return xxx;  // already genes
         if ("genes" in xxx) return xxx.genes;  // eg a dispobj
+        if ("dispobj" in xxx) return xxx.dispobj.genes;  // eg a slot
     } else if (tt === "string") {
         return currentObjects[xxx] || getGal(xxx);
     } else if (tt === "number") {        // number is slot number
@@ -112,21 +118,23 @@ function resolveFilter(filter) {  // inputs.genefilter unreliable
         for (let i = 0; i < filter.length; i++) ff[filter[i]] = true;
         return ff;
     }
-    if (typeof filter === 'object') return filter;
+    if (typeof filter === 'object' && !(filter instanceof RegExp)) return filter;
     // const list = usedgenes();
     // if (!list) return {};
     var list;
 
 
-    if (filter === undefined) filter = '(' + W.genefilter.value + ')' + (W.guifilter ?  ' (' + W.guifilter.value + ')' : '');
+    // if (filter === undefined) filter = '(' + W.genefilter.value + ')' + (W.guifilter ?  ' (' + W.guifilter.value + ')' : '');
+    if (filter === undefined) filter = (W.genefilter.value.trim() ?  W.genefilter : W.guifilter).value;
     const regexp = makeRegexp(filter);
 
     const res = {};
-    for (let gn in guigenes) {
+    const allg = Object.assign({}, currentGenes, guigenes);
+    for (let gn in allg) {
         let gd = genedefs[gn];
         if (!gd)
             gd = {tag: 'unknown no genedef'};
-        const gnl = ":" + gn.toLowerCase() + ":" + gd.tag + ":!" + (gd.free ? 'free' : 'frozen') ;
+        const gnl = "gn:" + gn.toLowerCase() + ": tag:" + gd.tag + ": state:" + (gd.free ? 'free' : 'frozen') + ': help:' + gd.help + ':';
         let display = (!list || list[gn]);
         // make sure water genes displayed if appropriate
         // ?? todo: more generic mechanism here
@@ -139,11 +147,21 @@ function resolveFilter(filter) {  // inputs.genefilter unreliable
         //    display = true;
 
         if (display) {
-            display = regexp.test(gn);
+            display = regexp.test(gnl);
         }
         if (display) res[gn] = true;
     }
     return res;
+}
+
+/** apply filter to a set of genes */
+function applyFilter(genes, filter) {
+    const ff = resolveFilter(filter);
+    const r = {};
+    for (const gn in ff) {
+        if (gn in genes) r[gn] = genes[gn]
+    }
+    return r;
 }
 
 /** filter unwanted guigenes
@@ -157,28 +175,40 @@ function resolveFilter(filter) {  // inputs.genefilter unreliable
 function filterGuiGenes(evt) {
     W.genefilter.autosize();
     //doesn't match tag names with spaces??
-    const togglefree = evt && evt.keyIdentifier === "F2";
-    let setting = "?";
+    const togglefree = evt && evt.key === "F2";
+    let /** @type number | string */ setting = "?";
     const todisp = resolveFilter();
     for (let gn in guigenes) {
         const display = todisp[gn];
+        let ee = guigenes[gn];
+        if (display) {
+            while (ee && ee !== W.controls) {
+                if (ee.style.display === 'none')
+                    ee.style.display = '';
+                ee = ee.parentElement;
+            }
+        } else {
+            ee.style.display === 'none';
+        }
 
-        guigenes[gn].style.display = display ? "" : "none";
+        // guigenes[gn].style.display = display ? "" : "none";
         if (togglefree && display) {
             if (setting === "?") setting = 1 - genedefs[gn].free;
             if (genedefs[gn].free !== setting) toggleFree(gn);
         }
         if (rows && rows[gn]) rows[gn].style.display = display ? "" : "none";
     }
+    W.controls.onmousemove();
 }
 
 var clipboard;
 /** copy filtered genes to clipboard */
 function copygenestoclip(genes) {
-    genes = genes || lastDispobj.genes; // will fail if no lastDispob, fix later
+    genes = genes || lastDispobj.genes || currentGenes; // will fail if no lastDispob, fix later
     const s = resolveFilter();
     clipboard = {};
     for (let gn in s) clipboard[gn] = genes[gn];
+    navigator.clipboard.writeText(JSON.stringify({genes},undefined, '\t'))
 }
 
 /** paste filtered genes from clipboard */
@@ -201,21 +231,18 @@ function clampAllGeneRanges() {
     }
 }
 
-var NODO = 'nodispobj';
-var NOVN = 'no vn';
-
-
-
 
 /** edit function ... default nothing */
 //function editobj() {}
 
 
 function regenHornShader() {
+    const sss = W.mystats.style.display;
     clearPostCache('regenHornShader');
-    setHornSet();
+    HW.setHornSet();
     forcerefresh = true;
     onframe(remakeShaders, 2); // >>> todo check why delay needed
+    onframe(() => W.mystats.style.display = sss, 3);
 }
 
 
@@ -224,7 +251,7 @@ function newmain(n = 0) {
     newframe(currentGenes);
     if (alwaysNewframe < n) alwaysNewframe = n;
 }
-const refmain = newmain;
+var refmain = newmain;      // var for sharing, otherwise const
 
 /** perform operation before next frame */
 function onnextframe(f) {
@@ -253,7 +280,7 @@ function newframe(genes) {
  *     note: three.js includes requestAnimationFrame shim, but not used
  */
 function processNewframe() {
-    if (hoverMutateMode || healthMutateSettings.touchHealth) healthMutateStep();
+    if (hoverMutateMode || (healthMutateSettings && healthMutateSettings.touchHealth)) healthMutateStep();
     if (startOSCBundle && Maestro) {
         globalSynthUpdate();
     }
@@ -264,54 +291,65 @@ let isControlShown = true;  // slave value for query only for is control visible
 
 /** show or hide controls, if set wifrom toggle (alt-c) do not allow to be lost from mouse move */
 function showControls(v) {
-    if (exhibitionMode) v = false;
-    if (inputs.fixcontrols) v = true;
-    if (v && !showControls.done) {   // seems overcomplicated way of getting initial display right
-        onframe(()=> {
-            filterDOMEv();
-            W.valouter.style.display = 'none';
-            showControls.done = true;
-        });
-    }
+    try {
+        if (exhibitionMode) v = false;
+        inputs.fixcontrols = W.fixcontrols.checked; // in case not yet updated
+        if (inputs.fixcontrols) v = true;
+        if (v && !_showControlsdone) {   // seems overcomplicated way of getting initial display right
+            onframe(()=> {
+                filterDOMEv();
+                W.valouter.style.display = 'none';
+                _showControlsdone = true;
+            });
+        }
 
-    if (inputs.fixcontrols) {
-        W.controls.style.display = W.guifilter.style.display = "";
-        isControlShown = true;
-    }
+        if (inputs.fixcontrols && !isControlShown) {
+            W.controls.style.display = W.guifilter.style.display = "";
+            //isControlShown = true;
+        }
 
-    if (v === "fixon") {
-        showControls.setFromToggle = v = true;
-    } else if (v === "toggle") {
-        showControls.setFromToggle = v = W.controls.style.display === "none";
-    } else  {
-        if (showControls.setFromToggle) return;
-    }
+        if (v === "fixon") {
+            _showControlssetFromToggle = v = true;
+        // } else if (v === false || v === true) { NO explicit true/false are overridden by _showControlssetFromToggle
+        } else if (v === "toggle") {
+            _showControlssetFromToggle = v = W.controls.style.display === "none";
+            //isControlShown = false;
+        } else  {
+            if (_showControlssetFromToggle) return;
+        }
 
-    // if (v === isControlShown) return;  // minor optimization, often got wrong if new object loaded from gui
+        // if (v === isControlShown) return;  // minor optimization, often got wrong if new object loaded from gui
 
-    W.controls.style.display = W.guifilter.style.display = v ?  "" : "none";
-    isControlShown = v;
-    if (v) {
-        updateGuiGenes();
-        W.msgbox.style.left = '360px';
-    } else {
-        // get around webkit bug with selected object hidden using lots of cpu
-        // http://stackoverflow.com/questions/16411661/why-does-chrome-use-more-cpu-when-a-large-knockout-element-is-hidden
-        //## removed, Stephen and Peter.  Was giving big confusion to tranrule edit, esp with CodeMirror because we thought the underlying bug was fixed,
-        //## but it turned out that it was NOT fixed, so instead we added a test to allow deselection of canvas related elements but not others (such as tranrule)
-        //##
-        //## for future reference, to stir the bug
-        //##    remove the code below
-        //##    click on a non active part of the controls (an empry area or a non-updatable element)
-        //##    move the mouse away so the controls are no longer shown
-        //##    watch the framerate drop even on a trivial horn
+        W.controls.style.display = W.guifilter.style.display = v ?  "" : "none";
+        const msgstyle = W.msgbox.style;
+        if (v && !isControlShown) {
+            updateGuiGenes();
+            msgstyle.left = '360px';
+            //isControlShown = v;
+        } else {
+            // get around webkit bug with selected object hidden using lots of cpu
+            // http://stackoverflow.com/questions/16411661/why-does-chrome-use-more-cpu-when-a-large-knockout-element-is-hidden
+            //## removed, Stephen and Peter.  Was giving big confusion to tranrule edit, esp with CodeMirror because we thought the underlying bug was fixed,
+            //## but it turned out that it was NOT fixed, so instead we added a test to allow deselection of canvas related elements but not others (such as tranrule)
+            //##
+            //## for future reference, to stir the bug
+            //##    remove the code below
+            //##    click on a non active part of the controls (an empry area or a non-updatable element)
+            //##    move the mouse away so the controls are no longer shown
+            //##    watch the framerate drop even on a trivial horn
 
-        //## the test below was not reliable
-        //##    if (window.getSelection().anchorNode && window.getSelection().anchorNode.parentElement && window.getSelection().anchorNode.parentElement.hasParent(W.controls))
-        //## but this version seems much more robust
-            if (document.activeElement === document.body)
-              window.getSelection().removeAllRanges();  // get around
-        W.msgbox.style.left = inputs.showstats ? '360px' : '10px';
+            //## the test below was not reliable
+            //##    if (window.getSelection().anchorNode && window.getSelection().anchorNode.parentElement && window.getSelection().anchorNode.parentElement.hasParent(W.controls))
+            //## but this version seems much more robust
+            if (document.activeElement === document.body || document.activeElement === canvas)
+                // @ts-ignore
+                window.getSelection().removeAllRanges();  // get around
+            msgstyle.left = v || inputs.showstats ? '360px' : '10px';
+        }
+        if (W.msgbox.right) { msgstyle.left = 'unset'; msgstyle.right = '10px'; }
+    } finally {
+        isControlShown = W.controls.style.display === '';
+        if (isControlShown) W.controlsouter.style.top = (reserveSlots && slots[1]) ? slots[1].height + 'px' : '';
     }
 
 }
@@ -324,7 +362,8 @@ W.controls.onmousemove = function() {
     controls.style.display='';  // in case it gets called for setting sizes when hidden
     //W.controls.style.maxHeight = (document.body.clientHeight - W.controls.offsetTop - 2) + "px";
     let bot = window.innerHeight;
-    bot = W.tranrulebox.style.display === 'none' ? bot: W.tranrulebox.getBoundingClientRect().top;
+    // tranrule now moved left so contros can be full height
+    // ot = W._tranrule.style.display === 'none' ? bot: W._tranrule.getBoundingClientRect().top;
     //XXX: PJT:: This was *severely* impacting performance when typing in cm box.
     //whatever the problem was/is, this is much worse.
     //const cm = $('.CodeMirror')[0];
@@ -353,11 +392,11 @@ function performanceDisplay() {
         let mmsg = framenum + ": ms/fr=" + dt/trate / (perftimes || 1);
         mmsg += " res=" + inputs.resbaseui + " rr=" + inputs.renderRatioUi;
         if (currentGenes.tranrule) {
-            mmsg += " horns=" + getHornSet(currentGenes.tranrule).horncount;
-            mmsg += " mesh=" + getHornSet(currentGenes.tranrule).meshused;
+            mmsg += " horns=" + HW.getHornSet(currentGenes).horncount;
+            mmsg += " mesh=" + HW.getHornSet(currentGenes).meshused;
         }
-        if (performance.memory)
-            mmsg += "  usedHeap=" + performance.memory.usedJSHeapSize;
+        if (_performance.memory)
+            mmsg += "  usedHeap=" + _performance.memory.usedJSHeapSize;
         console.log(mmsg);
         msgfix('performanceDisplay', mmsg);
     }
@@ -398,7 +437,7 @@ function lruuse(vn) {
 /** generate animation bounds from objects by name prefix */
 function genBoundsFromPrefix(stem) {
     if (!stem) stem = trygeteleval("boundsprefix", "xxx");
-    if (nwfs && nwfs.existsSync(baseroot + stem))
+    if (fileExists(baseroot + stem))
         genBoundsFromPrefixFS(stem);
     else
         genBoundsFromPrefixGal(stem);
@@ -408,10 +447,10 @@ function genBoundsFromPrefix(stem) {
 
 /**
  * NOT WORKING QUITE AS INTENDED JUST YET...
- * @param {type} filter
- * @param {type} srcObj name or genome object to copy from
- * @param {type} targObj name or object *NB current implementation will mutate this, not clone it* not good for pure FP
- * @returns the mutated targObj
+ * @param {string} filter
+ * @param {DispobjC} srcObj name or genome object to copy from
+ * @param {DispobjC} targObj name or object *NB current implementation will mutate this, not clone it* not good for pure FP
+ * @returns {DispobjC} the mutated targObj
  */
 function applyFilteredGenesFrom(filter, srcObj, targObj) {
     if (srcObj) {
@@ -477,18 +516,195 @@ function localstartLate() {
     if (Cilly) Cilly.maestro_init();
 }
 
+var geneOverrides = {};
+
 /** override mechanism for genes */
 var GO = new Proxy({}, {
     get : (ig, name) =>
-        name === 'ownKeys' ? () => Reflect.ownKeys(uniforms) :
-            name in geneOverrides  ? geneOverrides[name] : currentGenes[name],
-    set : (ig, name, v) => (name in geneOverrides ? geneOverrides : currentGenes)[name] = v,
+        name === 'ownKeys' ?
+            () => Reflect.ownKeys(uniforms) :
+            name in geneOverrides  ? geneOverrides[name] : currentGenes ? currentGenes[name] : undefined,
+    set : (ig, name, v) => (name in geneOverrides ? geneOverrides : currentGenes ? currentGenes : {})[name] = v,
     ownKeys : (o) => {
         let x = Reflect.ownKeys(uniforms);
-        log('...', x);
+        // log('...', x);
         return x;
     }   // Object.keys(U) calls this, and x is ok, but returns []
     // !!! enumerate maynot work ...
- });
+});
 
- var geneOverrides = {};
+/** set gene mutation from visibility */
+function mutateVisibleGenes() {
+    for (let gn in genedefs) {
+        genedefs[gn].free = +(guigenes[gn] && guigenes[gn].style.display === '')
+    }
+    updateGuiGenes();
+}
+
+/** mutate Colour genes */
+function mutateColour() {
+    regularizeColourGeneVisibility();
+    mutate({filter: 'tag:horncol: | tag:texture:'});
+}
+
+/** mutate form genes */
+function mutateForm() {
+    mutate({filter: 'tag:geom:'});
+}
+
+/** filters used to define classes opf genes */
+var geneClasses = {
+    C: 'red | green | blue',
+    T: 'texscale | texrepeat | _band | gn:band',    // NOT subband for now
+    F: 'tag:geom | gscale | _gcentre | tranrule',
+    S: 'gloss | plastic | shininess',
+    V: 'gn:_ | gscale | gcentre',
+    A: '||'
+}
+
+/** mutate genes from gui */
+function mutateXX() {
+    regularizeColourGeneVisibility();
+    const ff = []
+    if (inputs.mut_form) ff.push(geneClasses.F);
+    if (inputs.mut_col) ff.push(geneClasses.C);
+    if (inputs.mut_tex) ff.push(geneClasses.T);  // NOT subband for now
+    if (inputs.mut_surf) ff.push(geneClasses.S);
+    if (inputs.mut_view) ff.push(geneClasses.V);
+    if (inputs.mut_user.trim() !== '') ff.push(inputs.mut_user.trim());
+    const structmutate = (inputs.mut_smut) ? mutateStructHs : undefined;
+    mutate({filter: ff.join(' | '), structmutate});
+}
+
+
+/** paste selected genes */
+async function pastSelectGenes(v) {
+    const text = await navigator.clipboard.readText();
+    if (text.match(/{\s*"genes"\:/)) {
+        const ngenes = JSON.parse(text).genes;
+        const nfgenes = applyFilter(ngenes, geneClasses[v]);
+        const genes = xxxgenes(hoverDispobj);
+        copyFrom(genes, nfgenes);
+        hoverDispobj.render();
+        console.log('paste', v);
+        return true;
+    }
+    return false;
+}
+
+
+/** set up appropriate colour genes for mutation */
+function regularizeColourGeneVisibility() {
+    setAllLots('tag:horncol: | tag:texture:', {free:1})
+    setAllLots('gn:tex | _tex', {free:0})
+    setAllLots('texscale', {free:1})
+    // ??? pending freeze?
+    setAllLots('refl  | irid |  flu', 0); setAllLots('fluwidth', 0.01); // setAllLots('texscale', 1);
+    setAllLots('refl  | irid |  flu', {free: 0});
+}
+
+var ctrlContextGenes, ctrlContextBaseGenes, ctrlContextNewGenes;
+/** context menu displayed by clicking ctrl key */
+async function ctrlContextMenu() {
+    const text = await navigator.clipboard.readText();
+    if (text.match(/{\s*"genes"\:/)) {
+        W.contextPaste.style.display = '';
+        W.contextNoPaste.style.display = 'none'
+        ctrlContextNewGenes = JSON.parse(text).genes;
+        ctrlContextGenes = xxxgenes(hoverDispobj);
+        ctrlContextBaseGenes = {}; copyFrom(ctrlContextBaseGenes, ctrlContextGenes);
+        doCtrlContext();
+    } else {
+        W.contextNoPaste.style.display = '';
+        W.contextPaste.style.display = 'none'
+    }
+    const style = W.geneContextMenu.style;
+    style.display = '';
+    style.top = lastdocy + 'px';
+    style.left = lastdocx + 'px';
+}
+
+/** hide context menu */
+function endCtrlContextMenu() {
+    W.geneContextMenu.style.display = 'none';
+}
+
+/** copy the control context genes to clipboard */
+function copyCtrlContextgenestoclip() {
+    copygenestoclip(ctrlContextGenes)
+}
+
+function doCtrlContext(evt) {
+    copyFrom(ctrlContextGenes, ctrlContextBaseGenes);   // reestablish 'base' genes
+    const ff = [];
+    if (inputs.context_form) ff.push(geneClasses.F);
+    if (inputs.context_col) ff.push(geneClasses.C);
+    if (inputs.context_tex) ff.push(geneClasses.T);
+    if (inputs.context_surf) ff.push(geneClasses.S);
+    if (inputs.context_view) ff.push(geneClasses.V);
+    if (inputs.context_all) ff.push(geneClasses.A);
+    if (ff.length !== 0) {
+        const filter = resolveFilter(ff.join(' | '));
+        copyFrom(ctrlContextGenes, ctrlContextNewGenes, filter);
+    }
+    document.getElementById("tranrulebox").textContent = ctrlContextGenes.tranrule;
+    xxxdispobj(ctrlContextGenes).render();
+}
+
+/** for setting values in all objects, and get from currentGenes */
+var GGG = new Proxy(currentGenes, {
+    get: (o, n) => currentGenes[n],
+    set: (o, n, v) => {
+        for (const oo of Object.values(currentGenes)) {
+            if (oo.genes) oo.genes[n] = v;
+        }
+        refall();
+        return true;
+    },
+    ownKeys : (o) => Reflect.ownKeys(currentGenes)
+});
+
+
+/** for setting values in all objects, and ramp on currentGenes */
+var RGG = new Proxy(currentGenes, {
+    get: (o, n) => currentGenes[n],
+    set: (o, n, v) => {
+        for (const oo of Object.values(currentObjects)) {
+            const genes = oo.genes;
+            if (genes === currentGenes)
+                RG[n] = v;      // do ramp
+            else if (genes)
+                genes[n] = v;
+        }
+        refall();
+        return true;
+    },
+    ownKeys : (o) => Reflect.ownKeys(currentGenes)
+});
+
+
+/** exaggerated s-curve. k=0 gives min/max. k=0.5 skewed to edges, k=1 linear, k=2 skewed to centre/average, k=9999 always centre */
+var scurvex = (k, r = Math.random()) => {
+    const rr = r*2 - 1;
+    const y = Math.sign(rr) * Math.abs(rr) ** k;
+    return (y + 1) / 2
+}
+
+/** very random */
+var randmuts = async function randmuts({k = 0.5, slot, tag = 'geom'} = {}) {
+    if (!slot) {
+        for(const sl of slots) {
+            if (!sl || sl.dispobj.selected) continue;
+            randmuts({k, slot: sl.dispobj, tag})
+            await S.frame();
+        }
+        return;
+    }
+    const g = xxxgenes(slot);
+    for(const gn in genedefs) {
+        const gd = genedefs[gn];
+        if (gd.free && (tag === '*' || gd.tag===tag))
+            g[gn] = gd.min + scurvex(k) * (gd.max-gd.min);
+    }
+    centrescalenow(slot);
+}

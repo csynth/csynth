@@ -21,10 +21,20 @@
 // but serving files from the aaorganicart level (or OrganicRuntime or whatever)
 // with lots of help from http://stackoverflow.com/questions/6084360/using-node-js-as-a-simple-web-server
 
-import * as scserver from './scserver'
-import {mainServer, websocketReflector} from './serverUtils';
+// import * as scserver from './scserver'
+import {mainServer, websocketReflector, FileSocketWriter} from './serverUtils';
+
+import {startIPCServer} from "./scInterProcessCommunication";
 
 mainServer();
-scserver.start();
+// scserver.start(); //called by spawnSCSynth() -> startSession() after first getting data from
+console.log('in main organserver.ts');
+// startIPCServer();  // no need for await ?, this was part of scserver.start() but not spawnSCSynth() -> startSession()???
 websocketReflector();
+FileSocketWriter();
 
+try {
+    import('./openvrServer').then(openVRServer => openVRServer.openVRServer());
+} catch (error) {
+    console.log(`Error loading openVRServer: '${error}'`);
+}

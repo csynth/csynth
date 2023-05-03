@@ -16,7 +16,7 @@ text directly on buttons
 var textcanvas, textscene, texttexture, textgeom, CSynth, Image, Blob, framenum, msgfix, renderer, rrender, V, camera, runcommandphp,
 CubeMap, vivecontrol, dat, resolveFilter, log, showvals, THREE, inputs, loadfree, springs,
 W, html2canvas, renderVR, framedeltasmooth, currentHset, newscene, loadopen, processFile, setInput,
-genedefs, currentGenes, setval, GX;
+genedefs, currentGenes, setval, GX, guiFromGene;
 
 var VH = vivehtml;
 // 0 is flat pad, 1 is trigger, 2 is side button, 3 is above pad button
@@ -147,8 +147,8 @@ VH.writetext = function vwriteetxt(msgs, timeout) {
 
                 lctx.drawImage(img, 0, 0);
                 DOMURL.revokeObjectURL(url);
-                textgeom.verticesNeedUpdate = true;
-                textgeom.uvsNeedUpdate = true;
+                //tgeom.vert icesNeedUpdate = true;
+                //textgeom.uvsNeedUpdate = true;
                 texttexture.needsUpdate = true;
                 VH.usetext2 = true;
             }
@@ -189,24 +189,20 @@ VH.writetext = function vwriteetxt(msgs, timeout) {
         textgeom.charsw = charsw;  // for later reference when picking
         textgeom.charsh = charsh;
     //charsh=1;
-        var v = textgeom.vertices;
-        v[0].set(-charsw, charsh,0);
-        v[1].set(charsw, charsh,0);
-        v[2].set(-charsw, -charsh,0);
-        v[3].set(charsw, -charsh,0);
-
-        var u = textgeom.faceVertexUvs[0];
-        u[0][0].set(0,1);
-        u[0][1].set(0,1-charsh);
-        u[0][2].set(charsw,1);
-
-        u[1][0].set(0,1-charsh);
-        u[1][1].set(charsw,1-charsh);
-        u[1][2].set(charsw,1);
+        const pa = textgeom.getAttribute('position');
+        pa.array.set([
+            -charsw, charsh,0,
+            charsw, charsh,0,
+            -charsw, -charsh,0,
+            charsw, -charsh,0
+        ]);
+        const ua = textgeom.getAttribute('uv');
+        ua.array.set([0,1,  charsw,1,  0,1-charsh,  charsw,1-charsh]);
+        pa.needsUpdate = ua.needsUpdate = true;
     }
 
-    textgeom.verticesNeedUpdate = true;
-    textgeom.uvsNeedUpdate = true;
+    // textgeom.vert icesNeedUpdate = true;
+    // textgeom.uvsNeedUpdate = true;
     texttexture.needsUpdate = true;
     // currentGenes._fov = 80;
 }
@@ -317,7 +313,7 @@ VH.orgGUI = function(name = 'VH.orgGUI', filter = inputs.genefilter) {
     VH.positionGUI();
     V.alwaysShowRender = true;
 
-    // resoverride.radnum = 5; V.gui.add(resoverride, 'radnum', 1, 10).step(1);
+    // HW.resoverride.radnum = 5; V.gui.add(HW.resoverride, 'radnum', 1, 10).step(1);
 }
 
 /** set gui visibility, and reposition (make sure it has correct parent for VR/noVR) */
@@ -339,40 +335,6 @@ VH.killgui = function() {
     delete V.gui;
 }
 
-// create a gui item from a gene
-function guiFromGene(gui, gn, xgn = gn) {
-	var gd = genedefs[gn];
-    if (currentGenes[gn] === undefined) currentGenes[gn] = gd.def;
-    let gg;
-
-    if (gd.togui || gd.fromgui) {
-        if (gd.togui === Math.log && !gd.fromgui) gd.fromgui = Math.exp;
-        if (gd.togui === Math.log10 && !gd.fromgui) gd.fromgui = v => Math.pow(10, v);
-        const x = {};
-        Object.defineProperty(x, xgn, {
-            get: () => { return gd.togui(currentGenes[gn]) },
-            set: (v) => { currentGenes[gn] = gd.fromgui(v); }
-        })
-        gg = gui.add(x, xgn, gd.togui(gd.min), gd.togui(gd.max));
-        gg.step = 0.01;
-    } else {
-        // need intermediate name between var name and description
-        gg = gui.add(currentGenes, xgn, gd.min, gd.max);
-        gg.step(gd.step);
-    }
-
-    gg.listen();
-    gg.name(xgn);
-	gg.gn = gn;
-	gg.onChange( function(s) {
-		setval(gg.gn, gd.fromgui ? gd.fromgui(s) : s);   // this does not contain gg
-    });
-    if (gd.help) gg.setToolTip(gd.help + '\nGENE: ' + gn + (gd.togui ? ' fun:' + gd.togui.name : ''));
-    guiFromGene.items[gn] = guiFromGene.items[xgn] = gg;
-	return gg;
-}
-guiFromGene.items = {};
-
 
 
 VH.guiScale = 300;
@@ -388,10 +350,25 @@ VH.positionGUI = function(matrix, distance, scale, gui) {
     // VH.fixguiForVR can fix gui even in VR mode,
     // for develop/debug only ... not working well at the moment
     if (!renderVR.invr() || VH.fixguiForVR) {
+        // ensure specfied gui has correct parent, in case of switch from VR
+        // ?? maybe need to transfer more from VR as well ??
+        if (gui.parent !== V.nocamscene) V.nocamscene.add(gui);
         s = V.defaultGuiScale;
-        gui.position.set( V.nocamcamera.aspect  - 0.9 ,0.95, 0);
+        const asp = V.nocamcamera.aspect;
+        const mlx = asp - s * 1.04;              // rightmost ok x (right at right border)
+        const oasp = V.oldasp || asp;
+        const omlx = oasp - s * 1.04;
+        for (gui of V.nocamscene.children) {    // make all guis have safe x position
+            if (gui.guiName === undefined) continue;
+            let opx = gui.position.x;
+            const lx = oasp + opx;         // space to left
+            const rx = omlx - opx;   // space to right
+            const px = (lx < rx) ? lx - asp : mlx - rx;   // preserve smaller space
+            gui.position.x = px;
+            gui.updateMatrix();
+        }
+        V.oldasp = asp;
         matrix = V.nocamcamera.matrix;
-        V.nocamscene.add(gui);
         //this is really an inappropriate side effect here
         dat.GUIVR.enableMouse(V.nocamcamera, renderer);
     } else {
@@ -407,5 +384,5 @@ VH.positionGUI = function(matrix, distance, scale, gui) {
     gui.rotation.setFromRotationMatrix(matrix);
     if (VH.updateCsynthGUI) VH.updateCsynthGUI();
 }
-V.defaultGuiScale = 0.7;
+V.defaultGuiScale = 0.6;
 

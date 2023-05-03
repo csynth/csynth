@@ -44,8 +44,10 @@ uniform vec3  gbuffdot; // used so skelbuffer can output different coords
 uniform sampler2D rtopos;		// sampler used in OPOPOS2COL to hold output of OPOPOS
 uniform sampler2D rtshapepos;		// sampler used in OPTSHAPEPOS2COL to hold output of OPSHAPEPOS
 uniform sampler2D colbuff;		// sampler used to hold colours
+uniform sampler2D feedtexture;		// feedback for mini/NFT
 
 uniform sampler2D pickrt;  //pick texture
+uniform float cameraAspect;
 
 // temporarily genes for tuning, then maybe const/define
 gene(multifact, 16, 0,64,1,1,gtex,frozen)  // find best multiplex value
@@ -60,6 +62,23 @@ gene(cuty, 0, 0.8, 4, 0.05, 0.01, gtex, frozen ) // cut ratio for VR in y , 2.2 
 gene(cutfall, 1.1, 1, 1.6, 0.05, 0.01, gtex, frozen ) // fall off radius factor after cut (1 is sharp)
 gene(cutr, 0, 0, 1, 0.1, 0.1, gtex, frozen ) // red for cut section
 
+gene(reveallow, 0, 0, 1, 0.001,0.0001, gtex, frozen) // gradually reveal
+gene(revealhigh, 1, 0, 1, 0.001,0.0001, gtex, frozen) // gradually reveal
+gene(revealstyle, -2, -2, 10, 1,1, gtex, frozen) // reveal style, -2 discard, -1 black, other, use horn number (DOESN'T WORK)
+gene(revealribs, 1, 1, 40, 1,1, gtex, frozen) // reveal # ribs
+gene(revealstripes, 1, 1, 40, 1,1, gtex, frozen) // reveal # stripes
+// some genes below only apply to edge. They don't really belong in four.fs, but here for convenience
+gene(edgewidth, 2, 1, 2, 1,1, gtex, frozen)   // edge width, 1 = just use first horn, 2 use both sides of edge; nb set during -98 style render
+gene(OPOSZ, 0, 0, 1, 1,1, gtex, frozen)   // if 1, output z in output.w
+gene(edgestyle, 0, 0, 6, 1,1, gtex, frozen)   // style of edges, 0 colour/lablel, 1, black on white, 2, white on black
+gene(occludewidth, 0, 0, 20, 1,1, gtex, frozen)   // size of occlusion zone
+gene(edgeDensitySearch, -1, 0, 8, 1,1, gtex, frozen)   // fill overpopulated areas, -1 different neighbour count, 0 any neighour masks, >0 in front neighbour threshold
+gene(baseksize, 1, 1, 3, 1,1, gtex, frozen)   // size for base edge detection kernel
+gene(profileksize, 1, 1, 16, 1,1, gtex, frozen)   // size for profile edge detection kernel
+gene(colby, 0, 0, 3, 1,1, gtex, frozen)   // colouring (if used) for bw rendering
+uniform mat3 edgeBackFeedMatrix;        // rot, scale etc of feedback
+uniform mat4 edgeBackFeedTint;          // rgb tint for edge feedback
+
 // ge ne(patchNaN, 0, 0,1,1,1, gtex, frozen)  // test NaN output, 0 leave, 1 set 0, 2 set high col, -1, set -ve to 0
 
 
@@ -71,15 +90,19 @@ gene(cutr, 0, 0, 1, 0.1, 0.1, gtex, frozen ) // red for cut section
 
 
 vec4 xcol = vec4(0.,0.,0.,0.);  // extra colour, may be set in various places including tranrule
-uniform vec2 screen;
+// uniform vec2 screen; // now in common.vfs
 uniform mat4 rot4;  // rotation part of viewing transform
 uniform mat4 rot44d;  // 4d viewing transform
 float colourid;
 
+// made more generally available to share edge information between getPosNormalColid() in this file and lightingx() in lights.fs
+vec4 tvp00, tvpaa, tvpab, tvpba, tvpbb;
+float h00, haa, hba, hbb, hab;
+
 #include common.vfs;
 
 float xhornid;
-#if OPMODE == OPREGULAR || OPMODE == OPOPOS2COL || OPMODE == OPSHAPEPOS || OPMODE == OPOPOS || OPMODE == OPMAKESKELBUFF || OPMODE == OPPOSITION || OPMODE == OPPICK
+#if OPMODE == OPREGULAR || OPMODE == OPOPOS2COL || OPMODE == OPSHAPEPOS || OPMODE == OPOPOS || OPMODE == OPMAKESKELBUFF || OPMODE == OPPOSITION || OPMODE == OPPICK || OPMODE == OPMAKEGBUFFX
 	uniform float hornid;
 	#define setxhornid xhornid = hornid;
 	#define SETCOL
@@ -95,6 +118,9 @@ float xhornid;
 	vec4 opos;				// found locally from lookup and passed
 #elif (OPMODE == OPTSHAPEPOS2COL)
 	#define opos (textureget(rtopos, gl_FragCoord.xy * screen))
+#elif OPMODE == OPMAKEGBUFFX
+    varying vec4 objpos;
+    varying vec4 opos;
 #endif
 // todo, note that always passing makes it look as if it is around at fragment when it may not be set in vertex
 float reflnorm = 1.;  // keep track of reflections so normals can be corrected, passed from hornmaker to lights
@@ -102,7 +128,7 @@ float reflnorm = 1.;  // keep track of reflections so normals can be corrected, 
 
 
 /** do or don't include texture. shadows and lights */
-#if (OPMODE == OPREGULAR || OPMODE == OPOPOS2COL || OPMODE == OPTSHAPEPOS2COL || OPMODE == OPTEXTURE || OPMODE == OPBUMPNORMAL)
+#if (OPMODE == OPREGULAR || OPMODE == OPOPOS2COL || OPMODE == OPTSHAPEPOS2COL || OPMODE == OPTEXTURE || OPMODE == OPBUMPNORMAL || OPMODE == OPMAKEGBUFFX)
     #include texture.fs;
     #include lights.fs;
 #endif
@@ -110,8 +136,7 @@ float reflnorm = 1.;  // keep track of reflections so normals can be corrected, 
     #include texture.fs;
 #endif
 
-
-#if !(OPMODE == OPTSHAPEPOS2COL || OPMODE == OPTEXTURE || OPMODE == OPBUMPNORMAL)
+#if !(OPMODE == OPTSHAPEPOS2COL || OPMODE == OPTEXTURE || OPMODE == OPBUMPNORMAL || OPMODE == OPEDGE)
 #include hornmaker.vs;
 #endif
 
@@ -142,7 +167,10 @@ bool samehorn(float k1, float k2) { return horn(k1) == horn(k2); }
 
 #if (OPMODE == OPTSHAPEPOS2COL || OPMODE == OPTEXTURE || OPMODE == OPBUMPNORMAL)
 
-/** read and demultiplex the position/normal from  rtshapepos; this is NON bumped normal, set colourid as biproduct */
+/** read and demultiplex the position/normal from  rtshapepos; this is NON bumped normal,
+set colourid as biproduct
+if EDGES compute nonedgenum and multiplex into xmnormal.z
+*/
 virtual void getPosNormalColid(out vec3 xmnormal, out vec4 shapepos, out float thornid, out float fullkey) {
         vec2 b = vec2(gl_FragCoord.xy);
         vec4 multi = textureget(rtshapepos, b * screen); // get horn source from OPSHAPEPOS buffer
@@ -157,24 +185,24 @@ virtual void getPosNormalColid(out vec3 xmnormal, out vec4 shapepos, out float t
 			float xd = latenormals;	 // if not 0 then usually 1. for immediate neightbours
 			vec4 tvp00 = multi;
 			// establish some interesting neighbours
-            // Aa,Ab and Ba,Bb are opposite pairs
+            // aa,ab and ba,bb are opposite pairs
             /**
             // this version with diagonals
-			vec4 tvpAa = textureget(rtshapepos, (b + vec2( xd, xd)) * screen);
-			vec4 tvpAb = textureget(rtshapepos, (b + vec2(-xd,-xd)) * screen);
-			vec4 tvpBa = textureget(rtshapepos, (b + vec2( xd,-xd)) * screen);
-			vec4 tvpBb = textureget(rtshapepos, (b + vec2(-xd, xd)) * screen);
+			vec4 tvpaa = textureget(rtshapepos, (b + vec2( xd, xd)) * screen);
+			vec4 tvpab = textureget(rtshapepos, (b + vec2(-xd,-xd)) * screen);
+			vec4 tvpba = textureget(rtshapepos, (b + vec2( xd,-xd)) * screen);
+			vec4 tvpbb = textureget(rtshapepos, (b + vec2(-xd, xd)) * screen);
             **/
 
             // this version with immediate neighbours
-			vec4 tvpAa = textureget(rtshapepos, (b + vec2( xd, 0.)) * screen);
-			vec4 tvpAb = textureget(rtshapepos, (b + vec2(-xd, 0.)) * screen);
-			vec4 tvpBa = textureget(rtshapepos, (b + vec2( 0.,-xd)) * screen);
-			vec4 tvpBb = textureget(rtshapepos, (b + vec2( 0., xd)) * screen);
+			tvpaa = textureget(rtshapepos, (b + vec2( xd, 0.)) * screen);
+			tvpab = textureget(rtshapepos, (b + vec2(-xd, 0.)) * screen);
+			tvpba = textureget(rtshapepos, (b + vec2( 0.,-xd)) * screen);
+			tvpbb = textureget(rtshapepos, (b + vec2( 0., xd)) * screen);
 
 
 			// find who they belong to
-            float h = multi.w, hAa = tvpAa.w, hBa = tvpBa.w, hBb = tvpBb.w, hAb = tvpAb.w;
+            h00 = multi.w, haa = tvpaa.w, hba = tvpba.w, hbb = tvpbb.w, hab = tvpab.w;
 
             /****
             // rule out use of anything which is only a 2d neighbour, not a 3d neighbour
@@ -184,18 +212,18 @@ virtual void getPosNormalColid(out vec3 xmnormal, out vec4 shapepos, out float t
             // Stephen 4 Nov 2015
 
             // find distances
-            float dAa = dist2( tvp00, tvpAa);
-            float dAb = dist2( tvp00, tvpAb);
-            float dBa = dist2( tvp00, tvpBa);
-            float dBb = dist2( tvp00, tvpBb);
-            float dmin = min(dAa, dAb, dBa, dBb);
+            float daa = dist2( tvp00, tvpaa);
+            float dab = dist2( tvp00, tvpab);
+            float dba = dist2( tvp00, tvpba);
+            float dbb = dist2( tvp00, tvpbb);
+            float dmin = min(daa, dab, dba, dbb);
             float dok = 3.*dmin;  // this needs to be much higher than that if used, and probably a fixed value
 
             float NOK = 999.*MAX_HORNS_FOR_TYPE;  // float for not at all ok
-            if (dAa > dok) hAa = NOK;
-            if (dAb > dok) hAb = NOK;
-            if (dBa > dok) hBa = NOK;
-            if (dBb > dok) hBb = NOK;
+            if (daa > dok) haa = NOK;
+            if (dab > dok) hab = NOK;
+            if (dba > dok) hba = NOK;
+            if (dbb > dok) hbb = NOK;
             ***/
 
 			// find out which neighbours to use
@@ -217,54 +245,37 @@ virtual void getPosNormalColid(out vec3 xmnormal, out vec4 shapepos, out float t
             //        and latenormalsred on red channel (for debug, usually 0)
 
             // we did use (fuzzy) test for same horn and close enough ...
-            //   abs(h - hAa) < latenormalsnearenough
+            //   abs(h00 - haa) < latenormalsnearenough
             //  but now just using same horn because of issues on branch
 
             // we used to use both left and right if possible, and both up and down
             // we now use left is possible, right if possible and left not possible
             // this prevents creases at join where we have faceting but do not distinguish with ribs etc
-            vec3 uAa, uAb, uBa, uBb;
-            if (hAa == h) {
-                uAa = tvpAa.xyz;
-                uAb = tvp00.xyz;
-            } else if (hAb == h) {
-                uAa = tvp00.xyz;
-                uAb = tvpAb.xyz;
-			} else  {       // use 'same horn' in A direction, if ((hAa != h && hAb != h))
-                uAa = samehorn(h, hAa) ? tvpAa.xyz : tvp00.xyz;
-                uAb = samehorn(h, hAb) ? tvpAb.xyz : tvp00.xyz;
+            vec3 uaa, uab, uba, ubb;
+            if (haa == h00) {
+                uaa = tvpaa.xyz;
+                uab = (hab == h00) ? tvpab.xyz : tvp00.xyz;
+            } else if (hab == h00) {
+                uaa = tvp00.xyz;
+                uab = tvpab.xyz;
+			} else  {       // use 'same horn' in A direction, if ((haa != h00 && hab != h00))
+                uaa = samehorn(h00, haa) ? tvpaa.xyz : tvp00.xyz;
+                uab = samehorn(h00, hab) ? tvpab.xyz : tvp00.xyz;
             }
 
-            if (hBa == h) {
-                uBa = tvpBa.xyz;
-                uBb = tvp00.xyz;
-            } else if (hAb == h) {
-                uBa = tvp00.xyz;
-                uBb = tvpBb.xyz;
-			} else  {       // use 'same horn' in A direction, if ((hBa != h && hBb != h))
-                uBa = samehorn(h, hBa) ? tvpBa.xyz : tvp00.xyz;
-                uBb = samehorn(h, hBb) ? tvpBb.xyz : tvp00.xyz;
+            if (hba == h00) {
+                uba = tvpba.xyz;
+                ubb = (hbb == h00) ? tvpbb.xyz : tvp00.xyz;
+            } else if (hbb == h00) {
+                uba = tvp00.xyz;
+                ubb = tvpbb.xyz;
+			} else  {       // use 'same horn' in A direction, if ((hba != h00 && hbb != h00))
+                uba = samehorn(h00, hba) ? tvpba.xyz : tvp00.xyz;
+                ubb = samehorn(h00, hbb) ? tvpbb.xyz : tvp00.xyz;
             }
 
-            /***** old code kept for now, 9/11/2017, remove Dec 2017 TODO
-			if ((hAa != h && hAb != h)) {       // use 'same horn' in A direction
-				uAa = samehorn(h, hAa) ? tvpAa.xyz : tvp00.xyz;
-				uAb = samehorn(h, hAb) ? tvpAb.xyz : tvp00.xyz;
-            } else {    // at least one standard in A direction
-				uAa = h == hAa ? tvpAa.xyz : tvp00.xyz;
-				uAb = h == hAb ? tvpAb.xyz : tvp00.xyz;
-            }
-
-			if ((hBa != h && hBb != h)) {       // use 'same horn' in B direction
-				uBa = samehorn(h, hBa) ? tvpBa.xyz : tvp00.xyz;
-				uBb = samehorn(h, hBb) ? tvpBb.xyz : tvp00.xyz;
-            } else {    // at least one standard in B direction
-				uBa = h == hBa ? tvpBa.xyz : tvp00.xyz;
-				uBb = h == hBb ? tvpBb.xyz : tvp00.xyz;
-            }
-            *****/
-            vec3 imnormal = cross(uBa-uBb, uAa-uAb);
-//imnormal = cross(tvpBa.xyz-tvpBb.xyz, tvpAa.xyz-tvpAb.xyz);
+            vec3 imnormal = cross(uba-ubb, uaa-uab);
+            //debug imnormal = cross(tvpba.xyz-tvpbb.xyz, tvpaa.xyz-tvpab.xyz);
 
             // This will catch case where nothing even near enough in one A or B direction, or both
             // Could refine where one direction is OK.
@@ -278,9 +289,11 @@ virtual void getPosNormalColid(out vec3 xmnormal, out vec4 shapepos, out float t
                 xmnormal.y += 0.000000000000001;  // bugs in side walls if this was omitted, not sure why >>> TODO
             }
 
-            #ifdef EDGES
-                xmnormal.z += 16. * (float(hAa == h) + float(hAb == h) + float(hBa == h) + float(hBb == h));
-            #endif
+            // #ifdef EDGES
+            //     // pass edge information nonedgenum multiplexed in normal.z
+            //     xmnormal.z += 16. * (float(haa == h00) + float(hab == h00) + float(hba == h00) + float(hbb == h00));
+            //     //xmnormal.z += 16. * (float(haa >= h00) + float(hab >= h00) + float(hba >= h00) + float(hbb >= h00));
+            // #endif
 
 		} else {    // NOT   (latenormals != 0.), eg either not latenormals OR NO TR, demultiplex to get pos/normal
 			shapepos = floor(multi)/multifact;
@@ -289,6 +302,7 @@ virtual void getPosNormalColid(out vec3 xmnormal, out vec4 shapepos, out float t
 			xmnormal = q.xyz;
 		}
 
+        if (cameraAspect < 0.) xmnormal *= -1.;
         shapepos.w = 1.;
         colourid = thornid; // till otherwise set
 }  // end getPosNormalColid
@@ -322,12 +336,22 @@ float flipbit(vec2 xy) {
 	return r / (16. * 1024.);
 }
 
+#define MAXMPXRIBS 512.   // used for multiplexing horn# and ribs
+float ribkey(vec4 h, float ribs, float stripes) {
+    float hx = clamp((h.x - capres*0.5) / (1.-capres), 0., 1.); // no ribs on caps
+    // fix 512 rather than ribs for multiplier, as different horns have different #ribs, so keys could get confused
+    return h.z == -1. ? 1.e20 : floor(stripes * h.y) + stripes * (floor(ribs * hx) + MAXMPXRIBS * h.z);
+}
+
 
 void main()
 {
 	#ifdef setxhornid
 		setxhornid
 	#endif
+    #if OPMODE == OPOPOS && defined(SHARPPOINT) && !defined(NOHORNMAKER)
+        if (vxrscale < 0.) discard; // NOT <- 0, walls give 0 radius
+    #endif
 	#if (OPMODE == OPOPOS || OPMODE == OPSHAPEPOS || OPMODE == OPTEXTURE || OPMODE == OPTSHAPEPOS2COL || OPMODE == OPREGULAR)
 		vec2 _pp = (gl_FragCoord.xy * screen - 0.5) * vec2(cutx, cuty);
         float cutrad = _pp.x*_pp.x + _pp.y*_pp.y;
@@ -409,30 +433,36 @@ void main()
 #ifndef NOTR  // OPOPOS
 // do not intergerize z for NOTR, opopos is 'real' value in that case
         gl_FragColor.z = floor(gl_FragColor.z + 0.1);  // in case interpolation has upset these integer values
+        // float k = ribkey(gl_FragColor, lennum, radnum) / (MAXMPXRIBS * numInstances / RIBS);
+        float k = gl_FragColor.z / numInstances * RIBS; // don't bother to reveal along/around horn for now, but do roll out by particle
+        if (k < reveallow || k >= revealhigh) {
+            if (revealstyle == -2.) discard;    // don't render at all, things behind are visible
+            if (revealstyle == -1.)
+                gl_FragColor = vec4(-1, -1, -1, -1);
+            else
+                gl_FragColor.w = revealstyle;   // things behind rendered in another style, DOESN'T WORK, ?? killed/ignored by next pass ??
+        }
 #endif
-        gl_FragColor.a = gl_FrontFacing ? round(gl_FragColor.a) : 99.;  // often ignored as later stages recompute from splitk
-
+        gl_FragColor.w = gl_FrontFacing ? round(gl_FragColor.w) : 99.;  // often ignored as later stages recompute from splitk
+		// todo choose best depth value for both tadpoles (w better) and horn (z better)
+        if (OPOSZ == 1.) {
+            gl_FragColor.w = gl_FragCoord.w;               // used for edge finding
+            gl_FragColor.g += opos.w;               // multiplex horn class into v
+        }
+        else if (OPOSZ == 2.) gl_FragColor.b = 1.; // vec4(1,0,1,1);                        // temp used for mini
+        else if (OPOSZ == 3.) {
+            vec4 rr = texture(feedtexture, gl_FragCoord.yx / 500.);
+            gl_FragColor.g += rr.r;
+            gl_FragColor.b = 0.; // vec4(1,0,1,1);                        // temp used for mini
+        }
         } // return;;
 
     #elif (OPMODE == OPMAKEGBUFFX)
-//>>> code below for stl generation
-        // gbuffdot will select just one of x,y,z from objpos
-        // and prepare it as four bytes values,
-        // as we can't read pixel float values for webGL
-        // +10000 makes sure number is positive.
-        float q = dot(objpos.xyz, gbuffdot) + 10000.;
-//float q = 12345.678;
-
-        // breaking up value for output
-        float K = 255.;
-        float a = floor(q/K/K);
-        q = q-a*K*K;
-        float b = floor(q/K);
-        q = q-b*K;
-        float c = floor(q);
-        q = q-c;
-        float d = q;
-        gl_FragColor = vec4(a/K, b/K, c/K, d);
+        gl_FragColor = objpos;
+        // Colsurf colsurf = standardTexcol(objpos.xyz);
+        Colsurf colsurf = iridescentTexcol(objpos.xyz, vec3(0,0,1), vec3(0,0,1)); // for CSynth override?
+        vec3 c = floor(colsurf.col.xyz * 255.);
+        gl_FragColor.w = dot(c, vec3(256*256, 256, 1));
         } // return;;
 
     #elif (OPMODE == OPPICK)   // unpack the pick data from pickVary and output
@@ -442,15 +472,13 @@ void main()
         } // return;;
 
     #elif (OPMODE == OPPOSITION)   // output scale information
-    	//#ifdef GPUSCALE  // NO always use this and get data with readWebGLFloat
-	        gl_FragColor = vec4( scaleVary, -scaleVary, scaleVary + 10000.,1.);  // experiment
-		//#else
-        //    {
-		//	float d = (scaleVary + 1.) * 127.;  // %%%% typically range 0 to 254
-		//	gl_FragColor = vec4( floor(d)/255., fract(d), 1., 1.); // ^^^^ split
-        //   }
-		//#endif
-        } // return;;
+        gl_FragColor = vec4( scaleVary, -scaleVary, scaleVary + 10000.,1.);  // experiment
+       } // return;;
+
+    #elif (OPMODE == OPEDGE)   // compute edges for plotter
+    #error OPEDGE should not be compiled via four.fs; uses shaders/edge.fs and .vs
+       } // return;;
+
 
     #elif (OPMODE == OPSHAPEPOS)  // save x,y,z
         // perform basic geometry
@@ -511,6 +539,10 @@ if (lhornid == 2.) { //        #ifdef NOTR // OPSHAPEPOS
 		float lhornid = lopos.w;
 		colourid = lhornid;
 		if (lhornid == 0.) discard;
+        #ifdef SIMPLESHADE
+            gl_FragColor = vec4(fract(lopos.xyz * 1.97), 1.);
+            return;
+        #endif
 		//	if (lhornid != hornid) discard;  // not valid for singlemulti
         lopos.w = 1.;                                                // reconstitute lopos.w
 		float vv;
@@ -538,6 +570,7 @@ if (lhornid == 2.) { //        #ifdef NOTR // OPSHAPEPOS
             float k = (cutfall - cutrad) /(cutfall - 0.99999);
             gl_FragColor.xyz *= k*k*(3. - 2.*k);
         }
+        gl_FragColor = clamp(gl_FragColor, 0., 1.);
 
 // don't let NaN values through if they are generated
 		// commented out; we try to prevent them getting generated in the first place
@@ -598,7 +631,7 @@ else gl_FragColor = vec4(1.,1.,1.,1.);
 #else  // OPTEST
 	uniform float hornid;
 	uniform float cutx, cuty;
-	uniform vec2 screen;
+	// uniform vec2 screen; // now in common.vfs
 	varying vec4 opos;         //
 void main() {
 	//vec2 p = (gl_FragCoord.xy * screen - 0.5) * vec2(cutx, cuty);

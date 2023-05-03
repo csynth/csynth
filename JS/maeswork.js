@@ -9,6 +9,7 @@ const useSimpleTick = false; //should be change-able at runtime, but needs some 
 
 self.addEventListener('message', function(e){
     var data = e.data;
+    if (data === null) return;      // added for Edge
     switch (data) {
         case 'start': start(); break;
         case 'pause': pause();  break;

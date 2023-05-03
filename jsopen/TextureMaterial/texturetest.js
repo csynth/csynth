@@ -93,10 +93,13 @@ window.onload = () => {
     span:hover + .hhelp { display: block; position: fixed; left:20em;  top: 0; color: red; }
 </style>
 
-<div style="z-index:999; position:absolute; left: 1em; top:0; background-color: white; opacity: 80%; overflow: auto; max-width: 20em;">
+<div style="z-index:999; position:absolute; left: 1em; top:0; background-color: white; opacity: 80%; overflow: auto;">
     shader: three physical<input type="radio" name="shader" onclick="mesh.material = basemat"></button>
     phong<input type="radio" name="shader" onclick="mesh.material = phongmat"></button>
-    organic<input type="radio" name="shader" onclick="mesh.material = mat" checked="1"></button>
+    organic ==> norand<input type="radio" name="shader" onclick="mesh.material = mat; COL.uniforms.noisetype.value = 0" checked="1"></button>
+    Perlin<input type="radio" name="shader" onclick="mesh.material = mat; COL.uniforms.noisetype.value = 1" checked="1"></button>
+    Poh<input type="radio" name="shader" onclick="mesh.material = mat; COL.uniforms.noisetype.value = 2" checked="1"></button>
+    Winsom<input type="radio" name="shader" onclick="mesh.material = mat; COL.uniforms.noisetype.value = 3" checked="1"></button>
 </div>
 `
 textureTestInit();

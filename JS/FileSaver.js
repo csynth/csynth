@@ -8,7 +8,7 @@
  *   See LICENSE.md
  */
 
-/*global self */
+/*global se lf */
 /*jslint bitwise: true, regexp: true, confusion: true, es5: true, vars: true, white: true,
   plusplus: true */
 
@@ -81,9 +81,9 @@ saveAs = saveAs
                 , object_url
                 , target_view
                 , get_object_url = function() {
-                    var object_url = get_URL().createObjectURL(blob);
-                    deletion_queue.push(object_url);
-                    return object_url;
+                    var _object_url = get_URL().createObjectURL(blob);
+                    deletion_queue.push(_object_url);
+                    return _object_url;
                 }
                 , dispatch_all = function() {
                     dispatch(filesaver, "writestart progress write writeend".split(" "));
@@ -191,7 +191,7 @@ saveAs = saveAs
             }), fs_error);
         }
         , FS_proto = FileSaver.prototype
-        , saveAs = function(blob, name) {
+        , _saveAs = function(blob, name) {
             return new FileSaver(blob, name);
         }
     ;
@@ -214,7 +214,7 @@ saveAs = saveAs
         null;
 
     view.addEventListener("unload", process_deletion_queue, false);
-    return saveAs;
+    return _saveAs;
 }(self));
 
 /** save string text or array of strings in a file */

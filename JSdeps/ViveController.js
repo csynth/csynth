@@ -7,8 +7,12 @@
 var THREE, V, renderer, msgfix, log;
 
 THREE.ViveController = function ( id ) {
-
-	THREE.Object3D.call( this );
+	if (+THREE.REVISION > 142) {
+		const xx = new THREE.Object3D();
+		Object.assign(this, xx);
+	} else {
+		THREE.Object3D.call( this );
+	}
 
 	var scope = this;
 	var gamepad;
@@ -28,21 +32,24 @@ THREE.ViveController = function ( id ) {
 
 		// Also, we may want to remove ViveController completely to keep more in line with later three.js
 		// BUT data.guiVR uses ViveController so not necessarily a straightforward change
-		if (renderer.vr.isxr) return V.gps[gid];
 
-		// Iterate across gamepads as Vive Controllers may not be
-		// in position 0 and 1.
-		var gamepads = V.gamepads; // navigator.getGamepads(); probably OK to repeat call but we want consistent values
-		if (this.slot !== undefined) return gamepads[this.slot];  // sjpt, to allow for virtual controller
+		// todo remove/tidy Nov 2020
+		// if (renderer. vr.is xr)
+			return V.gps[gid];
 
-		for ( var i = 0, j = 0; i < 4; i ++ ) {
-			var _gamepad = gamepads[i];
-			if ( _gamepad && ( _gamepad.id.startsWith('OpenVR') || _gamepad.id === 'Oculus Touch (Left)' || _gamepad.id === 'Oculus Touch (Right)' ) ) {
-				if ( j === gid )
-					return _gamepad;
-				j ++;
-			}
-		}
+		// // Iterate across gamepads as Vive Controllers may not be
+		// // in position 0 and 1.
+		// var gamepads = V.gamepads; // navigator.getGamepads(); probably OK to repeat call but we want consistent values
+		// if (this.slot !== undefined) return gamepads[this.slot];  // sjpt, to allow for virtual controller
+
+		// for ( var i = 0, j = 0; i < 4; i ++ ) {
+		// 	var _gamepad = gamepads[i];
+		// 	if ( _gamepad && ( _gamepad.id.startsWith('OpenVR') || _gamepad.id === 'Oculus Touch (Left)' || _gamepad.id === 'Oculus Touch (Right)' ) ) {
+		// 		if ( j === gid )
+		// 			return _gamepad;
+		// 		j ++;
+		// 	}
+		// }
 	}
 
 	this.matrixAutoUpdate = false;
@@ -63,7 +70,7 @@ THREE.ViveController = function ( id ) {
 		gamepad = findGamepad( id );
 		if (!gamepad) return;  // eg if emulating with mouse
         // patch for Chrome issue sometimes not reporting Vive gamepads with 4 buttons
-		if (gamepad.buttons.length !== 4) { msgfix('unexpected gamepad buttons', gamepad.buttons.length); return; }
+		if (gamepad.buttons.length < 4) { msgfix('unexpected gamepad buttons', gamepad.buttons.length); return; }
 
 		if ( gamepad !== undefined && gamepad.pose !== undefined ) {
 			if ( gamepad.pose === null ) return; // No user action yet
@@ -83,7 +90,8 @@ THREE.ViveController = function ( id ) {
 				axes[1] = gamepad.axes[1]; //  Y axis: -1 = Bottom, +1 = Top.
 				scope.dispatchEvent( { type: 'axischanged', axes: axes } );
 			}
-			const [trig, pad, side, menu] = (renderer.vr.isxr) ? [0,1,2,3] : [1,0,2,3];
+			// todo remove/tidy Nov 2020 const [trig, pad, side, menu] = (renderer. vr.is xr) ? [0,1,2,3] : [1,0,2,3];
+			const [trig, pad, side, menu] = [0,1,2,3];
 
 			if ( thumbpadIsPressed !== gamepad.buttons[pad].pressed ) {
 				thumbpadIsPressed = gamepad.buttons[pad].pressed;

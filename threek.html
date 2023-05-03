@@ -1,0 +1,1793 @@
+
+<!DOCTYPE html>
+
+<html style="background: black">
+<meta charset="utf-8"/>
+    <head>
+        <script type="text/javascript">if (devicePixelRatio !== 1) console.error('devicePixelRatio=' + devicePixelRatio);</script>
+
+        <title>Organic Art
+        </title>
+        <!-- <script src='https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.js'></script> -->
+        <!-- <script src='jsdeps/webxr-polyfill.js'></script> -->
+        <link rel="stylesheet" type="text/css" href="mut.css">
+        <link rel="stylesheet" type="text/css" href="JSdeps/codemirror/codemirror.css">
+        <link rel="stylesheet" type="text/css" href="JSdeps/codemirror/show-hint.css">
+        <link rel="stylesheet" type="text/css" href="JSdeps/codemirror/organic-dark.css">
+        <link rel="stylesheet" type="text/css" href="JSdeps/codemirror/ambiance.css">
+        <link rel="stylesheet" type="text/css" href="JSdeps/codemirror/foldgutter.css">
+        <link rel="icon" href="favicon.png" />
+        <!-- help above from http://stackoverflow.com/questions/5319278/css3-and-html5-hover-popup-box */ -->
+        <script type="text/javascript">
+            var _isNode = !!window.process;
+            // if (!navigator.xr) var polyfill = new WebXRPolyfill();  // for Firefox ???
+            var loadStartTime = Date.now();
+            var loadTimes = {};
+            function loadTime(id) {
+                loadTimes[id] = Date.now() - loadStartTime;
+            }
+            loadTime('verystart');
+            window.timestamp = {};
+            if (navigator.userAgent.match('WOW64')) alert('32 bit browser')
+        </script>
+
+
+        <!-- introducing RequireJS tentatively...
+            *** currently, this breaks electron version ***
+            <script data-main="JS/reqjsMain.js" src="JSdeps/require.js"></script> -->
+
+        <!-- <script src="JSdeps/jquery-1.10.2.min.js"></script> -->
+        <script src="JS/searchString.js"></script>
+        <script src="JS/errorHolder.js"></script>
+        <script src="JSdeps/jquery-3.3.1.min.js"></script>
+        <span id="dummies" style="display:none;">
+        </span>
+        <script type="text/javascript">
+            var W = window;
+            if (W.module && module.exports && typeof module.exports === 'function' ) window.jQuery = window.$ = module.exports;
+            var islocalhost = searchValues.islocalhost ?? (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+            // note on webVR/webXR, 28/02/20.
+            // Standard Chrome no longer supports webVR, so we must allowXR for CSynth.
+            // Firefox does not yet support webXR, so we still should keep our webVR support for some time?
+            var allowXR = true;
+            oxcsynth = false;
+
+            var loadStartTime = Date.now();
+            // get this in before any use strict
+            // can be used to set three version which is why it must be early
+            // and also lots of other things that we done want to enumerate
+            // It is interpreted again during init()
+            // This one may fail if the istring contains reference tdo things defined later,
+            // so we log on the console but not as 'serious' as in interpretSearchString()
+            // now done in searchString.js interpretSearchString(console.error);
+
+            // var threever = 'three86SJPT';  // unless set otherwise
+            var threever = searchValues.threever || 'three150'; // 'three127'; // 'three106SJPT';  // unless set otherwise
+
+            // console.log('$ = ' + window.$);
+
+        </script>
+    </head>
+    <body id="body">
+
+<div id="forhtmlrender"></div>
+<span id="canvasspan"></span>
+<div id="svgdiv" style="display: none; z-index: 999999;" tabindex="0">
+    <div id="svgtext">text here</div>
+    <svg id="svgbox" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>
+</div>
+
+<div id="allbody">
+    <div id="seriousbox" style="display:none">
+        <h3>Serious unexpected error in Organic.</h3>
+        <div id='seriousContextLost'></div>
+        <span>
+            Please select an option below to report any errors.
+            <br>You can edit the information below to give extra information
+            <br>or to remove information you do not wish to send.
+            <br>
+        <button onclick=serious.saveLocal()>save</button>
+        <span class="help">Save error box to local storage.</span>
+        <button onclick=serious.selectAll()>select</button>
+        <span class="help">Select contents of box, then use ctrl-C (or similar) to copy.</span>
+        <button onclick=serious.upload()>upload to server</button>
+        <span class="help">Upload content of error box to server.</span>
+        <button onclick=serious.clear()>clear</button>
+        <span class="help">Clear error box.</span>
+        <button onclick=serious.nodebug()>no debug</button>
+        <span class="help">Stop future debug stop (developer mode only).</span>
+        </span>
+        <br>
+        <br>
+        <textarea id="seriousbody"></textarea>
+    </div>
+        <button id="entervr" style="display: none" onclick="renderVR.xrfs(true);">Enter VR (or hit F2)</button>
+        <img src="images/UI/circle_white.png" id="fingerimage" alt="" style="display:none;"/>
+       <div id="baderror"></div>
+        <fieldset id="scConsole" style ="display:none;">
+            <legend onclick=toggleFold(this)>SuperCollider Console</legend>
+            <div>
+                <pre id="sclogbox"></pre>
+                <div id="scStatus">
+                    CPU: <span id="scCPU"></span>
+                    Synths: <span id="scNSynths"></span>
+                    UGens: <span id="scNUgens"></span>
+                    Groups: <span id="scNGroups"></span>
+                    send delay: <span id="scUDPDelay"></span>
+                    <div id="scSendLED"></div>
+                </div>
+                <div id="scLangInput"></div>
+                <div id="scScopes"></div>
+            </div>
+        </fieldset>
+        <div id="startscreen"></div>
+        <script>
+            if (searchValues.splashuri) startscreen.style.backgroundImage=`url("${searchValues.splashuri}")`
+            if (searchValues.splashzindex) startscreen.style.zIndex=searchValues.splashzindex
+        </script>
+        <div id="UI_overlay" style="display:none">
+            <div id="animset" class="speed_control" style="display:none">
+                <input id="animlen" class="anim" type="number" value="20" size="4" onkeyup="Director.setAnimlen()">
+                <span class="help">Total length of animation if all keyframes used, in seconds.</span>
+                <input id="animsstart" class="anim" type="number" value="0" size="4" onkeyup="Director.setAnimlen()">
+                <span class="help">Start of animation segment to be played/recorded, in seconds.</span>
+                <input id="animslen" class="anim" type="number" value="0" size="4" onkeyup="Director.setAnimlen()">
+                <span class="help">Length of animation segment to be played/recorded, in seconds.</span>
+
+                <button id="timeoff" onclick="Director.timeoff()" style="width: 4em">time</button>
+                <span class="help">time: => Time from start<br>off: Offset from record start<br>click to toggle</span>:
+                <input id="animmins" class="anim" type="number" value="0" size="4" oninput="Director.setTime()">:
+                <span class="help">Animation minutes</span>
+                <input id="animsecs" class="anim" type="number" value="0" size="4" oninput="Director.setTime()">:
+                <span class="help">Animation seconds</span>
+                <input id="animframes" class="anim" type="number" value="0" size="4" oninput="Director.setTime()">
+                <span class="help">Animation frames</span>
+
+                key:
+                <input id="animkey" class="anim" type="number" value="1" size="4" oninput="Director.setKey()">
+                <span class="help">Animation keyframe</span>
+                .<input id="animkeyoff" class="anim" type="number" value="0" size="4" oninput="Director.setKey()">
+                <span class="help">Animation key offset (decimal)</span>
+                <div id="animinfo"></div>
+            </div>
+            <div id="UI_nonanim">
+
+                <div class="speed_control" id="zoomguipair">
+                    <img src="images/UI/mag_white.png" 	alt="" id="zoomnorm" onclick="zoomgui.value=0.25; zoomguichange(event); showpress(this);"/>
+                    <input id="zoomgui" type="range" min="0" max="2" value="0.5" step="0.001" onchange="zoomguichange(event);" oninput="zoomguichange(event)"/>
+                </div>
+
+                <div class="speed_control" id="animspeeds">
+                    <img src="images/UI/branches_white.png" id="animspeedstd" alt=""	onclick="animspeedNormal(); showpress(this);"/>
+                    <!--
+                    <img src="images/UI/zoomOut_off.png" 	alt="" 	onclick="FCall('UIController.ChangeSpeed', ['animSpeed', 'mutrate'], -1, this);"/>
+                    <img src="images/UI/zoomIn_off.png" 	alt="" 	onclick="FCall('UIController.ChangeSpeed', ['animSpeed', 'mutrate'], 1, this);"/>
+                    -->
+                    <div>
+                        <input id="animSpeed" type="range" min="-0.8" max="0.8" value="0.2" step="0.05"/>
+                        <img src="images/UI/bipolar_slider_white.png" id="animimage"/> <!-- background to slider -->
+                    </div>
+                </div>
+                <div class="speed_control" id="animspeeds2">
+                    <!--
+                    <p onclick="FCall('UIController.Toggle', 'doxrot', this);">x</p>
+                    <p onclick="FCall('UIController.Toggle', 'doyrot', this);">y</p>
+                    <p onclick="FCall('UIController.Toggle', 'dozrot', this);">z</p>
+                    -->
+                    <img src="images/UI/rot_white.png" 	alt="" id="rotstd" onclick="rotNormal();  showpress(this);"/>
+                    <input id="grot" type="range" min="0" max="0.7" value="0.5" step="0.001" />
+                    <!--
+                    <img src="images/UI/zoomOut_off.png" 	alt="" 	onclick="FCall('UIController.ChangeSpeed', 'grot', -1, this);"/>
+                    <img src="images/UI/zoomIn_off.png" 	alt="" 	onclick="FCall('UIController.ChangeSpeed', 'grot', 1, this);"/>
+                    <p>Rotation speed</p>
+                    -->
+                </div>
+                <div class="speed_control" id="animspeeds3">
+                    <img src="images/UI/snap_white.png" onclick="snap();" alt="snap" />
+                </div>
+                <div class="speed_control">
+                    <!-- <input id="mutrate" type="range" min="-10" max="20" value="-5" step="1" /> -->
+                    <!-- <p>Mutation variety</p> -->
+                    <img src="images/UI/butterfly_white.png" id="ui_mutate" alt="" onclick="clickmutate(event); showpress(this);"/>
+                    <img src="images/UI/screenwipe_white.png" id="ui_wipe" alt="" onclick="clearSelected(); showpress(this);"/>
+                </div>
+                <!-- <div class="speed_control" onclick="mutate();"><p>breed</p></div> -->
+            </div>
+        </div>
+        <div id="gestureHelp"></div>
+        <!--
+            <h1>
+                Test Formgrow webgl
+            </h1>
+        -->
+        <!--<img id="canvasImg" alt="Right click to save me!" style="display:none; max-height:100; max-width:100; ">-->
+
+        <div id="functiontopgui" style="display:none">
+            <input type="file" id="cillyfiles" multiple>Load files for saved functions.
+            <button id="cillyreload">Reload</button>
+            <br>
+            <button onclick="Cilly.saveCilly();">Save Functions</button>
+            name: <input id="cillyname" value="cilly" size="10"/>
+
+            <table id="functiongui"></table>
+        </div>
+
+        <span id="msgbox"></span>
+
+        <div id="dragcode" draggable style="position:fixed; left:600px; top:20px; z-index:9999; display:none" >
+            drag<br>
+        <textarea id="codebox" rows="4" cols="45" onkeyup="this.autosize();" onkeydown="event.stopPropagation();">
+// type test javascript here
+        </textarea>
+            <br><span id="codemsg"></span>
+        </div>
+        <span class="group" title="tranrule">
+        <!--scale1 twist1 stack1 bend1 scale0 twist0 stack0 bend0-->
+        <textarea id="tranrulebox" rows="4" cols="40" onkeyup="this.autosize();" onkeydown="event.stopPropagation();">
+horn("first").ribs(20).radius(50).scale(2).twist(500).stack(1200).bend(40).sub("sub");
+horn("sub").ribs(8).radius(15).scale(0).twist(1440).stack(1000).bend(90);
+mainhorn = "first";
+        </textarea>
+        </span>
+
+        <textarea id="directorrulebox" rows="4" cols="40" onkeyup="this.autosize();" onkeydown="event.stopPropagation();" style="display:none">
+var r = [{},{},{},{},{},{},{},{}];
+r[0].rot = {x: 0, y: 0, z: 0};
+r[1].rot = {x: 0, y: 0, z: 0};
+r[2].rot = {x: 0, y: 0, z: 0};
+r[3].rot = {x: 0, y: 0, z: 0};
+r[4].rot = {x: 0, y: 0, z: 0};
+r[5].rot = {x: 0, y: 0, z: 0};
+r[6].rot = {x: 0, y: 0, z: 0};
+r[7].rot = {x: 0, y: 0, z: 0};
+Director.rules = r;
+        </textarea>
+
+
+        <fieldset id="htmlouter"  style="display:none">
+            <legend onclick=toggleFold(this)>html rules</legend>
+            <div id="htmlrulebox" onmousedown="cancelcontext(event);"></div>
+            <!-- <span class="help">htmlrulebox help</span> -->
+        </fieldset>
+        <!-- <span class="help">htmlouter help</span> -->
+
+        <canvas id="freqcanvas"
+                style="border:1px solid #888; position: fixed; top: 0; right: 0; display:none; z-index: 99999; width: 600px; height: 300px;"
+                onclick="Audiofreq.lockFrame();"></canvas>
+
+         <!--- <html-gl><h1 style="color: #fff; z-index: 9999999;">test this htmlgl---------------------------------------------------------------</h1></html-gl> --->
+        <div id="controlsouter">  <!-- includes all controls and stats -->
+            <span id="mystats">
+            </span>
+            <textarea id="guifilter" rows="1" cols="25" placeholder="Filter gui"
+                onkeyup="filterDOMEv(event); event.stopPropagation();"
+                onchange="filterDOMEv(event);"
+                onkeydown="event.stopPropagation();"
+                onkeypress="event.stopPropagation();"
+            ></textarea>
+            <span class="help">
+                <p>Filter to apply to the gui below.</p>
+                <p>Filter consists of groups of word fragments. Fragments separated by blank (AND), groups seprated by | (OR)</p>
+                <p>eg ...</p>
+                <p>As a special case if the fields starts with a '/'' the entire filter is treated as a RegExp. </p>
+                <p>There are also special key combinations that can be used in the filter.</p>
+                <ul>
+                    <li><b>ctrl,ArrowUp:</b> unfold the complete gui</li>
+                    <li><b>ctrl,ArrowLeft:</b> fold the complete gui, just see headers of top level items.</li>
+                    <li><b>ctrl,ArrowRight:</b> fold the lowest levels, but see the headers for the complete gui tree.</li>
+                    <li><b>ctrl,ArrowDown:</b> as for ctrl,ArrowRight.</li>
+                </ul>
+            </span>
+            <div id="controls" style="display:none;">    <!-- includes all controls; allows for lefthand scrollbar -->
+                <span id="valouter" style="display:none;" onmouseout="inputMouseout(event);">
+                    <input id="valbox" onchange="valchanged();"/> <!-- type="number"  is too restrictive -->
+                </span>
+                <div id="controlscore" style="direction: ltr;">  <!-- includes all controls; defines real width etc -->
+                    <fieldset id="filterhistory" class="hidebelow" style="border-color:white; pointer-events:all">
+                        <legend onclick=toggleFold(this)>filter history</legend>
+                        <ul id="filterhistorylist"  onclick="filterDOMClick(event)"><ul>
+                    </fieldset>
+                    <span id="versiondata"></span>
+
+
+                    <!---- >
+                    <fieldset id="snippetouter" class="hidebelow" style="border-color:red">
+                        <legend onclick=toggleFold(this)>snippets</legend>
+                        <div id="snippetdiv" class="fieldbody">
+                            <div id="snippetlocal" contenteditable="true">add extra snippets here</div>
+                            <!---- >
+                            <iframe id="snippetframe" type="text/html" src=""></iframe>
+                            <!---- >
+                        </div>
+                    </fieldset>
+                    <!---->
+
+
+                    <!-- maincontrols -->
+                    <fieldset id="maincontrols" style="border-color:red">
+                        <legend onclick=toggleFold(this)>Main controls</legend>
+                        <div class="fieldbody">
+                            <!--
+                                <span class="group" style="border-color:white" title=" ">Run
+                                    <input id="running" type="checkbox" checked="checked" onchange="FCall('setRunning');"  onclick="FCall('setRunning');"/>
+                                </span>
+                                <span class="help">Deselect to pause all graphical display.
+                                </span>
+                            - -->
+                            <span class="group" style="border-color:green" title="gui display">
+
+                                <span>Fix controls
+                                    <input id="fixcontrols" type="checkbox" onchange="onframe(onWindowResize);"/>
+                                </span>
+                                <span class="help">Select to fix controls such as genes and other details.
+                                    <br>Deselect for larger graphics area.
+                                </span>
+
+                                <span>Automenu
+                                    <input id="menuAutoOpen" type="checkbox" onchange="onframe(onWindowResize);"/>
+                                </span>
+                                <span class="help">Select to allow menu to pop up as mouse is near left of window</span>
+
+                                <input id="controlOpacity" type="range" min="0" max="100" value="100" step="5" style="width:40%" onchange="FCall('setControlOpacity');" />
+                                <span class="help">Set opacity for the controls</span>
+                                <br>
+                                <span>Display: Rules
+                                       <input id="showrules" type="checkbox" onchange="_tranrule.style.display = this.checked ? '' : 'none';
+                                               tranrulebox.autosize();"/>
+                                    <span>HTML Rules
+                                        <input id="showhtmlrules" type="checkbox"
+                                               onchange="htmlrulebox.style.display = this.checked ? '' : 'none';
+                                                      HW.updateHTMLRules();"/>
+                                    </span>
+                                    <span>Director Rules
+                                        <input id="showdirectorrules" type="checkbox"
+                                               onchange="directorrulebox.style.display = this.checked ? '' : 'none';
+                                                      Director.updateRules();"/>
+                                    </span>
+                                    <!--span> Detach projection window
+                                        <input id="detach" type="checkbox" onchange="FCall('UICom.DetachControls', this.checked);" />
+                                    </span>
+                                    <span class="help">Spawn projection child window</span-->
+
+                                    <br>
+                                    <!--Controls:<input type="checkbox" checked="checked" id="controls_bar" onchange="FCall('UIDisplay.SetToolbarDisplay', this.checked);" />-->
+                                    <span>Stats:<input type="checkbox" checked="checked" id="showstats" onchange="FCall('setshowstats');" /></span>
+                                    <span class="help">Show/hide stats, <br>alt-P will cycle off/fps/ms</span>
+                                    Grid:<input type="checkbox" id="showgrid" onchange="FCall('makeTableFromGenes', this.checked);" />
+                                    Cilly:<input type="checkbox" id="showcilly"
+                                                 onchange="functiontopgui.style.display = this.checked ? '' : 'none';" />
+                                    scsynth:<input type="checkbox" id="doShowSCLog" onchange="FCall('showSCLog', this.checked);" />
+                                    <span class="help">Display log information related to SuperCollider</span>
+                                    <br>
+                                    <span>UI overlay<input id="showuiover" class="def"  type="checkbox" checked="checked"  onchange="UI_overlay.style.display = showuiover.checked ? 'block' : 'none';"/></span>
+                                    <span class="help">Click to enable UI overlay.</span>
+
+                                    <span>hovermode<input id="hovermode" class="def"  type="checkbox" /></span>
+                                    <span class="help">Click to enable hovering mutation menu.</span>
+
+                                    <span>dragmode<input id="dragmode" class="def"  type="checkbox" /></span>
+                                    <span class="help">Click to enable dragging for mutation objects.
+                                        <br>If not set, mutation objects can be rotated.
+                                    </span>
+
+                                    <button onclick="BrightonStyle()">Brighton mutate / K,L,B</button>
+
+                                    <br>
+                                    <span>nomess<input id="NOMESS" class="def"  type="checkbox"  onchange="nomess(NOMESS.checked);"/></span>
+                                    <span class="help">Click to remove screen decoration.</span>
+
+
+                                </span>
+                            </span>
+                            <span class="group" style="border-color:red" title="mutation">
+                                <button onclick="FCall('mutate');">mutate / alt,F3</button>
+                                <span class="help">Mutate/marry from the current object and any selected objects.
+                                </span>
+                                <button onclick="mutate({filter: resolveFilter()});">mutate filter / ctrl,F3</button>
+                                <span class="help">Mutate/marry from the current object and any selected objects,
+                                    <br>only mutating free and filtered genes.
+                                    <br>It will mutate genes that are filtered but folded (+-) in the GUI.
+                                </span>
+                                <button onclick="mutate({filter: resolveFilter(), mutateFrozen: 1});">mutate filterfroz / Q,F3</button>
+                                <span class="help">Mutate/marry from the current object and any selected objects,
+                                    <br>only mutating filtered genes; including forzen genes.
+                                    <br>It will mutate genes that are filtered but folded (+-) in the GUI.
+                                </span>
+                                <br>
+                                <button onclick="mutateForm();">mutate form / K,F3</button>
+                                <span class="help">Mutate/marry just Form genes
+                                </span>
+                                <button onclick="mutateColour();">mutate colour / L,F3</button>
+                                <span class="help">Mutate/marry just Colour genes
+                                </span>
+                                <br>
+                                <span>
+                                    colour <input id="mut_col" type="checkbox" checked="checked">
+                                    texture <input id="mut_tex" type="checkbox" checked="checked">
+                                    surface <input id="mut_surf" type="checkbox" checked="checked">
+                                    form <input id="mut_form" type="checkbox" checked="checked">
+                                    smut <input id="mut_smut" type="checkbox">
+                                    view <input id="mut_view" type="checkbox" checked="checked">
+                                    <br>
+                                    user <input id="mut_user" type="textbox" style="width:90%">
+                                    <br>
+                                    <button onclick="mutateXX();"><<< mutate / F3</button>
+                                    <button onclick="clearSelected();">wipe selection / L,W</button>
+                                </span>
+                                <span class="help">Mutate/marry free genes as checked.<br>If nothing checked, use all</span>
+
+                                <br>
+                                <span>
+                                    <input id="mutrate" type="range" min="-10" max="20" value="15" step="1" style="width:100%"/>
+                                </span>
+                                <span class="help">Set the mutation rate.
+                                </span>
+                                <br>
+                                <span>auto control<input id="AUTOCONTROL" type="checkbox" onchange="HornSet.controlMutation(this.checked)" checked="1"></span>
+                                <span class="help">Automatically keep number of horns within bounds on mutation.</span>
+                                <br>
+                                <span>
+                                    slideshow:
+                                    <input id="sliderate" type="number" min="0" max="200" value="0" step="1" onchange="randobj();" />
+                                </span>
+                                <span class="help">Set the rate for slide show (1/10th seconds).</span>
+
+                                <button onclick="transferView()">copy main view</button>
+                                <span class="help">Copy view information from main view to all others<br>Page Up key</span>
+                                <!--
+                                                                Health mutate<input id="healthMutate" type="checkbox" onchange="FCall('setHealthMutate');"/>
+                                                                <span class="help">When active, individual viewports will have an associate health value and be replaced when
+                                                                    it reaches 0.
+                                                                </span>
+                                -->
+
+                            </span>
+
+
+                            <fieldset id="fieldsaveload" class="hidebelow"  style="border-color:white"> <!-- save/load -->
+                                <legend  onclick=toggleFold(this)>Save/load object definitions</legend>
+                                <div class="fieldbody">
+                                    <div id="recentbox">
+                                        <b>Recent items</b><br>
+                                        <div id="recentlist"></div>
+                                    </div>
+                                    <br>
+                                    <span>
+                                        <input id="savename" size="8"/>
+                                        <button onclick="FCall('save');">save</button>
+                                    </span>
+                                    <span class="help">Save current object to given filename; also ctrl-S.</span>
+                                    <span>
+                                        <button onclick="FCall('saven');">save+id</button>
+                                    </span>
+                                    <span class="help">Save current object to given filename, with unique id added; also <b>'/'</b> key for save+id.</span>
+
+
+                                    <span>save snap at end
+                                        <input id="savesnapatend" type="checkbox" onchange="FCall('onWindowResize');"/>
+                                    </span>
+                                    <span class="help">Select to save snapshot at end of each session.</span>
+                                    <br>
+                                    <input type="file" id="fileChooser" style="display:none"/></li>
+                                    <!-- <span class="help">open input file</span> -->
+
+
+                                    <!--
+                                            <button onclick="FCall('localToExternalGal');" style="background-color: red;">save hidden objects</button>
+                                            <span class="help">Copy items from local to external gallery.
+                                            </span>
+                                    -->
+
+                                    <fieldset id="fieldsaved" class="hidebelow">
+                                        <legend  onclick=toggleFold(this)>Saved objects</legend>
+                                        <div class="fieldbody">
+                                            <span>Click on name to load. Sort by:</span>
+                                            <button onclick="FCall('refreshGal', 'name');">name</button>
+                                            <button onclick="FCall('refreshGal', 'date');">date</button>
+                                            <br>
+                                            <div id="loads">
+
+                                            </div>
+                                        </div>
+                                    </fieldset>
+
+                                </div>
+                            </fieldset>
+
+                            <span class="group" style="border-color:blue" title="image saving/director" id="imageDirector">
+                                <span>
+                                    <button onclick="FCall('saveimage');">Save Layout Image</button>
+                                    <span class="help"><b>Save Layout Image (ctrl-I)</b> will save the image as specified below.</span>
+                                    <button onclick="FCall('saveimage1');">Save Main Image</button>
+                                    <span class="help"><b>Save Main Image (ctrl-alt-I)</b> will save just the main image as specified below.</span>
+                                    <br>
+                                    <button onclick="FCall('saveimage1high');">Save Main Im high quality</button>
+                                    <span class="help"><b>Save Main Image a qual (ctrl-shift-I)</b> will save just the main image at high quality.</span>
+                                    <button onclick="FCall('saveSkeleton');">Export skeleton</button>
+                                    <span class="help"><b>Export skeleton into settings directory (ctrl-K)</span>
+                                    <br>
+                                    <span>name: <input id="imagename" value="organic" size="10"/></span>
+                                    <span class="help">Name for saved image.</span>
+                                    <span>width: <input id="imageres" value="3840" size="3"/></span>
+                                    <span class="help">Width (pixels) for saved image.</span>
+                                    <span>anim width: <input id="animimageres" value="1920" size="3"/></span>
+                                    <span class="help">Width (pixels) for saved animations.</span>
+                                    <br>
+
+                                    <span>Use aspect<input id="previewAr" type="checkbox" onchange="FCall('onWindowResize');"/>
+                                        height or aspect: <input id="imageasp" value="16/9" size="3" style="width:12em" onkeydown="imageaspkeydown(event);"/>
+                                    </span>
+                                    <span class="help">
+                                        If <b>Use aspect</b> is checked it will use the height/aspect field,
+                                        and also set the display aspect ratio to match the computed save aspect ratio.
+                                        (You may need to uncheck and recheck after changing the save size details.)
+                                        <br><br>
+                                        <!-- note, overuse of span means we can't easily use <p> or <li> inside here -->
+                                        <br><br>
+                                        If the height field is > 10 it is used as a height, otherwise it is used as an aspect ratio,
+                                        the height will be width/aspect.
+                                        <br><br>
+                                        The values may be written as expressions.  For example, a 4/3 aspect may be written as such.
+                                        <br><br>
+                                        The expressions may use some variables: including
+                                        <br>
+                                        <br><b>width:</b> the current width of the display screen
+                                        <br><b>height:</b> the current height of the display screen
+                                        <br><b>ww:</b> the computed width for the image to be saved (may only be used in the aspect field)
+                                    </span>
+                                    <br>
+                                    <button onclick="Director.prepLinear()">Director Preview</button>
+                                    <span class="help"><b>Regenerate top row (ctrl-A)</b> will regenerate the top preview row.</span>
+                                    <button onclick="Director.start()">Play</button>
+                                    <span class="help"><b>Toggle Director playing on(shift-A)</b></span>
+                                    <button onclick="Director.stop()">Stop</button>
+                                    <span class="help"><b>Toggle Director playing off</b></span>
+                                    <button onclick="Director.toggle()">Toggle</button>
+                                    <span class="help"><b>Toggle Director playing on/off(alt-A)</b></span>
+                                    <button onclick="Director.record()">Record</button>
+                                    <span class="help"><b>Record director frames (alt,shift,A)</b></span>
+
+                                </span>
+                            </span>
+                            <span class="group" style="border-color:yellow" title="viewports">
+                                <span>
+                                    <span>
+                                        <b>VPs: </b>
+                                        0<input type="radio" id="vp00" name="vp" onclick="FCall('setViewports', [0, 0]);"/>
+                                        3<input type="radio" id="vp13" name="vp" onclick="FCall('setViewports', [1, 3]);"/>
+                                        8<input type="radio" id="vp24" name="vp" onclick="FCall('setViewports', [2, 4]);"/>
+                                        12<input type="radio" id="vp34" name="vp" onclick="FCall('setViewports', [3, 4]);"/>
+                                        18<input type="radio" id="vp36" name="vp" onclick="FCall('setViewports', [3, 6]);"/>
+                                        <!-- 27<input type="radio" id="vp27" name="vp" onclick="FCall('setViewports', [3, 9]);"/> -->
+                                        24<input type="radio" id="vp46" name="vp" onclick="FCall('setViewports', [4, 6]);"/>
+                                        32<input type="radio" id="vp48" name="vp" onclick="FCall('setViewports', [4, 8]);"/>
+                                        48<input type="radio" id="vp86" name="vp" onclick="FCall('setViewports', [8, 6]);"/>
+                                        <!-- 64<input type="radio" id="vp88X" name="vp" onclick="FCall('setViewports', [8, 8]);"/> -->
+                                        <br>
+                                        3/3<input type="radio" id="vp33" name="vp" onclick="setInput(layoutbox, 5); setViewports([3, 3]);"/>
+                                        4/4<input type="radio" id="vp44" name="vp" onclick="setInput(layoutbox, 5); setViewports([4, 4]);"/>
+                                        5/5<input type="radio" id="vp55" name="vp" onclick="setInput(layoutbox, 5); setViewports([5, 5]);"/>
+                                        6/6<input type="radio" id="vp66" name="vp" onclick="setInput(layoutbox, 5); setViewports([6, 6]);"/>
+                                        7/7<input type="radio" id="vp77" name="vp" onclick="setInput(layoutbox, 5); setViewports([7, 7]);"/>
+                                        8/8<input type="radio" id="vp88" name="vp" onclick="setInput(layoutbox, 2); setViewports([8, 8]);"/>
+
+                                        <br>rotate all vps<input id="rotallcams" type="checkbox"/>
+                                        projection viewport <input id="projvp" type="checkbox" onclick="setViewports()"/>
+                                        <span id="showfull">full <input id="fullvp" type="checkbox" onclick="setViewports()"/></span>
+                                        <span class="help">tick to show the full image size, assuming given screen sizes</span>
+                                        <span id="revscreen1">rev <input id="revscreen" type="checkbox" onclick="setViewports()"/></span>
+                                        <span class="help">tick to have projection screen on right</span>
+                                    </span>
+                                    <span class="help">Select number of extra viewports to show
+                                         <br>for mutation and gallery.
+                                         <br>Check the box to refresh all viewports together, or uncheck for main object only (faster).
+                                    </span>
+                                    <br>
+                                    <span>layout <input id="layoutbox" value="0" type="number" onchange="FCall('setViewports');"/></span>
+                                    <span class="help">Change layout type: 'special' window.
+                                        <br>0: Separate big window
+                                        <br>1: Small top right
+                                        <br>2: Large centre
+                                        <br>3: Large (x2) top right, around reserved
+                                        <br>4: Spiral
+                                        <br>5: Larger top right
+                                    </span>
+
+                                    <span>vr wide box<input type="checkbox" id="videovrui" onclick="vrvideo(videovrui.checked)"/></span>
+                                    <span class="help">Click to show wide video box in VR, for recording</span>
+
+                                </span>
+                            </span>
+                            <span class="group" style="border-color:orange" title="animation">
+                                <span>Anim
+                                    <input id="doAnim" type="checkbox"/>
+                                </span>
+                                <span class="help">Set animation on/off.  Also you can use space bar or pause.
+                                </span>
+                                <span>rev
+                                    <input id="doAnimRev" type="checkbox"/>
+                                </span>
+                                <span class="help">Set animation reverse.
+                                </span>
+                                <span>speed
+                                    <!-- <input id="animSpeed" type="range" min="0" max="2" value="0.2" step="0.05" style="width: 40%;"/> -->
+                                </span>
+                                <span class="help">Set speed for the animation.  Can also set with > and &lt; (shift. , shift ,) > </span>
+                                <button onclick="FCall('animStep');">step</button>
+                                <span class="help">Perform single animation step, also ctrl right/left to step forwards/back</span>
+                                <br>
+                                <!--
+                                <span>AnimSave frames<input id="animsave" type="checkbox"/></span>
+                                <span class="help">If checked, save animation frames using image save name as base.  ctrl-Q to toggle</span>
+                                -->
+                                <span>realtime images<input id="realtimeimages" type="checkbox"/></span>
+                                <span class="help">If checked, save images in realtime, if not just save genes and render them afterwards.</span>
+                                <br>
+                                <span>quality
+                                    <input id="animquality" type="range" min="0" max="1" value="0.9" step="0.02"
+                                           style="width: 40%;"/>
+                                </span>
+                                <span class="help">Set quality for animation (compression).
+                                    <br>1 is best quality, largest size.
+                                </span>
+                                <!--
+                                <br>
+                                audio record<input id="saveAnimAudio" type="checkbox" />
+                                -->
+                                <span class="help">If checked, audio will be recorded at the same time as animframes.</span>
+                            </span>
+                            <!-- <div style="margin:8px">
+                                <p>Click on viewport to view large. Doubleclick to toggle selection.
+                                </p>
+                            </div> -->
+
+                        </div> <!-- main controls -->
+                    </fieldset>
+
+                    <!-- graphics options -->
+                    <fieldset id="fieldgraphics"  style="border-color:darkgreen">
+                        <legend onclick=toggleFold(this)>Graphics options</legend>
+                        <div class="fieldbody">
+                            <span class="group" style="border-color:red" title="horn control">
+                                <span>
+                                max horns <input id="MAXHORNS_TO_RENDER" type="number" value="4000" max="16000" step="500" min="0"/>
+                                </span>
+                                <span class="help">Maximum number of horns to render<br>Any beyond this will be ignored without comment.</span>
+                                <button onclick="HornSet.reduceAllHornsToLimit()">force all</button>
+                                <span class="help">force all horns to reduce to this limit</span>
+                                <button onclick="HornSet.reduceHornsToLimit(xxxdispobj(mainvp));">force main</button>
+                                <span class="help">force main horn to reduce to this limit</span>
+                                <br>
+
+                                <span id='colbuts'>
+                                    <span><input type="radio" name='colbuts' onclick="COL.randcols2(COLRAND.value); COL.col2genes(); updateGuiGenes();">textured</span>
+                                    <span class="help">set all random textured colours, using HSV<br>COL.randcols2()<br>was implemented in tadpole</span>
+
+                                    <span><input type="radio" name='colbuts'  onclick="COL.randcols2(COLRAND.value); COL.plain(COLRAND.value); COL.col2genes(); updateGuiGenes();">plain</span>
+                                    <span class="help">set all random plain colours (from CSS named colours)<br>COL.plain()</span>
+
+                                    <span><input type="radio" name='colbuts'  onclick="COL.bold(); COL.col2genes(); updateGuiGenes();">bold</span>
+                                    <span class="help">set plain bold colours<br>COL.bold()</span>
+
+                                    <span><input type="radio" name='colbuts'  onclick="tad.randcols();">TAD random</span>
+                                    <span class="help">set random colours (tadpole)<br>tad.randcols()</span>
+
+                                    <br>
+
+                                    <span><input type="radio" name='colbuts'  onclick="COL.randcols(COLRAND.value, {refl:0}); COL.col2genes(); updateGuiGenes()">random</span>
+                                    <span class="help">set random colours, no reflection<br>COL.randcols(undefined, {refl:0})</span>
+
+                                    <span><input type="radio" name='colbuts'  onclick="COL.randcols(COLRAND.value); COL.col2genes(); updateGuiGenes()">random refl</span>
+                                    <span class="help">set random colours, 'original' with reflections?<br>COL.randcols()</span>
+
+                                    <span><input type="radio" name='colbuts'  onclick="kinectJupDyn.randcols();">Jupiter rand</span>
+                                    <span class="help">set random colours (from Kinect Jupiter)</span>
+
+                                    <span><input type="radio" name='colbuts' checked="checked">none</span>
+                                    <span class="help">no special colour input</span>
+
+                                    <br>
+                                    <input type="number" id="COLRAND" min="0" max="999" value="0"
+                                        onchange="WA.COLRAND.last = Date.now(); document.querySelector('input[name=\'colbuts\']:checked').click();"
+                                        onkeydown="if (Date.now() < WA.COLRAND.last + 500) killev(event);"
+                                    >seed
+                                    <span class="help">Choose seed for random numbers in 'textured' and 'random' above
+                                        <br>You can select a 'style' such as 'textured', and then sweep this for different examples.
+                                    </span>
+
+                            </span>
+
+                                <br>
+                                <span>
+                                    <input id='BOUNDK1' type="text" oninput="COL.boundchange()" value="refl[123]" style="width:15%">
+                                    <input id='BOUNDMAX1' type="number" oninput="COL.boundchange()" value="1"  style="width:15%">
+                                    <input id='BOUNDV1' type="range" oninput="COL.boundchange()" value="100",  style="width:60%">
+                                </span>
+                                <span class="help">limit maximum reflectivity<br>slider sets %age of max value in middle box</span>
+
+                                <br>
+                                <span>
+                                    <input id='BOUNDK2' type="text" oninput="COL.boundchange()" value="bumpstrength" style="width:15%">
+                                    <input id='BOUNDMAX2' type="number" oninput="COL.boundchange()" value="10"  style="width:15%">
+                                    <input id='BOUNDV2' type="range" oninput="COL.boundchange()" value="100",  style="width:60%">
+                                </span>
+                                <span class="help">limit maximum bumpstrength<br>slider sets %age of max value in middle box</span>
+
+                                <br>
+                                <span>
+                                    <input id='BOUNDK3' type="text" oninput="COL.boundchange()" value="" style="width:15%">
+                                    <input id='BOUNDMAX3' type="number" oninput="COL.boundchange()" value="1"  style="width:15%">
+                                    <input id='BOUNDV3' type="range" oninput="COL.boundchange()" value="100",  style="width:60%">
+                                </span>
+                                <span class="help">limit use defined<br>slider sets %age of max value in middle box</span>
+
+                                <br>
+                                <input type="button" class="patch" value="_ribs -> _num" onclick="currentHset.ribsToNum()">
+                                <span class="help">
+                                    Make specific _num values in sub(xxx) rather than relying on ribs() value,
+                                    so they can be changed independently. e.g.
+                                    <br>
+                                    <pre>
+    horn('h').ribs(12).sub('sh')
+->  horn('h').ribs(12).sub('sh', 12)
+                                    </pre>
+                                    to separate genes <b>h_ribs</b> and <b>h_S_sh_num</b>
+
+                                </span>
+                                <br>
+                                <input type="button" class="patch" value="patch pulse details (June 2021)" onclick="patchPulse()">
+                                <span class="help">override pulse details to be less extreme</span>
+                                <br>
+                                <input type="button" class="patch" value="patch radii to range 5..15 (June 2021)" onclick="rerangeAllLots('_radius', 5, 15)">
+                                <span class="help">override radii, using range 5 to 15</span>
+                                <br>
+                                <input type="button" class="patch" value="subsfortails" onclick="HornSet.orderbug = HornSet.subsfortails ^= true; regenHornShader();">
+                                <span class="help">turn all tail() calls into sub() calls (for old bug style)</span>
+                                <br>
+                                <input type="button" class="patch" value="force horn structure" onclick="forceTranrule()">
+                                <span class="help">force horn structure (tranrule and extra genes)
+                                    <br>
+                                    from main mutation onto all other mutations</span>
+
+                                <br>
+                                <span>
+                                    ribs into ends
+                                    <input type="checkbox" class="def" id="HEADRIBS" onchange="regenHornShader();">
+                                 </span>
+                                <span class="help">
+                                    Allow ribbing effect to extend into heads and tails
+                                </span>
+                            </span>
+
+                            <fieldset id="fieldgrback">
+                                <legend onclick=toggleFold(this)>Background</legend>
+                                <div class="fieldbody">
+                                    <span class="group" title="basic">
+                                        <div id="optionContainer">
+                                            <select onchange="FCall('CubeMap.SetRenderState', this.value);" id="backgroundSelect" class="objsave" style="width:80%">
+                                                <!-- enables all options except single texture -->
+                                                <option value="color" selected="selected">Color only</option>
+                                                <option value="walls">Walls</option>
+                                                <option value="cubemap">Cubemap</option>
+                                                <!-- enables color options only -->
+                                                <option value="feedback">Feedback</option>
+                                                <option value="feedbacknoshow">Feedback no background</option>
+                                                <option value="peekfeedback">Feedback peeking through some texture bands</option>
+                                                <option value="fixpeekfeedback">Fixed feedback peeking through some texture bands</option>
+                                                <option value="fixpeekfeedbackNOSET">Fixed feedback peeking through some texture bands, do not sample genes</option>
+                                                <option value="fixpeekfeedbackbase">Fixed feedback peeking through some texture bands, just set walltypes</option>
+                                                <option value="texturefeedback">Feedback mixed with texture</option>
+                                                <option value="flufeedback">Fluorescent feedback (obj and wall relective)</option>
+                                                <option value="objrwalls">Object reflective, walls solid</option>
+                                                <option value="objswallr">Object solid, walls reflective</option>
+                                                <option value="walltypes">Show a mixture of wall mapping types</option>
+                                                <option value="wallhtml">Show rendered html on walls</option>
+                                                <option value="webcamnotex">Webcam on all walls, no texture</option>
+                                                <option value="webcam">Webcam on all walls, with texture</option>
+                                                <option value="screenshare">Screenshare on all walls, no texture</option>
+                                                <option value="video">Video on all walls, with texture</option>
+                                                <option value="freerefl">Free relection based genes</option>
+                                                <option value="freezerefl">Freeze relection based genes</option>
+                                                <option value="freewalls">Free main wall based genes</option>
+                                                <option value="freezewalls">Freeze main wall based genes</option>
+                                                <option value="freegeomtex">Free geometry texture genes</option>
+                                                <option value="freezegeomtex">Freeze geometry texture genes</option>
+                                                <!-- enables Cubemap and arranges feedback -->
+                                            </select><br>background type
+                                        </div>
+                                        <div class="color cubemap">
+                                            <!-- if disabled, this is the background [ clear ] color -->
+                                            <input type="color" name="clearColor" id="clearColor" onchange="FCall('setBackgroundColor', clearColor.value);" class="objsave"> Background color
+                                            <br>
+                                            <input type="text" name="colrot" id="colrot"  onkeyup="FCall('setBackgroundColor', clearColor.value);" class="objsave" value="0"> color rotation in secs
+                                            <br>
+                                            <input type="checkbox" name="bwset" id="bwset" onchange="FCall('setBw', this.checked);" onclick="FCall('setBw', this.checked);" class="objsave"> Black/white
+                                        </div>
+                                    </span>
+                                    <fieldset id="fieldgrdome" class="hidebelow">
+                                        <legend onclick=toggleFold(this)>Dome textures</legend>
+                                        <div class="fieldbody">
+                                            <!-- default area will get filled in by javascript from save file -->
+                                            <!--
+                                            <div class="cubemap">
+                                                <select id="cubeDefaults" onchange="FCall('Background.LoadCubemapSave', this.value);">
+                                                </select> Default textures
+                                            </div>
+                                            -->
+                                            <!-- end default textures -->
+                                            <div class="cubemap">
+                                                <input type=file onchange="CubeMap.UploadTexture(this);" id="cubeup" name="upload_file"/>Top
+                                            </div>
+                                            <div class="cubemap">
+                                                <input type=file onchange="CubeMap.UploadTexture(this);" id="cubedown" name="upload_file"/>Bottom
+                                            </div>
+                                            <div class="cubemap">
+                                                <input type=file onchange="CubeMap.UploadTexture(this);" id="cubeleft" name="upload_file"/>Left
+                                            </div>
+                                            <div class="cubemap">
+                                                <input type=file onchange="CubeMap.UploadTexture(this);" id="cuberight" name="upload_file"/>Right
+                                            </div>
+                                            <div class="cubemap">
+                                                <input type=file onchange="CubeMap.UploadTexture(this);" id="cubefront" name="upload_file"/>Front
+                                            </div>
+                                            <div class="cubemap">
+                                                <input type=file onchange="CubeMap.UploadTexture(this);" id="cubeback" name="upload_file"/>Back
+                                            </div>
+                                            <!---
+                                            <div class="texture">
+                                                <input type=file onchange="FCall('Utils.UploadImage', this);" id="textback" name="upload_file"/> Texture background
+                                            </div>
+                                            - -->
+                                        </div>
+                                    </fieldset>
+                                </div>
+                            </fieldset>
+
+                            <fieldset id="fieldgrdetail">  <!-- Graphics detail -->
+                                <legend onclick=toggleFold(this)>Graphics detail
+                                </legend>
+                                <div class="fieldbody">
+                                    <span class="group" style="border-color:yellow" title="lights/bumps/etc">
+                                        <!--
+                                          <input value="H" class="def" type="checkbox" checked="checked" onchange="baseShaderChanged();"/>H
+                                          <input value="S" class="def" type="checkbox" checked="checked" onchange="baseShaderChanged();"/>S
+                                          <input value="V" class="def" type="checkbox" checked="checked" onchange="baseShaderChanged();"/>V
+                                        -->
+                                        <button onclick="setNovrlights();">lights for no VR</button>
+                                        <span class="help">Click to load standard non VR lights</span>
+                                        <br>
+                                        <span>rand<input id="RAND" class="def objsave" type="checkbox" checked onchange="FCall('refts');"/></span>
+                                        <span class="help">Click to use random textures, also required for bump mapping.</span>
+                                        <span>bump<input id="BUMP" class="def objsave"  type="checkbox" checked onchange="FCall('refts');"/></span>
+                                        <span class="help">Click to use bump mapping: only effective if rand clicked as well.</span>
+                                        <span>shadows:<button onclick="shadows('toggle');">all</button></span>
+                                        <span class="help">Click to togggle all shadows.<br>If any on, turn all off, else turn all on.</span>
+                                        <span>0<input id="SHADOWS" class="def objsave"  type="checkbox" checked onchange="FCall('refts');"/></span>
+                                        <span class="help">Click to use shadows for light 0.</span>
+                                        <span>1<input id="SHADOWS1" class="def objsave"  type="checkbox" checked onchange="FCall('refts');"/></span>
+                                        <span class="help">Click to use shadows for light 1.</span>
+                                        <span>2<input id="SHADOWS2" class="def objsave"  type="checkbox" checked onchange="FCall('refts');"/></span>
+                                        <span class="help">Click to use shadows for light 2.</span>
+                                        <br>
+                                        <span>refl<input id="REFLECTION" class="def objsave"  type="checkbox" checked onchange="FCall('refts');"/></span>
+                                        <span class="help">Click to use reflection.</span>
+                                        <span>flat map<input id="FLATMAP" class="def objsave"  type="checkbox" onchange="FCall('refts');"/></span>
+                                        <span class="help">Use flat map for 'reflection'/feedback.</span>
+                                        <span>flat wall refl<input id="FLATWALLREFL" class="def objsave"  type="checkbox" checked onchange="FCall('refts');"/></span>
+                                        <span class="help">Use wall position for wall reflection.</span>
+                                        <br>
+                                        <!-- <span>perlin<input id="PERLIN" class="def objsave"  type="checkbox" checked onchange="FCall('refts');"/></span>
+                                        <span class="help">Click to use Perlin noise, otherwise use Winsom style noise.</span>
+                                        <span>pohnoise<input id="POHNOISE" class="def objsave"  type="checkbox" checked onchange="FCall('refts');"/></span>
+                                        <span class="help">Click to use Perlin noise, otherwise use Winsom style noise.</span> -->
+                                        <span>fluroesc<input id="FLUORESC" class="def objsave"  type="checkbox" onchange="FCall('refts');"/></span>
+                                        <span class="help">Click to use Fluorescence (emissive light).</span>
+                                        <br>
+                                        <span>simple shade<input id="SIMPLESHADE" class="def objsave"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Click to force very simple shading.</span>
+                                        <span>U360<input id="U360" class="def objsave"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Click to use 360 degree rendering.</span>
+                                        <span>EDGES<input id="EDGES" class="def objsave"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Click to add black edges.</span>
+                                        <span>WHITE<input id="WHITE" class="def objsave"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Click for white objects, just edges. Requires edges. Alternativey use G.fillprop = 1</span>
+                                        <!-- not convinced this gui is how I want to expose cookies. when in Rome... -->
+                                        <br>
+                                        <span>cookies: 0<input id="COOKIE0" class="def objsave"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Click to use cookieTexture0 (set via code) to modulate color of shadows for light 0.</span>
+                                        <span>1<input id="COOKIE1" class="def objsave"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Click to use cookieTexture1 (set via code) to modulate color of shadows for light 1.</span>
+                                        <span>2<input id="COOKIE2" class="def objsave"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Click to use cookieTexture2 (set via code) to modulate color of shadows for light 2.</span>
+                                    </span>
+
+                                    <span class="group" style="border-color:red" title="resolution detail">
+                                        <b>Res: </b>
+                                        <input  id="resbaseui" type="number" min="0" max="12" value="5" step="0.1" onchange="FCall('newres');" />
+                                        <span class="help">Base resolution for mesh used to generate horn.
+                                            <br>0 low, 10 high.
+                                            <br>old low/1/2/3/4/high -> 3/5/9/17/33/65 -> new 0/2/4/6/8/10
+                                        </span>
+                                        <b>Delta: </b>
+                                        <input  id="resdyndeltaui" type="number" min="0" max="2" value="1" step="0.1" onchange="FCall('newres');" />
+                                        <span class="help">Delta resolution for each power of 10 in total number of subhorns of given type
+                                            <br>e.g. with delta 1, 10 subhorns will drop 1 resolution slot.
+                                            <br>Also, shadow resolution will drop 2 slots for delta 1.
+                                        </span>
+                                        <br>
+                                        <span>
+                                            <b>Render ratio:</b>
+                                            <input  id="renderRatioUi" type="number" min="0.3" max="4" value="1" step="0.1" onchange="FCall('newRenderRatio');" />
+                                        </span>
+                                        <span class="help">Number of pixels to replicate for better performance on poor hardware.
+                                            <br>Values below 1 also give anti-aliasing effects.
+                                        </span>
+                                        <br>
+                                        <span>
+                                            <b>main:</b>
+                                            <input  id="renderRatioUiMain" type="number" min="0.3" max="4" value="0" step="0.1" onchange="FCall('newRenderRatio');" />
+                                            <b>proj:</b>
+                                            <input  id="renderRatioUiProj" type="number" min="0.3" max="4" value="0" step="0.1" onchange="FCall('newRenderRatio');" />
+                                        </span>
+                                        <span class="help">Render ratio for main vp: if 0 same as render Ratio
+                                        </span>
+                                    </span>
+
+
+                                    <span class="group" style="border-color:green" title="shadows">
+                                        <b>Shad type:</b>
+                                        0<input type="radio" id="shad0" name="shad" onclick="FCall('setShad', -9);"/>
+                                        0.5<input type="radio" id="shad0.5" name="shad" onclick="FCall('setShad', 0.5);"/>
+                                        1<input type="radio" id="shad1" name="shad" onclick="FCall('setShad', 1);"/>
+                                        1.5<input type="radio" id="shad1.5" name="shad" onclick="FCall('setShad', 1.5);"/>
+                                        2<input type="radio" id="shad2" name="shad" onclick="FCall('setShad', 2);"/>
+                                        3<input type="radio" id="shad3" name="shad" onclick="FCall('setShad', 3);"/>
+                                        <br>
+                                        bilin<input type="radio" id="shadbilin" name="shad" onclick="FCall('setShad', -1);"/>
+                                        bicub<input type="radio" id="shadbicub" name="shad" onclick="FCall('setShad', -2);"/>
+                                        XXconv<input type="radio" id="shadx" name="shad" onclick="FCall('setShad', -3);"/>
+                                        <br>
+                                        <b>Shad res:</b>
+                                        512<input type="radio" id="shadr512" name="shadr" onclick="FCall('ShadowP.setSize', 512);"/>
+                                        1k<input type="radio" id="shadr1024" name="shadr" onclick="FCall('ShadowP.setSize', 1024);"/>
+                                        2k<input type="radio" id="shadr2048" name="shadr" onclick="FCall('ShadowP.setSize', 2048);"/>
+                                        4k<input type="radio" id="shadr4096" name="shadr" onclick="FCall('ShadowP.setSize', 4096);"/>
+                                    </span>
+                                    <span class="group" style="border-color:gray" title="skeleton/gpu options">
+                                        <span>skelbuffer<input id="USESKELBUFFER" class="def"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Click to use skeleton tr buffers.</span>
+                                        <!-- <span style="display:none;">
+                                            <span>gbuffer<input id="USEGBUFFER" class="def"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                            <span class="help">Click to use gbuffers.</span>
+                                        </span> -->
+                                        <span>allow non-uniform<input id="NONUNIFORM" class="def"  type="checkbox" checked="checked" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Select to allow non-uniform gradient operation</span>
+                                        <br>
+
+                                        <span>check gl errs<input id="CHECKGL" class="def"  type="checkbox"/></span>
+                                        <span class="help">Click to monitor gl errors</span>
+                                        <span>afap<input id="AFAP" class="def"  type="checkbox"/></span>
+                                        <span class="help">Go as fast as possible, do not use requestAnimationFrame.</span>
+                                        <span>debug<input id="DEBUG" class="def"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Compile debug statements in shader.</span>
+                                        <span>imposter<input id="IMPOSTER" class="def"  type="checkbox" onchange="FCall('setImposter');"/></span>
+                                        <span class="help">Use imposter tubes.</span>
+                                        <br>
+                                        <span>gpuscale<input id="GPUSCALE" class="def"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Use GPU scaling/positioning.</span>
+                                        <span>no scale<input id="NOSCALE" class="def"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Ignore auto scaling.</span>
+                                        <span>no centre<input id="NOCENTRE" class="def"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
+                                        <span class="help">Ignore auto centre.</span>
+                                        <br>
+                                        <span>gpugrid<input id="GPUGRIDN" class="def"  type="checkbox" onchange="remakeShaders(); HW.bigsceneSet={};"/></span>
+                                        <span class="help">Use GPU grids based on vertexid.</span>
+                                        <span>pixels<input id="PIXELS" class="def"  type="checkbox" onchange="setViewports();"/></span>
+                                        <span class="help">Click for exact large pixels, dispobj.rt uses nearest.</span>
+                                        <span>singlemulti<input id="SINGLEMULTI" class="def"  type="checkbox"  checked="checked" onchange="regenHornShader();"/></span>
+                                        <span class="help">Click to use single pass for all horns in multihorn setup.</span>
+                                        <span>distortpix<input id="DISTORTPIX" class="def"  type="checkbox"  onchange="regenHornShader();"/></span>
+                                        <span class="help">Check to use permit pixel distortion.</span>
+                                        <br>
+
+                                        <span>splitting<input id="SPLITTING" class="def"  type="checkbox" onchange="regenHornShader();"/></span>
+                                        <span class="help">Check to all splitting along horn
+                                            <br>based on selected -ve radius.
+                                            <br>Used for CSynth capsid etc separation, and Organic mini-tadpoles
+                                        </span>
+
+                                        <span>sharp points<input id="SHARPPOINT" class="def"  type="checkbox" onchange="regenHornShader();"/></span>
+                                        <span class="help">Check to allow sharp points where radius goes +ve to -ve.
+                                            <br>Not necessarily compatible with splitting.
+                                            <br>With this and splitting off, -ve radius will behave limke +ve radius.
+                                        </span>
+
+                                        <span>old split<input id="OLDSPLIT" class="def"  type="checkbox" onchange="regenHornShader();"/></span>
+                                        <span class="help">Enable older splitting methods
+                                            <br>killbplength to separate based on distance netween 'adjacent' particles
+                                            <br>isolatebp (boolean) to separate all particles
+                                        </span>
+                                        <!-- <br>
+                                        <a href="http://www.browserleaks.com/webgl">WebGL Browser Report</a> -->
+                                    </span>
+
+
+                                    <fieldset id="fieldgrdof" class="hidebelow"> <!-- DOF -->
+                                        <legend onclick=toggleFold(this)>DOF settings:</legend>
+                                        <div class="fieldbody">
+                                            <span>Enable DOF
+                                                <input id="useDOF" type="checkbox"  onclick="FCall('DOF.UseDOF', this.checked);"/>
+                                            </span>
+                                            <br>
+                                            <span>Aperture:
+                                                <input id="controlAperture" type="range" min="0.001" max="0.025" value="0.2" step="0.001" onchange="FCall('DOF.SetAperture', this.value);" />
+                                            </span>
+                                            <span class="help">Set aperture</span>
+                                            <br>
+                                            <span> Focus:
+                                                <input id="controlFocus" type="range" min="0.1" max="3" value="1.4" step="0.01" onchange="FCall('DOF.SetFocus', this.value);" />
+                                            </span>
+                                            <span class="help">Set focus</span>
+                                        </div>
+                                    </fieldset>
+
+                                    <fieldset id="fieldgrwater"> <!-- Water -->
+                                        <legend onclick=toggleFold(this)> Water
+                                        </legend>
+                                        <div class="fieldbody">
+                                            <div>
+                                                <input type="checkbox" id="togglewater" onclick="FCall('Water.ToggleWater', this.checked);"  class="objsave"/> Water Enabled
+                                                <input type="checkbox" id="togglewaterrefl" onclick="FCall('Water.ToggleReflection', this.checked);"  class="objsave"/> Reflections Enabled
+                                                <!-- now handled by genes
+                                                                            <br>
+                                                                            <input oninput="heightOut.value='Height:'+this.value"
+                                                                                    id="waterHeight" style="width:60%;"
+                                                                                    type="range" min="-5000" max="0" step="10" value="-500"
+                                                                                    onmousemove="Water.SetHeight(this.value);"/>
+                                                                            <output for="waterHeight" id='heightOut' >Height:-500
+                                                                            </output>
+                                                -->
+                                            </div>
+                                        </div>
+                                    </fieldset>
+                                </div>
+                            </fieldset>
+
+                        </div>
+                    </fieldset>
+
+
+
+                    <!-- fieldaudio -->
+                    <fieldset id="fieldaudio" class="hidebelow"  style="border-color:darkcyan">
+                        <legend onclick=toggleFold(this)>Audio</legend>
+                        <div class="fieldbody">
+                            <p>
+                                Master Volume<input id="masterVolume" type="range" min="-80" max="6" value="0" step="0.1" onchange="FCall('setMasterVolume');" />
+                                <span class="help">Set master volume of audio</span>
+                                <br>
+                                <button onclick="FCall('dumpSCStatus');">Status dump</button>
+                                <span class="help">Make a log dump of current synth parameters from both JS &amp; scsynth for comparison.</span>
+                                <button onclick="FCall('reloadAllSynths');">Reload synths</button>
+                                <span class="help">Panic button: reload all running synths with current JS parameter values.</span>
+                                Recording<input id="audioRecord" type="checkbox" onclick="FCall('setAudioRecording');" />
+                                <br>
+                                Log status warnings<input type="checkbox" id="logStatWarning" onchange="FCall('setLogSCStatusWarning');" />
+                                <span class="help">Collect extra log information when status replies are missing.</span>
+                                <br>
+                            </p>
+                        </div>
+                    </fieldset>
+
+                    <span class="group" title="extras">
+                        <span class="group" style="border-color:blueviolet" title="rotation">
+                            <span>Auto rot<input id="doAutorot" type="checkbox"/></span>
+                            <span class="help">Set auto rotation on/off.  It will also be set off while mouse is down.  Scroll-lock to toggle.</span>
+
+                            <span>Use global rotation slider<input id="USEGROT" type="checkbox" checked="checked"/></span>
+                            <span class="help">If this is enabled the slider at the bottom will be shown,
+                                with automatic control mixing this value with the other rotations speeds.
+                                For direct control disable that and use the liders/numbers below.
+                            </span>
+
+                            <span>Fix rot<input id="doFixrot" type="checkbox"/></span>
+                            <span class="help">Continuous rotation fixed independently from mouse rotation.</span>
+
+                            <span>
+                                <br>
+                                <span>yrot
+                                    <input id="doyrot" type="checkbox" checked="checked"/>
+                                    <input id="xzrot" type="range" min="-1" max="1" value="0" step="0.001" />
+                                </span>
+                                <br>
+                                <span>xrot
+                                    <input id="doxrot" type="checkbox"/>
+                                    <input id="yzrot" type="range" min="-1" max="1" value="0" step="0.001" />
+                                </span>
+                                <br>
+                                <span>zrot
+                                    <input id="dozrot" type="checkbox"/>
+                                    <input id="xyrot" type="range" min="-1" max="1" value="0" step="0.001" />
+                                </span>
+                            </span>
+                            <span class="help">Set speed for continuous rotation.</span>
+                        </span>
+                        <span class="group" style="border-color:gray" title="springs" style="white-space: normal;">
+                            usepairs: <input id="PUSHPAIRS" type="checkbox"  checked="checked" onchange="springs.newmat()"/>
+                            <span class="help">use spring pairs, off to ignore pairs</span>
+                            smallpairs: <input id="SMALLPAIRS" type="checkbox"  onchange="springs.newmat()"/>
+                            <span class="help">use simplified version of pairforces</span>
+                        </span>
+
+                        <span class="group" style="border-color:gray" title="performance/misc" style="white-space: normal;">
+                            <span>
+                                <button onclick="showControls(false); getserveroao('gallery/York_perf.oao'); perftest();">Perf. test</button>
+                                <span class="help">Get premade Jupiter setup. ctrl-J</span>
+                                <button onclick="saveSnap();">save</button>
+                                <span class="help">Save a complete setup. ctrl-X</span>
+                            </span>
+                            <br>
+
+                            <!-- <br>
+                            <span class='group'>
+                                <button onclick="cMap.run wall();">Wall demo</button>
+                                <span class="help">Run demo showing different wall types.</span>
+                                <button onclick="cMap.setegg();">Wall superegg</button>
+                                <span class="help">Set up wall for interesting superegg.</span>
+                                <button onclick="cMap.fixedtest();">fix feedback</button>
+                                <span class="help">Set up wall for experimenting with fixed feedback.</span>
+                            </span> -->
+
+
+                            <span>
+                                <button onclick="FCall('smtest');">S. mutate/shift~F3</button>
+                                <span class="help">Structure mutation from selected objects.
+                                    Can be slow.
+                                </span>
+                                <button onclick="FCall('scale');">scale/F7</button>
+                                <span class="help">Automatically scale the current object.
+                                </span>
+                                <button onclick="FCall('gallery');">gallery</button>
+                                <span class="help">Show items for the saved gallery.
+                                    <br>Multiple clicks will cycle through the complete gallery.
+                                </span>
+                                <button onclick="FCall('webgallery');">webgallery</button>
+                                <span class="help">Show items for the shared web gallery.
+                                    <br>Multiple clicks will cycle through the complete gallery.
+                                </span>
+                            </span>
+                            <br>
+                            <span>
+                                <button onclick="FCall('undo');">undo</button>
+                                <!--
+                                <button onclick="getserveroao('files/web.oao');">Web</button>
+                                <span class="help">Get premade Web setup. ctrl-shift-W</span>
+                                <button onclick="getserveroao('files/jupiter.oao');">Jupiter</button>
+                                <span class="help">Get premade Jupiter setup. ctrl-J</span>
+                                <button onclick="FCall('planets');">planets</button>
+                                <span class="help">Show planets.</span>
+                                <button onclick="FCall('swap');">swap sub/main</button>
+                                <span class="help">Swap genes for the main horn and sub horn. </span>
+                                <button onclick="FCall('quickShadows');">QuickShadows</button>
+                                <span class="help">Setup for some quick defaults to get shadows. </span>
+                                <button id="bperftest" onclick="FCall('perftest');">Perf Test</button>
+                                <span class="help">Run a performance test.  Results will be saved at the server. </span>
+                                <button id="poem" onclick="FCall('Poem.toggle');">Poem</button>
+                                <span class="help">Toggle poem running. </span>
+                                -->
+                            </span>
+                            <br>
+                            <span>
+                                <!---
+                                <button id="flexibut" onclick="addscript('JS/flexi.js');">Kinect</button>
+                                <span class="help">Start Kinect demo; flexi.js. </span>
+                                <button id="jupbut" onclick="addscript('JS/kinectJup.js');">KinJup</button>
+                                <span class="help">Start Kinect demo. </span>
+                                <button id="jupbutdyn" onclick="kinectJupDyn.setup();">KinJupDyn</button>
+                                <span class="help">Start dynamic (springs/time delay) Kinect Jupiter demo. </span>
+                                <button id="springbut" onclick="springs.demo();">Spring</button>
+                                <span class="help">Start Spring demo. </span>
+                                -->
+                                <input type="file" id="openfilebut" onchange="FCall('openfileevt', event);"/>
+                                <br>
+                                <button id="fractEvoBut" onclick="FractEVO.scorePopulation();">FractEVO score</button>
+                                <span class="help">Get scores for the current population with FractEVO. </span>
+                                <button id="fractEvoGoBut" onclick="FractEVO.startEvolving();">Start FractEVO</button>
+                                <span class="help">Start automatic evolution process (WARNING: hides GUI and interferes with other interaction).</span>
+                                <button id="mutatorMLGoBut" onclick="MutatorML.setup();">Start MutatorML</button>
+                                <span class="help">Start MutatorML</span>
+                            </span>
+                            <br>
+                            <span>
+                                <span class="help">Open a file. </span>
+                                <button id="perfsetbut" onclick="FCall('perfset');">Perf Setup</button>
+                                <span class="help">Setup for standard performance starting point.</span>
+                                <br>
+
+                                <span>preload shader files:<br><input type="file" id="preloaddata"  onchange="FCall('loadfiles', event);" multiple></span>
+                                <span class="help">Load up files from file store where not available from web server.</span>
+
+                                <br>
+                                <span>
+                                    <b>sound control</b>
+                                    <input id="audioAnal" type="checkbox" onchange="FCall('Audiofreq.onaudioAnal');"/>
+                                </span>
+                                <span class="help">Click to run sound analysis.</span>
+
+                                <span>
+                                    <b>tester</b>
+                                    <input id="testerbox" type="checkbox" onchange="tester(event);"/>
+                                </span>
+                                <span class="help">Click to run a standalond test of certain GUI features.</span>
+                            </span>
+
+                        </span>
+
+                        <fieldset id="field4d" class="hidebelow">
+                            <legend onclick=toggleFold(this)>4D/fano</legend>
+                            <div class="fieldbody">
+                                use 4d<input id="using4d" type="checkbox"/>
+                                <span class="help">Set for 4d operation.</span>
+                                <span>
+                                    <br>
+                                    <span>ywrot
+                                        <input id="doywrot" type="checkbox"/>
+                                        <input id="ywrot" type="range" min="-1" max="1" value="0" step="0.001" />
+                                    </span>
+                                    <br>
+                                    <span>xwrot
+                                        <input id="doxwrot" type="checkbox"/>
+                                        <input id="xwrot" type="range" min="-1" max="1" value="0" step="0.001" />
+                                    </span>
+                                    <br>
+                                    <span>zwrot
+                                        <input id="dozwrot" type="checkbox"/>
+                                        <input id="zwrot" type="range" min="-1" max="1" value="0" step="0.001" />
+                                    </span>
+                                </span>
+                                <span class="help">Set speed for continuous rotation.  Swap the 3rd and 4th dimensions, z/w </span>
+
+                                <br>
+                                <span>
+                                    <b>fano:</b>
+                                    cubic<input type="radio" name="fano" id="usecubic" onclick="setFragFid('fanoc.fs');"/>
+                                    quartic<input type="radio" name="fano"  id="usequartic" onclick="setFragFid('fanoc1.fs');"/>
+                                    <span>custom<input id="fragfidbox" value="fanoc.fs" size="18"/></span>
+                                    <span class="help">Name of file with definition.</span>
+                                </span>
+                                <span class="help">Cubic will choose general cubic.  Quartic will select the formula Tom sent in email 12 March.<br>Custom ???</span>
+
+                            </div>
+                        </fieldset>
+
+                        <fieldset id="fieldtracker" class="hidebelow">
+                            <legend onclick=toggleFold(this)>tracker/symmetry</legend>
+                            <div class="fieldbody">
+                                <button onclick="tracker.init()">tracker</button>
+                                <br>
+                                <span class="help">Start tracker demo</span>
+                                    <b>Symmetry:</b>
+                                    Cn<input type="radio" id="symc" name="sym" onclick="tracker.setsym('symc');"/>
+                                    Dnh<input type="radio" id="symdh" name="sym" onclick="tracker.setsym('symdh');"/>
+                                    Dnd<input type="radio" id="symdd" name="sym" onclick="tracker.setsym('symdd');"/>
+                                    60<input type="radio" id="sym60" name="sym" onclick="tracker.setsym('sym60');"/>
+                                 <span>
+                                    <br>
+                                    symnum:
+                                    <input id="symnum" type="range" min="-20" max="20" value="7" step="1" onchange="tracker.setsymn();" />
+                                 </span>
+                                 <span class="help">Set the symmetry</span>
+                            </div>
+                        </fieldset>
+
+                        <fieldset id="fieldprefix" class="hidebelow">
+                            <legend onclick=toggleFold(this)>stems/prefix</legend>
+                            <div class="fieldbody">
+                                <input id="boundsprefix" value="eve29" style="width:6em"/>
+                                <span class="help">Prefix used for setting animation bounds.</span>
+                                <button onclick="FCall('genBoundsFromPrefix');">Bounded Anim</button>
+                                <span class="help">Set animation bounds from objects with given prefix and runs bounded animation.</span>
+                                <button onclick="FCall('resetBounds');">Reset Bounds</button>
+                                <span class="help">Reset gene bounds to default, eg after Bounded Animation.</span>
+                                <br>
+                                <button onclick="FCall('stemSave');">Save Stem Information</button>
+                                <span class="help">Save a complete stem including all the objects (.oao files) and the environment file (.stem).</span>
+                                <button onclick="FCall('stemLoad');">Load Stem Information</button>
+                                <span class="help">Load control information for prefix/stem.</span>
+                            </div>
+                        </fieldset>
+
+
+                    </span>
+                    <!-- samplegenes -->
+                    <div id="samplegene" class="samplegene" style="display:none">
+                        <span class="genemain">
+                            <span class="gtagx">name:</span>
+                            <span class="name">xxx</span>
+                            <span class="help"></span>	 <!-- place this after genemain to hover for full gene, not just name -->
+                            <input class="slider" type="range" min="-10" max="10" value="-5" step="1" tabindex="1"/>
+                            <span class="gtagx">current:</span>
+                            <input class="current" type="number" />
+                            <span class="help">
+                                <ul>
+                                    <li>A: apply to all slots</li>
+                                    <li>shift,A: apply to all slots for ALL displayed genes</li>
+                                    <li>P: plot Director values</li>
+                                    <li>S: sweep over gene values</li>
+                                    <li>shift,S: sweep over all filtered gene values in turn<br>or stop sweep</li>
+                                    <li>arrows: inc/dec</li>
+                                    <li>alt,-: make -ve</li>
+                                    <li>alt,0: set to 0</li>
+                                    <li>alt,1: set to 1</li>
+                                    <li>alt,X: set to last value </li>
+                                    <li>alt,D: set to default</li>
+                                    <li>alt,R: cycle through 'sensible' values</li>
+                                </ul>
+                            </span>
+                            <span class="genehidable hidebelow">  <!-- by default not shown, but toggled -->
+                                <span class="genehide" onclick=toggleFold(this)></span>
+                                <span class="genehidegroup">
+                                    <span class="gtag">min:</span>
+                                    <input class="min" type="number"/>
+                                    <span class="gtag">max:</span>
+                                    <input class="max" type="number"/>
+                                    <br>
+                                    <span class="gtag">delta:</span>
+                                    <input class="delta" type="number"/>
+                                    <span class="gtag">step:</span>
+                                    <input class="step" type="number"/>
+                                    <button class="addgene">addgene</button>
+                                </span>
+                            </span>
+                        </span>
+                    </div>
+
+                    <!-- genes -->
+                    <fieldset id="genefieldset">
+                        <legend onclick=toggleFold(this)>Genes</legend>
+                        <div class="fieldbody">
+                            <span>F2 on filter to toggle freeze of all displayed.
+                                <br>Select group and F2 to toggle freeze of displayed in that group.
+                                <br>F2 on individual gene name to toggle freeze of that gene.
+                                <br>Click on group name to show/hide group.</span>
+                            <br>Filter <textarea id="genefilter" rows="1" cols="45" onkeydown="event.stopPropagation();" onkeyup="filterDOMEv();"></textarea>
+                            <span class="help helpabove">
+                                Filter for genes by name, tag, or frozen/free.
+                                <br>
+                                Filters are an | separated list (eg any match); multiple lines also separate the list.
+                                <br>
+                                with each element a blank separated list of ands (eg all match).
+                                <br>
+                                Thus 'col | bra first' will match all genes with the 'horncol' tag,
+                                plus any branch gene in horn named first.
+                            </span>
+                            <br><span>Use filter<input id="usefilter" type="checkbox" onchange=""/></span>
+                            <span class="help helpabove">
+                                If set, only currently filtered genes fill take part in mutation and animation.
+                            </span>
+                            <button onclick="setAllFromFilter();">set from filter</button>
+                            <span class="help helpabove">
+                                Set filtered genes on <b>all</b> objects from the current object (shown values).
+                            </span>
+                            <div id="genesgui">
+                            </div>
+                        </div>
+                    </fieldset>
+
+
+                    <!-- keys -->
+                    <fieldset id="keysfield" style="border-color:gray" onclick="keyclick(event)">
+                        <legend  onclick=toggleFold(this)>Keys</legend>
+                        <div class="fieldbody" id="keysgui"></div>
+                    </fieldset>
+
+
+                    <!-- about -->
+                    <fieldset id="fieldabout" class="hidebelow">
+                        <legend  onclick=toggleFold(this)>About</legend>
+                        <div class="fieldbody">
+                            <p>
+
+                            <p>        This is a basic implementation of Formgrow using shaders to implement the form shaping         and texture.
+                            </p>
+                            <ul>
+                                <li>The form itself is generated in the vertex shader.
+                                </li>
+                                <li>Dynamic texture code is a reimplementation of a small part of the Winsom textures,             and is run in the fragment shader. See 'Evolutionary At and Computers, page 203'.
+                                </li>
+                                <li>Only very basic lighting and shading implemented so far.
+                                </li>
+                                <li>Using WebGL with help from three.js: https://github.com/mrdoob/three.js
+                                </li>
+                            </ul>
+                            <p>        Transform rule (change and hit escape key to run new version)
+                            </p>
+                            <ul>
+                                <li>scale: scale at start, scale at end
+                                </li>
+                                <li>twist: degrees of twist, offset of twist
+                                </li>
+                                <li>stack: height of stack
+                                </li>
+                                <li>bend: degrees of bend
+                                </li>
+                                <li>ribby: special transform to seal ends and give ribby feel, currently builtin
+                                </li>
+                            </ul>    <br />    To do: make numeric parameters uniforms so no need for rebuild .... Meanwhile, we     experiment using the 'time' uniform.
+                            <ul>
+                                <li>To rotate, press left mouse button and drag.
+                                </li>
+                                <li>To pan, press right mouse button and drag.
+                                </li>
+                                <li>To scale, scroll wheel, or centre mouse button and drag.
+                                </li>
+                                <li>???Double-click to reset transform.???
+                                </li>
+                                <li>Interactions defined by three's TrackballControls.js
+                                </li>
+                                <li>Todo: Find out why some transforms seem to make entire object go away.
+                                </li>
+                            </ul>
+                            <p style="display:none;">        <b>Test:</b><br />
+                                <textarea id="test" rows="3" cols="50">for(int i=0; i<100; i++) col = sqrt(col);</textarea>
+                            </p>
+
+                        </div>
+                    </fieldset>
+                    <br><br><br><br><br><br>. <!-- in case bottom hidden by taskbar -->
+                </div>
+            </div>
+        </div>
+
+        <p id='attribbox'>William Latham, Stephen Todd, Peter Todd</p>
+
+
+        <!-- code for hover surround -->
+        <div id="hoverdisplay" style="display:none;">
+            <span id="hoverborder">
+            </span>
+            <span id="hovercontrols">
+                <span>
+                    <button onclick="vpvoteup(event);">+</button>
+                    <span class="help">vote up</span>
+                </span><br>
+
+                <span>
+                    <button onclick="vpvotedown(event);">-</button>
+                    <span class="help">vote down</span>
+                </span><br>
+
+                <span>
+                    <button onclick="vpchoose(event);">-></button>
+                    <span class="help">choose this object as current object</span>
+                </span><br>
+
+                <span>
+                    <button onclick="vpreplace(event);">&lt;-</button>
+                    <span class="help">replace this object with current object</span>
+                </span><br>
+
+                <span>
+                    <button onclick="vpswap(event);">&lt;-></button>
+                    <span class="help">swap this object and current object</span>
+                </span><br>
+
+                <span>
+                    <button onclick="vpkill(event);">x</button>
+                    <span class="help">kill this object</span>
+                </span><br>
+            </span>
+            <span id="hovermessage"></span>
+        </div>
+
+        <div id="trancontextmenu" style="display: none;"></div>
+        <div id="horncontextmenu" style="display: none;"></div>
+        <div id=mldetails style="display: none;">
+            id: <input id="mlid" type="number" min="1" max="1000">
+            &emsp;j: <b id="mljudge"></b>
+            &emsp;notes: <textarea id="mlnotes" cols="30" rows="1"></textarea>
+        </div>
+
+        <!-- -->
+        <script  type="text/javascript">
+            var Qlar = '<';
+            var threeinc = `${Qlar}script src="JSdeps/${threever}.js">${Qlar}/script>`;
+            if (threever === 'latest') threeinc = `${Qlar}script src="https://threejs.org/build/three.js">${Qlar}/script>`;
+            document.write(threeinc);
+            // if (threever.indexOf('three1') !== -1)
+            // 14 Oct 2019;
+            // Our support for VR predated and was incompatible with both VREffect.js (now dead) and WebVR.js
+            // However, in order to become more close to standard usage we are using WebVR.js for enabling WebXR.
+            // So, if we have allowXR then we include WebVR.js, but NOT for regular WebVR usage.
+
+            // We have had issues with changing WebXR spec so
+            // we almost certaintly will need to make sure we use a later WebVR.js for recent changes to WebXR.
+            // Meanwhile, we need updates to three.js so it dopes not automatically use XR if available.
+            // if (window.allowXR || searchValues.allowXR)
+            //    document.write(`${Qlar}script src="JSdeps/WebVR106SJPT.js">${Qlar}/script>`);
+        </script>
+        <!-- -->
+        <!-- <script src="JSdeps/three86SJPT.js"></script> -->
+        <!-- <script src="JSdeps/WebVR.js"></script> -->
+
+
+        <script src="jsopen/datguivr.js"></script>
+        <script src="JSdeps/codemirror/codemirror.js"></script>
+        <script src="JSdeps/codemirror/matchbrackets.js"></script>
+        <script src="JSdeps/codemirror/closebrackets.js"></script>
+        <script src="JSdeps/codemirror/show-hint.js"></script>
+        <script src="JSdeps/codemirror/javascript-hintPJT.js"></script>
+        <script src="JSdeps/codemirror/javascript.js"></script>
+        <script src="JSdeps/codemirror/multiplex.js"></script>
+        <script src="JSdeps/codemirror/foldcode.js"></script>
+        <script src="JSdeps/codemirror/foldgutter.js"></script>
+        <script src="JSdeps/codemirror/brace-fold.js"></script>
+        <script src="JSdeps/codemirror/comment.js"></script>
+        <script src="JSdeps/codemirror/webGL-clike.js"></script>
+
+        <script type="text/javascript">
+            window.currentGenes = {};   // ensure it is set up as configurable so we can monitor it later
+            window.width = 0; window.height = 0; window.currentHset = undefined; window.numInstancesP2 = undefined;   // to allow monitor
+            Object.defineProperty(window, 'G', { get : function() { return window.currentGenes; } });
+
+            /** find globals in use */
+            function snapGlobals() {
+                var r = {};
+                var dead = ['webkitStorageInfo', 'webkitIndexedDB'];
+                for (var v in window) if (dead.indexOf(v) === -1) r[v] = window[v];
+                return r;
+            }
+            var initGlobals = snapGlobals();  // globals in use at very start
+
+        </script>
+
+        <!--START--> <!-- signal to combiner -->
+
+        <!--<script src="http://mrdoob.github.com/three.js/build/three.min.js"></script>-->
+
+
+        <script src="JS/utils.js"></script>
+        <script src="JS/fileWrappers.js"></script>
+        <script src="JS/webrtchelper.js" type="text/javascript"></script>
+        <script src="JSTS/mod/ClientIPC.js"></script>
+        <script src="JS/maestro.js"></script>
+        <script src="JS/edgefollow.js"></script>
+        <script src="JSTS/nw_sc.js"></script>
+        <script src="JSTS/mutsynth.js"></script>
+
+
+        <script src="JSdeps/underscore.js"></script>
+        <!-- <script src="JSdeps/html2canvas.js"></script> --->
+        <!-- <script src="JSdeps/htmlgl.js"></script> --->
+        <!-- <script src="JSdeps/dom-to-image.js"></script> -->
+        <!-- <script src="JSdeps/sourcesanspro_regular.js"></script> -->
+
+
+        <!-- <script src="JSdeps/VRControls.js"></script> -->
+        <script src="JSdeps/stats.min.js"></script>
+        <script src="JSdeps/hammer.js"></script>
+
+        <!-- <script src="JSdeps/TrackballControls.js"></script> -->
+        <script src="JSdeps/OrbitControls.js"></script>
+        <script src="JSdeps/Chart.js"></script>
+        <script src="JSdeps/js-yaml.js"></script>
+        <script src="JSdeps/BufferGeometryUtils.js"></script>
+
+        <!--- <script src="JSdeps/osc-min/node-buffer.js"></script> --> <!-- relies n builtin binding function -->
+        <!---
+        <script src="JSdeps/osc-min/buffer.js"></script> <!-- should work without native help ? -- >
+        <script src="JSdeps/osc-min/binpack-index.js"></script>
+        <script src="JSdeps/osc-min/osc-utilities.js"></script>
+        <script src="JSdeps/osc-min/osc-index.js"></script>
+        --->
+        <!-- //---------- > OSCWorker -------- >
+        Parsing & encoding OSC was proving a bottleneck - might only want OSC in worker now...
+        -->
+        <script src="JSdeps/osc-browser.js"></script>
+
+        <!-- <script src="JSdeps/threex.domevent.js"></script> -->
+           <script src="JSdeps/OBJLoader.js"></script>
+        <script src="JSdeps/ViveController.js"></script>
+        <script src="JSdeps/tiff2.js"></script>
+        <script src="JSdeps/eigenvalues.js"></script>
+        <script src="JSdeps/holoplay.js"></script>
+        <script type="text/javascript">
+            var prejsGlobals = snapGlobals();  // globals in use at very start
+        </script>
+
+
+        <script src="startcommit.js"></script>
+        <!-- <script src="JS/utils.js"></script> -->
+        <script src="JS/serious.js"></script>
+        <script src="JS/scripts.js"></script>
+        <script src="JS/savedMaterials.js"></script>
+        <script type="text/javascript">
+            if (window.nw) {  // for nwjs 13.0 alpha
+                var require = nw.require;
+                nwwin = nw.Window.get();
+                nwwin.showDevTools();
+            }
+            //if (!window.require)
+            //	addscript("JSdeps/SMrequire.js");
+        </script>
+
+
+        <script src="jsopen/gldebug.js"></script>
+        <script src="JSTS/graphbase.js"></script>
+        <script src="JSdeps/WebVR106SJPT.js"></script>
+        <script src="JS/uiCom.js"></script>
+        <script src="JS/Utilities.js"></script>
+        <script src="JS/TextureTools.js"></script>
+        <script src="JS/threek.js"></script>
+        <script src="JS/CubeMap.js"></script>
+        <script src="JS/WaterSine.js"></script>
+        <script src="JS/Shadows.js"></script>
+        <script src="JS/ThreeBokeh.js"></script>
+        <script src="JS/DepthOfField.js"></script>
+        <script src="JS/ProjectionUIController.js"></script>
+        <script src="JS/touch.js"></script>
+        <script src="JS/speech.js"></script>
+        <script src="JS/mutbase.js"></script>
+
+        <script src="JSTS/genes.js"></script>
+        <script src="JS/guigenes.js"></script>
+        <script src="JSTS/mutator.js"></script>
+        <script src="JSTS/guidoc.js"></script>
+        <script src="JS/keys.js"></script>
+        <!-- <script src="JS/fileWrappers.js"></script> -->
+        <script src="JS/fileAndCatalog.js"></script>
+        <script src="JS/datguix.js"></script>
+        <script src="JSTS/anim.js"></script>
+        <script src="JS/guicontrols.js"></script>
+        <script src="JS/guigenegrid.js"></script>
+        <script src="JS/guimutate.js"></script>
+
+
+        <script src="JS/glslProcessing.js"></script>
+        <!-- <script src="JS/VREffectsjpt.js"></script> -->
+        <script src="JSTS/canvevents.js"></script>
+        <script src="JS/automode.js"></script>
+        <script src="jsopen/TextureMaterial/col.js"></script>
+        <script src="jsopen/TextureMaterial/texture.fs.js" type="module"></script>
+        <script src="JSTS/tomodule.js" type='module'></script> <!-- brings in horn -->
+        <script src="JS/FileSaver.js"></script>
+
+        <!-- <script src="JS/decode_base64.js"></script> -->
+
+        <!--<script src="audio.js"></script>-->
+        <!-- <script src="JSTS/mod/ClientIPC.js"></script> -->
+        <!-- <script src="JSTS/nw_sc.js"></script> moved to top -->
+        <script src="JSTS/noaudiovars.js"></script>
+
+        <script src="JS/poem.js"></script>
+        <script src="JS/audiofreq.js"></script>
+        <script src="JS/stl.js"></script>
+        <script src="JS/audio.js"></script>
+        <script src="JS/nw_kinect.js"></script>
+        <!-- <script src="JS/flexi.js"></script> -->
+        <script src="JS/springsfs.js"></script>
+        <script src="JS/springs.js"></script>
+        <script src="JS/kinectJupDyn.js"></script>
+        <script src="JS/tadkin.js"></script>
+        <script src="JS/tadAug2022.js"></script>
+        <script src="JS/colgui.js"></script>
+        <script src="JSTS/tadpole.js"></script>
+        <script src="JS/guihelpers.js"></script>
+        <script src="JS/leeds.js"></script>
+
+        <script src="JS/picasso.js"></script>
+        <!-- <script src="JS/tadexperiences.js"></script> -->
+        <script src="JSTS/julia.js"></script>
+        <script src="JS/fanoc.js"></script>
+        <script src="JS/jacout.js"></script>
+        <script src="JS/nw_FractEVO.js"></script>
+        <script src="JS/mutatorML.js"></script>
+        <script src="JS/inorganicgraphics.js"></script>
+        <script src="JS/fft.js"></script>
+        <script src="JS/readWebGlFloat.js"></script>
+        <script src="JSTS/director.js"></script>
+        <script src="JS/animtypes.js"></script>
+        <script src="JS/perftest.js"></script>
+        <script src="JSTS/vivecontrol.js"></script>
+        <script src="JS/experiences.js"></script>
+        <script src="JS/vivehtml.js"></script>
+        <script src="JS/extras.js"></script>
+        <script src="JS/MLcapture.js"></script>
+        <!-- <script src="JS/comms.js"></script> -->
+        <script src="JS/orgcomms.js"></script>
+        <script src="JS/sympaint.js"></script>
+        <script src="JS/holo.js"></script>
+        <script src="JS/fxaa.js"></script>
+        <script src="JS/imcompare.js"></script>
+
+
+        <script src="CSynth/csynth.js"></script>
+        <script src="CSynth/springsynth.js"></script>
+        <script src="CSynth/analysis.js"></script>
+        <script src="JSTS/CSynth/historytrace.js"></script>
+
+        <script src="JS/webcamin.js"></script>
+
+        <!--
+        <script src="CSynth/defaults.js"></script>
+        <script src="CSynth/springsynth.js"></script>
+        <script src="CSynth/defaultSprings.js"></script>
+        <script src="CSynth/matrix.js"></script>
+        <script src="CSynth/annotationDisplay.js"></script>
+        <script src="CSynth/teleport.js"></script>
+        <script src="CSynth/selectionvis.js"></script>
+        <script src="CSynth/spherevis.js"></script>
+        <script src="CSynth/imagevis.js"></script>
+        <script src="CSynth/imagevis2.js"></script>
+        <script src="CSynth/imagevis3.js"></script>
+        <script src="CSynth/imagevis4.js"></script>
+        <script src="CSynth/MarchingCubes.js"></script>
+
+        --->
+        <script src="CSynth/planes.js"></script>
+        <script src="tools/tools.js"></script>
+        <script src="livecode/cilly.js"></script>
+        <script src="tests/feedback.js"></script>
+        <script src="tests/bender.js"></script>
+        <script src="tests/clelia.js"></script>
+        <script src="JS/toptest.js"></script>
+        <script src="JS/image.js"></script>
+        <script src="JS/mutatetad.js"></script>
+
+
+        <!--
+        <script src="CSynth/old.js"></script>
+
+        -->
+        <!-- -->
+
+        <!--END-->
+
+        <script type="text/javascript">
+            log("'#'#'#", "about to try localstart", '#');
+        </script>
+        <script src="LOCAL/localstart.js"></script>
+        <!-- <script src="killtest/killclient/killclient.js"></script> -->
+        <script type="text/javascript">
+            var codeLoadEndTime = Date.now();
+
+            log("don't worrry if you get error message 404 for LOCAL/localstart.js");
+            trylocalstarter();
+            //TODO : don't include starter screen in css.
+            // No for Organic keep start screen
+//            Maestro.on("preframe", function() {
+//                $('#startscreen').hide();
+//                W.startscreen.style.display = 'none';
+//            }, {}, true);
+// imageres.oninput = imageres.onchange = e => {console.error('imageres', imageres.value); if (imageres.value === 'startup') debugger; }
+
+        </script>
+
+        <div id="extrascripts"></div>
+        <input style="display:none;" id="fileDialog" nwsaveas type="file" />
+
+        <div id="geneContextMenu" style="display: none">
+            <div id="contextPaste" style="border: solid 1px;">
+                <b>Paste</b>
+                <div style="margin-left:2em;">
+                    <input id="context_col" type="checkbox" onchange="doCtrlContext()">colour / ctrl,X,C
+                    <br>
+                    <input id="context_tex" type="checkbox" onchange="doCtrlContext()">texture / ctrl,X,T
+                    <br>
+                    <input id="context_surf" type="checkbox" onchange="doCtrlContext()">surface / ctrl,X,S
+                    <br>
+                    <input id="context_form" type="checkbox" onchange="doCtrlContext()">form / ctrl,X,F
+                    <br>
+                    <input id="context_view" type="checkbox" onchange="doCtrlContext()">view / ctrl,X,V
+                    <br>
+                    <input id="context_all" type="checkbox" onchange="doCtrlContext()">all / ctrl,X,A
+                </div>
+            </div>
+            <div id="contextNoPaste">No Paste, no genes in clipboard</div>
+            <button onclick="copyCtrlContextgenestoclip()">Copy / ctrl-C</button>
+            <button onclick="endCtrlContextMenu()">Leave</button>
+        </div>
+
+    </div> <!-- allbody -->
+    </body>
+</html>

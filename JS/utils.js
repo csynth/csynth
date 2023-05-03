@@ -7,17 +7,40 @@ var screens, W = window, opmode, HTMLElement, HTMLDocument, HTMLTextAreaElement,
     framenum, XMLHttpRequest, setval, location, isNode, savedef, localStorage, FileReader, onWindowResize,
     refreshGal, domtoimage, Image, readWebGlFloat, refall, vps, setViewports, Audio, newframe,
     setSize, CSynth, screen, exportmyshaders, Math,
-    genedefs, framelog, dockeydowninner, setAllLots, material, usesavedglsl, remakeShaders, Shadows,
+    genedefs, framelog, dockeydowninner, setAllLots, usesavedglsl, remakeShaders, Shadows,
     throwq, oxcsynth, performance, setshowstats, showControls, VUMeter2, DispobjC, orginit, requestAnimationFrame,
     getMaterial, OPPOSITION, OPOPOS, OPMAKESKELBUFF, OPSHADOWS, OPSHAPEPOS, OPTEXTURE, OPTSHAPEPOS2COL,
-    rca, canvas, testmaterial, startvr, interpretSearchString, appToUse,
-    searchValues, filterGuiGenes, $, runTimedScript, inworker, serious, loadTime, loadTimes, _insinit, isFirefox,
-    ErrorEvent, animateNum, dustbinvp, testopmode, runcommandphp, S, sclogE, sclog, islocalhost, dataURItoBlob, saveAs, GX
+    rca, canvas, testmaterial, startvr, interpretSearchString, appToUse, writetextremote,
+    searchValues, $, inworker, serious, loadTime, loadTimes, _insinit, isFirefox, keysdown, copyXflip,
+    ErrorEvent, animateNum, dustbinvp, testopmode, S, sclogE, sclog, islocalhost, dataURItoBlob, saveAs, GX, lastToggleGuiAction,
+    foldStates, restoreFoldStates, ises300, deferRender, startSC, isCSynth, WA, G, mutate, addGene, runkeys, regularizeColourGeneVisibility, maxInnerHeight,
+    resoverride, U, usemask, numInstances, tad, mutateTad, xxxdispobj, centrescalenow, resetCamera, target
     ;
 
 // convenience function to find dom element, W. sometimes failed at very start
 // really const, but var makes it easier to share
 var DE = new Proxy(window, { get: (w, name) => document.getElementById(name) } );
+
+var inputs = {};  // cache value of inputs
+var initialinputs = {};  // register initial value of inputs
+var inputdoms;      // cache input dom elements to use
+var _inputdoms;    // cache of secondary _ doms
+var holdtimeout;
+var valelement;     // element
+var nomess; // function that may be overwritten
+var name2class = {};  // extra classes, map from class name to prototype
+var class2name = new Map();   // inverse of name2class
+var xconstructors = {};  // extra constructors,  map from class name to constructor
+
+// prepare for node webkit or electron if around
+// see https://github.com/rogerwang/node-webkit/wiki/Window
+var nwwin, nwfs, nwhttp, nwos, hostname = "defaulthost";
+
+var loadedfiles = {};
+var restoringInputState = false;
+var remote, xwin, ipcRenderer, electron;
+var EX = {};
+
 
 /** find globals in use, this will usually be defined earlier (in threek.html) to get initGlobals before globals are polluted) */
 var snapGlobals;
@@ -29,7 +52,7 @@ snapGlobals = snapGlobals || function () {
 }
 var initGlobals;
 initGlobals = initGlobals || snapGlobals();  // globals in use at very start
-/** extra globals since start */
+/** extra globals since start, pollution of global namespace */
 function xGlobals(base = initGlobals) {
     var r = snapGlobals();
     for (var v in r) if (v in base) delete r[v];
@@ -40,31 +63,18 @@ function countXglobals() {
     return Object.keys(xGlobals()).length;
 }
 
-var keymap = {
-    8: "backspace", 9: "tab", 13: "enter", 16: "shift", 17: "ctrl", 18: "alt", 19: "pause/break",
-    20: "caps lock", 27: "escape", 33: "page up", 34: "page down", 35: "end", 36: "home", 37: "left arrow",
-    38: "up arrow", 39: "right arrow", 40: "down arrow", 45: "insert", 46: "delete", 91: "left window",
-    92: "right window", 93: "select key", 96: "numpad 0", 97: "numpad 1", 98: "numpad 2", 99: "numpad 3",
-    100: "numpad 4", 101: "numpad 5", 102: "numpad 6", 103: "numpad 7", 104: "numpad 8", 105: "numpad 9",
-    106: "multiply", 107: "add", 109: "subtract", 110: "decimal point", 111: "divide", 112: "F1", 113: "F2",
-    114: "F3", 115: "F4", 116: "F5", 117: "F6", 118: "F7", 119: "F8", 120: "F9", 121: "F10", 122: "F11",
-    123: "F12", 144: "num lock", 145: "scroll lock", 186: ";", 187: "=", 188: ",", 189: "-", 190: ".",
-    191: "/", 192: "`", 219: "[", 220: "\\", 221: "]", 32: "space"
-    // 222: "#", # uk ' us?
-};
-
-(function () {
-    for (var i = 65; i <= 90; i++) keymap[i] = String.fromCharCode(i);
-    for (i = 48; i <= 57; i++) keymap[i] = String.fromCharCode(i);
-})();
-
-function keyname(k) {
-    if (keymap[k]) return keymap[k];
-    return '#' + k;
-}
+// function key name(k) {
+//     if (key map[k]) return key map[k];
+//     return '#' + k;
+// }
 String.prototype.replaceall = function (a, b) { return this.split(a).join(b); };  // convenience function
 
 function nop() { }
+/** promise wait for ms millesecs; do NOT consider S.kill */
+function usleep(ms) {
+    return new Promise(function awaitsleep(resolve) {setTimeout(resolve, ms);});
+}
+
 
 /** towards better catching of errors */
 console.oldError = console.error;
@@ -127,17 +137,36 @@ console.debug = function (dmsg) {
 console.oldLog = console.log;
 var firstConsole = console;
 console.log = function () {
-    if (arguments[0] === "THREE.WebGLRenderer") return;
+    const args = Array.from(arguments);
+    if (args[0] === "THREE.WebGLRenderer") return;
+    let col, pre= ' ';
+    if ((args[0]+'').startsWith('%%')) {
+        col = 'color:' + args.shift().substring(2);
+        pre = '%c ';
+    }
+
     //pjt was getting console.oldLog undefined in debugging, so put in this check...
     if (!console.oldLog && console !== firstConsole) throwe("node / webkit context confusion?");
-    var lmsg = showvals.apply(undefined, arguments);
+    var lmsg = showvals.apply(undefined, args);
     var ncontime = Date.now();
     let deltat = ncontime - contime;
-    if (deltat > 100) deltat += '!!!!!!';
-    console.oldLog(' ' + framenum + '/' + ((ncontime - loadStartTime)/1000).toFixed(3) + "+" + deltat + ": " + lmsg);
+    if (deltat > 100 && contime !== 0) deltat += '!!!!!!' + '!='.repeat(Math.min(10, deltat/100));
+    const rrr = pre + framenum + '/' + ((ncontime - loadStartTime)/1000).toFixed(3) + "+" + deltat + ": " + lmsg;
+    if (col) console.oldLog(rrr, col); else console.oldLog(rrr);
     contime = ncontime;
     return lmsg;
 };
+
+// https://stackoverflow.com/questions/52595559/how-to-log-js-stack-trace-with-console-trace-but-keep-it-collapsed
+console.oldTrace = console.trace;
+console.trace = function(...args) {
+    const str = showvals.apply(undefined, args);
+    console.groupCollapsed(str);
+    // console.log('additional data hidden inside collapsed group');
+    console.oldTrace(str); // hidden in collapsed group
+    console.groupEnd();
+}
+
 var log = console.log;
 framenum = framenum || 0;  // for utils.js compatibility
 loadStartTime = loadStartTime || Date.now();   // for utils.js compatibility
@@ -172,10 +201,11 @@ function testDomOverride() {
 }
 
 /** value substitute */
-function showvals() {
+function showvals(...sss) {
     //if (!typeof s === "string") return s;
     //var ss = s.split("$");
-    var sss = arguments;
+    // var sss = arguments;
+
     var r = "";
     for (var j = 0; j < sss.length; j++) {
         var ss = sss[j];
@@ -184,19 +214,19 @@ function showvals() {
             for (var i = 1; i < s.length; i += 2) {
                 // like qget, but with tags
                 if (s[i] in inputs)             s[i] = "I." + s[i] + "=" + format(inputs[s[i]]);
-                else if (s[i] in currentGenes)  s[i] = "G." + s[i] + "=" + format(currentGenes[s[i]]);
+                else if (currentGenes && s[i] in currentGenes)  s[i] = "G." + s[i] + "=" + format(currentGenes[s[i]]);
                 else if (s[i] in W) s[i] =      s[i] = "W." + s[i] + "=" + format(W[s[i]]);
-                else if (s[i] in uniforms)      s[i] = "U>" + s[i] + "=" + format(uniforms[s[i]].value);
+                else if (s[i] in (uniforms??{}))s[i] = "U>" + s[i] + "=" + format(uniforms[s[i]].value);
                 else                            s[i] =        s[i] + '=' + format(evalIfPoss(s[i]));
             }
             sss[j] = s.join(" ");
-        } else if (ss && ss.toString()[0] === '/') {  // regex
+        } else if (ss && ss.toString && ss.toString()[0] === '/') {  // regex
             sss[j] = ss.toString();
         } else { // if (typeof ss === "object") {
             //sss[j] =  this && this !== W ? this(ss) : objstring(cloneNoCircle(ss));
             sss[j] = "" + format(ss);
         }
-        r += sss[j] + " ";
+        r += sss[j] + "\t";
     }
     return r;
 }
@@ -271,7 +301,7 @@ function showErrors(linemsg, dothrow=true) {
 HTMLElement.prototype.hasParent = function (p) {
     var pn = this.parentNode;
     if (pn === p) return true;
-    if (pn === undefined) return false;
+    if (!pn) return false;
     if (pn.hasParent === undefined) return false;
     return pn.hasParent(p);
 };
@@ -300,43 +330,48 @@ function addElement(arr, val) {
 }
 
 /** get X offset of event, compensate for canvase style sixing if needed */
-function offx(evt) {
+function offx(pevt) {
+    let evt = pevt;
     // handle mouse events, raw touch events and both kinds of hammer events
     // var mmm = msgfix('mouse', 'clientX', evt.clientX, 'screenX', evt.screenX, 'offsetX', evt.offsetX, 'pageX', evt.pageX, 'offl', evt.target.offsetLeft, 'offa', offa);
     if (evt.myx !== undefined) return evt.myx;  // for simulated event
-    if (evt.targetTouches) evt = evt.targetTouches[0];
+    if (evt.changedTouches) evt = evt.changedTouches[0];
+    else if (evt.targetTouches) evt = evt.targetTouches[0];
     else if (evt.gesture) evt = evt.gesture.touches[0];
     else if (evt.touches) evt = evt.touches[0];
-    var off = evt.offsetX;
-    var offa = evt.pageX - evt.target.offsetLeft;
-    if (off && Math.abs(off - offa) > 1)
-        msgfix("offX difference", off, offa, 'offx='+evt.offsetX, 'cliX='+evt.clientX, 'pageX='+evt.pageX);
+    var off = FIRST(evt.offsetX, evt.clientX);
+    // var offa = evt.pageX - evt.target.offsetLeft;    // ?? offa causing performance hit forcing reflow ??
+    // if (off && Math.abs(off - offa) > 1)
+    //     msgfix("offX difference", off, offa, 'offx='+evt.offsetX, 'cliX='+evt.clientX, 'pageX='+evt.pageX);
     //console.log("xoff " + offa);
     var se = evt.target;
     if (/* se === canvas && */ se.width && se.style.width.endsWith('px')) {
         const r = se.width / se.style.width.replace('px', '');
-        offa *= r;
+        // offa *= r;
         off *= r;
     }
     return off;
 }
 
 /** get Y offset of event, compensate for canvase style sixing if needed */
-function offy(evt) {
+function offy(pevt) {
     // handle raw touch events and both kinds of hammer events
+    let evt = pevt;
     if (evt.myy !== undefined) return evt.myy;  // for simulated event
-    if (evt.targetTouches) evt = evt.targetTouches[0];
+    if (evt.changedTouches) evt = evt.changedTouches[0];
+    else if (evt.targetTouches) evt = evt.targetTouches[0];
     else if (evt.gesture) evt = evt.gesture.touches[0];
     else if (evt.touches) evt = evt.touches[0];
-    var off = evt.offsetY;
-    var offa = evt.pageY - evt.target.offsetTop;
+    var off = FIRST(evt.offsetY, evt.clientY);
+
+    // var offa = evt.pageY - evt.target.offsetTop;  // ?? performance ??
     //if (off  && off !== offa)
     //    console.log("offY difference");
     var se = evt.target;
     if (/* se === canvas && */ se.height && se.style.height.endsWith('px')) {
         const r = se.height / se.style.height.replace('px', '');
         off *= r;
-        offa *= r;
+        // offa *= r;
     }
 
     return off;
@@ -379,7 +414,8 @@ var msgfix = function(id, a1) {
             let oclass = mset ? mset.xclass : 'new';
             if (arguments[1] && arguments[1][0] === '>') xclassi = ' errmsg';
             mset.val = isfun ? a1 : nmsg.substring(id.length + 1);
-            mset.xclass = xclassi + (dyn ? ' dynmsg ' : ' staticmsg ');
+            const xxclass = xclassi + (dyn ? ' dynmsg ' : ' staticmsg ');
+            mset.newxclass = xxclass;
             mset.args = dyn ? arguments : undefined;
 
             if (msgfix.updatebits) {  // update bits as soon as possible, just overhead and not worth it ???
@@ -410,16 +446,40 @@ function msgtrack(name) {
 function msgfixerror() {
     msgfixerror.count++; // count msgfixerror calls (pending making log, we don't want it to be too big)
     nomess(false);
-    arguments[0] = '>' + arguments[0]; //msgfix.all = true;
-    return msgfix.apply(undefined, arguments);
+    msgboxVisible(true);
+    const k = arguments[0];
+    arguments[0] = '>' + k; //msgfix.all = true;
+    const r = msgfix.apply(undefined, arguments);
+    msgfix.force();                     // make sure messages 'registered'
+    msgfix.promote(k);                  // promote error message
+    return r;
     // log.apply(undefined, arguments);
 }
 msgfixerror.count = 0;
+
+/** flash the message box, does NOT change the messages. if hidden unhide and do NOT rehide  */
+async function msgflash({col, time=500} = {}) {
+    const style = W.msgbox.style
+    const washid = style.overflow === 'hidden';
+    const wascol = style.backgroundColor;
+
+    if (washid) msgboxVisible(true);
+    if (style.display === 'none') nomess('release');
+    if (col) style.backgroundColor = col;
+    await usleep(time);
+    style.backgroundColor = wascol;
+    if (washid) msgboxVisible(false);
+}
 
 /** do a messagefix and log it too */
 function msgfixlog() {
     msgfix.apply(undefined, arguments);
     return log.apply(undefined, arguments);
+}
+function msgfixerrorlog(...args) {
+    const r = msgfixerror(...args);
+    console.error(r);
+    return r;
 }
 
 function msgboxVisible(flag = 'toggle') {
@@ -430,9 +490,10 @@ function msgboxVisible(flag = 'toggle') {
         msgbox.style.overflow = 'hidden';
     }
     function show() {
-        if (msgbox.style.overflow === 'auto') return;;
-        [msgbox.style.width, msgbox.style.height] = msgboxVisible.save;
+        if (msgbox.style.overflow === 'auto') return;
+        if (msgboxVisible.save) [msgbox.style.width, msgbox.style.height] = msgboxVisible.save;
         msgbox.style.overflow = 'auto';
+        if (window.reserveSlots && slots[1]) msgbox.style.top = slots[1].height + 'px';
     }
     if (flag === 'toggle')
         if (msgbox.style.overflow === 'hidden')
@@ -453,7 +514,7 @@ W.msgbox.onclick = (e) => {
     const msgbox = W.msgbox;
     if (document.getSelection().toString()) return;  // do not handle if there is a selection, prevents easy copy/paste
 
-    let s = e.srcElement;
+    let s = e.target;
 
     if (s.tagName === 'A') return;  // let a link take care of itself
     // any click will restore if hidden
@@ -480,7 +541,7 @@ W.msgbox.onclick = (e) => {
         if (s.id.startsWith('msgfixo_')) {
             const id = s.id.post('_');
             if (id === msgfix.key) {
-                delete msgfix.not[e.srcElement.textContent.trim()]; // click on a subelement of msgfix.key, restore it
+                delete msgfix.not[e.target.textContent.trim()]; // click on a subelement of msgfix.key, restore it
             } else {
                 if (e.ctrlKey)
                     msgfix.kill(id);
@@ -510,7 +571,7 @@ msgfix.showhid = function() {
             >${i.indexOf(' ') !== -1 ? "'"+i+"'" : i}</span>`
     }).join(' ');
     // msgfix('>' + msgfix.key, hid);
-    W.msgfix_messages.innerHTML = hid;
+    if (W.msgfix_messages) W.msgfix_messages.innerHTML = hid;
 }
 
 msgfix.kill = function(id) {
@@ -576,16 +637,22 @@ msgfix.force = function(ss) {
         const mset = msgset[i];
         if (mset.dead) { deadlist.push(i); continue; }
         if (msgfix.not[i] === true) { if (mset.htmlo) mset.htmlo.style.display = 'none'; continue; }
-        const val = typeof mset.val === 'function' ? format(mset.val()) :
+        const rval = typeof mset.val === 'function' ?
+            format(mset.val()) :
             mset.args ? showvals.apply(htmlformat, mset.args).substring(i.length + 1) : mset.val;
+        const val = rval.replaceall('\n', '<br>');
 
+
+        if (mset.htmlo && mset.xclass !== mset.newxclass) {
+            window['msgfixo_' + i].className = mset.newxclass;
+        }
         if (!mset.htmlo) {
             let htmlo;
             if (i === msgfix.key)
                 htmlo =
 // html for top message
 `<span>
-    <span id="msgfixo_${i}" class="${mset.xclass}">
+    <span id="msgfixo_${i}" class="${mset.newxclass}">
         <span class="msgfix_key">${i}: </span>
         <span class="help" style="position: fixed">
             <p>Click here (${i}:) to toggle hide/display of all messages<br>
@@ -606,7 +673,7 @@ msgfix.force = function(ss) {
                 htmlo =
 // html for all other messages
 `<span class="msg_item">
-    <span id="msgfixo_${i}" class="${mset.xclass}">
+    <span id="msgfixo_${i}" class="${mset.newxclass}">
         <b class="msgfix_key">${i}: </b>
         <span id="msgfix_${i}" class="msgfix_value">
             ${val}
@@ -628,6 +695,7 @@ msgfix.force = function(ss) {
             mset.htmlval = W['msgfix_' + i];
             mset.oldval = val;
         }
+        mset.xclass = mset.newxclass;
         if (msgfix.not[i] !== true &&
             (mset.xclass || msgfix.all === true || (typeof msgfix.all === 'string' && msgfix.all.indexOf(i) !== -1))) {
             if (val !== mset.oldval) {
@@ -657,6 +725,8 @@ function trysetele(eleid, propname, value) {
         ele = eleid;  // already passed the ele itself
         eleid = ele.id;
     }
+    if (eleid in inputs)         // add sjpt 6 Oct 2022
+        inputs[eleid] = value;
     if (ele) {
         if (propname === 'value')
             setInput(eleid, value); // inputs[eleid] = value;
@@ -712,18 +782,54 @@ function trygeteleval(eleid, def) { return trygetele(eleid, 'value', def); }
 /** move up chain to find a gene element (eg with currentEle */
 function getg(x) { var r = x; while (r.currentEle === undefined) r = r.parentNode; return r; }
 
-/** copy fields of object into another, ??? shoud this use clone for deeper copy ??? */
-function copyFrom(obj1, obj2) {
+/** copy fields of object into another, ??? shoud this use clone for deeper copy ???
+* tailored for genes
+ * optional filter to copy only selected elements
+*/
+function copyFrom(obj1, obj2, filter) {
     if (obj1 === obj2) return;  // not just optimization, it was damaging for _rot4_ele
-    for (var gn in obj2) {
-        if (gn === "_rot4_ele") {             // very poor hack ....
-            obj1[gn] = [];
-            copyFrom(obj1[gn], obj2[gn]);
+    for (var gn of Object.keys(obj2)) {         // gn in gets absurd amounts for eg new THREE.Vector4()
+        if (filter !== undefined && !(gn in filter) ) continue;
+        const v2 = obj2[gn];
+        if (gn === "_rot4_ele") {    // very poor hack .... ??? use typeof
+            obj1[gn] = v2.slice();
+        } else if ( gn === "_gcentre") {
+            if (!obj1[gn]) obj1[gn] = new THREE.Vector4();
+            obj1[gn].copy(obj2[gn]);
+        } else if (v2 === null || v2 === undefined) {
+            // log('unexpected gene value in copyFrom', gn, v2);
         } else {
             obj1[gn] = obj2[gn];
         }
     }
     return obj1;
+}
+
+/** deep copy object
+ * https://stackoverflow.com/questions/122102/what-is-the-most-efficient-way-to-deep-clone-an-object-in-javascript
+ */
+function deepCopy(obj, exclude = {}) {
+    const  ilg = [], olg = [];
+    const ret = dc(obj, ilg, olg, exclude);
+    log('obj count', ilg.length)
+    return ret;
+
+    function dc(_obj, il, ol, _exclude) {
+        if(_obj == null || typeof(_obj) !== 'object'){
+            return _obj;
+        }
+        const k = il.indexOf(_obj);
+        if (k !== -1) return ol[k];
+
+        // make sure the returned object has the same prototype as the original
+        const reti = Array.isArray(_obj) ? [] : Object.create(_obj.constructor.prototype);
+        il.push(_obj); ol.push(reti);
+        for(var key of Object.keys(_obj)) {
+            if (!_exclude[key])
+                reti[key] = dc(_obj[key], il, ol, _exclude);
+        }
+        return reti;
+    }
 }
 
 /** copy selected fields of object into another */
@@ -751,10 +857,15 @@ function copyFromN(to, from) {
 /** clone object, keep class information */
 function clone(obj) {
     if (typeof obj !== 'object') return obj;
-    if (obj === null) return null;
-    const r = dstring(xstring(obj));
-    if ('#k' in r) debugger
-    return r;
+    if (obj.clone)
+        return obj.clone();
+    return deepClone(obj);
+
+    // if (typeof obj !== 'object') return obj;
+    // if (obj === null) return null;
+    // const r = dstring(xstring(obj));
+    // // if ('#k' in r) debugger
+    // return r;
 
     // below lost class information
     // var s;
@@ -772,7 +883,7 @@ In fact, as at 23 April 2015 Dispobj is the only class needed,
 and as long as a load has been performed, Dispobj will be already set up
  */
 function mapOnce() {
-    if (!xclasses.Dispobj || !xclasses['HornWrap.Horn']) {  // Dispobj sometimes creeps in during load so check Hornwrap.Horn as well
+    if (!name2class.Dispobj) {  // Horn etc escape as they are classes .... TODO
         loadTime('mapOnce start');
         mapclasses({ ignoreprefixes: ["global", "process", "webkit", "navigator", "WebGL", "WebKit"] }); // don't waste time, or blow up on nw
         loadTime('mapOnce end');
@@ -825,85 +936,122 @@ function objstring(o) {
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ serialization
 
-// xclasses keeps a map from class name to prototype.
-// The reverse map is help by a CLASSNAME (#clname) property held in the prototype
+// name2class keeps a map from class name to prototype.
+// The reverse map is help by a class2name (#clname) property held in the prototype
 // This may be set up by explicit calls, or using mapclasses() to map them automatically.
-// The CLASSNAME property is used by xstring to save the class information as a string.
-// The xclasses map and saved CLASSNAME are used by dstring to restore appropriate prototype information.
+// The class2name property is used by xstring to save the class information as a string.
+// The name2class map and saved class2name are used by dstring to restore appropriate prototype information.
 
-var xclasses = {};  // extra classes, map from class name to prototype
-var xconstructors = {};  // extra constructors,  map from class name to constructor
 /** defined a class name/proto combination for serialization */
 function xclass(name, proto) {
     if (proto === undefined) {
         proto = www(name).prototype;
     }
-    proto[CLASSNAME] = name;
-    xclasses[name] = proto;
+    // proto[class2name] = name;
+    class2name.set(proto, name);
+    name2class[name] = proto;
     xconstructors[name] = proto.constructor;
 }
 
+/** save an object as yaml string, complete with type information  */
+function yamlSave(obj) {
+    mapOnce();
+
+    const ignoreclasses = [THREE.Object3D, THREE.WebGLRenderTarget, THREE.Texture, THREE.Scene, HTMLElement, HTMLDocument];
+    var polluted = [];
+    // var markedmap = new Map();    // map of marked objects to their marked version
+    // replacer for yaml ... maybe move to xstring.
+    // replacer pollutes and unpollutes objects; this could give javascript optimizer performance issues
+    // attempts to mark a clone instead
+    function replacer(key, object) {
+        if (typeof object !== 'object' || object === null) return object;
+        for (let i=0; i<ignoreclasses.length; i++) if (object instanceof ignoreclasses[i]) return undefined;
+        const classn = class2name.get(object.__proto__);
+        if (classn) {
+            //Object.defineProperty(value, '##c', { enumerable: true, writable: true}); // no needed
+
+            //  // direct clone NO, this prevents yaml seeing duplicate references
+            // object = Object.assign({}, object);
+
+            // // marked clone, so same clone used for each reference, still broke yaml's recognition of duplicates
+            // let marked = markedmap.get(object);
+            // if (!marked) {
+            //     marked = Object.assign({}, object);
+            //     markedmap.set(object, marked);
+            //     marked['##c'] = classn;
+            // }
+            // return marked;
+
+            // polluted version works
+            object['##c'] = classn;
+            polluted.push(object);
+        } else if (Object.keys(object.__proto__).length !== 0) {
+            console.error("Unexpected object found with no class info in yamlSave, mapOnce() called too early?", object);
+        }
+
+        return object;
+    }
+    try {
+        var s = yaml.safeDump(obj, {replacer, skipInvalid: true, lineWidth: 9999, flowLevel: 999});
+        return s;
+    } finally {
+        for (let object of polluted) delete object['##c'];
+    }
+}
+
+
 var saveconwarn;
 function myconwarn(msgp) { if (!msgp.startsWith("DEPRECATED:")) saveconwarn(msgp); }
-var CLASSNAME = '#clname';
-var VISITED = '#visited';      // visited as object
-var VISITEDP = '#visitedp';    // visited as prototype
-var visitnum = 0;               // mark which visit (debug helper)
 
-/** Map all the classes to create xclasses and help correct serialization
+/** Map all the classes to create name2class and help correct serialization
  * Usually only called once per session, but visit number held in case (eg during debug)
  *
  * Recursively visit all objects, marking them with property #visisted.
- * Place a hidden property #clname in each 'interesting' prototype, and save name in xclasses.
+ * Place a hidden property #clname in each 'interesting' prototype, and save name in name2class.
  * Clean all #visited tags at end.
  * @param {type} options map
     root: root object to map
     name: name of root
-    noreset: set to prevent clearing of xclasses at start
+    noreset: set to prevent clearing of name2class at start
     ignoreclasses: array of classes to ignore on mapping
  * @returns {undefined}
  */
 function mapclasses(options) {
+    const visited = new Set();
+    //const visit = new Map();
+    //const visitp = new Map();
     if (!options) options = {};
     var o = options.root ? options.root : W;
     var name = options.rootname ? options.rootname : "";
-    if (!options.noreset) xclasses = {};
+    if (!options.noreset) name2class = {};
     var ignoreclasses = options.ignoreclasses ? options.ignoreclasses : [HTMLElement, HTMLDocument];
     var ignoreprefixes = options.ignoreprefixes ? options.ignoreprefixes : [];
+    var ignorenames = options.ignorenames ? options.ignorenames : {".inps": true};
 
-    visitnum++;
     saveconwarn = console.warn;
     console.warn = myconwarn;
-    var polluted = [];
     try {
         mapclassesi(o, name);
     } finally {
         // until we find out how to manage Class
-        xclasses.Dispobj = DispobjC.prototype;
-        xconstructors.Dispobj = DispobjC.prototype.constructor;
-        DispobjC.prototype[CLASSNAME] = 'Dispobj';
+        xclass('Dispobj', DispobjC.prototype)
+        // name2class.Dispobj = DispobjC.prototype;
+        // xconstructors.Dispobj = DispobjC.prototype.constructor;
+        // DispobjC.prototype[class2name] = 'Dispobj';
 
-        console.log("mapclasses found " + Object.keys(xclasses).length + " classes.");
+        console.log("mapclasses found " + Object.keys(name2class).length + " classes.");
         console.warn = saveconwarn;
-        for (var i in polluted) {
-            let oo = polluted[i];
-            try {  // sometimes fails on IE
-                delete oo[VISITED];
-                delete oo[VISITEDP];
-            } catch (e) {
-
-            }
-        }
     }
 
     // internal function called recursively */
     function mapclassesi(oi, namei) {
         try {
+            if (ignorenames[namei]) return;
             if (namei.split('.').length > 4) return;
             if (namei[0] === '.') namei = namei.substring(1);
             if (oi === undefined) return;
             if (oi === null) return;
-            if (oi === xclasses) return;
+            if (oi === name2class) return;
             var t = typeof oi;
             if (t === "number" || t === "string" || t === "boolean") return;
             if (!oi.hasOwnProperty) return;  // IE seems to require this for some very simple objects ?
@@ -914,12 +1062,12 @@ function mapclasses(options) {
             var proto = oi.prototype;
             var isclass = proto && Object.keys(proto).length !== 0;
 
-            if (Object.prototype.hasOwnProperty.call(oi, VISITED) && oi[VISITED] === visitnum) {
+            if (visited.has(oi)) {
                 if (isclass)
-                    console.oldLog("no remap " + proto[CLASSNAME] + " = = = " + namei); // oldLog to prevent formatting exception with $
+                    console.oldLog("no remap " + class2name.get(proto) + " = = = " + namei); // oldLog to prevent formatting exception with $
                 return;
             }
-            oi[VISITED] = visitnum; polluted.push(oi);
+            visited.add(oi);
 
             if (t === "object") {
                 for (var ii in oi) {
@@ -938,14 +1086,15 @@ function mapclasses(options) {
                 // eg a class with no methods now may still be interesting
                 // maybe se should base it also on whether we see any instances ???
                 if (isclass /* proto && Object.keys(proto).length !== 0 */) {
-                    if (Object.prototype.hasOwnProperty.call(proto, VISITEDP) && proto[VISITEDP] === visitnum) {
-                        console.log("duplicate name for class " + proto[CLASSNAME] + " ~~ " + namei);
+                    if (visited.has(proto)) {
+                        console.log("duplicate name for class " + class2name.get(proto) + " ~~ " + namei);
                     } else {
-                        proto[VISITEDP] = visitnum;
-                        polluted.push(proto);
-                        Object.defineProperty(proto, CLASSNAME, { enumerable: false, writable: true });
-                        proto[CLASSNAME] = namei;
-                        xclasses[namei] = proto;
+                        visited.add(proto)
+
+                        // Object.defineProperty(proto, class2name, { enumerable: false, writable: true });
+                        // proto[class2name] = namei;
+                        class2name.set(proto, namei);
+                        name2class[namei] = proto;
                     }
                 }
             } else {
@@ -973,6 +1122,7 @@ function xstring(o, options) {
     mapOnce();
     if (!options) options = {};
     var ignoreclasses = options.ignoreclasses ? options.ignoreclasses : [HTMLElement, HTMLDocument];
+    var maxlen = FIRST(options.maxlen, 10000);
     var cache = [];
     var polluted = [];
     var jj = JSON.stringify(o,
@@ -980,18 +1130,23 @@ function xstring(o, options) {
             for (var ig = 0; ig < ignoreclasses.length; ig++) if (value instanceof ignoreclasses[ig]) return undefined;
 
             if (typeof value === 'object' && value !== undefined && value !== null) {
+                if (value.length > maxlen) return undefined;
                 var xref = value['#k'];   // was cache.indexOf(value)
                 if (xref !== undefined) { // Circular reference found
-                    return { "#xref": xref };
+                    if (typeof xref === 'number')
+                        return { "#xref": xref };
+                    else
+                        log('unexpected #xref value', xref, cache.indexOf(value))
                 }
                 if (value && typeof value === 'object') {  // first visit to object
                     if (!value.__proto__) return undefined;   // happened for EventHandlers
                     polluted.push(value);
                     //Object.defineProperty(value, '#k', { enumerable: true, writable: true});
                     value['#k'] = cache.length;
-                    if (value.__proto__[CLASSNAME]) {
-                        //Object.defineProperty(value, '##c', { enumerable: true, writable: true});
-                        value['##c'] = value.__proto__[CLASSNAME];
+                    const classn = class2name.get(value.__proto__)
+                    if (classn) {
+                        // Object.defineProperty(value, '##c', { enumerable: true, writable: true});
+                        value['##c'] = classn;
                     } else if (Object.keys(value.__proto__).length !== 0) {
                         console.log("Warning: unexpected object found with no class info", key, value);
                     }
@@ -1003,6 +1158,28 @@ function xstring(o, options) {
 
     for (o in polluted) { delete polluted[o]['##c']; delete polluted[o]['#k']; }
     return jj;
+}
+
+/** from https://stackoverflow.com/questions/4459928/how-to-deep-clone-in-javascript
+ * deep clone an object and keep type, does not need name2class or class2name
+ *
+ * */
+function deepClone(obj, hash = new WeakMap()) {
+    if (Object(obj) !== obj) return obj; // primitives
+    if (hash.has(obj)) return hash.get(obj); // cyclic reference
+    const result = obj instanceof Set ? new Set(obj) // See note about this!
+                 : obj instanceof Map ? new Map(Array.from(obj, ([key, val]) =>
+                                        [key, deepClone(val, hash)]))
+                 : obj instanceof Date ? new Date(obj)
+                 : obj instanceof RegExp ? new RegExp(obj.source, obj.flags)
+                 // ... add here any specific treatment for other classes ...
+                 // and finally a catch-all:
+                 : obj.constructor ? new obj.constructor()
+                 : Object.create(null);
+    if (typeof result.Init === 'function') result.Init();
+    hash.set(obj, result);
+    return Object.assign(result, ...Object.keys(obj).map(
+        key => ({ [key]: deepClone(obj[key], hash) }) ));
 }
 
 /** get the contructor for a string classname  */
@@ -1029,58 +1206,53 @@ function dstring(ostr) {
     var reviver = (key, value) => key === 'frameSaver' && !nwfs ? undefined : value; // TODO generalize or ...??? stephen 21/01/2017
     //    var o = JSON.parse(str, reviver);
     let obj;
-    yaml = jsyaml;
-    if (yaml)
-        obj = yaml.safeLoad(str);
-    else
+    //?? todo, separate yaml case by start with { or [}
+    let isjson = ostr[0] === '{' || ostr[0] === '[';
+    if (isjson)
         obj = JSON.parse(str, reviver);
+    else
+        obj = jsyaml.safeLoad(str);
 
-    const map = {};               // map from #k to (possibly transformed) object
-    var polluted = [];          // list of polluted objects
-    var maxd = 0;               // depth control
-    var visited = new Set();    // visited objects, to stop visit recursion
-    //var wrapper = {x:obj};      // refmap does not handle types at top level, so wrap and unwrap
-    //refmap(wrapper, 0);         // pass to recreate ref map
-    //obj = wrapper.x;
-    obj = refmap(obj, 0);        // pass to recreate classes, may be a new object itself
-    if (olength(map))
-        repmap(obj, 0);      // map in the duplicate references, does not apply to yaml
+    const map = isjson ? {} : 'NO MAP FOR YAML';                // map from #k to (possibly transformed) object
+    var maxd = 0;                                               // depth control
+    var visited = isjson ? 'NO VISITED FOR JSON' : new Set();   // visited objects, to stop visit recursion
+    var gxref = 0;                                              // count to keep track of xref, used to patch missing array #k
+    obj = refmap(obj, 0);                                       // pass to recreate classes and compute #xref map if isjson
+    if (isjson) {
+        gxref = 0;                                              // count to keep track of xref, used for debug
+        repmap(obj, 0, '');                                     // map in the duplicate references #k/#xref
+    }
     // log ('dstring maxd', maxd);
-
-    /***
-    // some debug tests to remove soon after Aug 2017 >>>> TODO
-    if (obj.genes.name === 'startup' && (obj.slots[0].dispobj !== obj.currentObjects.do_8
-        || !obj.currentObjects.do_8.renew))
-        console.error('bad load of startup data, classed objects');
-    if (obj.genes.name === 'startup' && obj.slots[0].dispobj.genes !== obj.genes)
-        console.error('bad load of startup data, nonclassed objects');
-    ***/
-
-
     return obj;
 
-    // make a map of all object references,
-    // and add class information from xclasses, and call their Init() function if present
+    // add class information from name2class, and call their Init() function if present
+    // and make a map of all object references (isjson only)
     function refmap(o, d) {
         if (o === null) return;
         if (typeof o !== 'object') return o;    // why did I not have that before???
 
-        // for yaml, which has already expeanded circular references
-        if (o['#replaced'])                     // revisit to yaml class object
-            return o['#replaced'];              //
-        if (visited.has(o)) return o;           // revisit to yaml non-call object
-        visited.add(o);
+        if (isjson) {
+            const myxref = gxref;
+            if (o['#k'] !== myxref) {
+                if (o['#xref'] !== undefined)                     // its an xref object, does not count
+                    return o;
+                else if (o instanceof Array)
+                    o['#k'] = myxref;               // it's an Array and its #k field was lost by serialization
+                else
+                    log('refmap', o['#k'], myxref, o);  // something really is wrong
+            }
+            if ('#xref' in o) return o;             // ref in JSON case
+            gxref++;
+        } else {
+            // for yaml, which has already expanded multiple/circular references
+            // note only the unclassed object will be polluted by #replaced, so no need to clean it up
+            if (o['#replaced'])                     // revisit to yaml class object
+                return o['#replaced'];              //
+            if (visited.has(o)) return o;           // revisit to yaml non-call object
+            visited.add(o);
+        }
 
-        // first pass attempt to fix up #k/#xref,
-        // only applies to json where we have managed duplicate references
-        // will not be robust if iteration order switches and #xref seen before #k
-        // so leave to second pass
-        // const key = o['#k'] || o['#xref'];
-        // if (key && map[key]) {
-        //    log ('revisit for', o['#k'], o['#xref'], map[key] )
-        //    return (map[key]);
-        // }
-
+        // common to yaml or no yaml
         if (d > maxd) maxd = d;
         if (d > 25)
             log("stack?", d);
@@ -1103,37 +1275,52 @@ function dstring(ostr) {
             if (classname) {
                 //PJT when loading CSynth from website in Safari, I was seeing this fail to as lots of things had 'initGlobals.' prepended to name...
                 //(as of this writing, the server isn't running on my dev machine for some reason, so not tested this change...)
-                // const cl2 = xclasses[classname] ? xclasses[classname] : xclasses['initGlobals.' + classname];
+                // const cl2 = name2class[classname] ? name2class[classname] : name2class['initGlobals.' + classname];
                 let con2 = xconstructors[classname];
                 if (!con2) con2 = xconstructors[classname] = getConstructor(classname);
                 if (!con2) serious('no constructor found for class', classname);
-                const newo = new con2();       // we have found the class, make a new objects
-                for (let k in o)            // and copy over all the non-pollution fields
-                    if (k !== '##c' && k !== '#k') newo[k] = o[k];
-                o['#replaced'] = newo;      // remember o is un-classed, for yaml revisits
+                const newo = new con2();        // we have found the class, make a new objects
+                if (typeof o.Init === "function") o.Init(); // call Init if there
+                for (let k in o)                // and copy over all the non-pollution fields
+                    if (k !== '##c') newo[k] = o[k];
+                if (!isjson) o['#replaced'] = newo;      // o is un-classed, newo is classed equivalent, save for yaml revisits
                 o = newo;
+            } else {
+                if (typeof o.Init === "function") o.Init();
             } // classname
-            // call Init if there
-            if (typeof o.Init === "function")
-                o.Init();
+
         }
         if ('#k' in o) {
-            map[o['#k']] = o;       // remember the object for its key, it will be the class object if appropriate
-            delete o['#k'];
+            if (isjson)
+                map[o['#k']] = o;       // remember the object for its key, it will be the class object if appropriate
+            else
+                console.error('unexpected #k field for yaml in object', o)
         }
         return o;
     }
 
+
     // substitute all xref references with the appropriate object
     // does not apply in yaml case, yaml has done this work
     // will not be called in yaml case as map will be empty
-    function repmap(o, d) {
+    function repmap(o, d, path) {    // ccc counts up xref
         if (d > 25)
             log("stack?", d);
         if (o === null) return;
         if (typeof o === "object") {
-            if (o['#k'] === undefined && !(o instanceof Array)) return;
+            if (o['#k'] !== gxref && o['#k'] !== undefined)
+                log('remap', o['#k'], gxref);
+            // history note ... Array was special case becuase serialization lost #k field. Now handled in refmap above
+            // #k serves two purposes.
+            //    One it to allow the cross references to be mapped (in refmap above)
+            //    The other is to ensure that the logic below applies to saved objects exactly once
+            //    and  that no attempt is made to apply it to unsaved objects (eg recreated during class csontruction/Init)
+            // Other undefined can be because of fields not saved in original serialization
+            // but created by class reconstruction: eg Dispobj will automatically create a THREE.Scene
+            if (o['#k'] === undefined) //  && !(o instanceof Array))
+                return;
             delete o['#k'];
+            gxref++;
             for (var i in o) {
                 var pd = Object.getOwnPropertyDescriptor(o, i);
                 //if (!(i === "constructor" && !o.hasOwnProperty("constructor")))
@@ -1141,13 +1328,13 @@ function dstring(ostr) {
                 var oi = o[i];
                 if (!oi) continue;
                 var xref = oi['#xref'];
-                // delete oi['#xref']; // no need, xref object has done its task and is now orphaned
+                delete oi['#xref']; // no need, xref object has done its task and is now orphaned
                 if (xref !== undefined) {
                     o[i] = map[xref];
                     if (o[i] === undefined)
                         console.log("unexpected #xref found: " + xref);
                 } else {
-                    repmap(oi, map, d + 1);
+                    repmap(oi, map, path + '.' + i);
                 }
             }
         }
@@ -1168,6 +1355,20 @@ function randi(l, h) {
     return Math.floor(l + (h - l) * Math.random());
 }
 
+/** select random element from array or object */
+function randfrom(arr) {
+    if (!Array.isArray(arr)) arr = Object.values(arr);
+    return arr[randi(arr.length)];
+}
+
+/** random in range if v array or v2 given, otherwise v */
+function randrange(v, v2) {
+    if (v.length === 2) [v, v2] = v;
+    if (v2 === undefined ) return v;
+    return +v + Math.random() * (v2-v);
+}
+
+
 /** return random integer range l..h-1, or 0..l-1 if h undefined; different from last */
 function randiNew(l, h) {
     for (let i=0; i < 10; i++) {
@@ -1178,6 +1379,12 @@ function randiNew(l, h) {
         }
     }
     return randi(l, h);
+}
+
+/** random vector3 */
+function randvec3(k=1) {
+    const r = () => (Math.random()-0.5) * 2 * k;
+    return new THREE.Vector3(r(), r(), r());
 }
 
 /** mix two values */
@@ -1240,7 +1447,7 @@ function posturiasync(puri, callb) {
     var curi = uriclean(puri);
     const d = sentData(curi);
     // if d, do callback deferred in case caller assumes async.  {} may get given unused onprogress by caller
-    if (d !== undefined) { setTimeout(()=> callb(d), 0); return {}; };
+    if (d !== undefined) { setTimeout(()=> callb(d), 0); return {}; }
     var req = new XMLHttpRequest();
     req.open("GET", curi, true);
     req.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
@@ -1287,10 +1494,11 @@ function genbar(i) {
 }
 
 function uriclean(puri) {
-    let uri0 = puri.replaceall('\\', '/');  // replace \ with /
-    let uri1 = uri0.replaceall('//', '/');  // reduce all intermediate // to /
+    if (!puri) puri = '';
+    let uri0 = puri.replace(/\\/g, '/');  // replace \ with /
+    let uri1 = uri0.replace(/\/\//g, '/');  // reduce all intermediate // to /
     let uri2 = uri1.replace(':/', '://');   // but do not kill http:// etc
-    if (islocalhost) uri2 = uri2.replaceall('..', ',,');    // node server does nasty things to .., send ,, and replace back at server
+    if (islocalhost) uri2 = uri2.replace(/\.\./g, ',,');    // node server does nasty things to .., send ,, and replace back at server
     return uri2;
 }
 
@@ -1353,12 +1561,76 @@ function posturierror(puri, data) {
     return rdata;
 }
 
+var preloaded = {};
+
+function preload(list) {
+    for (const fn of list)
+        fetch(fn).then(r => r.text()).then(d => preloaded[fn] = d)
+}
+
+var _topreload =
+[
+    "CSynth/messages.txt",
+    "shaders/copy.vs",
+    "shaders/copy.fs",
+    "shaders/threek.vs",
+    "shaders/common.vfs",
+    "shaders/hornmaker.vs",
+    "shaders/four.fs",
+    "shaders/common.vfs",
+    "shaders/lights.fs",
+    "shaders/fourShadowMapping.fs",
+    "shaders/cubeReflection.fs",
+    "shaders/hornmaker.vs",
+    "shaders/threek.vs",
+    "shaders/fxaa.glsl"
+];
+
+if (!isCSynth) {
+    _topreload = _topreload.concat([
+        "dir.php?./gallery",
+        "/fileexists/./scconfigOverride.json",
+        "./scconfig.json",
+        "/eval/process.cwd()",
+        "gallery/tad-fubu.oao?0/1641119606611",
+        "./synthdefs/map/ctrlNames.yaml",
+        "synthdefs/map/genedefs.json",
+        "/fileexists/audio/fubuSynthScenes.json",
+        "audio/fubuSynthScenes.json",
+    ]);
+}
+
+// add below if using optimized shaders
+if (searchValues.usesavedglsl) {
+    _topreload = _topreload.concat([
+        "exportShader/_XX/makeskelbuff.opt.vs",
+        "exportShader/_XX/makeskelbuff.opt.fs",
+        "exportShader/_XX/shadows.opt.vs",
+        "exportShader/_XX/shadows.opt.fs",
+        "exportShader/_XX/opos.opt.vs",
+        "exportShader/_XX/opos.opt.fs",
+        "exportShader/_XX/shapepos.opt.vs",
+        "exportShader/_XX/shapepos.opt.fs",
+        "exportShader/_XX/texture.opt.vs",
+        "exportShader/_XX/texture.opt.fs",
+        "exportShader/_XX/tshapepos2col.opt.vs",
+        "exportShader/_XX/tshapepos2col.opt.fs",
+    ]);
+}
+
+if (!isNode()) preload(_topreload);
+
+// preload
+var posted = [];
 /** post a uri and return result string, or undefined if error
  * n.b. used to have option to catch error but not implemented correctly and never used
   */
-function posturi(puri, data, allowmissing = false) {
-    //console.log("post:" + uri);
+ function posturi(puri, data, allowmissing = false) {
     var uri = uriclean(puri);
+
+    posted.push(uri);
+    const p = (preloaded[uri]); if (p) {  /* console.log("post: preloaded: " + uri); */ return p; }
+    // console.log("post:" + uri);
     var useMyCache = false;
     if (data === undefined && uri.indexOf(".txt") === -1 && uri.indexOf('?') === -1) {
         const c = sentData(uri);
@@ -1404,11 +1676,11 @@ function posturi(puri, data, allowmissing = false) {
             firstfail = false;  // it has suceeded once, so missing web server is NOT the reason
             var rlength = +req.getResponseHeader('content-length');
             if (rlength && Math.abs(rlength - req.responseText.length) > 2) // why is it so often wrong
-                console.error('wrong response length', rlength, req.responseText.length, uri);
+                console.log('unexpected response length', rlength, req.responseText.length, uri);
             return req.responseText;
         } else {
             const m = req.status === 404 ? '404' : req.responseText;  // over-noisy 404 from Oxford server
-            if (!allowmissing) msgfixerror(puri, 'cannot read', m);
+            if (!allowmissing) msgfixerrorlog(puri, 'cannot read', m);
             return undefined;
         }
     } catch (e) {
@@ -1441,20 +1713,22 @@ function makeLogError() {
 
 /** get binary data async
  * from https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/Sending_and_Receiving_Binary_Data
+ *
  * For some reason, reading as arraybuffer was VERY slow.
  * It was much quicker to read as blob, and then convert the blob to arraybuffer
+ * However, as of 19 Oct 2020 it seems that arraybuffer is now sensible, so default changed, but still leaving legacy blob code for now
+ *
  * https://stackoverflow.com/questions/15341912/how-to-go-from-blob-to-arraybuffer
  */
-function posturibin(puri, callback, responseType = 'blob') {
+function posturibin(puri, callback, responseType = 'arraybuffer') { // was 'blob'
     const uri = uriclean(puri);
     let st = Date.now();
     var oReq = new XMLHttpRequest();
     oReq.open("GET", uri, true);
     oReq.responseType = responseType;
-    // oReq.responseType = "arraybuffer";  // read takes for ever this way
     oReq.send(null);
     const urik = 'reading file ' + uri;
-    const urip = 'processing file ' + uri;
+    const urip = 'deblobbing file ' + uri;
 
     return new Promise( (resolve, reject) => {
 
@@ -1468,7 +1742,9 @@ function posturibin(puri, callback, responseType = 'blob') {
             // hard work already done if not reading as blob, just resolve
             if (responseType !== 'blob') {
                 posturibin.result = blob; // debug
-                log('data already ok: returning')
+                // log('data already ok: returning', 'load', uri, 'loadtime', loadt - st)
+                if (callback) callback(blob, uri);    // now call user callback
+
                 resolve(blob);
                 return;
             }
@@ -1650,7 +1926,7 @@ function FIRSTG(s) {
         if (arguments[i] !== undefined && arguments[i] !== null)
             return arguments[i];
     }
-};
+}
 
 function FIRST(a, b, c, d, e, ff, g, h) {
     if (a !== undefined) return a;
@@ -1660,20 +1936,20 @@ function FIRST(a, b, c, d, e, ff, g, h) {
     if (e !== undefined) return e;
     if (ff !== undefined) return ff;
     if (g !== undefined) return g;
-};
+}
 function FIRST3(a, b, c) {
     if (a !== undefined) return a;
     if (b !== undefined) return b;
     if (c !== undefined) return c;
-};
-
-
-/** find exact value in object, return (list of) keys */
-function findval(obj, val) {
-    var s = [];
-    for (var n in obj) if (obj[n] === val) s.push(n);
-    return s;
 }
+
+
+    /** find exact value in object, return (list of) keys */
+    function findval(obj, val) {
+        var s = [];
+        for (var n in obj) if (obj[n] === val) s.push(n);
+        return s;
+    }
 
 /** convenience method for .contains() */
 //String.prototype.contains = function(x) { return this.indexOf(x) !== -1; };
@@ -1730,10 +2006,15 @@ function getBody(fun) {
 }
 
 
-/** format number with max 6 decimal places, remove trailing 0 . */
-function format(k, n) {
+/** format number with max n decimal places, remove trailing 0 . */
+function format(k, n, trim=false) {
+    if (k === undefined) return 'U';
+    if (k === null) return '#null#';
+    if (k === window) return '#window#';
     if (!k) return k + '';
-    // if (k === '') return '';
+    if (k === '') return '!empty!';
+    if (k === ' ') return '!space!';
+    if (typeof k === 'string' && k.trim() === '') return '!spaces' + k.length + '!';
     if (typeof k === 'boolean') return k;
     if (k instanceof Error || k instanceof ErrorEvent) {
         return `${k.message}
@@ -1746,23 +2027,23 @@ ${k.stack}`;
         format.depth++;
         let r;
         try {
-            const typename = k.constructor.name;
-            if (typename.endsWith('Array')) {
+            const typename = k.constructor?.name;
+            if (typename?.endsWith('Array')) {
                 if (k.length === 0) {
                     r = '[]';
                 } else {    // for short items show in row, else in column
-                    const f0 = format(k[0], n);
+                    const f0 = format(k[0], n, trim);
                     const join = f0.length > 15 ? ',\n' : ', ';
                     // don't use map, won't work for typedArrays
                     const s = [];
-                    for (let i = 0; i < k.length; i++) s[i] = format(k[i], n);
+                    for (let i = 0; i < k.length; i++) s[i] = format(k[i], n, trim);
                     r = typename.replace('Array', '') + '[' + s.join(join) + ']';
                 }
             } else {
                 r = [];
                 for (var ff in k)
                     if (typeof k[ff] !== 'function')
-                        r.push(ff + ': ' + format(k[ff], n));
+                        r.push(ff + ': ' + format(k[ff], n, trim));
                 r = '{' + r.join(', ') + '}';
             }
         } finally {
@@ -1794,6 +2075,7 @@ ${k.stack}`;
         else n = 3;
     }
     var r = k.toFixed(n);
+    if (trim) r = r*1+'';
     return r;
     //    if (n === 0) r = (k*1).toLocaleString();
     //    if (r.indexOf('.') !== -1) {
@@ -1871,9 +2153,6 @@ function htmlformatArray(v,opts) {
     return `<table class="${classs}" style="${style}">${t.join('')}</table>`;
 }
 
-// prepare for node webkit or electron if around
-// see https://github.com/rogerwang/node-webkit/wiki/Window
-var nwwin, nwfs, nwhttp, nwos, hostname = "defaulthost";
 
 
 
@@ -1886,6 +2165,7 @@ if (isNode && isNode() && document.body) { //W.require) { // W.nwDispatcher) {
     // This fix, together with setting NODE_PATH in the involking cmd file, seems to be ok.
     ///PJT---> 01/20 review: when this was undefined it was causing more problems elsewhere
     //would only help in cases where
+    // eslint-disable-next-line no-undef
     if (process.env.NODE_PATH) module.paths.push(process.env.NODE_PATH);
     if (!nwwin) nwwin = require('nw.gui').Window.get();  // may be set otherwise in 13.0
     nwfs = require('fs');
@@ -2055,9 +2335,9 @@ function restoreInputFromLocal() {
 /** ensure input state kept up to date when any input value changed */
 function registerInputs() {
     consoleTime('registerInputs');
-    var inputs = document.getElementsByTagName('input');
-    for (var i = 0; i < inputs.length; i++) {
-        var input = inputs[i];
+    var _inputs = document.getElementsByTagName('input');
+    for (var i = 0; i < _inputs.length; i++) {
+        var input = _inputs[i];
         if (input.id) {
             initialinputs[input.id] = getInput(input);
             input.addEventListener("change", inputChanged);
@@ -2079,12 +2359,6 @@ function restoreInitialInputs() {
         setInput(i, initialinputs[i]);
 }
 
-var inputs = {};  // cache value of inputs
-var initialinputs = {};  // register initial value of inputs
-var inputdoms;      // cache input dom elements to use
-var _inputdoms;    // cache of secondary _ doms
-var holdtimeout;
-var valelement;     // element
 function inputMouseover(e) {
     var src = e.target;
     //var pos = getScreenCordinates(src);
@@ -2142,7 +2416,7 @@ function inputChanged(src) {
 /** capture input state and return as structure, and cache value in 'inputs' */
 function saveInputState() {
     if (restoringInputState) return;
-    consoleTime('saveInputState');
+    // consoleTime('saveInputState');
     var s = {};
     // prepare cache of input doms if necessary
     if (!inputdoms) {
@@ -2158,7 +2432,7 @@ function saveInputState() {
                     _inputdoms[inputi.id.substring(1)] = inputi;
                 else
                     inputdoms[inputi.id] = inputi;
-            } else if (inputi.hasParent(W.samplegene) || inputi.hasParent(W.genesgui)) {
+            } else if (inputi.hasParent(W.samplegene) || inputi.hasParent(W.genesgui)) { /**/
             } else {
                 console.log("input with no id " + inputi + " name " + inputi.name);
             }
@@ -2178,7 +2452,7 @@ function saveInputState() {
 
     copyFrom(inputs, s);
     newframe();
-    consoleTimeEnd('saveInputState');
+    // consoleTimeEnd('saveInputState');
     return s;
 }
 
@@ -2229,13 +2503,19 @@ function setInput(input, value, forcechange, s) {
     }
     if (typeof input === "string") {
         const wi = document.getElementById(input);
-        if (!wi) {log('input to setInput has no object: ', input); return; }
+            if (!wi) {    // no gui, but set inputs anyway
+            if (!(input in inputs)) log('input to setInput has no object: ', input);
+            inputs[input] = value;
+            return;
+        }
         input = wi;
     }
     if (inputs[input.id] == value && inputs[input.id] !== value) { //  eslint-disable-line eqeqeq
         if (inputs[input.id] === '' && value === 0 && W[input.id].value === '') {
             // this happens when wrong value of 0 was saved due to error in getInput for empty string fields
             value = '';
+        } else if (+inputs[input.id] === +value) {
+            // no harm done where both are equal numbers
         } else if (typeof inputs[input.id] === 'string' && (typeof value === 'number' || typeof value === 'boolean')) {
             // no harm done where text fields were used to store number values
         } else {
@@ -2310,6 +2590,15 @@ function setInput(input, value, forcechange, s) {
         case 'textarea':
         case 'select-one':
             if (input.value != value) {    /* !- intended */ //  eslint-disable-line eqeqeq
+                if (input.type === 'range') {
+                    if (input.fixedrange) {
+                        if (+value > +input.max) value = input.max;
+                        if (+value < +input.min) value = input.min;
+                    } else {
+                        if (+value > +input.max) input.max = value;
+                        if (+value < +input.min) input.min = value;
+                    }
+                }
                 input.value = value;
                 if (input.type === 'text' || input.type === 'textarea')
                     input.textContent = value;
@@ -2341,7 +2630,6 @@ function setInputg(input, value, forcechange, s) {
     setInput(input, format(value, 6), forcechange, s);
 }
 
-var restoringInputState = false;
 /** restore input state from structure, for objects matching class if classs given */
 function restoreInputState(s, classs, forcechange) {
     // compatibility when names changed, as it turns out the FILE type inputs are not handled right anyway, see *!*!* above
@@ -2411,7 +2699,6 @@ if (!interpretSearchString)
     addscript('JS/searchString.js');
 
 
-var loadedfiles = {};
 /** load files selected by user, to avoid need for webserver */
 function loadfiles(evt) {
     const sourcefiles = evt.target.files;
@@ -2430,7 +2717,7 @@ function loadfiles(evt) {
         };
         reader.readAsText(ff);        // start read in the data file
     }
-};
+}
 
 /** get a filename's extension */
 function getFileExtension(fid) {
@@ -2446,9 +2733,10 @@ function getFileName(fid) {
 }
 
 /** throw an exception generated from a string or ... */
-function throwe(m) {
+function throwe(...mm) {
     // console.log(">> throwe error: " + m);
     //debugger;
+    const m = showvals(...mm);
     sclogE(m);
     throw new Error(m);
 }
@@ -2497,26 +2785,27 @@ function dodamp(now, targ, half, key) {
     return now + rate * framedelta;
 }
 
-
 /** get screen size: windows only for now */
 function getScreenSize(afterfun) {
-    if (!screens) screens = [{ width: 1680, height: 1050 }];
+    if (!screens) screens = [{ width: 1920, height: 1080 }]; // guess if
+    if (!islocalhost) return;   // might file all together, or give wrong answer depending on server
 
-    //serious("in getScreenSize");
-    var isWin = require && /^win/.test(require('os').platform());
-    if (isWin) {
+    // //serious("in getScreenSize");
+    // var isWin = require && /^win/.test(require('os').platform());
+    // if (isWin) {
         // wmic path Win32_VideoController get CurrentHorizontalResolution,CurrentVerticalResolution
 
-        var spawn = require('child_process').spawn;
-        var args = ["path", "Win32_VideoController", "get", "CurrentHorizontalResolution,CurrentVerticalResolution"];
-        var tt = spawn("wmic.exe", args);
-        var data = "";
-        tt.stdout.on('data', function (bdata) {
-            data += bdata;
-        });
-        tt.on('close', function (code, sig) {
-            if (data.length === 0) { getScreenSize(afterfun); log('getScreenSize no return data, retry'); return; }
-            log("close", code, sig, data);
+        // var spawn = require('child_process').spawn;
+        // var args = ["path", "Win32_VideoController", "get", "CurrentHorizontalResolution,CurrentVerticalResolution"];
+        // var tt = spawn("wmic.exe", args);
+        // var data = "";
+        // tt.stdout.on('data', function (bdata) {
+        //     data += bdata;
+        // });
+        // tt.on('close', function (code, sig) {
+        //     if (data.length === 0) { getScreenSize(afterfun); log('getScreenSize no return data, retry'); return; }
+        //     log("close", code, sig, data);
+        var data = runcommandphp('wmic path Win32_VideoController get  CurrentHorizontalResolution,CurrentVerticalResolution');
             var tscreens = [];
             var dArr = data.split("\n");
             for (var i = 1; i < dArr.length; i++) {
@@ -2535,19 +2824,35 @@ function getScreenSize(afterfun) {
             else
                 screens = tscreens;
 
-            // get round wmic.exe bug on Stephen's laptop with Oculus plugged in
-            if (screens.length === 2 && screens[1].height === 1920 && screens[1].width === 1080) {
-                screens[1] = { width: 1680, height: 1050 };
-            }
+    // // for nvidia double screen setting as Chrome can't do big enough double screen
+    //     if (screens.length === 1 && screens[0].width === 1920 * 2 && screens[0].height === 1080) {
+    //         screens = [ {width: 1920, height: 1080, offset: 0}, {width: 1920, height: 1080, offset: 1920} ]
+    //     }
+            if (searchValues.doublescreen)
+                screens = [ {width: 1920, height: 1080, offset: 0}, {width: 1920, height: 1080, offset: 1920} ];
+    /***
+     * note, issues
+     * Chrome/Edge/etc can't do big double screen
+     * Nvidia surround inconvenient and gets touch wrong
+     * bottom right of test touch screen broken
+     * Firefox slow?
+     *
+     * BUT Electron can do beg screen
+     */
+
+            // // get round wmic.exe bug on Stephen's laptop with Oculus plugged in
+            // if (screens.length === 2 && screens[1].height === 1920 && screens[1].width === 1080) {
+            //     screens[1] = { width: 1680, height: 1050 };
+            // }
             if (afterfun) afterfun();
-        });
-        tt.on('error', function (err) {
-            serious("wmic error", err);
-        });
-    } else {
-        //temporarily hardcoding for laptop etc non windows
-        if (afterfun) afterfun();
-    }
+    //     });
+    //     tt.on('error', function (err) {
+    //         serious("wmic error", err);
+    //     });
+    // } else {
+    //     //temporarily hardcoding for laptop etc non windows
+    //     if (afterfun) afterfun();
+    // }
 }
 
 /** check for pixel ratio */
@@ -2762,73 +3067,72 @@ function onpostframe(fn, n) {
 
 
 /** choose a file interactively */
-function chooseFile() {
+function chooseFile(ext='.oao', name = 'new') {
     var chooser = document.querySelector('#fileDialog');
-    chooser.accept = ".oao";
-    chooser.nwsaveas = "new.oao";
+    chooser.accept = ext;
+    chooser.nwsaveas = name + ext;
     chooser.onchange = function (evt) {
         log("File chosen", this.value);
     };
-
     chooser.click();
 }
 
 
-/** sample observer function
-for use with Object.observe, eg low level
-Object.observe(currentGenes, observer)
-Object.unobserve(currentGenes, observer)
-higher level
-observe(currentGenes, 'wall_red1')
-*/
-function observer(args) {
-    for (var i = 0; i < args.length; i++) {
-        var aarg = args[i];
-        var op = aarg.object.__break[aarg.name];
-        if (!op) {
-            // no operation
-        } else if (op === 'log') {
-            log("observe", i, aarg.name, aarg.type, aarg.oldValue, "->", aarg.object[aarg.name]);
-        } else if (op === 'stack') {
-            log("observe", i, aarg.name, aarg.type, aarg.oldValue, "->", aarg.object[aarg.name]);
-            log(new Error().stack);
-        } else if (op === 'break') {
-            debugger;
-        } else {
-            op(aarg);
-        }
-        // samples from my debugging ...
-        //if (aarg.name === "bwthresh")
-        //    debugger;
-    }
-}
+// /** sample observer function -- DEPRECATED
+// for use with Object.observe, eg low level
+// Object.observe(currentGenes, observer)
+// Object.unobserve(currentGenes, observer)
+// higher level
+// observe(currentGenes, 'wall_red1')
+// */
+// function observer(args) {
+//     for (var i = 0; i < args.length; i++) {
+//         var aarg = args[i];
+//         var op = aarg.object.__break[aarg.name];
+//         if (!op) {
+//             // no operation
+//         } else if (op === 'log') {
+//             log("observe", i, aarg.name, aarg.type, aarg.oldValue, "->", aarg.object[aarg.name]);
+//         } else if (op === 'stack') {
+//             log("observe", i, aarg.name, aarg.type, aarg.oldValue, "->", aarg.object[aarg.name]);
+//             log(new Error().stack);
+//         } else if (op === 'break') {
+//             debugger;
+//         } else {
+//             op(aarg);
+//         }
+//         // samples from my debugging ...
+//         //if (aarg.name === "bwthresh")
+//         //    debugger;
+//     }
+// }
 
-/** observe changes to the object, and if fieldname is given break on changes to object[fieldname] */
-function observe(object, fieldname, op) {
-    Object.observe(object, observer);
-    if (fieldname) {
-        if (!op) op = 'break';
-        Object.defineProperty(object, '__break', { enumerable: false, writable: true, configurable: true });
-        if (!object.__break) object.__break = {};
-        object.__break[fieldname] = op;
-    }
-}
+// /** observe changes to the object, and if fieldname is given break on changes to object[fieldname] */
+// function observe(object, fieldname, op) {
+//     Object.observe(object, observer);
+//     if (fieldname) {
+//         if (!op) op = 'break';
+//         Object.defineProperty(object, '__break', { enumerable: false, writable: true, configurable: true });
+//         if (!object.__break) object.__break = {};
+//         object.__break[fieldname] = op;
+//     }
+// }
 
-/** unobserve changes to the object.  If fieldname is given, just ubobserve changes to that fieldname */
-function unobserve(object, fieldname) {
-    if (!object.__break) return;
-    var unobs = false;
-    if (fieldname) {
-        delete object.__break[fieldname];
-        if (Object.keys(object.__break).length === 0) unobs = true;
-    } else {
-        unobs = true;
-    }
-    if (unobs) {
-        Object.unobserve(object, observer);
-        delete object.__break;
-    }
-}
+// /** unobserve changes to the object.  If fieldname is given, just ubobserve changes to that fieldname */
+// function unobserve(object, fieldname) {
+//     if (!object.__break) return;
+//     var unobs = false;
+//     if (fieldname) {
+//         delete object.__break[fieldname];
+//         if (Object.keys(object.__break).length === 0) unobs = true;
+//     } else {
+//         unobs = true;
+//     }
+//     if (unobs) {
+//         Object.unobserve(object, observer);
+//         delete object.__break;
+//     }
+// }
 
 // functions for Electron globals
 function getGlobal(n) {
@@ -2841,7 +3145,6 @@ function setGlobal(n, v) {
 }
 
 /** interface to use nwwin interface for electron */
-var remote, xwin, ipcRenderer, electron;
 function tryelectron() {
     // for Electron/atom
     try {
@@ -2889,11 +3192,11 @@ function tryelectron() {
     // Some setSize/fullscreen options appear work correctly but sometimes to give exceptions.
     nwwin = {
         showDevTools: xwin.openDevTools,
-        resizeTo: function (w, h) { try { xwin.setSize(w, h); } catch (e) { } xwin.savesize = xwin.getSize(); },
+        resizeTo: function (w, h) { try { xwin.setSize(w, h); } catch (e) { /**/ } xwin.savesize = xwin.getSize(); },
         get width() { return xwin.savesize[0]; },
         get height() { return xwin.savesize[1]; },
-        leaveFullscreen: function () { try { xwin.setFullScreen(false); } catch (e) { } xwin.savesize = xwin.getSize(); },
-        enterFullscreen: function () { try { xwin.setFullScreen(true); } catch (e) { } xwin.savesize = xwin.getSize(); },
+        leaveFullscreen: function () { try { xwin.setFullScreen(false); } catch (e) { /**/ } xwin.savesize = xwin.getSize(); },
+        enterFullscreen: function () { try { xwin.setFullScreen(true); } catch (e) { /**/ } xwin.savesize = xwin.getSize(); },
         toggleFullscreen: function () {  // same as others (leavfullscreen etc) but expanded to help debug errors
             try {
                 xwin.setFullScreen(!xwin.isFullScreen());
@@ -3021,30 +3324,40 @@ function gpuinfo(pgl = W.gl) {
     const parms = gpuinf(pgl);
     gpuinfo.graphicsCardUsed = parms.graphicsCardUsed;
     gpuinfo.parms = parms;
+    if (gpuinfo.graphicsCardUsed.toLowerCase().indexOf('nvidia') !== -1) return;    // we are using nvidia so don't bother to check for alternatives
 
     log(parms);
-    if (isNode() && /^win/.test(require('os').platform())) {
-        var spawn = require('child_process').spawn;
-        var args = ["path", "Win32_VideoController", "get", "name"];
-        var tt = spawn("wmic.exe", args);
-        var data = "";
+    if (islocalhost) {
+        grcheck(runcommandphp('wmic path win32_VideoController get name'));
+    } else if (isNode() && /^win/.test(require('os').platform())) {
+        const spawn = require('child_process').spawn;
+        const args = ["path", "Win32_VideoController", "get", "name"];
+        const tt = spawn("wmic.exe", args);
+        let data = "";
         tt.stdout.on('data', function (bdata) {
             data += bdata;
         });
         tt.on('close', function (code, sig) {
             if (data.length === 0) { log('cannot get graphics card name'); return; }
-            gpuinfo.graphicsCards = data;
-            log('graphics cards found', data);
-            if (gpuinfo.graphicsCardUsed.toLowerCase().indexOf('nvidia') === -1 && gpuinfo.graphicsCards.toLowerCase().indexOf('nvidia') !== -1) {
-                W.msgbox.style.display = "";
-                msgfix('!gpuerror', '<span class="errmsg">Nvidia card installed, one of<br>', gpuinfo.graphicsCards, '<br>but using', gpuinfo.graphicsCardUsed, '<br>Configure in Nvidia control panel</span>');
-            }
+            grcheck(data);
         });
         tt.on('error', function (err) {
             serious("wmic error", err);
         });
+    } else {
+        gpuinfo.graphicsCardsAvailable = 'cannot determine available graphics cards';
     }
     return '<br>Unmasked Renderer: ' + parms['Unmasked Renderer'] + '<br>Unmasked Vendor: ' + parms['Unmasked Vendor'] + '<br>';
+
+    function grcheck(cards) {
+        gpuinfo.graphicsCardsAvailable = cards;
+        log('graphics cards found', cards);
+        if (gpuinfo.graphicsCardUsed.toLowerCase().indexOf('nvidia') === -1 && cards.toLowerCase().indexOf('nvidia') !== -1) {
+            W.msgbox.style.display = "";
+            msgfix('!gpuerror', '<span class="errmsg">Nvidia card installed, one of<br>', cards, '<br>but using', gpuinfo.graphicsCardUsed, '<br>Configure in Nvidia control panel</span>');
+        }
+    }
+
 }
 
 /** get main information about gpu etc
@@ -3085,8 +3398,7 @@ function gpuparms(pgl = W.gl) {
                 // if (typeof vv === 'string')
                 r[x] = vv;
             }
-        } else if (typeof v === 'function') {
-
+        } else if (typeof v === 'function') { /**/
         } else {
             // log(x, v) // ? only canvas
         }
@@ -3094,9 +3406,78 @@ function gpuparms(pgl = W.gl) {
     return r;
 }  // gpuparms
 
+// convenient access to  inputs, mainly for debugging use
+var inps = new Proxy(inputs,{
+    get: (o, n) => inputs[n],
+    set: (o, n, v) => {if (!(n in inputs)) return false; setInput(n, v); return true},
+    ownKeys : (o) => Reflect.ownKeys(o)
+});
+
+var _onbeforeunloaddone
+/** set up window as reqested, and try to position top left
+ * n.b. 16 June 2022 issues as Chrome will get set a large enough window to allow miding details at top
+ * so doesn't work well for multi-screen
+ * One solution is https://www.amyuni.com/forum/viewtopic.php?t=3030, make a dummy window a little higher than the main ones.
+ * Another where all the screens are attached to the same graphics card is to use the GPU manufacturer mosaic or whatever,
+ * then use 'real' fullscreen across all monitors.
+ *
+ * if w == 0 or 'normal' it sets up a single screen centred with 100 pixels around
+ * if w <= 4 it sets up w screens across of the size of the current screen
+ *
+*/
+async function windowset(w = 0, h, swapoff=0) {
+    if (!_onbeforeunloaddone) {addEventListener('beforeunload', () => windowset(0)); _onbeforeunloaddone=true;}
+
+    // make sure Organic in normal mode (not min/max), so the setsize etc work
+    await exitFullscreen();
+    await S.frame(1);
+    nircmd(`win normal stitle "${document.title}"`);
+    await S.frame(1);
+
+    if (w <= 0 || w === 'normal') {
+        if (outerWidth > screen.width || outerHeight > screen.height) // resize, I'd like to keep it on same screen as well if possible ?
+            nircmd(`win setsize stitle "${document.title}" 100 100 ${screen.width-200}, ${screen.height-200}`);
+        nircmd(`win settopmost stitle "${document.title}" 0`);
+        EX.stopToFront();
+        EX.toFront();    // just once
+        inps.fullvp = false;
+        return;
+    }
+    if (w <= 4 && h == undefined) {h = screen.height* w, w = screen.width * w}
+
+    // // get rid of lots of styling, otherwise Chrome won't let the window be big enough to handle the borders
+    // // as of June 2022 it still won't let the window be big enough, so don't bother
+    // // WS_SIZEBOX, WS_CAPTION https://docs.microsoft.com/en-us/windows/win32/winmsg/window-styles
+    // nircmd(`win -style stitle "${document.title}" 0x00C40000`);
+    // await S.frame(10);
+
+    // establish border size so we can compensate
+    const b = (outerWidth - innerWidth) / 2;    // border left,right, bot (assume all the same)
+    const bt = outerHeight - innerHeight - b;   // border top
+    log('windowset borders', b, bt);
+
+    // now make widow required size and properly positioned
+    // ..\nircmd\nircmd.exe win setsize stitle "fred"  -8 -80 3840 1080
+    const cmd = `win setsize stitle "${document.title}" ${-b-swapoff} ${-bt} ${w + b*2} ${h + b + bt}`
+    log('>>>', "nircmd('" + cmd + "')");
+    nircmd(cmd);
+    await S.frame(1);
+    log('window size requested', width, height);
+
+    nircmd(`win settopmost stitle "${document.title}" 1`);
+    EX.toFront();
+
+    await S.frame();
+    if (innerHeight < h) {
+        maxInnerHeight = innerHeight;
+        console.log(`cannot set window size, requested ${w}x${h}, got ${innerWidth}x${innerHeight}`)
+    }
+}
+
+
 
 // temporary slot for tests
-function test1(a = W.msgbox, b, c, d, e) {
+function test1(a = W.msgbox, b=undefined, c=undefined, d=undefined, e=undefined) {
 
     domtoimage.toPng(a)
         .then(function (dataUrl) {
@@ -3115,13 +3496,15 @@ function test1(a = W.msgbox, b, c, d, e) {
         });
 }
 
+var MAXMPXRIBS = 512; // var for sharing
 
 function test2(a, b, c, d, e) {
     nomess(false); msgfix.all = true;
+    msgboxVisible(true);
     // pixel sampling, to move to sensible place later
     var s = slots[mainvp];
     var ww = s.width / inputs.renderRatioUi, hh = s.height / inputs.renderRatioUi;
-    var t = readone('rtopos') + readone('rtshapepos') + '<b>slots[' + mainvp + ']<b>' + readrt(s.dispobj.rt);
+    var t = readone('rtopos') + (usemask == -98 ? '' : readone('rtshapepos')) + '<b>slots[' + mainvp + ']<b>' + readrt(s.dispobj.rt);
     msgfix('pixel', '<b>click the pixel: key to remove</b>', t);
 
     function readone(rtname) {
@@ -3134,39 +3517,59 @@ function test2(a, b, c, d, e) {
     function sqf(v) {
         return format(Math.sqrt(v) * 255, 0);
     }
-
     function readrt(rt) {
         var k = 3; var k2 = k * 2 + 1;
-        var ll = Math.floor(oldlayerX / inputs.renderRatioUi);
+        var ll = Math.floor((copyXflip>0 ? oldlayerX : width - oldlayerX)/ inputs.renderRatioUi);
         var tt = Math.floor((height - oldlayerY) / inputs.renderRatioUi);
         msgfix('lltt', ll, tt);
         var rr = readWebGlFloat(rt, { left: ll - k, top: tt - k, width: k2, height: k2 });
         var h = [];  // html
         var ap = 0;
+        const grid = rt.name.startsWith('rtopos') && resoverride.showgrid;
+        let lennum = U.lennum, radnum = U.radnum, xx = 'g';
+        const edge = rt.name.startsWith('dispobj') && resoverride.showgrid && usemask ===-98;
+        if (usemask === -98 && U.revealribs > 1) {lennum = U.revealribs; xx = 'r'; }
         for (var x = 0; x < k2; x++) {
             var row = [];
             for (var y = 0; y < k2; y++) {
                 var pix = [];
-                for (var i = 0; i < 4; i++) {
-                    pix.push(format(rr[i][ap] - 0 * rr[k][k], 3));
+                if (grid) {
+                    const back = rr[2][ap] === -1;
+                    pix.push(back ? 'x' : format(Math.floor(rr[0][ap] * lennum)) + xx);
+                    pix.push(back ? 'x' : format(Math.floor(rr[1][ap] * radnum)));
+                    pix.push(format(rr[2][ap]));
+                    pix.push(format(rr[3][ap]));
+                } else if (edge) {
+                    const xr = rr[0][ap] * MAXMPXRIBS * numInstances / tad.RIBS;
+                    if (xr >= 0) {
+                        const v = Math.ceil(xr);
+                        pix.push(`${Math.floor(v/MAXMPXRIBS)}/${v%MAXMPXRIBS}`);
+                    } else {
+                        pix.push('.');
+                    }
+                } else {
+                    for (var i = 0; i < 4; i++) {
+                        pix.push(format(rr[i][ap] - 0 * rr[k][k], 3));
+                    }
                 }
                 var col = (rr[3][ap] === 1) ? 'border-width: 3px; border-color: rgb(' + sqf(rr[0][ap]) + ',' + + sqf(rr[1][ap]) + ',' + sqf(rr[2][ap]) + ');' : '';
                 if (x === k && y === k) col += 'background-color: #600;';
                 row.push('<td style="' + col + '">' + pix.join(' ') + '</td>');
                 ap++;
             }
+            if (copyXflip < 0) row.reverse();
             h.push('<tr>' + row.join('') + '</tr>');
         }
         const tab = '<table class="pixeltable">' + h.reverse().join('') + '</table>';
         return tab;
     }
 
-
 }
 var preg;
 
 /** make a regexp from a string or gui element */
 function makeRegexp(input) {
+    if (input instanceof RegExp) return input;
     let filter = input;
     if (input.value !== undefined) filter = input.value;
     // if (filter.trim() === '') return /^/;  // optimization skipped clearing style background, etc
@@ -3194,7 +3597,7 @@ function makeRegexp(input) {
 /** make a regexp string from a string; recursive helpwer function, window level to help debug */
 function makeRegexpStr(filter) {
     let filter1 = filter.split('\n').filter(x=>x.trim()).join(' | ');
-    filter1 = filter1.replaceall('OR', '|').replaceall('AND', '&').replaceall('NOT', '!');
+    filter1 = filter1.replace(/OR/g, '|').replace(/AND/g, '&').replace(/NOT/g, '!');
     return makeRegexpStrI(filter1);
 
 }
@@ -3225,7 +3628,7 @@ function makeRegexpStrI(filter) {
     let filt = filter.split("|");   // decompose | expressions
     for(let fi in filt)
         filt[fi] = filt[fi]
-            .replaceall('&', ' ')   // allow blank or & for and at this level
+            .replace(/&/g, ' ')   // allow blank or & for and at this level
             .split(" ")             // split using blank
             .filter(x=>x)           // filter out empty strings  from repeated blanks
             .map(x=> x[0] === '!' ? '^(?!.*' + x.substring(1) + ')' : '(?=.*' + x + ')' )    // make regexp allowing for negated simple string
@@ -3234,92 +3637,6 @@ function makeRegexpStrI(filter) {
 }
 
 
-/** use an event to filter gui */
-function filterDOMEv(event = {target: W.guifilter}) {
-    const src = event.target;
-    if (event.type === 'change' && filterDOMEv.last === src.value) return;  // change already dealt with by keyup; redo for keyup with no change to allow simpler testing
-    // log('filterDOMEv', event.type, src.value );
-    if (event.key === "Escape")
-        src.value = '';
-    if (event.key === "F2" && src.value[0] !== '/')
-        src.value = '/' + makeRegexpStr(src.value);
-    filterDOM(makeRegexp(src), W.controlscore, 0, src);
-    filterDOMEv.last = src.value;
-
-    filterGuiGenes();
-}
-
-/** clear filtering from filterDOM */
-function clearDOMFilter(ele) {
-    if (ele.oldd !== undefined) {
-        ele.style.display = ele.oldd;
-        delete ele.oldd;
-    } else if (ele.style) {
-        ele.style.display = '';
-    }
-    for (let i=0; i<ele.childNodes.length; i++) {
-        clearDOMFilter(ele.childNodes[i]);
-    }
-}
-
-/** filter a dom element for hits, testregexp is test regexp, ele is top element for filter/search
-if testregexp is empty or undefined, the hidden statis is resotored recursively
- */
-function filterDOM(testregexp, ele = W.maincontrols, lev = 0, b, c, d, e) {
-    if (ele.id === 'samplegene') return;  // otherwise more recently added genes get a corrupt start in life
-
-    if (lev === 0) clearDOMFilter(ele);   // clean old search before starting new one
-    if (!testregexp || testregexp+'' === '/^/') return;  // done
-
-
-    // Now start the real search =========================
-    // Work down to the loweest level and then back up again; otherwise NOT cases do not work well.
-    // However, we then consolidate lower level groups to try to make sure everything is displayed with enough context.
-    // We may sometimes get too much context, but not usually enough to worry.
-    // That can be resolved by refining the original GUI dom structure.
-
-
-    const cl = ele.classList;
-    let cn = ele.childNodes, hitstring = undefined;
-
-    if (cl && cl.contains('gene')) {  // special case for genes
-        let gd = genedefs[ele.name];
-        if (!gd)
-            gd = {tag: 'unknown no genedef'};
-        hitstring = [ele.name, ele.genehelpEle.textContent, (gd.free ? 'free' : 'frozen'), gd.tag, 'gene'].join(' '); //check tag matching...
-        cn = [];
-    } else if (cl && cl.contains('key')) {  // special case for keys
-        hitstring = [ele.textContent, 'key'].join(' ');
-        cn = [];
-    } else if (cn.length === 0) {   // general case for hit at the loweest level
-        hitstring = ele.textContent + (ele.value || '') + (ele.id || '');
-    }
-
-    let hit = ( hitstring !== undefined &&  testregexp.test(hitstring) )    // main test for lowest (or very low) level hits
-        || ele.id === 'genefilter';     // special case for genefilter, very confusing if it is nonempy/active but invisible
-
-    for (let i=0; i < cn.length; i++) hit |= filterDOM(testregexp, cn[i], lev+1, b);    // iterate all the childNodes  (except special case cn)
-
-    if (cl) {  // do not process #text elements (or others without classList if any?)
-        if (hit) {
-            if ( // so lowest level groups display coherently;  this could be optimized if it becomes and issue
-               (ele.getElementsByClassName('group').length
-                + ele.getElementsByTagName('fieldset').length
-                + ele.getElementsByClassName('key').length
-                + ele.getElementsByClassName('savename').length
-                + ele.getElementsByClassName('gene').length === 0)
-            )
-                clearDOMFilter(ele); // unhide all the bits below we may have just hidden
-        } else {  // !hit, so hide the element
-            if (ele.tagName !== 'LEGEND') {  // don't hide legends as they are useful context, but still return appropriate value of hit
-                ele.oldd = FIRST(ele.oldd, ele.style.display);
-                ele.style.display = 'none';
-            }
-        }
-    }
-    if (lev === 0 && W.controls && W.controls.onmousemove) W.controls.onmousemove();
-    return hit;
-}
 
 
 /** find matching end bracket in str for bracket at pos */
@@ -3344,8 +3661,8 @@ function test3(a, b, c, d, e) {
     var p = e.eventParms;
     var k = Object.keys(p)[0];
     var vv = p[k];
-    var hl = vv.hand_left;
-    msgfix("hand_left", hl.x, hl.y, hl.z);
+    var hl = vv.handleft;
+    msgfix("handleft", hl.x, hl.y, hl.z);
     if (+1) return;
 
     preg = {}; copyFrom(preg, currentGenes);
@@ -3516,10 +3833,10 @@ function countVisibleChildren(o) {
 var renderer;
 /** quick way to render trivial scene, turn on with quickscene.use = true
 currently w.i.p. 14/11/2017 and NOT generally used */
-function quickscene(scenep, camerap, target, flag) {
+function quickscene(scenep, camerap, targetp, flag) {
 
     const ch0 = scenep.children[0];
-    renderer.setRenderTarget(target);
+    renderer.setRenderTarget(targetp);
     let geom = ch0.geometry;
     framelog('quickscene', scenep.name, 'buffergeom', !!geom._bufferGeometry);
     if (geom._bufferGeometry) geom = geom._bufferGeometry;
@@ -3530,7 +3847,7 @@ function quickscene(scenep, camerap, target, flag) {
 
     // from three 10868 camera.updateMatrixWorld
     // Object3D.prototype.updateMatrixWorld.call( this, force );
-	camerap.matrixWorldInverse.getInverse( camerap.matrixWorld );
+	camerap.matrixWorldInverse.copy( camerap.matrixWorld ).invert();
 
 	// from renderObject 21743
 	const object = ch0;
@@ -3548,8 +3865,14 @@ function forceoao(key, val) {
     dockeydowninner('ctrl,S')
 }
 
-/** monitor a field by turning it into a property (not monitor, clashes with developer tools */
+/** monitor a field by turning it into a property (not monitor, clashes with developer tools) */
 function monitorX(object, field, option = 'debugchange') {
+    if (typeof object === 'string') {
+        const s = object.split('.');
+        let o = window;
+        for (let i = 0; i < s.length-1; i++) o = o[s[i]];
+        object = o; field = s.pop();
+    }
     const desc = Object.getOwnPropertyDescriptor(object, field);
     if (!desc) { log('no property to monitor'); return; }
     if (desc.get || desc.set) { log('cannot monitor property', field); return; }
@@ -3568,11 +3891,22 @@ function monitorX(object, field, option = 'debugchange') {
             return object['..'+field];
         },
         set : function(vs) { _monitor_fun(object, field, vs, option) },
-        enumerable: true
+        enumerable: true,
+        configurable: true
     });
-
 }
+
+/** turn off monitoring, replace the property with a field */
+function unmonitorX(object, field) {
+    const v = object[field];
+    log(`unmonitorX initial ${field} = ${v}`);
+    const ok = delete object[field]
+    if (!ok) console.error('failed to unmonitor', object, field);
+    object[field] = v;
+}
+
 function _monitor_fun(object, field, value, option) {
+    const un = () => unmonitorX(object, field);    // quick unmonitor when stopped in this function, eg in debugger below
     if (option.indexOf('logset') !== -1) log(`monitorX set ${field} = ${value}`);
     if (object['..' + field] !== value) {
         if (option.indexOf('change') !== -1) log(`monitorX change ${field} = ${object['..' + field]} => ${value}`);
@@ -3603,12 +3937,13 @@ viewtargets.inner = function viewtargetsinner() {
     slots[5].dispobj.overwritedisplay = rendertargets['rtopos' + k];
     slots[6].dispobj.overwritedisplay = rendertargets['rtshapepos' + k];
     slots[7].dispobj.overwritedisplay = rendertargets['rttexture' + k];
-    onframe(refall, 1);
+    onframe(()=>refall(), 1);
 }
 
 /** refresh OPTSHAPEPOS2COL without remakeShaders() */
 function refts() {
-    remakeShaders();    // depending on usemask this may have to do more, so just do it
+    if (_ininit) return;
+    remakeShaders(true);    // depending on usemask this may have to do more, so just do it
     // material.tshapepos2col={};
     // material.basefragcode=undefined;
     // material.basevertcode=undefined;
@@ -3623,13 +3958,15 @@ function refts() {
 function optimizeShaders() {
     usesavedglsl = '';
     remakeShaders();
-    onframe(() => exportmyshaders(undefined, 'OPTIMIZE'), 5);
-    setTimeout(() => {usesavedglsl='OPTIMIZE.opt'; remakeShaders()}, 4000);
+    const oo = ises300 ? 'OPTIMIZE' : 'OPTIMIZENOT300'
+    onframe(() => exportmyshaders(undefined, oo), 5);
+    setTimeout(() => {usesavedglsl=oo+'.opt'; remakeShaders()}, 4000);
     setTimeout(() => {usesavedglsl = '';}, 5000);
 }
 
 /** get statistics for array */
 function getstats(a, opts = {}) {
+    if (a.length === 0) return 'empty';
     const s1 = a.reduce((s,v)=> s + v, 0);
     const s2 = a.reduce((s,v)=> s + v*v, 0);
     const n = a.length;
@@ -3693,16 +4030,46 @@ function getstats(a, opts = {}) {
     return {mean, sd, min, max, n, s1, s2, quartiles, dectiles, median: quartiles[2]};
 }
 
-/** comp[are two javascript objects */
-function compareObjects(a, b) {
-    const missa = [], missb = [], diff = [];
-    for (let gn in a) if (!(gn in b)) missb.push(gn);
-    for (let gn in b) if (!(gn in a)) missa.push(gn);
-    for (let gn in a) if ((gn in b) && a[gn] !== b[gn]) diff.push( [gn, a[gn], b[gn]]);
-    log ('missa:', missa.join(' '));
-    log ('missb:', missb.join(' '));
-    log ('diff:', diff.join('  '));
+/** compare two javascript objects, a little deep, return false if equal  */
+function objectDiff(a, b) {
+    if ((typeof a !== 'object') || (typeof b !== 'object')) return a === b ? false : {a, b};
+    const diff = {};
+    for (let gn in a) if (!(gn in b)) diff[gn] = {a: a[gn]};
+    for (let gn in b) if (!(gn in a)) diff[gn] = {b: b[gn]};
+    for (let gn in a) if ((gn in b)) {
+        const d = objectDiff(a[gn], b[gn])
+        if (d) diff[gn] = d;
+    }
+    if (Object.keys(diff).length === 0) return false
+    return diff;
 }
+
+/** compare two javascript objects, give just the new changed (b) values  */
+function objectChanged(a, b) {
+    if ((typeof a !== 'object') || (typeof b !== 'object')) return a === b ? false : b;
+    const diff = {};
+    for (let gn in a) if (!(gn in b)) diff[gn] = undefined;
+    for (let gn in b) if (!(gn in a)) diff[gn] = b[gn];
+    for (let gn in a) if ((gn in b)) {
+        const d = objectChanged(a[gn], b[gn])
+        if (d) diff[gn] = d;
+    }
+    if (Object.keys(diff).length === 0) return false
+    return diff;
+}
+
+/** apply changes */
+function applyChanges(t = window, ch) {
+    // if (typeof ch === 'object')
+    for (const k in ch) {
+        if (typeof t[k] !== 'object') t[k] = {};
+        if (typeof ch[k] === 'object')
+            applyChanges(t[k], ch[k]);
+        else
+            t[k] = ch[k];
+    }
+}
+
 
 /** trim two strings */
 function trimstrings(a,b) {
@@ -3732,7 +4099,7 @@ function defineScaledProperty(o, newprop, baseprop, scale) {
 var allowmess = false;
 // interface Nomess { (boolean?): void, msg?, msgfix?};
 /** clean up all bits that might cost and are not central to exhibition */
-var nomess = function (killmess = true) {
+nomess = function (killmess = true) {
     if (killmess === 'release') { allowmess = false; killmess = false; }
     if (allowmess) return;
     if (killmess === 'force') { allowmess = 'never'; killmess = true; }
@@ -3748,12 +4115,13 @@ var nomess = function (killmess = true) {
         setInput(DE.showgrid, false);
         setInput(DE.doShowSCLog, false);
         setInput(DE.showcilly, false);
+        setInput(DE.menuAutoOpen, false);
         W.entervr.style.display = 'none';
         // W.controlsouter.style.display = 'none';  // allow stats
         showControls(false);
         if (!oxcsynth && VUMeter2) VUMeter2.nometer = true;
     } else {
-        //W.tranrulebox.style.display = 'none';
+        //W._tranrule.style.display = 'none';
         W.msgbox.style.display = '';
         nomess.msgvisible = true;
 
@@ -3765,7 +4133,7 @@ var nomess = function (killmess = true) {
 
 /** get uniforms for a given tag */
 function uniformsForTag(tag) {
-    const types = {f: 'float', t: 'sampler2D', v3: 'vec3', v2: 'vec2', m4: 'mat4'};
+    const types = {f: 'float', t: 'sampler2D', v3: 'vec3', v2: 'vec2', m4: 'mat4', i: 'int'};
     const r = [];
     for (const u in uniforms) {
         if (uniforms[u].tag === tag) {
@@ -3779,10 +4147,8 @@ function uniformsForTag(tag) {
 /** test script for starting with a frame for each material
  * this helps us post loading progress information
 */
-function *slowinit() {
+async function slowinit() {
     loadTime('shaders 1 start');
-    // for some odd reason, W.guifilter does not work at this point without help
-    W.guifilter = DE.guifilter;
     if (startvr) {
         nomess('force');
     }
@@ -3814,7 +4180,7 @@ function *slowinit() {
         lastop = x;
         consoleTime(x);
         testopmode = opmode = popmode;
-        mats[popmode] = getMaterial(mat);
+        mats[popmode] = getMaterial(mat, currentGenes);
         XrequestAnimationFrame(frame);
         consoleTimeEnd(x);
     }
@@ -3834,7 +4200,8 @@ function *slowinit() {
         consoleTimeEnd(x);
     }
     XrequestAnimationFrame(frame);
-    yield 'xxxframe';
+    await S.maestro('xxxframe');
+    await usleep(1);  // to let fullscreen in?
     _insinit = true;
     orginit();
 
@@ -3842,27 +4209,29 @@ function *slowinit() {
 
     const mv = currentGenes.tranrule || 'XXXTRXXX';
     framenum = 10;
-    let comp = comp1;
-    for (let i=0; i<2; i++) {
-        comp(mv, OPPOSITION); yield 'xxxframe'
-        comp(mv, OPOPOS); yield 'xxxframe'
-        if (inputs.USESKELBUFFER) { comp(mv, OPMAKESKELBUFF); yield 'xxxframe' }
-        // comp(mv, OPSHADOWS); yield 'xxxframe'
-        comp(mv, OPSHAPEPOS); yield 'xxxframe'
-        comp(mv, OPTEXTURE); yield 'xxxframe'     // wrong colour if this enabled
-        if (comp === comp1) {
-            comp(mv, OPTSHAPEPOS2COL); yield 'xxxframe';    // details such as shadows not ready, so comp2 invalid this early
+    if (appToUse === 'Horn') { // do not precompile for Julia etc, some aren't needed. n.b. CSynth uses 'Horn'
+        let comp = comp1;
+        for (let i=0; i<2; i++) {
+            comp(mv, OPPOSITION); await S.maestro('xxxframe');
+            comp(mv, OPOPOS); await S.maestro('xxxframe')
+            if (inputs.USESKELBUFFER) { comp(mv, OPMAKESKELBUFF); await S.maestro('xxxframe') }
+            // comp(mv, OPSHADOWS); await S.maestro('xxxframe')
+            comp(mv, OPSHAPEPOS); await S.maestro('xxxframe')
+            comp(mv, OPTEXTURE); await S.maestro('xxxframe')     // wrong colour if this enabled
+            if (comp === comp1) {
+                comp(mv, OPTSHAPEPOS2COL); await S.maestro('xxxframe');    // details such as shadows not ready, so comp2 invalid this early
+            }
+            /**** for now work because matrix trancodeForTranrule and other overrides
+            if (currentGenes.name === 'csynth1' && i === 0) {
+                const matrix = new CSynth.Matrix();
+                comp('matrix', OPOPOS); await S.maestro('xxxframe')
+                comp('matrix', OPSHAPEPOS); S.maestro('xxxframe')
+                comp('matrix', OPTSHAPEPOS2COL); S.maestro('xxxframe')
+            }
+            /***/
+            loadTime('shaders 2 comp ' + i);
+            comp = comp2;
         }
-        /**** for now work because matrix trancodeForTranrule and other overrides
-        if (currentGenes.name === 'csynth1' && i === 0) {
-            const matrix = new CSynth.Matrix();
-            comp('matrix', OPOPOS); yield 'xxxframe'
-            comp('matrix', OPSHAPEPOS); yield 'xxxframe'
-            comp('matrix', OPTSHAPEPOS2COL); yield 'xxxframe'
-        }
-        /***/
-        loadTime('shaders 2 comp ' + i);
-        comp = comp2;
     }
 
     showmsg('finalizing matrix shaders: ' + framenum);
@@ -3878,7 +4247,7 @@ function *slowinit() {
     fst = now;
     function firstAnimatex() {  // so it shows up in dev tools performance
         consoleTime('>>> firstanimatex');
-        animateNum(framenum);
+        animateNum(now);
         consoleTimeEnd('>>> firstanimatex');
     }
     firstAnimatex();
@@ -3893,7 +4262,8 @@ function *slowinit() {
     function endup() {
         // todo: consider best pattern for slowinit.pendend; this is easy and effective
         if (Object.keys(slowinit.pendend).length) {
-            log('pend', ff);
+            if (ff%100 === 0)
+                log('pend', ff);
             ff++;
             return onframe(endup);
         }
@@ -3902,17 +4272,17 @@ function *slowinit() {
         onframe( () => {
             loadTime('shaders 7 waited 3 more frames');
             showmsg('running ...', 1);
-            W.startscreen.style.display = 'none';   // kill splash now
+            if (!deferRender) W.startscreen.style.display = 'none';   // kill splash now
             // setTimeout( () => {
                 showmsg('', 1);
                 msgboxVisible(false);               // kill initial messages soon
                 msgfixlog('loadCSynth');
-                msgfix('loadTimes', '<ul><li>' + yaml.safeDump(loadTimes).trim().replaceall('\n', '</li><li>') + '</li></ul>')                // msgfix.hide('loadTimes');   // but hidden till wanted
+                msgfix('loadTimes', '<ul><li>' + yaml.safeDump(loadTimes).trim().replace(/\n/g, '</li><li>') + '</li></ul>')                // msgfix.hide('loadTimes');   // but hidden till wanted
             // }, 2000);
         }, 3);
     }
     endup();
-
+    window.dispatchEvent(new Event('initdone'));
 }
 slowinit.pendend = {};
 
@@ -3921,6 +4291,7 @@ var startcommit;
 // check we are running latest version of Organic/CSynth
 function checkres() {
     if (!startcommit) return;  // eg used from some small test function
+    if (location.href.indexOf('csynthstatic/stephensvn') !== -1) return;    // testing will probably be wrong versions
     const current = startcommit.trim();
     let uuu = '../startcommit.txt';
     if (location.pathname.indexOf('matrixexplorer') !== -1) uuu =  '../../' + uuu;
@@ -3968,20 +4339,68 @@ function inittimed() {
     //else
     //    yaml = require('JSModules/node_modules/js-yaml/lib/js-yaml');
     yaml = jsyaml;
+    mapOnce();      // may not be needed, but much quicker before things are too populated
 
-    if (appToUse !== 'Horn' || searchValues.nohorn) {
+    if (appToUse !== 'Horn' || searchValues.nohorn || searchValues.fastinit) {
         orginit();
-        W.startscreen.style.display = 'none';  // defer till shaders ready
+        if (!deferRender) W.startscreen.style.display = 'none';  // defer till shaders ready
         msgfix('code', 'code loaded, now initializing ...')
         msgfix.force();  // so it shows immediately
+        window.dispatchEvent(new Event('initdone'));
     } else {
-        runTimedScript(slowinit());
+        // run TimedScript(slowinit());
+        slowinit();
+    }
+}
+
+/** replace all <span class='group'> tags with a wrapping fieldset/legend.
+ * <span>...</span> =>  <fieldset><legend>xxx</legend><span>...</span></fieldset> */
+function replaceGroups() {
+    // if (location.pathname.endsWith("/csynth.html")) {
+    //     W._tranrule = W.tranrulebox;
+    //     return;  // << TODO sort CSynth gui for new folding
+    // }
+    const groups = document.body.getElementsByClassName('group');
+    const arr = Array.from(groups);
+    for (let i = arr.length-1; i >= 0; i--) {
+        const ggg = arr[i];
+        const caption = ggg.title;
+        if (ggg.tagName !== 'SPAN' || !caption) continue;
+        const col = ggg.style.borderColor || 'gray';
+        const temp = document.createElement('fieldset');
+        temp.className = "hidebelow";
+        temp.id = '_' + caption;
+        temp.style.borderColor = col;
+        temp.innerHTML = `<legend onclick=toggleFold(this)>${caption}</legend>`;
+        temp.style.display = ggg.style.display;
+        ggg.replaceWith(temp);
+        temp.appendChild(ggg);
+        if (caption === 'tranrule') temp.style.display = W.showrules.checked ? '' : 'none';
     }
 }
 
 /** initial start on windows load, if nwwin availble check size, and in any case call inittimed */
 function init() {
+    if (searchValues.fullscreen) fullscreen();
+    log('tad+ init()');
+    if (startSC) {
+        msgfixlog('tad+', 'no startSC in init')
+        // startSC();  // used to defer incase of VR devices with audio, try start asap
+    }
+
+    // for some odd reason, W.guifilter does not work at this point without help
+    W.guifilter = DE.guifilter;
+
+    replaceGroups();
+    for (const ff of document.getElementsByTagName('fieldset')) foldStates[ff.id] = undefined;
+    restoreFoldStates();
+    onframe(restoreFoldStates, 2);      // why needed?
+
+    if (searchValues.nothing) {W.controls.style.display=''; W.controls.style.height='700px'; return;}
+
     isFirefox = navigator.userAgent.contains('Firefox');
+    // TODO FIX THIS HORRIBLE PATCH, when we revist page on Chrome for tabs, imagres.value get corrupted to 'startup' and we can't find where.
+    if (W.imageres.value === 'startup') {console.error('patched imageres startup'), W.imageres.value = 1024; }
     EX.toFront();
     consoleTime('comp init');
     if (nwwin)
@@ -4017,7 +4436,7 @@ function testnan(x) {
     if (!testnan.do) return;
     if (x == undefined) return; // eslint-disable-line eqeqeq
     if (x === '') return;
-    if (x.elements) {testnan(x.elements)};
+    if (x.elements) {testnan(x.elements)}
     if (x.map) {x.map(y=>testnan(y)); return; }
     if (x.isCamera) {
         testnan(x.matrix.elements);
@@ -4070,11 +4489,20 @@ function array2Table(a, classs='simpletable') {
     return `<table class = "${classs}"">\n` + r.join('\n') + '\n</table>';
 }
 
-function stopDraggable(todrag) {
+function toggleDraggable(ptodrag) {
+    const todrag = findDraggable(ptodrag);
+    if (!todrag) return;
+    (todrag.save ? stopDraggable : makeDraggable)(todrag);
+}
+
+function stopDraggable(ptodrag) {
+    const todrag = findDraggable(ptodrag);
+    if (!todrag) return;
+
     if (!todrag.save) return;
     const s = todrag.style;
     let dragmousedown, dragmousemove, dragmouseup, parent;
-    [s.position, s.left, s.top, s.width, s.height, dragmousedown, dragmousemove, dragmouseup, parent] = todrag.save;
+    [s.position, s.left, s.top, s.bottom, s.width, s.height, dragmousedown, dragmousemove, dragmouseup, parent] = todrag.save;
     parent.appendChild(todrag);     // this will not be in right place, it will be at end
     todrag.removeEventListener('mousedown', dragmousedown);
     todrag.removeEventListener('mousemove', dragmousemove);
@@ -4082,41 +4510,63 @@ function stopDraggable(todrag) {
     delete todrag.save;
 }
 
+function findDraggable(todrag) {
+    while (true) {
+        if (!todrag) return;
+        if (todrag.tagName === 'FIELDSET' |
+            ' msgbox mystats controlsouter UI_overlay '.indexOf(' ' + todrag.id + ' ') !== -1 |
+            todrag.id === 'msgbox' |
+            false) return todrag;
+        todrag = todrag.parentNode;
+    }
+}
+
 // make an object draggable
-function makeDraggable(todrag, usesize=true) {
+function makeDraggable(ptodrag, usesize=true, button = 2, callback) {
+    let todrag = findDraggable(ptodrag) ?? ptodrag;
+    if (!todrag) return;
+
     if (todrag.save) return;  // already draggable
     const s = todrag.style;
     const rr = todrag.getBoundingClientRect();
-    todrag.save = [s.position, s.left, s.top, s.width, s.height, dragmousedown, dragmousemove, dragmouseup, todrag.parentNode];
+    todrag.save = [s.position, s.left, s.top, s.bottom, s.width, s.height, dragmousedown, dragmousemove, dragmouseup, todrag.parentNode];
     s.position = 'fixed';
     s.left = Math.min(screen.width-300, Math.max(0, rr.x + 100)) + 'px';
     s.top = Math.min(screen.height-300, Math.max(0, rr.y)) + 'px';
+    s.bottom = 'auto';
     if (usesize && rr.width && rr.height) {
         s.width = rr.width + 'px';
-        s.height = rr.height + 'px';
+        if (usesize === 'both') s.height = rr.height + 'px';
     }
     document.body.appendChild(todrag);
 
     todrag.addEventListener('mousedown', dragmousedown);
-    todrag.addEventListener('mousemove', dragmousemove);
-    todrag.addEventListener('mouseup', dragmouseup);
 
     function dragmousedown(evt) {
-        if (evt.buttons !== 2) return;
+        if (evt.buttons !== button) return;
         todrag.ox = evt.clientX - s.left.replace('px','');
         todrag.oy = evt.clientY - s.top.replace('px','');
+        document.addEventListener('mousemove', dragmousemove);
+        document.addEventListener('mouseup', dragmouseup);
+        canvas.style.pointerEvents = 'none';
     }
     function dragmousemove(evt) {
-        if (evt.buttons !== 2) return;
-        msgfix('ddrag', offx(evt) , todrag.clientWidth);
-        if (offx(evt) > todrag.clientWidth - 50
-            && offy(evt) > todrag.clientHeight - 50)
-            return;
+        if (evt.buttons !== button) return;
+        msgfix('ddrag', 'x', offx(evt) , todrag.clientWidth, 'y', offy(evt) , todrag.clientHeight);
+        // if (offx(evt) > todrag.clientWidth - 50
+        //     && offy(evt) > todrag.clientHeight - 50)
+        //     return killev(evt);
         s.left = (evt.clientX - todrag.ox) + 'px';
         s.top = (evt.clientY - todrag.oy) + 'px';
+        if (callback) callback(evt, s)
         return killev(evt);
     }
-    function dragmouseup(evt) {}
+    function dragmouseup(evt) {
+        document.removeEventListener('mousemove', dragmousemove);
+        document.removeEventListener('mouseup', dragmouseup);
+        canvas.style.pointerEvents = '';
+
+    }
 }
 
 // varied from https://stackoverflow.com/questions/15316127/three-js-line-vector-to-cylinder
@@ -4130,7 +4580,7 @@ function cylinderMesh(pointX, pointY, rad, mat) {
                                            0, 0, 0, 1));
     var edgeGeometry = new THREE.CylinderGeometry(rad, rad, direction.length(), 8, 1);
     var edge = new THREE.Mesh(edgeGeometry, mat);
-    edge.applyMatrix(orientation);
+    edge.applyMatrix4(orientation);
     // position based on midpoints - there may be a better solution than this
     edge.position.x = (pointY.x + pointX.x) / 2;
     edge.position.y = (pointY.y + pointX.y) / 2;
@@ -4140,14 +4590,14 @@ function cylinderMesh(pointX, pointY, rad, mat) {
 }
 
 function toKey(x) {
-    const str = JSON.stringify(x).replaceall('"', '')
+    const str = JSON.stringify(x).replace(/"/g, '')
     return str.length > 30 ? str.substr(0,20) + '###' + str.hashCode().toString(36) : str;
-};
+}
 
 // helpful details to see matrices more easily
 window.devtoolsFormatters = [{
     header: function(obj) {
-        return obj.isMatrix4 ? ['div', {}, obj.toString()] : null  },
+        return (obj && 'isMatrix4' in obj) ? ['div', {}, obj.toString()] : null  },
     hasBody: ()=>false
     }]
 
@@ -4159,8 +4609,6 @@ if (THREE) THREE.Matrix4.prototype.toString = function(m) {
         this.elements.slice(12,16)].map(mm=>format(mm)).join('   ')
         + ']'
  }
-
-function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms/S.speedup)); }
 
 // from https://stackoverflow.com/questions/14519267/algorithm-for-generating-a-3d-hilbert-space-filling-curve-in-python
 function hilbertC(s = 8, x=0, y=0, z=0, dx=1, dy=0, dz=0, dx2=0, dy2=1, dz2=0, dx3=0, dy3=0, dz3=1, r = []) {
@@ -4194,9 +4642,9 @@ function hilbertC(s = 8, x=0, y=0, z=0, dx=1, dy=0, dz=0, dx2=0, dy2=1, dz2=0, d
 var WebSocket, evalq, currentLoadingDir, currentLoadingFile;
 function startWsListener(addr = 57777) {
     const starttried = startWsListener.calls++;
-    var socket = startWsListener.socket = new WebSocket("ws://localhost:" + addr);
+    var socket = startWsListener.socket = new WebSocket(`ws://${location.hostname}:` + addr);
     socket.onopen = () => msgfixlog('startWsListener', "Connection successful.", starttried);
-    socket.onclose = () => msgfixlog('startWsListener', "Connection closed.", starttried);
+    socket.onclose = () => { msgfixlog('startWsListener', "Connection closed.", starttried); startWsListener.socket = undefined; }
     socket.onerror = function (e) {
         msgfixlog('startWsListener', 'Connection error', starttried);
         // if (starttried === 1) { // no server running and not yet tried to start one
@@ -4216,6 +4664,10 @@ function startWsListener(addr = 57777) {
             pendingFid = undefined;
         } else if (mm.startsWith('file:')) {
             pendingFid = mm.substring(5);
+        } else if (mm.startsWith('clipboard:')) {
+            newclipboard(mm.post(':'));
+        } else if (mm.startsWith('watch:')) {
+            log('watch noticed somthing:', mm);
         } else {
             const s = [currentLoadingDir, currentLoadingFile];
             try {
@@ -4230,6 +4682,7 @@ function startWsListener(addr = 57777) {
             }
         }
     }
+    return socket;
 }
 startWsListener.calls = 0;
 
@@ -4249,7 +4702,7 @@ function execasync(str) {
     if (isNode())
         return require('child_process').exec(str);
     else {
-        const id = str.replaceall('"','').substring(0, 10) + '_Organic';
+        const id = str.replace(/"/g,'').substring(0, 80) + ' Organic';
         return runcommandphp('start "' + id + '" ' + str, true);
     }
 }
@@ -4261,15 +4714,28 @@ function mtraverse(node, action) {
     node.traverse(n => {let m = n.material; if (m) action(m)});
 }
 
-var EX = {};
-/** bring to front just once */
-EX.toFront = function() {
-    nircmd(`win activate stitle "${document.title}"`);
-    // runcommandphp(`start /min "toFront" cscript toFront.vbs "${document.title}"`);
+/** bring to front just once
+ *
+ */
+EX.toFront = async function() {
+    if (!islocalhost) return; // does  not work unless local
+    // // wasmax gets over win activate issue with maximized (not fullscreen) window, but gives jumps
+    // const wasmax = W.outerWidth === W.innerWidth*W.devicePixelRatio && W.outerHeight !== W.innerHeight*W.devicePixelRatio;
+    // nircmd(`win activate stitle "${document.title}"`);
+    // if (wasmax) nircmd(`win max stitle "${document.title}"`);
+
+    // this sequence seems to work to bring to front, but not always to activate
+    // nircmd(`win settopmost stitle "${document.title}" 1`);
+    // nircmd(`win settopmost stitle "${document.title}" 0`);
+
+    // so we have to fall back on ...
+    runcommandphp(`start /min "toFront" cscript toFront.vbs "${document.title}"`, true);
 }
 
 /** start a bring to front every interval (5 seconds) */
 EX.startToFront = function(t = 5000) {
+    // ??? would it be better just to set it as topmost ???
+    // ??? not convenient for debug etc though!
     EX.stopToFront();
     EX.frontInterval = setInterval(EX.toFront, t)
 }
@@ -4277,6 +4743,7 @@ EX.startToFront = function(t = 5000) {
 EX.stopToFront = function() {
     if (EX.frontInterval) clearInterval(EX.frontInterval);
     EX.frontInterval = undefined;
+    nircmd(`win settopmost stitle "${document.title}" 0`);
 }
 
 //>>> TODO also need to do something to sleep's use of timeout
@@ -4317,9 +4784,9 @@ function XrequestAnimationFrame(fr) {
 /** substitute expression with ${} syntax in */
 function substituteExpressions(str) {
     if (str.indexOf('${') === -1) return str;
-    const s1 = str.replaceall('`', '\\`');
+    const s1 = str.replace(/`/g, '\\`');
     const s2 = eval('`' + s1 + '`');
-    const s3 = s2.replaceall('\\`', '`');
+    const s3 = s2.replace(/\\`/g, '`');
     return s3;
 }
 
@@ -4335,10 +4802,25 @@ function orthoTest(e) {
     return [a,b,c];
 }
 
+/** issue a nir command */
 function nircmd(str) {
+    console.trace('nircmd', str);
     if (islocalhost)
         return runcommandphp(`..\\nircmd\\nircmd.exe ${str}`, false);  // sync with no message
     console.error('cannot use nircmd when not in localhost', location.hostname, str);
+}
+
+/** issue a nir command, making sure app activated */
+async function niractcmd(str) {
+    console.trace('niractcmd', str);
+    canvas.focus();
+    await usleep(1);
+    nircmd(`win activate stitle "${document.title}"`);
+    await usleep(1);
+    canvas.focus();
+    await usleep(1);
+    nircmd(str);
+    await usleep(1);
 }
 
 // get value for string, return undefined if anything wrong along chain
@@ -4358,15 +4840,47 @@ function replaceAt(string, index, replace) {
     return string.substring(0, index) + replace + string.substring(index + replace.length);
 }
 
-// // set to full screen.  NOT RELIABLE
-// async function fullscreen() {
-//     // document.body.requestFullscreen();  // only works when called from keystroke
-//     nircmd(`win activate stitle "${document.title}"`);  // ?? hideshow
-//     nircmd(`win max stitle "${document.title}"`);
-//     await sleep(100);
-//     if (screen.height !== screen.availHeight)
-//         nircmd(`sendkey f11 press`);
-// }
+/** set to full screen */
+async function fullscreen(evt) {
+    await _setfullscreen(true, evt)
+}
+
+async function exitFullscreen(evt) {
+    await _setfullscreen(false, evt)
+}
+
+async function toggleFullscreen(evt) {
+    await _setfullscreen('toggle', evt)
+}
+
+async function _setfullscreen(tostate, evt) {
+    if (evt?.repeat) return;
+    if (evt?.which) evt = 'fromevt'
+    // const ll = m => console.trace(`${m}, lokcid=${fullscreen.lock.id} doing=${fullscreen.doing} evt=${evt}` )
+
+    navigator.locks.request('fullscreen', async () => {
+        const isfull = () => screen.height === window.innerHeight * devicePixelRatio;
+        const oldstate = isfull();
+        if (tostate === 'toggle') tostate = !oldstate;
+        if (tostate !== oldstate) {
+            await nircmd(`win activate stitle "${document.title}"`);  // await not relevant???
+            await S.frame();
+            await usleep(1);
+            await S.waitVal(() => keysdown.length === 0); // this makes sure the next f11 actually takes
+            log('keysdown empty', keysdown.length);
+            await nircmd(`sendkey f11 press`);
+            await S.frame(10);
+        }
+    });
+}
+
+var enterfullscreen = fullscreen;
+var enterFullscreen = fullscreen;
+var exitfullscreen = exitFullscreen;
+
+if (searchValues.fullscreen) enterFullscreen(); // somehow this preps things for direct fullscreen() at start of init()
+
+/*** old fullscreen experiments at svn rev 10682 */
 
 
 function userlog(msg) {
@@ -4401,24 +4915,589 @@ function measureResources(node, s = 0, nodes = []) {
 
 if (!serious) serious = console.error;
 
-async function downloadImage(fn = 'test', imtype = 'png', gui = false) {
-    const ss = GX.guilist.map(g => g.visible);  // save visibility
-    GX.guilist.forEach(g => g.visible = false)  // hide all menu items
-    window.V.gui.visible = gui;
+/** download current image, complete with gui */
+async function downloadImageGui(fn = 'test', imtype = 'png') {
     await S.frame();
     const fid = fn + '.' + imtype;
-    const imformat = 'image/' + imtype;
+    const imformat = 'image/' + (imtype === 'jpg' ? 'jpeg' : imtype);
+    log(imtype);
     const datauri = canvas.toDataURL(imformat);
     const blob = dataURItoBlob(datauri, 1);
     saveAs(blob, fid);
     await S.frame();
+}
+
+// fro https://stackoverflow.com/questions/15558418/how-do-you-save-an-image-from-a-three-js-canvas
+function UnusedForNowcreateImage(saveAsFileName) {
+    //var canvas = document.getElementById("canvas");
+    var url = canvas.toDataURL( 'image/tif', 1.0 );
+    var link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('target', '_blank');
+    link.setAttribute('download', saveAsFileName);
+    link.click();
+}
+
+/** download current image, default option to hide gui */
+async function downloadImage(fn = 'test', imtype = 'png', gui = false) {
+    const ss = GX.guilist.map(g => g.visible);  // save visibility
+    GX.guilist.forEach(g => g.visible = false)  // hide all menu items
+    window.V.gui.visible = gui;
+    await downloadImageGui(fn, imtype);
     GX.guilist.forEach((g,i) => g.visible = ss[i]); // restore menu visibility
 }
 
-async function downloadImageHigh(big = 3840, fn, imtype, gui = false) {
+/** download current image at higher resolution */
+async function downloadImageHigh(big = 3840, fn=undefined, imtype=undefined, gui = false) {
     const [w, h, gv] = [width, height, window.V.gui.visible];
     const r = big / Math.max(w, h);
     setSize(Math.round(w*r), Math.round(h*r));
     await downloadImage(fn, imtype);
     setSize(w, h);
+}
+
+
+// shallow compare two objets in given elements, return structure showing both old and new, {}} if no change
+function objdiff(o1, o2, ele, tol = 0) {
+    const r = {};
+	if (ele === undefined) ele = Object.keys(o1);
+	else if (typeof ele === 'string') ele = ele.split(',');
+	for (let e in ele) {
+		var ee = ele[e];
+		if (o1[ee] !== o2[ee]) {
+            if (!(tol && (o1[ee] - o2[ee]) < tol)) {
+                r[ee] = {ee, o1:o1[ee], o2:o2[ee]};
+            }
+        }
+	}
+	return r;
+}
+
+// compare two objects, return structure of new (o2) or comparison,  undefined if no change
+function objnew(o1, o2, {ele, tol = 0, depth = 1, both = false} = {}) {
+    let change = false;
+    const r = {};
+	if (ele === undefined) ele = Object.keys(o2);
+	else if (typeof ele === 'string') ele = ele.split(',');
+	for (const e in ele) {
+		const ee = ele[e];
+        const nn = o2[ee], oo = o1[ee];
+        if (typeof nn === 'object' && depth > 0) {
+            const or = objnew(oo, nn, {tol, depth: depth-1});
+            if (or) {
+                r[ee] = both ? {ee, o1:o1[ee], o2:or} : or;
+                change = true;
+            }
+        } else if (nn !== oo) {
+            if (!(tol && (o1[ee] - o2[ee]) < tol)) {
+                r[ee] = both ? {ee, o1:o1[ee], o2:o2[ee]} : o2[ee];
+                change = true;
+            }
+        }
+	}
+	return change ? r : undefined;
+}
+
+
+// shallow compare two objets in given elements
+function objeq(o1, o2, ele, tol = 0) {
+    const r = {};
+    if (o1 === undefined || o2 === undefined) return o1 === o2;
+	if (ele === undefined) ele = Object.keys(o1);
+	if (typeof ele === 'string') ele = ele.split(',');
+	for (let e in ele) {
+		var ee = ele[e];
+		if (o1[ee] !== o2[ee]) {
+            if (!(tol && (o1[ee] - o2[ee]) < tol))
+                return false;
+        }
+	}
+	return true;
+}
+
+
+/** diff two lists **/
+function arraydiff(a, b) {
+    const r = [];
+    for (const x of a) if (!b.includes(x)) r.push(x);
+    return r;
+}
+
+function delaySnippetLoad() {
+    var snippetframe = document.getElementById('snippetframe');
+    if (!snippetframe) return; // eg CSynth
+    let observer = new IntersectionObserver((entries, _observer) => {
+        const ss = localStorage.snippetsrc;
+        const src = FIRST(ss, "https://docs.google.com/document/d/1bWVdSU_2D-bpePJrVKTadjHg9rspuW_5IY3A7awPze4/edit?usp=sharing");
+        if (snippetframe.src !== src) {
+            snippetframe.src = src;
+            // why did we have this complication?
+            // entries.forEach(entry => {
+            //     if (entry.isIntersecting && snippetframe.src !== src)
+            //     snippetframe.src = src;
+            // });
+        }
+    }, {root: document.documentElement});
+    observer.observe(snippetframe);
+}
+if (!inworker) setTimeout(delaySnippetLoad, 5000);
+
+/** get the 'interesting' fairly basic values from an object */
+function getInterestingValues(object, {maxArrayLength = 50}= {}) {
+    let _interestingClasses = [THREE.Matrix3, THREE.Matrix4, THREE.Vector2, THREE.Vector3, THREE.Vector4];
+    function _isInterestingBase(v) {
+        let use = true;
+        if (typeof v === 'object') use = _interestingClasses.some(c => v instanceof c)
+        else if (typeof v === 'function') use = false;
+        else use = true;
+        return use;
+    }
+
+
+    const x = {};
+    for (const n in object) {
+        const v = object[n];
+        let use;
+        if (Array.isArray(v) || ArrayBuffer.isView(v) )
+            use = (v.length < maxArrayLength && _isInterestingBase(v[0])) // nb, length 0 passes
+        else use = _isInterestingBase(v);
+
+        if (use) x[n] = v;
+    }
+    return x;
+}
+
+//
+/** get the 'interesting' fairly basic values for each item in an */
+function getInterestingValues1(object, {maxArrayLength = 50}= {}) {
+    const x = {};
+    for (let gn in object) x[gn] = getInterestingValues(object[gn])
+    return x;
+}
+
+/** restore values, probably 'interesting' values, insert into existing objects  */
+function restoreInterestingValues(toobj, fromobj) {
+    for (let gn in fromobj) {
+        const from = fromobj[gn], to = toobj[gn];
+        if (typeof from === 'object' && typeof to === 'object') {
+            restoreInterestingValues(to, from)
+        } else {
+            toobj[gn] = from;
+        }
+    }
+}
+
+/** handle new clipboard item seen, add to snippedlocal where if can easily be used
+ * note: must 'startWsListener()' so we are listening on server detecting and reporting changes
+ */
+function newclipboard(newclip) {
+    W.snippetlocal.innerHTML = newclip.replaceall('\n', '<br>') + '<br>~~#~~#~~~~~~~~<br>' + W.snippetlocal.innerHTML;
+}
+
+/** time a function */
+async function timef(fn, n=1, id) {
+    console.time(id);
+    let v;
+    for (let i = 0; i <n; i++) {
+        v = fn();
+        if (v instanceof Promise) v = await v;
+    }
+    console.timeEnd(id);
+    return v;
+}
+
+/** setImmediate shim, needed to allow jszip to work at reasonable speed
+ * This must be set up before jszip is loaded,
+ * jszip setImmediate shim will see and use this rather than its setTimeout shim
+ */
+if (!globalThis.setImmediate) {     // may be defined by someone else, or repeat of this shim itself
+    const _simchannel = new MessageChannel();
+    globalThis.setImmediate = function setImmediate(fun, ...args) {
+        // https://stackoverflow.com/questions/61574088/how-to-queue-a-macrotask-in-the-javascript-task-queue
+        _simchannel.port1.onmessage = () => fun(...args);
+        _simchannel.port2.postMessage('');
+    }
+    globalThis.clearImmediate = function clearImmediate() {
+        serious('Our simple setImmediate shim does not support clearImmediate');
+    }
+}
+
+
+var _findvarlist = 'tadkin tad currentGenes U'.split(' ');
+/** get variable without knowing source */
+function findvar(n, list = _findvarlist) {
+    let r;
+    // eslint-disable-next-line no-shadow
+    for (const hostname of list) {
+        const host = globalThis[hostname];
+        if (!host) continue;
+        if (n in host) {
+            if (!r) {
+                r = {hostname, host, value: host[n], otherhosts: []}
+            } else {
+                r.otherhosts.push(hostname);
+                if (host[n] !== r.value) {
+                    console.log(`warning ${hostname}.${n} = ${host[n]}, ${r.hostname}.${n} = ${r.value}`)
+                }
+            }
+        }
+    }
+    return r;
+}
+
+/** convenient look at property when not sure of host object */
+var VV
+function _makevv(list = _findvarlist) {
+    const x = {};
+    // eslint-disable-next-line no-shadow
+    for (const hostname of list) Object.assign(x, globalThis[hostname]);
+
+    VV = new Proxy(x, {
+        // ???get : (ig, name) => name === 'ownKeys' ? () => Reflect.ownKeys(uniforms) : uniforms[name].value,
+        get: (ig, name) => {
+            const r = findvar(name, list);
+            return r ? r.value : undefined; // could return x[name] rather than undefined, see below
+        },
+        set: (ig, name, v) => {
+            const r = findvar(name, list);
+            // We could use 'x' as holder, eg 'VV.fred = 44' would set x.fred=44, and VV.fred would return x.fred=44
+            // This is more like a 'pure' javascript object where we can add fields that don't exist,
+            // but maybe handy to have it trapped as it is likely to be a debug user error.
+            if (!r) throw new Error(`No known findvar host for ${name}`);
+            r.host[name] = v;
+            return true;
+        },    // ?? could set otherhosts values as well?
+        // ownKeys : (o) => Array.from(new Set(_findvarlist.map(h => Reflect.ownKeys(globalThis[h])).reduce((c,v) => c.concat(v), [])))
+        ownKeys: o => Reflect.ownKeys(x)
+     });
+}
+setTimeout(_makevv, 100);   // defer till tad etc populated
+
+/** make a new property for log value control
+obj and prop are the original object and property name
+tobj is the object to which to add the new property (default a new object)
+and trop the name to give the new property (default same as old name)
+return the target object. */
+function makeLogval(obj, prop, tobj = {}, tprop = prop) {
+    Object.defineProperty(tobj, tprop, {
+        get: () => Math.log10(obj[prop]),
+        set: v => { obj[prop] = 10**v }
+    })
+    return tobj;
+}
+
+var camera, vec3, camToGenes;
+async function multiview(camk, lookat, fit = false) {
+    setSize(1920*3, 1080);
+    if (fit)
+        WA.fitCanvasToWindow();
+    else
+        await windowset(1920*3, 1080);
+    //
+    setInput(WA.layoutbox, 1)
+    WA.vpborder=0;
+    setViewports([3,1]);
+    dustbinvp = 99;
+
+    slots[1].dispobj.genes = Object.assign({}, G);
+    slots[2].dispobj.genes = Object.assign({}, G);
+    // slots[3].dispobj.genes = Object.assign({}, G); // already G, 3 is mainvp so uses currentGenes
+
+    camera.fov = 120/camk;
+    camera.near = Math.max(0.1, camk-3);
+    camera.far =camk + 5;
+    const y = lookat.y;
+    camera.position.set(camk, y, 0); camera.updateMatrix(); camera.lookAt(lookat); camToGenes(slots[1].dispobj.genes)
+    camera.position.set(0, y, camk); camera.updateMatrix(); camera.lookAt(lookat); camToGenes(slots[2].dispobj.genes)
+    camera.position.set(-camk, y, 0); camera.updateMatrix(); camera.lookAt(lookat); camToGenes(slots[3].dispobj.genes)
+
+    slots[1].dispobj.needsRender = slots[2].dispobj.needsRender = slots[3].dispobj.needsRender = 1e30
+
+    // WA.renderObjs = _mutliviewRender;
+}
+
+// function _render1(n) {
+//     const dobj = slots[n].dispobj;
+//     WA.genesToCam(dobj.genes);
+
+//     dobj.needsRender = 1;
+//     WA.renderObjsInner(dobj.rt);
+//     dobj.needsRender = 0;
+//     dobj.needsPaint = true;
+
+// }
+
+// function _mutliviewRender() {
+//     G._fov = 6;
+//     let g;
+//     g = slots[1].dispobj.genes; g._fov = 6; g._camx = _camk; g._camy = 0.9; g._camz = 0;
+//     g = slots[2].dispobj.genes; g._fov = 6; g._camx = 0; g._camy = 0.9; g._camz = _camk;
+//     g = slots[3].dispobj.genes; g._fov = 6; g._camx = -_camk; g._camy = 0.9; g._camz = 0;
+//     _render1(1)
+//     _render1(2)
+//     _render1(3)
+// }
+
+/** set up an object with default value (d default 0) for its fields. Can be based on a 'real' object, o */
+function objectWithDefault(d = 0, o = {}) {
+    const xx = new Proxy(o, {
+        get: (q,n) => n in o ? o[n] : (o[n] = clone(d)),
+        set: (q,n,v) => {o[n] = v; return true;},
+        ownKeys: () => Object.keys(o)
+    })
+    return xx;
+}
+
+/** make a proxy so assigning a value works by ranp
+eg RG =  _R(currentGenes), RG.pullspringforce = 1 will ramp pullspringforce to 1
+*/
+var _R = function(ooo) {
+    return new Proxy(ooo, {
+        get: (o,n) => {
+            const oo = o[n];
+            switch (typeof oo) {
+                case 'object': return _R(oo); break;
+                case 'number': return oo; break;
+                default: if (n !== 'hasOwnProperty') throw new Error('wrong proxy')
+            }
+        },
+
+        set: (o, n, v) => {
+            const oo = o[n];
+            switch (typeof oo) {
+                // case 'object': return _R(oo); break;
+                case 'number': S.ramp(o, n, v, keysdown[0] === 'shift' ? 0.001 : S.rampTime); return true;
+                default: throw new Error('wrong proxy')
+            }
+        }
+        });
+    }
+var R
+setTimeout( () => {
+    R = _R(globalThis);
+    // RG =  _R(G);     // set when currentGenes reset
+    // RU = _R(U);      // set when U set
+}, 100);
+
+
+async function BrightonStyle() {
+    if (currentGenes.name.includes('tad')) return mutateTad();
+    fullscreen();
+    setInput(W.dragmode, true);
+    setInput(W.hovermode, false);
+    setInput(W.showuiover, true);
+    setInput(W.animSpeed, 0.3)
+    setInput(W.zoomgui, 0) // otherwise scale of all initial mutations is too high
+
+    setInput(W.doAnim, true);
+    setInput(W.layoutbox, 2);
+    setInput(W.vp86, true);
+    await S.frame(10);
+    mutate();
+}
+
+// // convenient access to overridden inputs
+// var Ginputs = new Proxy(inputs,{
+//     get: (o, n) => if ('_'+n in o[n].getValue(),
+//     set: (o, n, v) => {if (!o[n]) return false; o[n].setValue(v); return true},
+//     ownKeys : (o) => Reflect.ownKeys(o)
+// });
+
+var shadows, alwaysNewframe, fxaa, renderObjsInner;
+/** some tests for possible ways to get faster performance
+may also be a useful record of things to try
+See also simpleset() in graphbase.ts */
+function simpleTest() {
+    runkeys('Home')
+    shadows(0)
+    alwaysNewframe = 1e40
+    inps.xzrot = 0.5
+    inps.doFixrot = true
+    inps.USEGROT = false
+    resoverride.lennum=125
+    resoverride.radnum=11
+    resoverride.skelnum=8
+
+    inps.renderRatioUi = 1
+    inps.SIMPLESHADE=true
+    fxaa.use = false
+    usemask = 1
+    // renderObjsInner.direct = true // ??? makes it work on my phone
+    renderObjsInner.direct = false // ??? neded for VR
+    makevrbutton();
+
+    // n.b. copied from CSynth.js, shortcut for missing experiences.js
+    // no, added experiences.js to Oxford; that was a local/Oxford server issue, not a gpu issue
+    // WA.V.putinroom = WA.aftercontrol = WA.setDefaultExperiences = WA.rot4toGenes = nop;
+
+    // ?? inps.NOSCALE = inps.NOCENTRE = true
+}
+
+var xxvrbutton;
+function makevrbutton() {
+    const bb = xxvrbutton =  document.createElement('BUTTON');
+    document.body.appendChild(bb);
+    bb.innerHTML = 'VRBUTTON-2'
+    bb.style.cssText = 'left: 0px; position: absolute; top: 80%; width: auto; font-size: 300%; bottom: 0px; z-index: 9999999999'
+    bb.onclick = WA.WEBVR.enter
+}
+
+/** freeze so basic picture does not move, eg for comparing snapshots with different pipelines */
+function freezeLots() {
+    alwaysNewframe = Infinity;
+    inps.grot = 0;
+    inps.doAutorot = false;
+    G._fixtime = G.time = 99;
+    setAllLots('_pulsescale', 0);
+
+    const old = Object.assign({}, G);
+    setTimeout(() => log('G change', objdiff(old, G)), 500);
+
+}
+
+/** run a command from php, if quiet is specified (non false) it is run async and so return,
+and if 'quiet' is a function, it will be called on completion with the response text.
+If there is an async error reject will be called if present, or flagged quiet if no reject
+quiet=false => sync, no message, return value
+quiet=undefined => sync, message, return value
+  */
+function runcommandphp(cmd, quiet, reject) {
+    if (oxcsynth && !islocalhost && cmd.indexOf('--query-gpu') === -1 && cmd.indexOf('mkdir') === -1
+         && cmd.indexOf('exportShader') === -1)
+        serious('runcommandphp should not be called in oxcsynth mode');
+    if (!islocalhost)
+        console.error('runcommandphp called in nonlocal', cmd)
+    if (isNode()) {
+        try {
+            if (quiet) {
+                if (typeof quiet === 'function')
+                    return require('child_process').exec(cmd, quiet).toString();
+                else
+                    return require('child_process').exec(cmd).toString();
+            } else {
+                const r = require('child_process').execSync(cmd).toString();  // << correct for async
+                return r;
+            }
+        } catch(e) {
+            log('runcommandphp error', e.message, cmd);
+            return undefined;
+        }
+    }
+    //TODO: probably use fetch() instead.
+    const oReq = new XMLHttpRequest();
+    oReq.open("POST", "runcmd.php", !!quiet);
+    oReq.setRequestHeader("cmd", cmd);
+    oReq.send("");
+    if (typeof quiet === 'function') {
+        oReq.onload =  function(e) {
+            if (oReq.status === 200)
+                quiet(oReq.responseText);
+            else if (reject)
+                reject(oReq.status + ' ' +  oReq.statusText);
+            else
+                quiet('!!!!!!! ERROR RETURN ' + oReq.status);
+        };
+        return oReq;  // in case caller wants to check details on callback
+    }
+    if (!quiet) {   // note, quiet === 0 will return but NOT log
+        if (quiet === undefined) {
+            log("runcommandphp", cmd, "response text", oReq.responseText.substring(0,50));
+        }
+        return oReq.responseText;
+    }
+}
+
+let _copyTextureToRenderTargetMesh;
+/** copy texture/renderTargets, I still find it odd the direct renderer.copyTextureToTexture doesn't work */
+function copyTextureToRenderTarget(from, to) {
+    if (from.texture) from = from.texture;
+    if (!_copyTextureToRenderTargetMesh) {
+        const planeGeom = new THREE.PlaneGeometry(2, 2);
+        const planeMat = new THREE.MeshBasicMaterial();
+        planeMat.depthTest = false;
+        planeMat.depthWrite = false;
+        _copyTextureToRenderTargetMesh = new THREE.Mesh(planeGeom, planeMat);
+    }
+    _copyTextureToRenderTargetMesh.material.map = from;
+    const simpleCam = new THREE.Camera();       // Create simplest camera
+    renderer.setRenderTarget(to); // Save texture to your renderTarget
+    renderer.render(_copyTextureToRenderTargetMesh, simpleCam);
+    renderer.setRenderTarget(null);
+}
+
+
+function catrom(t, y0, y1, y2, y3) {
+    const r = 0.5 *(  	(2 * y1) +
+            (-y0 + y2) * t +
+            (2*y0 - 5*y1 + 4*y2 - y3) * t*t +
+            (-y0 + 3*y1- 3*y2 + y3) * t*t*t);
+    return r;
+}
+
+
+var compareStrings = function compareStrings(a, b) {
+    if (typeof a === 'object') a = JSON.stringify(a, undefined, '\t');
+    if (typeof b === 'object') a = JSON.stringify(b, undefined, '\t');
+    const fida = 'temp\\a.txt', fidb = 'temp\\b.txt';
+    writetextremote(fida, a);
+    writetextremote(fidb, b);
+    runcommandphp(`"C:\\Program Files (x86)\\Beyond Compare 3\\BCompare.exe" ${fida} ${fidb}`);
+}
+
+/** show uniforms of unexpected type, prep for NFT mincode */
+function showOddUniforms() {
+    for (let n in uniforms) { let u = uniforms[n], v = u.value; if (v && typeof v !== 'number' && !v.isVector2 && !v.isVector3 && !v.isVector4 && !v.isTexture && !v.isMatrix4 && n !== 'dynUniforms') log(n, v) }
+}
+
+function home(pdispobj) {
+    const dispobj = xxxdispobj(pdispobj);
+    const genes = dispobj?.genes;
+    if (!genes) return;
+    centrescalenow(dispobj);
+    genes._uScale = 1;
+    resetCamera(genes);
+    delete target.gscale;
+    dispobj.render();
+    if (isCSynth) CSynth.autoscale();
+    return true;
+}
+
+/* group array or object by result of function, eg
+groupby(genedefs, g => g.tag)
+*/
+function groupby(sp, ff) {
+    const p = Array.isArray(sp) ? sp : Object.values(sp)
+    const r = p.reduce((c,v) => {
+        c[v.tag] = c[v.tag] ?? []
+        c[v.tag].push(v)
+        return c;
+    }, {})
+    return r;
+}
+
+/** compare two structures, with tolerance
+ * no specific check for orphan fields
+*/
+function compareStruct(a,b, opts = {}) {
+    const {d=1e-5, exclude = {}, ignoreundefined = false, ignoreundefinedleft =  false, ignoreundefinedright = false } = opts;
+    const r = {};
+    if (a === undefined && (ignoreundefined || ignoreundefinedleft)) return r;
+    if (b === undefined && (ignoreundefined || ignoreundefinedright)) return r;
+    for (const gn in a) {
+        if (exclude[gn]) continue;
+        if (a[gn] === undefined && (ignoreundefined || ignoreundefinedleft)) continue;
+        if (b[gn] === undefined && (ignoreundefined || ignoreundefinedright)) continue;
+        if (typeof a[gn] !== typeof b[gn]) {
+            r[gn] = {a: a[gn], b: b[gn]}
+        } else if (typeof a[gn] === 'object') {
+            const rr = compareStruct(a[gn], b[gn], opts);
+            for (const k in rr) {r[gn] = rr; break; }  // only register if there is at least on element k in rr
+        } else if (typeof a[gn] === 'number') {
+            if (Math.abs(a[gn] - b[gn]) > d)
+                r[gn] = {a: a[gn], b: b[gn]}
+        } else if (a[gn] != b[gn]) {
+            r[gn] = {a: a[gn], b: b[gn]}
+        }
+    }
+    return r;
 }

@@ -14,7 +14,7 @@ genes: &ref_46
     gene('endblobs', 3., 0., 20., 1, 1, 'number of blobs at endc', 'geom', 1);
     gene('endbloblen', 0.0, 0., 0.1, 0.001, 0.0001, 'length of blobby end', 'geom', 1);
 
-    gene('killradwidth', 0, 0, 10, 1, 1, 'numer of particles to kill each side of killrad points', 'geom', 1);
+    gene('killradwidth', 0, 0, 20, 1, 1, 'numer of particles to kill each side of killrad points', 'geom', 1);
     KILLRADLEN = 20;
 
     gene('ribbonStart', 0, 0,1, 0.001,0.001, 'start of ribbon, range 0..1 for full data');
@@ -38,10 +38,10 @@ genes: &ref_46
       vec4 getPickRange(const in float p) {
         return texture2D(t_ribboncol, vec2(p, 0.75));
       }
-      float isInPickRange(float p, float pr, float smooth) {
+      float isInPickRange(float p, float pr, float psmooth) {  // nb 'smooth' does not compile under webgl2
           vec4 r = getPickRange(pr);
-          float v = smoothstep(r.y, r.y+smooth, p);
-          v = min(v, 1. - smoothstep(r.z-smooth, r.z, p));
+          float v = smoothstep(r.y, r.y+psmooth, p);
+          v = min(v, 1. - smoothstep(r.z-psmooth, r.z, p));
           return v;
       }
 
@@ -50,7 +50,7 @@ genes: &ref_46
     `
 
     override float skelrad(float r, float rp, float oposz) {
-      // note no sqrt for wig, already arranged in layout of the textre
+      // note no sqrt for wig, already arranged in layout of the texture
       float wigg = texture2D(t_ribbonrad, vec2(rp, 0.5)).x;
       r = scaleFactor * (R_radius +  wigg * wigmult);
       if (wigmult < 0. && wigg != 0.) r = -0.1;     // so some segments can disappear, eg between chains/chroms in Ss-S10 example
@@ -99,9 +99,9 @@ genes: &ref_46
         float ti = t * 255. - 0.0;
         // when BED doesn't have explicit colour, then all elements will be same... that doesn't make this logic right
         // but close enough for now (famous last words), closer with test against green as well
-        vec3 col = bed.r != t || bed.g != t ? bed.rgb : stdcol(ti);
+        vec3 col = bed.r != t || bed.g != t ? bed.rgb : stdcolY(ti);
         // for helix striping
-        // if (fract(opos.x*5000. + opos.y) < 0.1) col = stdcol(6.);
+        // if (fract(opos.x*5000. + opos.y) < 0.1) col = stdcolY(6.);
         col = mix(col, rbow, colmix);
 
         // now overlay preselection highlights

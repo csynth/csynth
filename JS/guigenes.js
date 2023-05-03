@@ -4,9 +4,9 @@
  */
 "use strict";
 /** for encapsulation verification */
-var W, genedefs, currentGenes, getg, keymap, lastval,uid, slots, xxxgenes, NODO, saveExtraObjects, mainvp, inputs, lastTraninteracttime,
-frametime, updateHTMLRules, killev, keysdown, saveInteresting, setvalf, mousewhich, saveExtra, setgenes, clone, refall, target,
-restoreExtra, guigenes, newmain, trysetele,  onWindowResize, msgfix
+var W, genedefs, currentGenes, getg, getkey, lastval,uid, slots, xxxgenes, NODO, saveExtraObjects, mainvp, inputs, lastTraninteracttime,
+frametime, killev, keysdown, saveInteresting, setvalf, mousewhich, saveExtra, setgenes, clone, refall, target,
+restoreExtra, guigenes, newmain, trysetele,  onWindowResize, msgfix, HW, Director, sweepgene, sweepall, isDisplayed
 ;
 
 /** set gene to min value */
@@ -14,32 +14,32 @@ function minEleonchange(evt) {
     var uig = getg(this);
     uig.sliderEle.min = this.value*1;
     genedefs[uig.name].min = this.value*1;
-};
+}
 function maxEleonchange(evt) {
     var uig = getg(this);
     uig.sliderEle.max = this.value*1;
     genedefs[uig.name].max = this.value*1;
-};
+}
 /** setdelta value */
 function deltaEleonchange(evt) {
     var uig = getg(this);
     // uig.sliderEle.delta = this.value*1;
     genedefs[uig.name].delta = this.value*1;
-};
+}
 function stepEleonchange(evt) {
     var uig = getg(this);
     uig.sliderEle.step = this.value*1;
     genedefs[uig.name].step = this.value*1;
-};
+}
 function nameEleonchange(evt) {
     geneCallbacks();
-};
+}
 
 
 
 function geneonkeydown(evt, name) {
     lastTraninteracttime = frametime;
-    var ff = keymap[evt.keyCode];
+    var ff = getkey(evt);
     // msgfix("genekey", ff, keysdown[0]);
     if (ff === "alt" || ff === "shift") return true;
     if (!name) name = getg(this).name;
@@ -50,19 +50,41 @@ function geneonkeydown(evt, name) {
             toggleFullgene(name);
         else
             toggleFree(name);
-        updateHTMLRules();   // slight overkill, but does not happen too often
+        HW.updateHTMLRules();   // slight overkill, but does not happen too often
         return killev(evt);
-    } else if (keysdown[0] === '#222' && ff === 'tab') {  //test pending future use
+    } else if (keysdown[0] === '#' && ff === 'Tab') {  //test pending future use
         let i = 0;
-    } else if (ff === '#222') {
+    } else if (ff === '#') {
         return killev(evt);
-    } else if (ff === 'up arrow') {
+    } else if (ff === 'ArrowUp') {
         incgene(name, 1, evt);
         return killev(evt);
-    } else if (ff === 'down arrow') {
+    } else if (ff === 'ArrowDown') {
         incgene(name, -1, evt);
         return killev(evt);
-    } else if (evt.altKey) {
+    } else if (ff === 'S') {
+        if (evt.shiftKey)
+            sweepall();
+        else
+            sweepgene(name);
+    } else if (ff === 'A') {
+        if (evt.shiftKey) {
+            const l=[];
+            for (let gn in guigenes) if (isDisplayed(guigenes[gn])) l.push(gn);
+            if (confirm('global set following genes?' + l.join(' '))) {
+                for (const gn of l) {
+                    slots.forEach(s => s.dispobj.genes[gn] = currentGenes[gn]);
+                    guigenes[gn].style.backgroundColor = 'red'
+                }
+            }
+        } else {
+            slots.forEach(s => s.dispobj.genes[name] = currentGenes[name]);
+            guigenes[name].style.backgroundColor = 'red'
+        }
+        refall();
+    } else if (ff === 'P') {
+        Director.plot(name);
+     } else if (evt.altKey) {
         saveInteresting(name);
         switch(ff) {
             case "-": setvalf(name, -currentGenes[name]); break;
@@ -89,11 +111,24 @@ function geneonkeydown(evt, name) {
         return killev(evt);
     }
     return true;
-};
+}
 function currentEleonchange(evt) {
-    getg(this).sliderEle.value = this.value; uset(getg(this)); };
+    getg(this).sliderEle.value = this.value; uset(getg(this)); }
 function sliderEleonchange(evt) {
-    getg(this).currentEle.value = this.value; uset(getg(this)); };
+    const gg = getg(this);
+    const v = currentGenes[gg.name] = this.valueAsNumber
+    if (evt.type !== 'input')
+        gg.currentEle.value = this.value
+    newmain();
+    uset(gg, v);
+
+    // this will NOT update the currentEle continuously as the slider is moved (oninput)
+    // but will update it on release (onchange)
+    // We would like to call uset(gg) and update currentEle immediately
+    // but there is some problem so that trying to do this locks the slider
+    // It seemed to work updating an input box outside the genes filedset
+    // but not an an input box inside.
+}
 
 /** click or focus, show range if right mouse down */
 function currentEleonclick(evt) {
@@ -115,7 +150,7 @@ function addgeneEleonclick(evt) {
     nnn.getElementsByClassName("name")[0].value += uid;
     uid++;
     geneCallbacks();
-};
+}
 
 
 // show 8 variant values in first 8 slots
@@ -239,7 +274,7 @@ function geneCallback(g, name) {
 
 /** toggle the freeze setting for all filtered genes in a group */
 function groupToggleFreeze(e) {
-    if (e.keyIdentifier !== "F2") return undefined;
+    if (e.key !== "F2") return undefined;
     var id = e.target.id.post("_");
     var setting = "?";
     for (var gn in genedefs){
@@ -279,11 +314,17 @@ function toggleFullgene(gnamess) {
 }
 
 
-function uset(gene) {
-    newmain();
-    setvalf(gene.name, parseFloat(gene.currentEle.value));
-    //currentGenes[gene.name] = parseFloat(gene.currentEle.value);
-    if (target) delete target[gene.name];
+function uset(gene, v = parseFloat(gene.currentEle.value) ) {
+    if (uset.setting) return;
+    uset.setting = true;
+    try {
+        newmain();
+        setvalf(gene.name, v);
+        //currentGenes[gene.name] = parseFloat(gene.currentEle.value);
+        if (target) delete target[gene.name];
+    } finally {
+        uset.setting = false;
+    }
 }
 
 /** update all genes in the gui */
@@ -303,7 +344,7 @@ function reshowGenes() {
 }
 
 /** update guigenes from gendefs */
-function updateGuiGenes() {
+function updateGuiGenes(genes = currentGenes) {
     for (var gn in genedefs) {
         var gd = genedefs[gn];
         var gg = guigenes[gn];
@@ -314,8 +355,8 @@ function updateGuiGenes() {
             gg.maxEle.value = se.max = ce.max = gd.max;
             gg.stepEle.value = se.step = ce.step = gd.step;
             gg.deltaEle.value = se.delta = ce.delta = gd.delta;
-            if (currentGenes[gn] !== undefined)
-                se.value = ce.value = currentGenes[gn];
+            if (genes[gn] !== undefined)
+                se.value = ce.value = genes[gn];
             if (gd.free === 0) gg.classList.add("frozen"); else gg.classList.remove("frozen");
         }
     }
@@ -352,12 +393,14 @@ function geneBounds(gn, min, max) {
     gd.min = min;
     gd.max = max;
     var gg = guigenes[gn];
-    gg.minEle.value = min;
-    gg.maxEle.value = max;
-    gg.deltaEle.value = gd.delta;
-    gg.stepEle.value = gd.step;
-    gg.sliderEle.min = min;
-    gg.sliderEle.max = max;
+    if (gg) {
+        gg.minEle.value = min;
+        gg.maxEle.value = max;
+        gg.deltaEle.value = gd.delta;
+        gg.stepEle.value = gd.step;
+        gg.sliderEle.min = min;
+        gg.sliderEle.max = max;
+    }
 }
 
 function resetBounds() {
@@ -375,7 +418,7 @@ function geneBaseBounds(gn, min, max) {
         gd.min = min;
         gg.minEle.value = min;
         gg.sliderEle.min = min;
-    } 
+    }
     gd.basemin = min;
     if (gd.basemax === gd.max) {
         gd.max = max;

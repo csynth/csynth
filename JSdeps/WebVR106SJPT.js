@@ -1,159 +1,171 @@
-/**
- * @author mrdoob / http://mrdoob.com
- * @author Mugen87 / https://github.com/Mugen87
- *
- * Based on @tojiro's vr-samples-utils.js
- */
-
- var Maestro, log, msgfixerror;
+var Maestro, log, msgfix, msgfixerror, msgfixerrorlog, renderVR, dockeydowninner, animateNum, nop, WA, renderer, nircmd,
+	cheatxr, W, vpxSceneRenderCamera;
 
 var WEBVR = {
 
-	createButton: function ( renderer, options ) {
+	realsetup: function WEBVRsetup( options) {
+		if (!options) {
+			msgfixerrorlog('VR', "NO XR: navigator.xr.isSessionSupported( 'immersive-vr' ) returned false");
+			WEBVR.novr = true;
+			return;
+		}
+		msgfix("VR", 'XR session is supported, F2 or F6 to enter VR, F4 to exit	');
+
 		if ( options && options.referenceSpaceType ) {
-			renderer.vr.setReferenceSpaceType( options.referenceSpaceType );
+			renderer.xr.setReferenceSpaceType( options.referenceSpaceType );
 		}
+		var currentSession = null;
+		var pending = false;
 
-		function showEnterXR( device ) {
+		function onSessionStarted( session ) {
+			log('requestSession started');
+			msgfix("VR", 'session started ok');
 
-			var currentSession = null;
+			renderer.xr.addEventListener( 'sessionend', onSessionEnded );
+			renderer.xr.setSession( session );
+			if (cheatxr) renderer.xr.enabled = true;
+			currentSession = session;
+			pending = false;
+			Maestro.trigger('xrsessionstarted');
+			renderVR.reenter = false;
+			renderer.setAnimationLoop(animateNum);	// sjpt, resart animation after resolution switch
+		}
+		// WEBVR.onSessionStarted = onSessionStarted;
 
-			function onSessionStarted( session ) {
-				log('requestSession immersive-vr');  // sjpt
-				session.addEventListener( 'end', onSessionEnded );
-				renderer.vr.setSession( session );
-				button.textContent = 'EXIT XR';
-				currentSession = session;
-				Maestro.trigger('xrsessionstarted');
-			}
-			WEBVR.onSessionStarted = onSessionStarted;
-
-			function onSessionEnded( event ) {
-				// WEBVR.dyingSession = currentSession;
-				currentSession.removeEventListener( 'end', onSessionEnded );
-				renderer.vr.setSession( null );
-				button.textContent = 'ENTER XR';
-				currentSession = null;
-			}
-			WEBVR.onSessionEnded = onSessionEnded;
-
-			//
-
-			button.style.display = 'none'; // sjpt '';
-
-			button.style.cursor = 'pointer';
-			button.style.left = 'calc(50% - 50px)';
-			button.style.width = '100px';
-
-			button.textContent = 'ENTER XR';
-
-			button.onmouseenter = function () { button.style.opacity = '1.0'; };
-			button.onmouseleave = function () { button.style.opacity = '0.5'; };
-
-			WEBVR.onclick = button.onclick = function () {
-				if ( currentSession === null ) {
-					log('requestSession immersive-vr');  // sjpt
-					navigator.xr.requestSession( 'immersive-vr' ).then( onSessionStarted ).catch(onRequestError);
-				} else {
-					currentSession.end();
-				}
-			};
-
-			function onRequestError(e) {
-				console.error(msgfixerror('xrfs', 'WEBXR got an error getting immersive-vr session for XR'));
+		function onSessionEnded( event ) {
+			renderer.xr.removeEventListener( 'sessionend', onSessionEnded );
+			renderer.xr.setSession( null );
+			if (cheatxr) renderer.xr.enabled = false;
+			currentSession = null;
+			if (renderVR.reenter) {
+				log('session end, restarting')
+				// WEBVR.enter();					// won't work coming from controller?
+				nircmd(`sendkey f2 press`);
+				renderer.setAnimationLoop(nop);    // don't animate during switch
 			}
 		}
+		// WEBVR.onSessionEnded = onSessionEnded;
 
-		function disableButton() {
-
-			button.style.display = 'none'; // sjpt '';
-
-			button.style.cursor = 'auto';
-			button.style.left = 'calc(50% - 75px)';
-			button.style.width = '150px';
-
-			button.onmouseenter = null;
-			button.onmouseleave = null;
-
-			button.onclick = null;
-
+		WEBVR.enter = function () {
+			if (pending) return;
+			if (currentSession !== null ) return(msgfixerrorlog('WEBVR', 'attempt to reenter xr when already in xr'));
+			renderer.xr.setFramebufferScaleFactor(renderVR.ratio);
+			log('requestSession immersive-vr, ratio', renderVR.ratio);
+			navigator.xr.requestSession( 'immersive-vr' ).then( onSessionStarted ).catch(onRequestError);
+			pending = true;
 		}
 
-		function showXRNotFound() {
-			disableButton();
-			msgfixerror('VR', "'XR no FOUND by navigator.xr.isSessionSupported( 'immersive-vr' )");
-			button.textContent = 'XR NOT FOUND';
-			button.style.display = '';
+		WEBVR.exit = function() {
+			currentSession.end();
 		}
 
-		function stylizeElement( element ) {
-
-			element.style.position = 'absolute';
-			element.style.bottom = '20px';
-			element.style.padding = '12px 6px';
-			element.style.border = '1px solid #fff';
-			element.style.borderRadius = '4px';
-			element.style.background = 'rgba(0,0,0,0.1)';
-			element.style.color = '#fff';
-			element.style.font = 'normal 13px sans-serif';
-			element.style.textAlign = 'center';
-			element.style.opacity = '0.5';
-			element.style.outline = 'none';
-			element.style.zIndex = '999';
-
+		function onRequestError(e) {
+			console.error(msgfixerror('VR', 'WEBXR got an error getting immersive-vr session for XR<br>', e.message));
+			pending = false;
 		}
 
-		//?? var xrok = window.allow XR || window.searchValues.allow XR; // sjpt
-		//?? if ( xrok && 'xr' in navigator && 'isSessionSupported' in navigator.xr ) {  // sjpt
-		var button;
-		if (renderer.vr.isxr) {
+	},	// realsetup
 
-			WEBVR.button = button = document.createElement( 'button' );
-			button.style.display = 'none';
-
-			stylizeElement( button );
-
-			navigator.xr.isSessionSupported( 'immersive-vr' ).then( showEnterXR ).catch( showXRNotFound );
-
-			return button;
-
-		} else {
-
-			var message = document.createElement( 'a' );
-			message.href = 'https://webvr.info';
-			message.innerHTML = 'WEBVR NOT SUPPORTED';
-
-			message.style.left = 'calc(50% - 90px)';
-			message.style.width = '180px';
-			message.style.textDecoration = 'none';
-
-			stylizeElement( message );
-
-			return message;
-
+	setup: function() {
+		if (!navigator.xr) {
+			msgfixerrorlog('VR', "WebXR not supported, no VR");
+			WEBVR.novr = true;
+			return;
 		}
+		msgfix("VR", 'start setup');
+		msgfix("VR", 'check session supported');
 
-	},
+		navigator.xr.isSessionSupported( 'immersive-vr' )
+			.then( WEBVR.realsetup )
+			.catch( (e) => {
+				// This catch should never happen,
+				// It would happen if 'immersive-vr' weren't even a valid thing to ask about
+				// If the is not supported that is handled by giving 'false' to WEBVR.realsetup
+				msgfixerrorlog('VR', "'XR not FOUND by navigator.xr.isSessionSupported( 'immersive-vr' )", e);
+				WEBVR.novr = true;
+			});
+	}
+};
 
-	// DEPRECATED
+/** enter and leave xr */
+renderVR.xrfs = async function xrenderVRfs(bool = true) {
+    log('renderVR.xrfs wanted', bool, 'current', renderVR.invr() );
+    renderVR.xrfs.lastrequest = bool;       // remembers if we want to be in XR
+	if (renderVR.invr() === bool) return;   // already in correct
 
-	checkAvailability: function () {
-		console.warn( 'WEBVR.checkAvailability has been deprecated.' );
-		return new Promise( function () {} );
-	},
-
-	getMessageContainer: function () {
-		console.warn( 'WEBVR.getMessageContainer has been deprecated.' );
-		return document.createElement( 'div' );
-	},
-
-	getButton: function () {
-		console.warn( 'WEBVR.getButton has been deprecated.' );
-		return document.createElement( 'div' );
-	},
-
-	getVRDisplay: function () {
-		console.warn( 'WEBVR.getVRDisplay has been deprecated.' );
+    if (WEBVR.novr) {
+        WA.makevr2 = nop;      //  no point in going on trying
+        return;
 	}
 
-};
+    log('renderVR.xrfs change', bool);
+    // renderer.xr.setFramebufferScaleFactor(renderVR.ratio);
+	if (bool) {
+		WEBVR.enter();
+		const callnum = renderVR.xrfs.startcalls++;
+	} else {
+		WEBVR.exit();
+	}
+    if (!bool) return;      // we've asked it to go away, that seems safe
+
+}
+renderVR.xrfs.restarts = 0;
+renderVR.xrfs.maxrestarts = 10;
+renderVR.xrfs.lastRestartTime = 0;
+renderVR.xrfs.startcalls = 0;
+renderVR.xrfs.state = 'unguarded';
+
+
+var THREE, camToGenes, renderObj, V, xxxdispobj, cheatxrRenderTarget, genesToCam, serious;
+/** main render function  nested in onbefore ~~~ cheatxr
+ * Should work even outside VR mode, useful for verification.
+ * Note that pcamera is irrelevant/not used. camera refers to global window.camera
+*/
+function doinsiderender(prenderer, pscene, pcamera, pgeometry, material, pgroup ) {
+	const dispobj = xxxdispobj();
+	if (renderer !== renderer) serious('??? renderer in doinsiderender')
+	// const scamera = camera;
+	const rrt = renderer.getRenderTarget() ;
+	const srt = renderer.xr.enabled ? rrt || cheatxrRenderTarget : rrt;
+	const svp = renderer.getViewport(new THREE.Vector4());
+	const scvp = renderer.getCurrentViewport(new THREE.Vector4());
+	const xren = renderer.xr.enabled;
+	renderer.xr.enabled = false;
+	try {
+		// if (dispobj.camera) {
+		// 	camera = dispobj.camera;
+		// 	camToGenes(dispobj.genes);
+		// }
+		genesToCam(dispobj.genes);
+
+		// renderVR.cameras
+//		W.camera.copy(renderVR.cameras.cameras[0]); // ?? input camera will be for copy shader and probably irrelevant, should use cameraL/R if we can find them?
+		renderObj(dispobj);
+		V.render(dispobj.rt);
+		Maestro.trigger('postDispobj', dispobj);
+	} catch (e) {
+		log("cannot render dispobj", dispobj.vn, e.toString());
+		// break;
+	} finally {
+		//if (dispobj.camera) {
+			// camera = scamera;
+			camToGenes(dispobj.genes);
+		//}
+	}
+	// ??? other things to restore here ???
+	renderer.xr.enabled = xren;
+	if (renderer.xr.getBaseLayer) {  // for three150 cheatxr
+		const baseLayer = renderer.xr.getBaseLayer()
+		if (baseLayer && srt) {
+			// baseLayer.setViewport()
+			renderer.setRenderTargetFramebuffer( srt, baseLayer.framebuffer );
+		}
+	}
+	if (xren) pcamera.copy(vpxSceneRenderCamera);
+	renderer.setRenderTarget(srt);
+	renderer.setViewport(scvp);
+	if (material.uniforms.intex.value !== dispobj.rt.texture) serious('??? material intex in doinsiderender')
+	material.uniforms.intex.value = dispobj.rt.texture
+	renderer.xr.enabled = false; //
+
+}

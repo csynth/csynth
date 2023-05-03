@@ -25,7 +25,7 @@ var Julia = new function () {
     this.init = function init() {
         if (!inittodo)
             return;
-        // appToUse='Julia';  // probably already set, more a typescript test
+        // appToUse=Julia;  // probably already set, more a typescript test
         setGenesAndUniforms();
         // overwrite a few 'standard' functions
         setRes = function (r) { }; // not used in fano
@@ -49,7 +49,9 @@ var Julia = new function () {
         trysetele("doAutorot", 'checked', false);
         tryseteleval("layoutbox", '0');
         tryseteleval("mutrate", '5');
-        dragmode = false;
+        setInput('NOSCALE', true);
+        setInput('NOCENTRE', true);
+        setInput('dragmode', false);
         setval('viewRad', 1000);
         var shaders = { Texture: "implicitTexture.fs", Julia: "juliaA.fs", Fano: "fanoc.fs" };
         getShaders("implictVertex.vs", shaders[appToUse] || appToUse + '.fs');
@@ -68,7 +70,7 @@ var Julia = new function () {
         setval("light1s", 0.4);
         setval("light2s", 0.3);
         setval("iridescence1", -0.1);
-        setTimeout(function () { setViewports([3, 4]); mutate(); }, 100);
+        setTimeout(function () { inps.layoutbox = 5; setViewports([4, 4]); mutate(); }, 100);
         if (startvr) {
             currentGenes.perspective = 1;
             alwaysNewframe = 1e15;
@@ -86,6 +88,7 @@ var Julia = new function () {
         }
         //mySetFragFid();
         shadows(0);
+        currentGenes.tranrule = '/*implicit*/horn("xx");mainhorn="xx"';
         inittodo = false;
     };
     /** called (by F6) to apply view to object and reset view */

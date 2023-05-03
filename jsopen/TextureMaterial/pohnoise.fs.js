@@ -4,7 +4,7 @@ window.THREE.ShaderChunk.O_pohnoise = `
 // Changes from Lance, Dec 2016
 // pjt note that the shadertoy example this comes from includes a LUT based method
 // that's apparently much faster
-#if defined(POHNOISE) && !defined(_POHNOISE)
+#if !defined(_POHNOISE)
 #define _POHNOISE
     float iqhash( float n ){
         return fract(sin(n)*43758.5453);

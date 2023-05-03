@@ -32,7 +32,7 @@
         this.setParm(name, def);
         //sclog("addgene " + geneName);
         const gn = geneName;
-        const conf = { gn, def, min, max, delta, step, help, tag, free, internal };
+        const conf = { name: gn, def, min, max, delta, step, help, tag, free, internal };
         conf.addGui = this.geneHTMLGui; //false for very dynamic things / in exhibition / etc.
         addGene(conf);
         //addgene(geneName, def, min, max, delta, step, help, tag, free, internal);
@@ -45,7 +45,8 @@
         cleangenesall(geneNames, true, false);
     };
     //Synth.stagger = 10;   // number of frames over which all genes are sent
-    let synthStagger = 10; ///XXX: I should get rid of this.
+    let synthStagger = 10; ///XXX: I should get rid of this - or control it differently.
+    //// make it only apply to genes, not other callback functions/mappings?
     Synth.prototype.autoUpdateGenes = function () {
         if (this.genesWillAutoUpdate)
             return;
@@ -67,14 +68,14 @@
             if (syn.freed || syn.reloading || !syn.confirmedStartOn)
                 return; //if we're 'freed' but not 'killed' it's probably because of a badValue or synthdef update causing reload
             //if ((syn.id+framenum) % Synth.stagger !== 0) return;
-            if ((syn.id + framenum) % synthStagger !== 0)
-                return;
             var i = syn.geneparms.length;
             while (i--) {
                 var pname = syn.geneparms[i].parmName;
                 //if (syn.ignoredGenes && syn.ignoredGenes.indexOf(pname) !== -1) {}
                 //if this parm is mapped, don't use gene (no longer using ignoredGenes...)
                 if (syn.mappedParms && !syn.mappedParms[pname]) {
+                    if ((syn.id + framenum) % synthStagger !== 0)
+                        return;
                     var v = currentGenes[syn.geneparms[i].geneName];
                     if (isNaN(v)) {
                         var gd = genedefs[syn.geneparms[i].geneName];
@@ -304,9 +305,10 @@
     }
 })();
 // var interfaceSounds; // now declared in vars.ts, so available when no mutsynth
-var mutSynthPendingCode;
-whenSCReady(function () {
+var mutSynthPendingCode = '';
+whenSCReady(function whenSCReadycallback() {
     sclog("~~~~~~~~ scready ~~~~~~~~~");
+    msgfixlog('tad+', 'in whenSCReady callback');
     interfaceSounds = {
         bip1: loadSound("audio/bip1.wav"),
         bip2: loadSound("audio/bip2.wav"),
@@ -319,9 +321,50 @@ whenSCReady(function () {
     //TODO: get rid of this global freeverb thing (but do use some other reverb)
     //freeverb.addgenePerm("room", 0.9, 0.5, 1, 0.1, 0.01);
     //freeverb.addgenePerm("damp", 0.1, 0.0, 1, 0.1, 0.01);
+    /** tad+ sequence when ok
+0/0.611+182!!!!!!: tad+ tadpole.ts loaded
+utils.js:144  0/0.930+15: tad+ startSCSynth
+utils.js:144  0/1.347+5: tad+ in tad-fubu tranrule2
+utils.js:144  1/1.579+7: tad+ monitorSynthdef triggering newHornSynth
+utils.js:144  1/1.579+0: tad+ Maestro triggerCheck called with no listener newHornSynth
+utils.js:144  1/1.579+0: tad+ Maestro triggerCheck complete newHornSynth
+utils.js:144  1/1.601+22: tad+ startSession
+utils.js:144  1/1.602+1: tad+ startSession done
+utils.js:144  10/1.726+23: tad+ in tad-fubu tranrule2
+utils.js:144  27/2.006+280!!!!!!: tad+ first message from oscWorker
+utils.js:144  27/2.009+3: tad+ SC_initialOSCMessages
+utils.js:144  94/7.995+5560!!!!!!: tad+ requesting /d_loadDir
+utils.js:144  168/9.228+1233!!!!!!: tad+ scDone /d_loadDir
+utils.js:144  168/9.259+31: tad+ in whenSCReady callback
+utils.js:144  168/9.284+25: tad+ mutsynth.ts setting up Maestro.on('newHornSynth')
+utils.js:144  168/9.299+7: tad+ tad+tad+ mutsynth triggering newHornSynth in whenSCReady callback
+utils.js:144  168/9.299+0: tad+ newHornSynth trigger seen
+utils.js:144  168/9.308+9: tad+ runSynthFunction //SynthBus----------------------------------------
+utils.js:144  168/9.310+2: tad+ tad-fubu SynthBus pre loadModule("fubu")
+utils.js:144  168/9.311+1: tad+ tad-fubu SynthBus post loadModule("fubu")
+utils.js:144  168/9.314+3: tad+ Maestro triggerCheck complete newHornSynth
+utils.js:144  174/9.382+68: tad+ tad.tad() called
+utils.js:144  176/12.397+0: tad+ extra details +++++++++++
+utils.js:144  176/13.245+0: tad+ extra details part 1 done, deferRender turned off
+utils.js:144  197/21.286+21: tad+ extra details complete +++++++++++
+
+############ failed
+0/0.745+273!!!!!!: tad+ tadpole.ts loaded
+utils.js:144  0/0.892+13: tad+ startSCSynth
+utils.js:144  0/1.387+4: tad+ in tad-fubu tranrule2
+utils.js:144  0/1.562+24: tad+ in tad-fubu tranrule2
+utils.js:144  1/1.581+6: tad+ monitorSynthdef triggering newHornSynth
+utils.js:144  1/1.581+0: tad+ Maestro triggerCheck called with no listener newHornSynth
+utils.js:144  1/1.581+0: tad+ Maestro triggerCheck complete newHornSynth
+utils.js:144  3/1.597+3: tad+ startSession
+utils.js:144  3/1.598+1: tad+ startSession done
+utils.js:144  10/1.715+22: tad+ first message from oscWorker
+utils.js:144  10/1.717+2: tad+ SC_initialOSCMessages
+     */
     hornSynth();
     if (mutSynthPendingCode) {
-        Maestro.trigger('newHornSynth');
+        msgfixlog('tad+', 'tad+tad+ mutsynth triggering newHornSynth in whenSCReady callback'); // usual place to get things working right?
+        Maestro.triggerCheck('newHornSynth');
     }
     return; //don't make these default synths. TODO: cleanup the code.
 });
@@ -329,6 +372,12 @@ whenSCReady(function () {
 var SCBuf; //global for quick & dirty access in horn. TODO: provide proper context when evaluating code.
 // var SynthBus;    // now declared in vars.ts, so available when no mutsynth
 //var SCBuf;
+let masterMeter;
+if (searchValues.audio)
+    (function _setMasterMeter() { if (osc)
+        masterMeter = new VUMeter2();
+    else
+        setTimeout(_setMasterMeter, 1); })();
 function hornSynth() {
     sclog("######## hornSynth init #########");
     const DONE_SIGNAL = "_DONE_";
@@ -494,13 +543,14 @@ function hornSynth() {
         hornBuffers[data] = buf;
         return buf;
     };
-    const HornSetP = HornWrap.HornSet.prototype;
+    const HornSetP = HW.HornSet.prototype;
     let hornBuffers = {}, hornSynthIDs = {}, guis = [], usedGeneNames = {}, kbussesByName = {}, mutsynthScene, bussesByName = {}, synthsByBus = {}, nextBusName = 0, 
     //updateFunctions = [], // making this use seq maestro event
     mpeFunctions = [], /// --> TODO use seq maestro event.
     seq, rootSCNode, rootSynthNode, rootSCFXNode, rootAmbiNode;
-    var lastSynth = null; //bad smell
+    //var lastSynth = null; //bad smell
     const mainGUI = dat.GUIVR.create("Synths");
+    // V.gui.add(mainGUI); //undefined at this point
     //mainGUI.scale.set(100, 100, 100);
     mainGUI.visible = false;
     NW_SC.mainGUI = mainGUI;
@@ -522,11 +572,13 @@ function hornSynth() {
     let lastTime = performance.now();
     let synthUpdateDT = 0, frameNum = 0;
     Maestro.on("synthUpdate", evt => {
+        if (!seq)
+            return;
         let t = performance.now();
         synthUpdateDT = t - lastTime;
         lastTime = t;
         frameNum++;
-        var di = (slots[0] || slots[1]).dispobj;
+        var di = slots && (slots[0] || slots[1]).dispobj;
         if (di)
             var xx = di.rtback; //hack: accessing this makes sure that slot will double buffer
         //updateFunctions.forEach(f=>f());
@@ -566,7 +618,11 @@ function hornSynth() {
     //which will be found in mutSynthPendingCode
     ///<<<< but what are the rules for multiple dispobjs? >>>>
     let lastNewSynthTime;
+    msgfixlog('tad+', "mutsynth.ts setting up Maestro.on('newHornSynth')");
     Maestro.on('newHornSynth', () => {
+        msgfixlog('tad+', "newHornSynth trigger seen");
+        if (searchValues.rerun)
+            location.href = location.href;
         //we still need another level of care, though.
         //(nb, for now, we're desparately trying to avoid running newHornSynth more than once while loading.
         //In future, there may be something more like an 'environment' per dispObj, represented by SC Groups -
@@ -581,9 +637,17 @@ function hornSynth() {
         else {
             //make sure that all gene sets know about our new code in case we want to save...
             //TODO: proper support for different objects / code / genes...
-            const t = currentGenes.tranrule = document.getElementById("tranrulebox").textContent;
+            //const t = currentGenes.tranrule = document.getElementById("tranrulebox").textContent;
+            //Object.values(currentObjects).forEach(o => { if (o.genes) o.genes.tranrule = t});
+            // sjpt 30 Oct 2022, we are overwriting new tranrules when pasting genes
+            // presumably we expect the tranrulebox to have the correct audio synthdefs by here, but we want our old graphics tranrules
+            // so we split and resynthesize, under the assumption that all audio tranrules are the same ....
+            const box = document.getElementById("tranrulebox");
+            const atranrule = box.textContent;
+            const audiotr = currentHset.makeParts(atranrule)[1];
+            box.textContent = currentGenes.tranrule = currentHset.makeParts(currentGenes.tranrule)[0] + '\n\n' + audiotr;
             Object.values(currentObjects).forEach(o => { if (o.genes)
-                o.genes.tranrule = t; });
+                o.genes.tranrule = currentHset.makeParts(o.genes.tranrule)[0] + '\n\n' + audiotr; });
         }
         //"Preparing to ruin new Synth code..." Freudian typo?
         let d = new Date();
@@ -606,6 +670,7 @@ function hornSynth() {
                 //clear synths etc.  .zombie set here so not needed in all class definitions
                 //hornSynths.forEach(s => { s.free(); s.zombie = true; }); //freed by bus.
                 //>>>> I should just have a group of which they're all children and deepFree it <<<<<<
+                // ^^ I think I am doing this, but I get lots of 'FAILURE IN SERVER /n_free Node not found'
                 //if there is a bundle scheduled, we'll get some failure messages when it tries to run
                 for (var i in hornBuffers) {
                     hornBuffers[i].free();
@@ -629,6 +694,7 @@ function hornSynth() {
                     if (g.detachedParent)
                         g.parent.remove(g);
                 });
+                $('#scScopes').empty();
                 mainGUI.visible = false;
                 if (mutsynthScene)
                     V.rawscene.remove(mutsynthScene);
@@ -660,7 +726,7 @@ function hornSynth() {
                 bussesByName = {};
                 synthsByBus = {};
                 nextBusName = 0;
-                lastSynth = null;
+                // lastSynth = null;
                 frameNum = 0;
                 //updateFunctions = [];
                 mpeFunctions = [];
@@ -679,6 +745,9 @@ function hornSynth() {
                 mutsynthScene.scale.set(1, 1, 1);
                 V.rawscene.add(mutsynthScene);
                 W.renderMainObject = true; //causes side effects if previously set to false.
+                if (masterMeter)
+                    masterMeter.free();
+                masterMeter = new VUMeter2();
             }
         }
         try {
@@ -718,6 +787,9 @@ function hornSynth() {
         }
     }); //on(newHornSynth)
     async function runSynthFunction(userCode) {
+        msgfixlog('tad+', 'runSynthFunction', userCode.substring(0, 50));
+        if (userCode === 'no synth code yet')
+            console.error('runSynthFunction called with no user code');
         //Is this a good way to create a local execution scope etc?
         //.... given the general shape of our code ....
         //this (at time of writing, eval()) can't make things much worse (plenty of damage could be already be done at global scope)
@@ -733,6 +805,12 @@ function hornSynth() {
         //     get: function(obj, prop) {
         //     }
         // })
+        /// in place of import() which relied on running a separate rollup script
+        // server should now be responsible for running rollup during development.
+        // At exhibition runtime, this can be simpler.
+        async function loadModule(name) {
+            tranModuleLoader(name);
+        }
         //////////////////////
         //////////////////////
         //////// Functions & things for use in SynthBus code
@@ -778,8 +856,8 @@ function hornSynth() {
             if (!isNew && existingGD.fromSynthCode && !usedGeneNames[gn])
                 isNew = true;
             if (isNew) {
-                sclog(`Adding g('${gn}', ${def}, ${min}, ${max})`);
-                const conf = { gn, def, min, max };
+                //sclog(`Adding g('${gn}', ${def}, ${min}, ${max})`);
+                const conf = { name: gn, def, min, max };
                 conf.addGui = false;
                 addGene(conf);
                 //addgene(name, def, min, max);
@@ -794,7 +872,7 @@ function hornSynth() {
             //else sclog(`Making a g("${name}") mapping to original:\n ${JSON.stringify(gd)}... YMMV...`);
             const fn = function (outMin, outMax) {
                 //TODO : really decide rules about when and how to normalise / scale ranges.
-                //TODO : work out how to look up in proper genome.
+                //TODO : work out how to look up in proper genome.<<<
                 const n = currentGenes[gn];
                 if (outMin !== undefined || outMax !== undefined)
                     return linlin(n, gd.min, gd.max, outMin, outMax);
@@ -1009,7 +1087,7 @@ function hornSynth() {
         }
         function feedbackTexture() {
             //if (!V.renderfeed) V.renderfeed = true;
-            //return cMap.renderFixview()[1];
+            //return cMap.render Fixview(genes)[1];
             return slots[0].dispobj.rt.texture;
         }
         function applyFeedback(obj) {
@@ -1024,7 +1102,7 @@ function hornSynth() {
                 side: THREE.DoubleSide, fog: false
             });
         }
-        function Box(size = 0.1) {
+        function Box(size = 1) {
             const geo = new THREE.BoxGeometry(size, size, size);
             const mat = defaultMaterial();
             const mesh = new THREE.Mesh(geo, mat);
@@ -1099,7 +1177,7 @@ function hornSynth() {
                 }
                 viewPos.copy(worldPos);
                 viewPos.applyMatrix4(camera.matrixWorld);
-                distance = viewPos.length();
+                distance = viewPos.length() / (basescale * V.baseroomsize * currentGenes._uScale);
                 viewPos.normalize();
                 azi = Math.atan2(viewPos.x, viewPos.z);
                 if (Number.isNaN(azi))
@@ -1111,11 +1189,12 @@ function hornSynth() {
                     label.updateLabel(`${logLabel}:\nazi: ${azi.toFixed(3)}, ele: ${ele.toFixed(3)}\ndistance: ${distance.toFixed(3)}`);
                 }
             });
+            return this;
         };
         //for now, this is how I'm giving modules access to these inards...
         W.msynthScope = {
-            onUpdate: onUpdate, g: g, SynthBus: SynthBus, seq: seq, Sphere: Sphere, mutNode: mutNode,
-            rootSCNode: rootSCNode, rootSCFXNode: rootSCFXNode, rootSynthNode: rootSynthNode, EffectBus: EffectBus
+            onUpdate, g, SynthBus, seq, Sphere, Box, mutNode,
+            rootSCNode, rootSCFXNode, rootSynthNode, EffectBus
         };
         // this allows the userCode to be asynchronous and stil reference the various functions from this scope
         // still a little unsure on exactly what we need to make that eval work, but below works  sjpt 5/1/20
@@ -1139,35 +1218,35 @@ function hornSynth() {
         //XXX: makes sense to add this to bus...
         //doesn't make so much sense that the actual implementation refers to synth (from which it finds bus)
         //also, I should be able to specify things like W size.
-        const s = new FFTScope(lastSynth, label);
+        const s = new FFTScope(this.lastSynth, label);
         this.synths.push(s);
         return this;
     };
     SCBus.prototype.Ana = function (label, outArgs) {
-        const s = new Ana(lastSynth, label);
+        const s = new Ana(this.lastSynth, label);
         s.synth.mapOutArgs(outArgs);
         this.synths.push(s);
         return this;
     };
     //TODO: work out why all MFCC on a bus look the same (seems to be sc bug; check newer version)
     SCBus.prototype.MFCC = function (label) {
-        const s = new MFCC(lastSynth, label);
+        const s = new MFCC(this.lastSynth, label);
         this.synths.push(s);
         return this;
     };
     SCBus.prototype.Scope = function (label, displayFrames) {
-        const s = new OscScope(lastSynth, label, displayFrames);
+        const s = new OscScope(this.lastSynth, label, displayFrames);
         this.synths.push(s);
         return this;
     };
     SCBus.prototype.Spectrogram = function (label) {
-        const s = new Spectrogram(lastSynth, label);
+        const s = new Spectrogram(this.lastSynth, label);
         this.synths.push(s);
         return this;
     };
     SCBus.prototype.VUMeter = function (label) {
         //TODO: different n
-        const s = this.n === 1 ? new VUMeter(lastSynth, label) : new VUMeter2(lastSynth, label);
+        const s = this.n === 1 ? new VUMeter(this.lastSynth, label) : new VUMeter2(this.lastSynth, label);
         this.synths.push(s);
         return this;
     };
@@ -1237,10 +1316,8 @@ function hornSynth() {
         if (!rolloff)
             rolloff = 0.01;
         this.spatStereoDopC();
-        //this 'lastSynth' as side effect of factory method thing is such an anti-pattern...
-        //this.spatStereoDopC({pan: panFn, distance: distFn}); //should be right, not commiting because not checked.
-        lastSynth.mapParmFn("pan", panFn);
-        lastSynth.mapParmFn("distance", distFn);
+        this.lastSynth.mapParmFn("pan", panFn);
+        this.lastSynth.mapParmFn("distance", distFn);
         return this;
     };
     //DEPRACATED? starting again with ObjectHeadSpace...
@@ -1326,7 +1403,7 @@ function hornSynth() {
         //Very last minute hacking here 10/11/16 for Norwich show.
         //I've added synths array to SCBus, which I need to make sure all synths are added to.
         //This should give me a slightly better pattern than this 'lastSynth' bollocks.
-        ///update: sticking with lastSynth bollocks for now.
+        ///update: finally fixing lastSynth bollocks March 2023?
         //Need to think a little bit about how I get the base bus ID + channel offset to each synth,
         //and hopefully fix whatever hack I come up with later.
         //Simple: just create the synths, then setParm("bus") afterwards...
@@ -1361,13 +1438,14 @@ function hornSynth() {
                 }
             };
         }
+        sclogE('warning: shaky QuadSpace implementation / changed lastSynth logic...');
         for (var i = 0; i < 4; i++) {
             this.spatStereoDopC();
-            lastSynth.setParm("bus", this.id + i);
+            this.lastSynth.setParm("bus", this.id + i);
             //create panFn & distFn with appropriate closure and relationship to object and/or room size??
             var fns = makePanFns(i);
-            lastSynth.mapParmFn("pan", fns.pan);
-            lastSynth.mapParmFn("distance", fns.dist);
+            this.lastSynth.mapParmFn("pan", fns.pan);
+            this.lastSynth.mapParmFn("distance", fns.dist);
         }
         return this;
     };
@@ -1418,7 +1496,7 @@ function hornSynth() {
                 //I could change prototype of given Synth, if that was fully in place... but there's no great need...
                 if (synthsByType[sk])
                     synthsByType[sk].forEach(synth => synth.updateDefaultGenedefs(gdSpec));
-                //HornWrap.Horn.prototype[sk] = makeSynthFunc(sk, geneDefs);
+                //HW.Horn.prototype[sk] = makeSynthFunc(sk, geneDefs);
                 //TODO: log level
                 //sclog(sk + " added as SynthFunc with genedefs: " + JSON.stringify(geneDefs));
                 SCBus.prototype[sk] = makeSynthFunc(sk, gdSpec);
@@ -1595,12 +1673,12 @@ function hornSynth() {
                     }
                     //See if it looks like we're trying to map a gene, or maybe something from kinect etc.
                     //Since this case is quite complex, we may do well to factor it out into a named method.
-                    // form "K:elbow_left.x ... never more than one colon for LHS, then RHS has '.' separator...
+                    // form "K:elbowleft.x ... never more than one colon for LHS, then RHS has '.' separator...
                     // Actually, would be nice to have some kind of JS objects for this, we could use autocompletion w/CodeMirror
                     //TODO: ^^^ reconsider ^^^
                     let desc = v.split(":"); //descriptor... there must be a better variable name.
                     if (desc.length === 2) {
-                        let prop = desc[1].split('.'); // property eg ["elbow_left", "x"]
+                        let prop = desc[1].split('.'); // property eg ["elbowleft", "x"]
                         let mapFn;
                         //nb:::: dead comment?:::
                         //note the context we're in: we already have a genedef as gd. We're not allowed to map to non-genes...
@@ -1708,7 +1786,7 @@ function hornSynth() {
             }
         }
         //2020 post Pompidou : it wouldn't be such a major change to make synth watch inArgs for changes...
-        let synth = new Synth(synthType, checkedArgs, naddTail(parent.group));
+        const synth = new Synth(synthType, checkedArgs, naddTail(parent.group));
         //const T = synthType: string => (generated interface)
         //What issues may there be with this at runtime?
         //When compiled to JS, it won't need to know the type, but if we're invoking some code here...?
@@ -1716,12 +1794,12 @@ function hornSynth() {
         synth.startBundle();
         if (synth.killed)
             throw (synth.killed); //XXX: we can't fix this now. ??? <--- was this really happening???
-        lastSynth = synth;
-        for (var k in fnsToMap)
+        const lastSynth = synth;
+        for (const k in fnsToMap)
             lastSynth.mapParmFn(k, fnsToMap[k]);
         if (outArgs)
             lastSynth.mapOutArgs(outArgs);
-        var busID = lastSynth.parms.bus;
+        const busID = lastSynth.parms.bus;
         //maybe not going to keep this...
         if (synthsByBus[busID] === undefined)
             synthsByBus[busID] = [];

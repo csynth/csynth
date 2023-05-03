@@ -68,8 +68,8 @@ class ForceVis {
         const geoIndex = new Uint32Array(n2).map((v, i) => i); //duh
 
         const geometry = new THREE.BufferGeometry();
-        geometry.addAttribute('particleIndex', new THREE.BufferAttribute(particleIndex, 1));
-        geometry.addAttribute('oPart', new THREE.BufferAttribute(oPart, 1));
+        geometry.setAttribute('particleIndex', new THREE.BufferAttribute(particleIndex, 1));
+        geometry.setAttribute('oPart', new THREE.BufferAttribute(oPart, 1));
         geometry.setIndex(new THREE.BufferAttribute(geoIndex, 1));
         const linkVert = `
             ${CSynth.CommonShaderCode()}
@@ -197,8 +197,8 @@ class ForceVis {
         const particleRanges = new Float32Array( flatten( linkData.map(d => d.r.concat(d.r)) ) );
         const geoIndex = new Uint16Array( flatten( linkData.map((d, j) => [j*2, j*2+1]) ) );
 
-        geometry.addAttribute('particleIndex', new THREE.BufferAttribute(particleIndices, 1));
-        geometry.addAttribute('particleRange', new THREE.BufferAttribute(particleRanges, 3));
+        geometry.setAttribute('particleIndex', new THREE.BufferAttribute(particleIndices, 1));
+        geometry.setAttribute('particleRange', new THREE.BufferAttribute(particleRanges, 3));
         geometry.setIndex(new THREE.BufferAttribute(geoIndex, 1));
         geometry.name = 'annotationSpringLink geometry';
 

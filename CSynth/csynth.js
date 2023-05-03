@@ -1,24 +1,28 @@
+    /* eslint-disable multiline-ternary */
 /* eslint-disable object-curly-newline */
 'use strict';
 
 /* eslint-disable no-unused-vars */
 
 //if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
-var THREE, W, dragger, posturi,  checkvr, setInput, onframe, mcamera, log, numInstances, adduniform,
-resoverride, genedefs, setval, framenum, V, dat, addgeneperm, FIRST, guiFromGene, springs, centrescalenow, clearPostCache, uniforms,
+var THREE, W, posturi,  checkvr, setInput, onframe, mcamera, log, numInstances, adduniform,
+genedefs, setval, framenum, V, dat, addgeneperm, FIRST, guiFromGene, springs,  clearPostCache, uniforms,
 currentGenes, msgfix, processFile, VH, Maestro, DNASprings, assert, G, renderVR, camera, CSynthFast, gl, posturibin,
-nop, vrcanvCentreOnLeft,vrcanv, COL, shadows, numInstancesP2, newmain, currentLoadingDir, throwe, msgfixlog, openfiles,
-oxcsynth, aftercontrol, setDefaultExperiences, updateHTMLRules, makeGenetransform, Director, copyFrom, inworker, loadwide,
-msgfixerror, getstats, posturierror, ml, fileTypeHandlers, evalx, startvr, basevals, getFileName, lastopenfiles, nomess,
+nop, vrcanvCentreOnLeft, COL, shadows, numInstancesP2, currentLoadingDir, currentLoadingFile, throwe, msgfixlog, openfiles,
+oxcsynth, aftercontrol, setDefaultExperiences, rot4toGenes, Director, copyFrom, inworker, loadwide,
+msgfixerror, getstats, posturierror, ml, fileTypeHandlers, startvr, getFileName, lastopenfiles, nomess,
 performance, getFileExtension, posturiasync, serious, customSettings,
 indexedDB, posturimsgasync, genbar, searchValues, readtext, readbinaryasync,
 array2Table, format, TextDecoder, consoleTime, consoleTimeEnd, uriclean, quietReject, setPickRenderTarget,
-frametime, random, seed, GX, JSZip, loadTime, startscript, readdir, location, killev, saveTextfile,
+frametime, random, seed, GX, zip, loadTime, startscript, readdir, location, killev, saveTextfile, JSZip,
 springdemo, yaml, readTextureAsVec3, col3, VEC3, lastdocx, lastdocy, mousewhich, SG, FFG, distxyz, setNovrlights,
-GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, vtarget, canvkeydown, renderer, viveAnim, vtargetNow, S,
-everyframe, badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt, writetextremote
+GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, runkeys, renderer, viveAnim, S, setExtraKey,
+badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt,
+HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs
 ;
 //, msgbox, serious, slider1, slider2, uniforms, currentGenes, dat; // keep linter happy
+
+var contactsReader, loadMatrix, ima; // allow internal backward ref
 
 if (!performance) performance = Date;  // odd for worker???
 
@@ -40,12 +44,13 @@ var inmutator = false;
 // defined dummies for bits missing from stripped down csynth
 //... a little bit awkward if trying to move to ts.
 if (oxcsynth) { V.putinroom = aftercontrol = setDefaultExperiences
-    = updateHTMLRules = makeGenetransform = nop; // shortcut for missing experiences.js
+        = rot4toGenes = nop; // shortcut for missing experiences.js
+    if (HW) HW.updateHTMLRules = nop;
     Director = { stop: nop, framesFromSlots: nop };
     ml = {};
 }
 
-var KILLRADLEN = 16;    // numbner of slots for killrads
+var KILLRADLEN = 24;    // numbner of slots for killrads
 /** initialize the system to set up renderers, scenes, etc. Executed only once on first drop.
  * Pretty irrelevant if inmutator (although we do now associate a maestro event with "pick")
  */
@@ -54,7 +59,7 @@ CSynth.init = function CSynth_init(quickout) {
     CSynth.initdone = true;
     if (oxcsynth) msgfix.all = '';  // show serious (>) but not others
 
-    fileTypeHandlers['.config'] = evalx;  // allow .config files for .js (? too late here ?)
+    fileTypeHandlers['.config'] = loadjs;  // allow .config files for .js (? too late here ?)
     fileTypeHandlers['.txt'] = contactsReader;  // allow .txt files for contacts
 
     W.fileDialog.multiple = true;
@@ -86,7 +91,7 @@ CSynth.init = function CSynth_init(quickout) {
     checkvr(); onframe(checkvr, 5);
     CSynth.setDefaults();  // load defaults now
     onframe(CSynth.setDefaults); // and again in case overrideen eg by loaded genes
-    resoverride.lennum = 5000;  // will almost certainly be overridden by wig loading resolution
+    HW.resoverride.lennum = 5000;  // will almost certainly be overridden by wig loading resolution
 
     inmutator = window.horn;
     CSynth.ImageButtonPanel = true;
@@ -127,13 +132,15 @@ CSynth.init = function CSynth_init(quickout) {
  * minid & maxid correspond to the min & max values found in first 2 cols (bp indices)
  * maxv corresponds to max value found in col 3.
  *
-* If !inmutator, each line will be made into a point in a point cloud
-* In current CSynth, they contain proximity value between a pair of indices
-* indices are raw bp number as read from file.
-*
-* optional contact can contain details in particular minid and maxid
+ * If !inmutator, each line will be made into a point in a point cloud
+ * In current CSynth, they contain proximity value between a pair of indices
+ * indices are raw bp number as read from file.
+ *
+ * optional contact can contain details in particular minid and maxid
+ * handles extensions zip, csv, txt, mat, rawobserved
+ * (? .mat was for finance only ?)
 */
-var contactsReader = async function contactsReaderF(dataStr, fid, contact = {}, isSubfile = false) {
+contactsReader = async function contactsReaderF(dataStr, fid, contact = {}, isSubfile = false) {
     if (!dataStr && typeof fid === 'object') {
         const r = await CSynth.setRange(fid);
         return r;
@@ -141,11 +148,7 @@ var contactsReader = async function contactsReaderF(dataStr, fid, contact = {}, 
     if (fid.endsWith('_matrix.txt') || fid.endsWith('.mat'))
         return bintriReader(dataStr, fid, contact);
     if (fid.endsWith('.zip')) {
-        const zip = new JSZip();
-        await zip.loadAsync(dataStr);
-        const ff = Object.keys(zip.files)[0];
-        const text = await zip.file(ff).async('string');
-        dataStr = text;
+        dataStr = await CSynth.unzip(dataStr);
     }
     if (dataStr instanceof Promise) {
         try {
@@ -158,11 +161,19 @@ var contactsReader = async function contactsReaderF(dataStr, fid, contact = {}, 
     }
     let parsefun = CSynth.txtParser;
     if (fid.endsWith('.csv')) parsefun = CSynth.csvParser;
+    const s = dataStr.substring(0, 1000).split('\n')[4];
+    if (s && s.match(/.*:.*-.*\t.*:.*-.*\t/)) parsefun = CSynth.csvParser;
     if (fid.endsWith('allvalidPairs.txt')) parsefun = CSynth.contactsWithBP;
 
     contact.expand = FIRST(contact.expand, CSynth.defaultExpand);
+    const stats = await parsefun(dataStr, fid, contact);
+    return contactsReader2(fid, contact, isSubfile, stats, parsefun === CSynth.csvParser);
+}
+
+function contactsReader2(fid, contact, isSubfile, stats, usedcsvparser) {
+    contact.expand = FIRST(contact.expand, CSynth.defaultExpand);
+    const {data, minv, maxv, rmaxv, sumv, sumv2, nonz, setz, diagset, minid, maxid} = stats;
     const datad = {};
-    const {data, minv, maxv, rmaxv, sumv, sumv2, nonz, setz, diagset, minid, maxid} = await parsefun(dataStr, fid, contact);
     copyFrom(contact, {data, minv, maxv, rmaxv, fid, sumv, sumv2, nonz, setz, diagset,
         meannzv: nonz === 0 ? 0 : sumv/nonz, meanv: sumv/(setz+nonz), datad});
 
@@ -172,7 +183,10 @@ var contactsReader = async function contactsReaderF(dataStr, fid, contact = {}, 
     datad.res = contact.res;    // TODO tidy up what is in datad and contact
     contact.res = datad.res / contact.expand;
     datad.range = datad.maxid - datad.minid;
-    datad.numInstances = datad.range / datad.res + 1;
+    if (usedcsvparser)
+        datad.numInstances = datad.range + 1;       // still sorting out how bp and res and range handled 6 june 2021
+    else
+        datad.numInstances = datad.range / datad.res + 1;
 
     finalize(contact, contact.expand, fid, isSubfile);
     return contact;
@@ -208,7 +222,7 @@ CSynth.txtParser = async function(dataStr, fid, contact) {
     let data = new Array(lines.length * 3);  // was Float32Array, could not manage some large bp numbers
     let maxid = miniduse, minid = maxiduse, minv = 1e50, maxv = 0, sumv = 0, sumv2 = 0, nonz = 0, setz = 0, badlines = 0, diagset = 0;
     let rmaxv = 0;  // non-diagonal max v
-    let la = -999, lb = -999;
+    let la = -1e20, lb = -1e20;
     let res = 1e20;
     let st = Date.now();
     const fidk = "processing file " + uriclean(fid);
@@ -298,6 +312,7 @@ if (fileTypeHandlers) fileTypeHandlers['.zip'] = contactsReader;
 // can be a bintri file
 // of can be structure of {headerLine, data}
 async function bintriReader(bintri, fidd, details = {}) {
+    details.fid = details.filename = fidd;
     const urikr = 'reading file ' + uriclean(fidd);
     if (!bintri && usecache) {
         const cval = await CSynth.getIdbCacheOK(fidd);
@@ -364,7 +379,7 @@ async function bintriReader(bintri, fidd, details = {}) {
         }
         g.endid = n - 1;
         g.endbp = p.id;
-        CSynth.chainsToBed(groups);
+        CSynth.applySchemesToGroups(groups);
         CSynth.breakGroups(groups);
     } else {  // can't parse header usefully, just guess
         if (details.minid === undefined) details.minid = 0;
@@ -402,7 +417,7 @@ async function bintriReader(bintri, fidd, details = {}) {
         let sumv = 0, sumv2 = 0, nonz = 0, setz = 0, minv = 9999999999999, maxv = 0;
         consoleTime('bintri tri stats ' + fidd);
         for (let i = 0; i < tt.length; i++) {
-            const v = tt[i];
+            const v = Math.max(tt[i], 0);   // may have -999 values, treat as 0 for stats
         // td.forEach( v => {
             sumv += v;
             sumv2 += v*v;
@@ -421,7 +436,7 @@ async function bintriReader(bintri, fidd, details = {}) {
         // otherwise no results shown in Edge ??? alert(`times to sq ${ttt1/1000}, stats ${ttt2/1000}`)
         const rmaxv = maxv;  // to correct, is it used anyway?  non-diagonal maxv
         // const o = { data, minv, maxv, rmaxv, fid, sumv, sumv2, nonz, setz, diagset, meannzv: sumv/nonz, datad };
-        const o = { minv, maxv, rmaxv, fid: details.filename, sumv, sumv2, nonz, setz,
+        const o = { minv, maxv, rmaxv, fid: details.filename || details.fid, sumv, sumv2, nonz, setz,
             meannzv: nonz === 0 ? 0 : sumv/nonz, meanv: sumv/(setz+nonz), datad};
         return o;
     }
@@ -494,7 +509,7 @@ function finalize(o, expand, fid, isSubfile = false) {
     // allow for extra particles from expand
     o.expand = expand;
     o.res = datad.res / expand;
-    o.numInstances = datad.numInstances * o.expand;
+    o.numInstances = numInstances = datad.numInstances * o.expand;
     if (o.numInstances%1 !== 0) {
         serious('unexpected data/sizes in ', fid, 'computed', {res:o.res, numInstances:o.numInstances + '?'});
         return undefined;
@@ -582,48 +597,137 @@ CSynth.setArraySpring = function() {
     const cc = CSynth.current;
     const dd=cc.contacts[0].data.filter((v,k) => k%3 === 2).map(v=>Math.log(v))
 }
-/** read csv file, in York virus contacts format
-This is making several assumptions about the order of the input data */
-CSynth.csvParser = function(dataStr, fid, contact = {}) {
-    const lines = dataStr.split('\n');
-    let data = new Float32Array(lines.length * 3);
-    let chains = {};
-    let maxp = -1;  // particle number
-    let k = 0; // pos in data
-    let maxv = 0, rmaxv = 0, sumv = 0, sumv2 = 0, nonz = 0, setz = 0, diagset = 0;
-    let minv = 1e40;
+/** read csv file, in York virus contacts format, e.g.
+ chr2:1294000-1296000	chr3:30000-32000	0.000516145758628211
+This was making several assumptions about the order of the input data
+but these should be (largely?) resolved with the multipass approach, 5 June 2021
+*/
+CSynth.csvParser = async function(file, fid, contact = {}) {
+    contact.fid = contact.filename = fid;
+    let lines;
+    if (typeof file === 'string') {
+        lines = file.split('\n');
+    } else {
+        fid = file.name;
+        const urikr = 'reading file ' + uriclean(fid);
+        lines = [];
+        let lastff = 0;
+        await asyncFileReader(file, lineSplitter((line, numLines, bytesProcessedSoFar, bytesReadSoFar, length) => {
+            const ff = bytesReadSoFar/file.size;
+            if (ff > lastff + 0.001) {
+                const m = `progress ${bytesReadSoFar} of ${file.size}`;
+                msgfix(urikr, '<br>' + m + '<br>' + genbar(bytesReadSoFar/file.size));
+                lastff = ff;
+            }
+            lines.push(line);
+        }));
+        msgfix(urikr, '<br>' + 'complete'+ '<br>' + genbar(1));
+    }
+    let groups = contact.groups = {};
 
-    let ssa = '_', ssb = '_';
-    if (lines[6].contains(':')) {ssa = ':'; ssb = '-';}
+    let ssa = '_', ssb = '_', res = 1;  // York style
+    if (lines[6].contains(':')) {ssa = ':'; ssb = '-'; res = -1;}   // Crick style
 
     //?? let keys = {}; prep for new Crick files 20 Feb 2019
+    let errs = 0;
 
+    function check(p, i) {
+        const a = p.split(ssa);
+        const cn = a[0];
+        const as = a[1].split(ssb);
+        const ind = +(as[0]);
+        const ad = as[1] - ind; // not used for York style
+        if (res === -1)
+            res = ad;
+        //else
+        //    if (res !== ad) console.error('unexpected d', res, ad, 'line', i, lines[i]);
+        let cha = groups[cn];
+        if (!cha) {
+            cha = groups[cn] = {name: cn, startbp: ind, endbp: ind}
+        } else {
+            cha.startbp = Math.min(ind, cha.startbp);
+            cha.endbp = Math.max(ind, cha.endbp);
+        }
+        return [cn, ind];
+    }
+
+    msgfix('processing file pass2' + fid, genbar(0));
+
+    // pass 1, parse and find chain info
+    let ii = 0; // count lines with correct data
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (!line) continue;  // allow for empty lines
         if (!line.contains(ssa)) continue;
         const s = line.split('\t');
         //?? keys[s[0]] = true; keys[s[1]] = true; // continue;
-        const a = s[0].split(ssa);
-        const ac = a[0];
-        const ai = +(a[1].split(ssb)[0]);
-        const b = s[1].split(ssa);
-        const bc = b[0];
-        const bi = +(b[1].split(ssb)[0]);
+        const a = check(s[0], i);
+        const b = check(s[1], i);
         const v = +s[2];
-        let cha = chains[ac];
-        if (!cha) {
-            maxp++;
-            cha = chains[ac] = {startp: maxp, endp: maxp, startid: ai, offset: maxp - ai }
+        lines[ii++] = [a, b, v]; // reuse lines to save total memory
+        if (i%100000 === 0) log('csvParser pass1', i, 'of', lines.length);
+        if (i%10000 === 0) {
+            msgfix('processing file ' + fid, genbar(i/lines.length));
+            await sleep(1);
         }
-        let chb = chains[bc];
-        if (!chb)
-            throwe('unexpected second item in', fid, 'line', i, line);
-        const ap =  ai + cha.offset;  // particle # for a
-        const bp =  bi + chb.offset;
-        maxp = Math.max(maxp, ap, bp);
-        cha.endp = Math.max(cha.endp, ap);
-        chb.endp = Math.max(chb.endp, bp);
+    }
+
+    openfiles.groups.push(groups);
+    let promises = Object.values(openfiles.promises);
+    if (openfiles.groups[0] === groups) {   // I'll be the mediator
+        promises = promises.filter(p => p !== openfiles.promises[fid]);   // wait for everyone else
+        await Promise.all(promises);
+        console.log('~~~~~~~~~~~~~~~~~~~~~');
+        for (let i=0; i<openfiles.groups.length; i++)
+            console.oldLog(Object.keys(openfiles.promises)[i], '\n', JSON.stringify(openfiles.groups[i]).replaceall('"',''))
+
+        for (const gid in groups) {
+            const gg = groups[gid];
+            for (const cgroup of openfiles.groups) {
+                const cgg = cgroup[gid];
+                // ? no need to SET cgroup, about to be dereferenced
+                gg.startbp = cgroup[gid].startbp = Math.min(gg.startbp, cgg.startbp);
+                gg.endbp = cgroup[gid].endbp = Math.max(gg.endbp, cgg.endbp);
+                // cgroup[gid].startbp = cgroup[gid].endbp = 'DO NOT USE'
+            }
+            console.log('>>>', gg.startbp, gg.endbp)
+        }
+        CSynth.current.groups = groups; // my group now becomes global
+
+        // pass2, fill out chain info
+        let pn = 0;  // particle number
+        for (const gid in groups) {
+            const ch = groups[gid];
+            ch.startid = pn;
+            ch.num = (ch.endbp - ch.startbp) / res + 1;
+            ch.endid = ch.startid + ch.num - 1;
+            ch.offset = ch.startid - ch.startbp/res;
+            ch.res = res;
+            log ('chain', ch);
+            pn += ch.num;
+        }
+        log('total number of particles', pn);
+        CSynth.current.numInstances = pn;
+    }
+
+    // everyone waits till the mediation done
+    openfiles.resolvers[fid]();
+    await Promise.all(promises);
+
+    groups = contact.groups = CSynth.current.groups;    // all share common groups
+
+    // pass3, fill in particle data
+    let data = new Float32Array(ii * 3);
+    let k = 0; // pos in data
+    let maxv = 0, rmaxv = 0, sumv = 0, sumv2 = 0, nonz = 0, setz = 0, diagset = 0;
+    let minv = 1e40;
+
+    for (let i = 0; i < ii; i++) {
+        const [a, b, v] = lines[i]
+        const ap =  a[1] / res + groups[a[0]].offset;  // particle # for a
+        const bp =  b[1] / res + groups[b[0]].offset;  // particle # for a
+
+        // maxp = Math.max(maxp, ap, bp);
         maxv = Math.max(maxv, v);
         minv = Math.max(minv, v);
         if (ap !== bp) rmaxv = Math.max(rmaxv, v);
@@ -631,27 +735,46 @@ CSynth.csvParser = function(dataStr, fid, contact = {}) {
         sumv += v;
         sumv2 += v*v;
         if (v) nonz++; else setz++;
-        data[k++] = ap;
-        data[k++] = bp;
+        data[k++] = ap * res;       // getContactsZZ expects these to have res. could be easier if both worked in partiles ??
+        data[k++] = bp * res;
         data[k++] = v;
+        if (i%100000 === 0) {
+            log('csvParser pass3', i, 'of', ii);
+            msgfix('processing file pass2' + fid, genbar(i/ii));
+            await sleep(1);
+        }
 
         //if (a[0] !== b[0] || +a[1] !== +b[1]-1)  // check for backbone
         //    log(i, line);
-    }  // lines
+    }  // pass3
+
+    if (errs) console.error('unexpected second item errors', errs, 'in', fid);
     data = data.slice(0, k);
-    contact.res = 1;
+    const maxp = CSynth.current.numInstances-1;
     const minid = 0, maxid = maxp;
     copyFrom(contact, {data, minid, maxid, range: maxp, maxv, fid, backbonetype: 'none',
-        numInstances: maxp+1, chains, res: 1});
+        numInstances: maxp+1, groups, res});
     CSynth.checkRangePair(CSynth.current, contact);
+    numInstances = CSynth.current.numInstances;
+    CSynth.current.groups = groups;
+
+    CSynth.applySchemesToGroups(groups);
+    CSynth.breakGroups(groups);
+
 
     CSynth.files[fid] = contact;
 
-    return {data, minv, maxv, rmaxv, sumv, sumv2, nonz, setz, diagset, minid, maxid};
+    const stats = {data, minv, maxv, rmaxv, sumv, sumv2, nonz, setz, diagset, minid, maxid};
+    contactsReader2(fid, contact, false, stats, true);
+    delete openfiles.pending[fid];  // ? openfile should await then do this ?
+    return contact;
+
+    // return {data, minv, maxv, rmaxv, sumv, sumv2, nonz, setz, diagset, minid, maxid};
 } // csvParser
 
 if (!fileTypeHandlers) fileTypeHandlers = {};  // eg for workers?
-fileTypeHandlers['.csv'] = contactsReader;  // allow .csv files for contacts
+fileTypeHandlers['.csv'] = CSynth.csvParser;  // allow .csv files for contacts
+CSynth.csvParser.rawhandler = true;
 
 
 
@@ -680,15 +803,37 @@ CSynth.checkone = function(o, n, b) {
 
 /** check the various range values in a and b for consistency */
 CSynth.checkRangePair = function(a, b) {
+    let toshow = true;
+    let cc = CSynth.current;
+    function show() {
+        if (toshow) {
+            console.error(msgfix('bad range check', a===cc ? 'global' : a.filename, b === cc ? 'global' : b.filename, '~~~~~~~~~~~~~~~~~~~~~~~~~~~'));
+            toshow = false;
+        }
+    }
     function checkItem(n) {
         if (a[n] === undefined) a[n] = b[n];
         if (b[n] === undefined) b[n] = a[n];
         if (CSynth.current.check && (a[n] !== b[n] && JSON.stringify([a[n]]) !== JSON.stringify([b[n]]))) {
+            show();
             // todo, key on a and b for more info?
-            console.error(msgfix('bad range check', n, a[n], b[n], a.filename, b.filename));
+            console.error(msgfix(n, a[n], b[n]));
         }
     }
-    'minid maxid range res numInstances groups'.split(' ').forEach(n => checkItem(n));
+    'startbp endbp minid maxid range res numInstances'.split(' ').forEach(n => checkItem(n));
+
+    const ag = a.groups, bg = b.groups;
+    if (!ag) a.groups = clone(bg)
+    else if (!bg) b.groups = clone(ag)
+    else for (const gn in ag) {
+        const agg = ag[gn], bgg = bg[gn];
+        for (const k in agg) {
+            if (agg[k] !== bgg[k]) {
+                show();
+                console.error('group', gn, k, agg[k], bgg[k])
+            }
+        }
+    }
 }
 
 //previously getNormalisedPartpos. Using "Normalised" to describe 0-1 range
@@ -729,8 +874,10 @@ CSynth.parseBioMart = function (filename, data) {
 
     //extract column headers to use as keys for dictionary / object.
     //shift will remove first line in the process, leaving only the data to iterate through
+    //sjpt 20/01/22  surely we should hacve shifted lines. not colNames???
+    // and now removing any bad lines (including header) in loop
     var colNames = lines[0].split("\t");
-    if (isNaN(+colNames[2])) {
+    if (false && isNaN(+colNames[2])) { // <<<< false to treat header as always fixed
         colNames.shift();
     } else {
         colNames = ['Chr', "Gene Start (bp)", "Gene End (bp)", "Associated Gene Name", '?1', '?2', '?3'].slice(0, colNames.length);
@@ -764,7 +911,7 @@ CSynth.parseBioMart = function (filename, data) {
         obj.chr = obj.Chr;
         let min = obj.minI = CSynth.getNormalisedIndex(obj.minBP, obj.chr);
         let max = obj.maxI = CSynth.getNormalisedIndex(obj.maxBP, obj.chr);
-        if (min > 1 || max < 0) {
+        if (min > 1 || max < 0 || isNaN(min+max)) { // ignore header if there and other bad lines
             ignore++;
         } else {
             if (min < 0) min = 0;
@@ -780,7 +927,7 @@ CSynth.parseBioMart = function (filename, data) {
     parsedData.data = parsedArr;
 
     //attaching methods to CSynth for now.... should think more about this design.
-    //(ie, there should be CSynth.BEDs and this should be a method on that,
+    //(ie, there should be CSynth. BEDs and this should be a method on that,
     //current parseBioMart may be a constructor with "this" equivalent to parsedData)
     // do NOT atttach to parsedData, as this gives cloning/saving issues, sjpt, 9 Oct 18
     // not used 17 Feb 2019
@@ -896,8 +1043,44 @@ CSynth.parseBioMart.createGUIVR = () => {
     gui.addImageButtonPanel.apply(gui, bb).setRowHeight(0.100);
 
     return gui;
-
 };
+
+CSynth.rainbowArray = [
+    255, 0 , 0, 1,
+    255, 255, 0, 2,
+    0, 255, 0, 3,
+    0, 255, 255, 4,
+    0, 0, 255, 5,
+    255, 0, 255, 6,
+    255, 0, 0, 7
+];
+
+CSynth.fixedBeds = {};  // beds defined by arrayToBed; usually fixed and rainbow
+CSynth.arrayToBed = function(array, name) {
+    const bedarr = new Uint8Array(array);
+    const r = {
+        filename: name,
+        shortname: name,
+        name,
+        bedarr,
+        isBed: true,
+        /* [data, width, height,
+            format, type, mapping,
+            wrapS, wrapT, magFilter, minFilter,
+            anisotropy, encoding] */
+        texture: newTHREE_DataTextureNamed(name + 'BED', bedarr, array.length/ 4, 1,
+            THREE.RGBAFormat, THREE.UnsignedByteType, undefined,
+            undefined, undefined, THREE.LinearFilter, THREE.LinearFilter)
+    }
+    r.texture.needsUpdate = true;
+    CSynth.fixedBeds[name] = r;
+    return r;
+}
+
+if (THREE) {    // not if in worker
+    CSynth.arrayToBed([255,255,255,0], 'constant');
+    CSynth.arrayToBed(CSynth.rainbowArray, 'rainbow');
+}
 
 /** get a bed structure from a source name, number, or readymade structure) */
 CSynth.getBed = function(srcName) {
@@ -907,13 +1090,13 @@ CSynth.getBed = function(srcName) {
     if (typeof srcName === 'number') return beds[srcName];
 
     const fn = srcName.split('/').pop();
+    if (CSynth.fixedBeds[fn]) return CSynth.fixedBeds[fn];
     let bb = CSynth.current.beds.find(x => x.filename === fn);
     if (bb) return bb;
     bb = CSynth.current.beds.find(x => x.shortname === fn);
     if (bb) return bb;
     bb = CSynth.current.beds.find(x => x.filename + '.bed' === fn);
     if (bb) return bb;
-    if (['constant', 'rainbow'].includes(srcName)) return srcName;
     msgfixlog(srcName, 'Cannot match bed');
     return srcName;
 }
@@ -921,9 +1104,11 @@ CSynth.getBed = function(srcName) {
 
 /** add a colour dropdown gui.
  *  'targetUniformsOrCallback' may be an object containing uniforms, or a callback.
- * will attempt to set t_ribbonbed & colmix values in uniforms (error if not present) */
+ * will attempt to set t_ribbonbed values in uniforms (error if not present) */
 CSynth.addColourGUI = (pgui, targetUniformsOrCallback) => {
-    const sources = CSynth.current.beds.map(b=>b.shortname).concat(['constant', 'rainbow']);//, 'selection']);
+    if (!CSynth.current || !CSynth.current.beds) return;
+    const sources = CSynth.current.beds.map(b=>b.shortname).concat(Object.keys(CSynth.fixedBeds));//, 'selection']);
+
     let _source;
 
     const xx = {
@@ -940,10 +1125,8 @@ CSynth.addColourGUI = (pgui, targetUniformsOrCallback) => {
             let source = CSynth.getBed(srcName);
             if (source && source.texture) {
                 targetUniforms.t_ribboncol.value = source.texture;
-                targetUniforms.colmix.value = 0;
             } else {
                 targetUniforms.t_ribboncol.value = undefined;
-                targetUniforms.colmix.value = source === 'rainbow' ? 1 : 0;
             }
         }
     }
@@ -1031,9 +1214,20 @@ CSynth.xyzs = {};
  * filename input is a structured set of options
  */
 
-CSynth.parseXYZ = function (xyzstruct, parseonly=false, all = false) {
+CSynth.parseXYZ = function (xyzstruct, parseonly=false, all = CSynth.pdball) {
     if (!xyzstruct) return;
-    //if (CSynth.files[xyzstruct.filename])
+
+    // if we are loading with the xyz as a startscript we need to make a pseudo config file
+    if (!CSynth.current) {
+        currentLoadingDir = '';
+        currentLoadingFile = xyzstruct.filename;
+        springdemo({
+            filename: xyzstruct.filename,
+            xyzs: xyzstruct.filename
+        });
+        return;
+    }
+//if (CSynth.files[xyzstruct.filename])
 
     let o = xyzstruct;
 
@@ -1057,6 +1251,7 @@ CSynth.parseXYZ = function (xyzstruct, parseonly=false, all = false) {
         copyFrom(xyzstruct, CSynth.xyzs[key]);
         return xyzstruct;
     } // using this broke different pdb intersect things
+    if (!rawXyzData) rawXyzData = openfiles.dropped[filename];
     if (!rawXyzData) rawXyzData = posturierror(filename);
     if (!rawXyzData) { console.error('cannot load file', xyzstruct); return; }
 
@@ -1290,7 +1485,7 @@ async function loadData (cc, fid=cc.key) {
     CSynth.setDefaults(false);  // reload defaults now, but not any custom settings
     CSynth.xyzs = {};
 
-    basevals = {};
+    // ??? why needed, and why was it not caught as not defined ??? basevals = {};
     CSynth.checkRange(cc);
     const st = Date.now();
     CSynth.init(); //this seems to get called quite a number of times... actually does very little.
@@ -1445,23 +1640,23 @@ async function loadData (cc, fid=cc.key) {
     const _allfiles = [ cc.contacts, cc.xyzs, cc.beds, cc.wigs, cc.imagetidd ? [cc.imagetidd] : [] ]
     cc.allfiles = [].concat.apply([], _allfiles);
 
-    // very like openfile, to improve commonality
-    function UNUSEDrfile(f) {
-        let _fid = uriclean(dir + f.filename);
+    // // very like openfile, to improve commonality
+    // function UNUSEDrfile(f) {
+    //     let _fid = uriclean(dir + f.filename);
 
-        if (CSynth.files[_fid]) return; // already read
-        if (openfiles.pending[_fid]) return;  // in process of beign read
-        const ext = getFileExtension(_fid);
-        let handler = fileTypeHandlers[ext];
-        if (!handler) handler = window[ext.substring(1) + 'Reader'];
-        openfiles.pending[_fid] = Date.now();
+    //     if (CSynth.files[_fid]) return; // already read
+    //     if (openfiles.pen ding[_fid]) return;  // in process of beign read
+    //     const ext = getFileExtension(_fid);
+    //     let handler = fileTypeHandlers[ext];
+    //     if (!handler) handler = window[ext.substring(1) + 'Reader'];
+    //     openfiles.pen ding[_fid] = Date.now();
 
-        const data = readtext(_fid);
-        handler(data, _fid);
-        delete openfiles.pending[_fid];
-        CSynth.files[_fid] = data;
+    //     const data = readtext(_fid);
+    //     handler(data, _fid);
+    //     delete openfiles.pen ding[_fid];
+    //     CSynth.files[_fid] = data;
 
-    }
+    // }
     // o.allfiles.forEach(f => rfile(f));  // dot yet, some sequence details not right, eg minid/maxid from contacts pars effects bed parse
 
     // do not run until all pending loads have completed
@@ -1484,7 +1679,8 @@ async function loadData (cc, fid=cc.key) {
     }
 
     console.log(`loading data o.dir = '${dir}`);
-    numInstances = cc.numInstances;  // until defined or deduced #'#'#'
+    //??? removed 31 Mar 2021, was breaking Lorenz and not helping anything else
+    //??? numInstances = cc.numInstances = cc.numInstances || 128;  // until defined or deduced #'#'#'
 
     // cc.contacts.forEach(c => await CSynth.getContacts(c, dir));  // is its own function so no await allowed!
     for (let i=0; i<cc.contacts.length; i++)
@@ -1495,13 +1691,26 @@ async function loadData (cc, fid=cc.key) {
 
     if (cc.xyzs.length > 0) {
         cc.xyzs.forEach( xx => CSynth.parseXYZ(xx) );
+        CSynth.mergePdbs(cc);
         if (cc.matchPairs === undefined) cc.xyzs.every(x => x.pdbdata);  // default matching if input is pdbs
         CSynth.checkPdbs(cc);           // check pdbs for matching
         cc.xyzs.forEach( xx => CSynth.finishXYZ(xx) );
         const parseonly = false;
         cc.xyzs.forEach( xx => CSynth.pdbToBedAndGroup(xx, parseonly, xx.filename));
-        cc.groups = cc.xyzs[0].groups;
-        if (cc.groups) CSynth.breakGroups(cc.groups);
+        const x0 = cc.xyzs[0];
+        cc.groups = x0.groups;
+        if (cc.groups) {
+            CSynth.breakGroups(cc.groups);      // visual separation of groups
+            if (x0.splitChain) {                // work out splitParticle
+               cc.splitParticle = cc.groups[x0.splitChain].endid + 0.5;
+               V.metavis.X.medialNeg = cc.splitParticle;
+            }
+            if (cc.xyzs[1] && JSON.stringify(cc.xyzs[1].groups) !== JSON.stringify(cc.groups))
+                log(msgfixerror('groups', 'groups for xyzs do not agree'));
+            else
+                msgfix('groups');
+
+        }
 
         if (cc.xyzsToDisplay || searchValues.xyzsToDisplay) {
             S.waitVal(() => V.gui).then(() => {
@@ -1541,7 +1750,8 @@ function bedReader(data, fn) {
 }
 
 /** setup and use a single bed, usually during initial load but sometimes more dynamically  */
-CSynth.useBed = function(b, cc, dir) {
+CSynth.useBed = function(b, cc = CSynth.current, dir = '') {
+    if (b.texture) return;      // only compile once
     b.isBed = true;
     b.minbpwidth = FIRST(b.minbpwidth, 0);
     if (!b.shortname) b.shortname = b.filename;
@@ -1624,6 +1834,7 @@ CSynth.finishLoad = function(cc) {
     const dir = cc.fullDir
 
     numInstances = cc.numInstances; // '#'#'#'  establish global numInstances
+    springs.setPARTICLES(numInstances);
     DNASprings();                   // '#'#'#'  also get numInstancesP2 early, may be too early for all springs
 
     // read and parse all beds and initial setup for t_ribboncol
@@ -1733,7 +1944,6 @@ CSynth.showSummary = function(cc = CSynth.current) {
 }
 
 // Prepare the data
-var loadMatrix;
 CSynth.getContacts = getContacts;
 async function getContacts(contact, dir, isSubfile = false) {
     const fida = contact.filename;
@@ -1839,6 +2049,10 @@ async function multiRead(topcontact, dir) {
 CSynth.getNormalisedIndex = function(bp, chr) {
     const cc = CSynth.current;
     const groups = cc.groups;
+    if (typeof bp === 'string') {
+        const mm = bp.match(/(.*):(.*)-(.*)/);
+        if (mm) { chr = mm[1]; bp = (+mm[2] + +mm[3])/2; }
+    }
     if (!groups || chr === undefined)        // we hope that chr is correct, but can't easily check here
         return (bp - CSynth.current.minid) / cc.range;
     const gr = groups[chr];
@@ -1850,13 +2064,24 @@ CSynth.getNormalisedIndex = function(bp, chr) {
     return ((bp - gr.startbp) + gr.res * gr.startid ) / cc.range;
 }
 
+/** get name for base pair, using header or group information if available */
 CSynth.getBPFromNormalisedIndex = i => {
-    const ccc0 = CSynth.current.contacts[0];
+    const cc = CSynth.current;
+    const part = Math.round(i * (cc.numInstances - 1));
+    const ccc0 = cc.contacts[0];
     if (ccc0 && ccc0.header) {
-        const part = i * (CSynth.current.numInstances - 1);
         return ccc0.header[Math.round(part)];
+    } else if (cc.groups) {
+        for (const gn in cc.groups) {
+            const g = cc.groups[gn];
+            if (g.startid <= part && part <= g.endid) {
+                const bp = g.startbp + Math.floor(part-g.startid) * cc.res;
+                const ebp = bp + cc.res;
+                return(`${g.name}:${bp}-${ebp}`);
+            }
+        }
     } else {
-        return Math.round(CSynth.current.minid + i * CSynth.current.range);
+        return Math.round(cc.minid + i * cc.range);
     }
 }
 
@@ -1913,7 +2138,7 @@ CSynth.loadTiff = async function(fid) {
 
 /** call this when data ready */
 CSynth.tiffReader = function(data, fid) {
-    let tiff = require('tiff');
+    let tiff = window.require('tiff');
     CSynth.tiffdata = tiff.decode(data);
     log('got tiff data');
     if (!CSynth.imagevis) CSynth.imagevis = new CSynth.ImageVis();
@@ -1957,31 +2182,113 @@ CSynth.formatp = [
 ];
 
 var pdbdatas;
+
+CSynth.pdbskip = 1;         // only use sampled values from matching pdb atoms
+CSynth.pdball = false;      // if true, match all atoms, not just 'special' ones
+CSynth.pdbmaxnum = 16000;   // max number of pdb atoms to use, if too many sample
 /** call this when data ready to pasePDB;
 return array of coordinates
-regular xyz processing will handle all the CSynth structure details */
-CSynth.parsePDB = function(data, fid, all=false) {
+regular xyz processing will handle all the CSynth structure details
+data is preread data from file
+fid is file name
+all true uses all parsed atoms, otherwise just 'special' ones 'CA', "C1'", '1'
+plines is presplit lines
+*/
+CSynth.parsePDB = function(data, fid, all=CSynth.pdball, plines) {
     const formatp = CSynth.formatp;
     if (!data) data = posturi(fid);
-    const lines = data.split('\n');
+    const lines = plines || data.split('\n');
+    function xxn(v) {
+        const vv = +v;
+        return (isNaN (vv)) ? parseInt(v, 16) : vv;
+    }
 
     const coords = [];
     const pdbdata = [];
-    lines.forEach( l => {
-        if (l.substr(0,4) !== 'ATOM') return;
-        if (!all && !['CA', "C1'"].includes(l.substring(12,16).trim())) return;
-        const d = {};
-        formatp.forEach( f => {
-            if (!f) return;  // final dummy one
-            let v = l.substring(f[0] - 1, f[1]).trim();
-            if (!isNaN(v) && v.trim() !== '') v = +v;
-            d[f[2]] = v;
-        });
+    let i = 0;
+    for (const l of lines) {
+        if (l.substr(0,4) !== 'ATOM') continue;
+        const atname = l.substring(13,16).trim();
+        if (!all && !['CA', "C1'"].includes(atname)) continue;
+        if (i++%CSynth.pdbskip !== 0) continue;
+        const d = {
+            atom: l.substring(0,4).trim(),
+            atid: xxn(l.substring(6,11)),
+            atname,
+            altloc: l.substring(16,17).trim(),
+            resname: l.substring(17,20).trim(),
+            chain: l.substring(21,22).trim(),
+            resid: +l.substring(22,26),
+            insert: l.substring(26,27).trim(),
+            x: +l.substring(30,38),
+            y: +l.substring(38,46),
+            z: +l.substring(46,54),
+            occupancy: +l.substring(54,60),
+            tempfac: +l.substring(60,66),
+            segid: l.substring(72,76).trim(),
+            elesym: l.substring(76,78).trim(),
+            sl_label: l.substring(79,81).trim()
+        }
+        // const d = dd;
+
+        // const d = {};
+        // for (const f of formatp) {
+        //     // if (!f) continue;  // final dummy one
+        //     let v = l.substring(f[0] - 1, f[1]).trim();
+        //     if (f[2] === 'atid') v = xxn(v)
+        //     else if (!isNaN(v) && v.trim() !== '') v = +v;
+        //     d[f[2]] = v;
+        //     // const vv = Number(v);
+        //     // d[f[2]] = isNaN(vv) ? v : vv;
+        //     if ((f[2] !== 'atname' && dd[f[2]] !== d[f[2]] ) || dd[f[2]] != d[f[2]])
+        //         debugger
+        // }
+
         // coords.push(d);
         coords.push(new THREE.Vector3(d.x, d.y, d.z));
         pdbdata.push(d);
-    });
+    }
+
+    const oldl = coords.length;
+    if (oldl === 0 && !all) {
+        msgfixlog('pdball', 'pdb data set', fid, 'had no "special" atom types, trying all atoms');
+        return CSynth.parsePDB(data, fid, true, lines);
+
+    }
+    if (oldl > CSynth.pdbmaxnum) {
+        const rat = Math.ceil(oldl / CSynth.pdbmaxnum);
+        const ncoords = coords.filter((v, j) => j%rat === 0)
+        const npdbdata = pdbdata.filter((v, j) => j%rat === 0)
+        msgfixlog('pdbmaxnum', 'reducing pdb data set', fid, 'len was', oldl, 'now', ncoords.length, 'ratio', rat);
+        return {coords: ncoords, pdbdata: npdbdata};
+    }
     return {coords, pdbdata};
+}
+
+/** rename chains starting at '1', based on control break and also break at position n
+ * This can be used to rename data from the docking benchmark database
+ * so that the _l and _r datasets are consistently named and can be compared.
+ *
+ * splitChain is returned and can be used to determin splitParticle after any particle elimination by useSubset.
+ * interesting: 1E4K (?FoldSynth demo?), 3R9A, 1BXG, **1BKD **
+ * bad matches 1AZS
+*/
+CSynth.rechainPDB = function(xi, n = -999) {
+    const pdbdata = xi.pdbdata;
+    let ch = 0, last = '!none', splitChain, resid, side = 'l';
+    for (let i = 0; i < pdbdata.length; i++) {
+        const d = pdbdata[i];
+        if (d.chain !== last || i === n) {
+            if (i === n) {splitChain = ch; side = 'r'; }
+            ch++;
+            last = d.chain;
+            resid = d.resid % 100;
+            if (d.resid !== 1) log('unexpected starting resid', xi.description, d.chain, side, d.resid, 'used', resid);
+        }
+        d.chain = ch+'';
+        d.resid = resid++;
+    }
+    return splitChain;
 }
 
 // turn groups into array, lazy
@@ -2123,6 +2430,36 @@ document.onpaste = function (event) {
 }
 /****/
 
+// standard colours. Note that shaders also use different stdcolX and stdcolY arrays
+CSynth.__stdcol = [
+[127, 127, 127],    //
+[255,0,0],          // chr1
+[0,255,0],
+[0,0,255],
+[0,255,255],        // chr4
+[255,0,255],
+[255,255,0],
+[63, 63, 63],
+[255,127,0],        // chr8
+[0,255,127],
+[127,0,255],
+[0, 127,255],
+[255,0,127],        // chr12
+[255,127,60],
+[60,255,127],
+[127,60,255],
+[127,60,255],       // chr16
+[60, 127,255],
+[255,60,127]
+];
+
+/** color schemes */
+CSynth.colorSchemes = {standard: CSynth.__stdcol};
+
+// no localStorage in worker
+if (localStorage && localStorage.colorSchemes) CSynth.colorSchemes = JSON.parse(localStorage.colorSchemes);
+
+
 CSynth.maxbedlen = 1e20;  // will never be reached
 /**** read bed files, data, filename, and (optional) bed structure */
 CSynth.bedParser = function CSynth_bedParser(data, fn, bed) {
@@ -2131,30 +2468,35 @@ CSynth.bedParser = function CSynth_bedParser(data, fn, bed) {
     const bedLen = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), CSynth.maxbedlen);
     const minId = CSynth.current.minid;  // check for res TODO "�"�"�
     const maxId = CSynth.current.maxid;
+    if (minId === undefined) return {};    // called too early
     const groups = CSynth.current.groups;
     let key = [fn, minId, maxId].join(';');
-    if (CSynth.files[key]) return CSynth.files[key];
+    if (CSynth.files[key] && CSynth.files[key].bedarr) return CSynth.files[key];
     const range = maxId - minId;
     const bedArr = new Uint8Array(bedLen * 8);  // bed for graphics
     const minBpWidth = bed ? bed.minbpwidth : 0;
     log('bed resolution', range / bedLen);
+    const colorScheme = bed.colorScheme || CSynth.__stdcol;
 
     // now read data and fill array
     const dd = data.split('\n');
     const bb = [];
-    for (let i = 0; i < dd.length; i++) {
-        const dl = dd[i].trim();
-        if (dl === '') continue;
+    const col = new THREE.Color();
+    for (let li = 0; li < dd.length; li++) {
+        const dl = dd[li].trim();
+        if (dl === '' || dl[0] === '#') continue;
         let d = dl.split('\t');
         const chr = d[0];
         let startBp = +d[1];
         let endBp = +d[2];
+        if (isNaN(startBp + endBp)) {log('bed line ignored', fn, dl); continue; }
         if (endBp - startBp < minBpWidth) {
             let x = (minBpWidth - (endBp - startBp)) / 2;
             startBp -= x;
             endBp += x;
         }
         d = { chr, startbp: startBp, endbp: endBp, key: d[3], col: d[8], line: dl };  // start/end in bp
+        const i = bb.length;
         bb.push(d);
         let s, e;
         if (groups && chr !== '!') {  // ! special case for older beds
@@ -2176,24 +2518,25 @@ CSynth.bedParser = function CSynth_bedParser(data, fn, bed) {
         s = Math.ceil(s * (bedLen - 1));
         e = Math.ceil(e * (bedLen - 1));    // was floor TODO "�"�"�
         if (s > e) s = e;  // make sure at least on point hit
+        let c;
         if (d.col) {
-            d.col = d.col.split(',');
+            c = d.col.split(',');
+        } else {
+            c = colorScheme[(i+1) % colorScheme.length];
         }
+        if (typeof(c) === 'string') col.set(c);
+        else if (isNaN(c[0])) col.set(c[0]);
+        else col.setRGB(c[0] / 255.99, c[1] / 255.99, c[2] / 255.99);
+
         for (let j = s; j <= e; j++) {      // TODO "�"�"� was <
-            //changing to have one row of colour, then one row giving the range for which that colour applies...
-            if (d.col) {
-                const c = d.col;
-                //store colour in texture data
-                bedArr[j * 4 + 0] = c[0];            // later multiplex beds ???
-                bedArr[j * 4 + 1] = c[1];
-                bedArr[j * 4 + 2] = c[2];
-                bedArr[j * 4 + 3] = i + 1;            // for now, save index in alpha channel
-            } else {
-                bedArr[j * 4 + 0] = i + 1;            // for now, just save index, later multiplex beds ???
-                bedArr[j * 4 + 1] = i + 1;            // for now, just save index
-                bedArr[j * 4 + 2] = i + 1;            // for now, just save index
-                bedArr[j * 4 + 3] = i + 1;            // for now, just save index
-            }
+
+        //changing to have one row of colour, then one row giving the range for which that colour applies...
+            //store colour in texture data
+            bedArr[j * 4 + 0] = col.r * 255.99;            // later multiplex beds ???
+            bedArr[j * 4 + 1] = col.g * 255.99;
+            bedArr[j * 4 + 2] = col.b * 255.99;
+            bedArr[j * 4 + 3] = i + 1;            // for now, save index in alpha channel
+
             //should we save ranges for non-coloured regions?
             //if (j !== e) { // TODO "�"�"�
                 const k = j + bedArr.length/8;
@@ -2344,7 +2687,7 @@ function wigParser(data, fn) {
         wigarr[pp] = v;            // for now, just save index, later multiplex
     }
 
-    var texture = newTHREE_DataTextureNamed('wig_'+fn, wigarr, wiglen, 1, THREE.LuminanceFormat,
+    var texture = newTHREE_DataTextureNamed('wig_'+fn, wigarr, wiglen, 1, THREESingleChannelFormat,
         THREE.UnsignedByteType, undefined,
         THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping, THREE.LinearFilter, THREE.LinearFilter, 1);
     texture.needsUpdate = true;
@@ -2378,11 +2721,9 @@ CSynth.ribbonBed = function(psource) {
     let source = CSynth.getBed(psource);
     if (source && source.texture) {
         uniforms.matrixbed.value = uniforms.t_ribboncol.value = source.texture;
-        currentGenes.colmix = 0;
         CSynth.files._activebed = source.beddata;
     } else {
         uniforms.matrixbed.value = uniforms.t_ribboncol.value = undefined;
-        currentGenes.colmix = source === 'rainbow' ? 1 : 0;
     }
 }
 
@@ -2411,6 +2752,7 @@ CSynth.Ribbon = function () {
         guiFromGene(gui, 'ribbonPickRangeExtra').listen();
         guiFromGene(gui, 'ribbonStart').listen();
         guiFromGene(gui, 'ribbonEnd').listen();
+        guiFromGene(gui, 'killradwidth').listen();
 
         // guiFromGene(gui, 'ribdepth');
 
@@ -2437,7 +2779,7 @@ async function CSynthsetRange(o) {
 }
 
 /** parse and cache the xyz file, check to check numInstances etc (not for extra data eg virus fixed points) */
-function xyzReader(data, fn, parseonly = false, all = false) {
+function xyzReader(data, fn, parseonly = false, all = CSynth.pdball) {
     return CSynth.parseXYZ( {filename: fn, data: data, average: 1}, parseonly, all);
 }
 
@@ -2680,15 +3022,18 @@ CSynth.getContactsZZ = function(contactnum) {
 
     /** helpers for V2 patch and general use */
     contact.getab = function(a,b) {
-        if (a<0 || a>=n || b<0 || b>=n || td[a*n+b] !== td[b*n+a])
-            log('bad',a,b);
-        else
+        if (a<0 || a>=n || b<0 || b>=n) {
+            console.error('contact get bad',a,b);
+        } else {
+            if (td[a*n+b] !== td[b*n+a])
+            console.error('asymmetric',a,b, td[a*n+b], td[b*n+a]);
             return td[a*n+b];
+        }
     }
 
     contact.setab = function(a,b,v) {
         if (a<0 || a>=n || b<0 || b>=n)
-            log('bad',a,b);
+            log('contact set bad',a,b);
         else
             td[a*n+b] = td[b*n+a] = v;
     }
@@ -2702,6 +3047,22 @@ CSynth.getContactsZZ = function(contactnum) {
         const rr = new Array(n-off);
         for (let i=0; i<n-off; i++) rr[i] = contact.getab(i,i+off);
         return rr;
+    }
+
+    /** set all backbone values below threshold to given value v
+     * Note that special -999 values will almost always be set.
+     * For very high threshold, all backbone will be set
+     */
+    contact.setBackbone = function(v = -999, thresh = 0) {
+        for (let a = 0; a < numInstances-1; a++) {
+            const b = a+1;
+            const x = contact.getab(a, b);
+            if (x <= thresh) td[a*n+b] = v;
+            const y = contact.getab(b, a);
+            if (y <= thresh) td[b*n+a] = v;
+            // if (x !== y) console.error('warning, asymmetric backbone', a, a+1, x, y);
+        }
+        contact.texture.needsUpdate = true;
     }
 
 
@@ -2730,10 +3091,10 @@ CSynth.getContactsZZ = function(contactnum) {
             const g = contact.groups[gx];
             //?contact.setRowCol(g.startid, -999);
             //contact.setab(g.startid, g.startid+1, 1);
-            contact.setab(g.startid, g.startid-1, 0);
+            contact.setab(g.startid, g.startid-1, -9898);
             //?contact.setRowCol(g.endid, -999);
             //contact.setab(g.endid, g.endid-1, 1);
-            contact.setab(g.endid, g.endid+1, 0);
+            contact.setab(g.endid, g.endid+1, -9898);
         }
         CSynth.breakGroups();   // break the visuals as well as the model
     }
@@ -2761,7 +3122,7 @@ CSynth.getContactsZZ = function(contactnum) {
     /****/
 
     contact.meanv = contact.mean = td.reduce((c,v)=>c+Math.max(v,0), 0) / td.length;
-    contact.texture = newTHREE_DataTextureNamed('contact', td, rn, rn, THREE.LuminanceFormat, tt);
+    contact.texture = newTHREE_DataTextureNamed('contact', td, rn, rn, THREESingleChannelFormat, tt);
     // added sjpt 12/11/18 for expand !== 1, and 4 feb 19 for check
     // Also will be reset to linear retrospectively if CSynth.setParticlesDyn used.
     const f = contact.expand !== 1 || !CSynth.current.check ? THREE.LinearFilter : THREE.NearestFilter;
@@ -2815,7 +3176,10 @@ CSynth.patchBoundaryPending = function(contact, start, nn=1) {
 /** get a texture for xyzs */
 CSynth.xyzsToTexture = function(xyznum) {
     const xyz = (typeof xyznum === 'number') ? CSynth.current.xyzs[xyznum] : xyznum;
-    if (!xyz) {msgfixerror('xyzsToTexture called with no xyzs for number', xyznum); return; }
+    if (!xyz) {
+        if (G.xyzforce !== 0) msgfixerror('xyzsToTexture called with no xyzs for number', xyznum); 
+        return;
+    }
     if (xyz.texture) return xyz.texture;
     const n = xyz.numInstances;
     const tt = THREE.FloatType;
@@ -2831,7 +3195,7 @@ CSynth.xyzsToTexture = function(xyznum) {
 
     xyz.textureData = td;
     xyz.mean = td.reduce((c,v)=>c+v, 0) / td.length;
-    xyz.texture = newTHREE_DataTextureNamed('xyzstext_'+xyznum, td, n, n, THREE.LuminanceFormat, tt);
+    xyz.texture = newTHREE_DataTextureNamed('xyzstext_'+xyznum, td, n, n, THREESingleChannelFormat, tt);
     xyz.texture.needsUpdate = true;
     return xyz.texture; // vs code
 }
@@ -2848,7 +3212,10 @@ CSynth.UNUSEDsetContactRange = function() {
 /** make a distance texture from xyz values */
 CSynth.xyzToTexture = function(xyznum) {
     const xyz = typeof xyznum === 'number' ? CSynth.current.xyzs[xyznum] : xyznum;
-    if (!xyz) {msgfixerror('xyzsToTexture called with no xyzs for number', xyznum); return; }
+    if (!xyz) {
+        if (G.xyzforce !== 0) msgfixerror('xyzsToTexture called with no xyzs for number', xyznum); 
+        return;
+    }
     if (xyz.texture) return xyz.texture;
     if (!xyz.coords) return;  // we will try again later as needed
     const n = xyz.numInstances;
@@ -2862,7 +3229,7 @@ CSynth.xyzToTexture = function(xyznum) {
         }
     }
     xyz.textureData = td;
-    xyz.texture = newTHREE_DataTextureNamed('xyztext_'+xyznum, td, n, n, THREE.LuminanceFormat, THREE.FloatType);
+    xyz.texture = newTHREE_DataTextureNamed('xyztext_'+xyznum, td, n, n, THREESingleChannelFormat, THREE.FloatType);
     xyz.texture.needsUpdate = true;
     return xyz.texture;
 
@@ -2878,9 +3245,9 @@ CSynth.setMarker = function(id, bp, name = 'bp_' + bp) {
         if (id < 0)
             id = id = CSynth.markers.findIndex(m => !m);
         if (id < 0)
-            {console.error('no space to allocate marker in CSynth.setMarker', bp, name); return; }
+            {msgfixerror('marker', 'no space to allocate marker in CSynth.setMarker', bp, name); return; }
     }
-    if (id < 0 || id > PICKNUM-16 || isNaN(id)) {console.error('bad id to CSynth.setMarker', id); return; }
+    if (id < 0 || id > PICKNUM-16 || isNaN(id)) {msgfixerror('marker', 'bad id to CSynth.setMarker', id); return; }
     if (bp < 0) {
         uniforms.userPicks.value[id] = 999;
         delete CSynth.markers[id];
@@ -2921,6 +3288,10 @@ CSynth.useTargetDistances = function(k = 1 / G.nmPerUnit, n = 3, step = 2) {
     }
 }
 
+/** set ribbon selection marker in slot id, or matrix selection markers in slots id, id+1
+ * If neither ribbon nor matrix selected, clear marker in slot id
+ * If id is -ve slots will be allocated automatically
+ */
 CSynth.setMarkerFromSelection = function(id) {
     const p = CSynth.picks['g-matrix1'];
     const r = CSynth.picks['g-ribbon'];
@@ -3052,6 +3423,7 @@ CSynth.useExtraContacts = function(xc = CSynth.current.extraContacts, xstr = 1, 
  */
 var scaleSmoothGPU, scaleDampTarget1, scaleDampTarget2;
 CSynth.__overrideCentre = function() {
+    if (!uniforms.scaleDampTarget) return;
     const ff = new Float32Array(4); // will initialize to 0 to ensure no panning
     ff[3] = 1;  // not used as CSynth is NOSCALE
     const unitscale = newTHREE_DataTextureNamed('unitscale', ff,1,1, THREE.RGBAFormat, THREE.FloatType);
@@ -3152,7 +3524,7 @@ CSynth.setIdbCache = function(_contact, _delete = false) {
                 //const srequest = request;       // help debugger
                 //const stransaction = transaction;
                 // src should === putrequest?
-                const src = evt.srcElement;
+                const src = evt.target;
                 ireject('transaction.onerror\n' + src.error.message);
             }
             const contactsObjectStore = transaction.objectStore("contacts");
@@ -3357,37 +3729,60 @@ CSynth.randpos = function(k=G.m_k, seedv = CSynth.randpos.seed || frametime ) {
 }
 CSynth.randpos.seed = 0;    // set to non 0 for fixed seed
 
-CSynth.hilbert = function(sc = 1) {
-    // 4 -> 64, 8->512,
-    const k = numInstances ** (1/3);
-    const r = hilbertC(k);
-    for (let i=0; i<numInstances; i++) {
-        const {x,y,z} = r[i];
-        springs.setfix(i, sc*(x), sc*(y), sc*(z));
+
+/**  use the array (eg from hilbert or twist), pull may be true or 'pull' for pullsprings, false, undefined, etc 'fix' for fixsprings, always return array */
+CSynth.usedata = function(arr, num, pull) {
+    if (!pull) pull = 'fix';        // false or undefined etc
+    if (pull === true) pull = 'pull';
+    if (pull === 'pull') {
+        for (let i=0; i<num; i++) springs.addpull(i, arr[i]);
+    } else if (pull === 'fix') {
+        for (let i=0; i<num; i++)   springs.setfix(i, arr[i]);
+        springs.finishFix();
     }
-    springs.finishFix();
-    springs.reCentre();
+    return arr;
+}
+
+/**  make hilbert curve, pull may be true or 'pull' for pullsprings, false or 'fix' for fixsprings, otherwise return array
+if fill is true the full curve is sampled to fill space with less regular form */
+CSynth.hilbert = function(sc = 1, num = numInstances, cen = vec3(), pull=false, fill = false) {
+    // 4 -> 64, 8->512,
+    const k = num ** (1/3);
+    const o = (k-1)/2;
+    const ox = o - cen.x/sc, oy = o - cen.y/sc, oz = o - cen.z/sc;
+    const r = hilbertC(k);
+    const arr = [];
+    const rat = fill ? r.length / num : 1;
+    for (let i=0; i<num; i++) {
+        const ii = Math.round(i * rat);
+        const {x,y,z} = r[ii];
+        arr[i] = VEC3(sc*(x-ox), sc*(y-oy), sc*(z-oz));
+    }
+    return CSynth.usedata(arr, num, pull);
+    // springs.reCentre();  // use -o above, attempt to read spring positions back too early on initialization otherwise
 }
 
 /** make a circle in x,y, rz is scale of random z value */
-CSynth.circle = function({sc = 1, rz = 0.01} = {}) {
-    for (let i=0; i<numInstances; i++) {
-        const a = 2 * Math.PI * i / numInstances;
+CSynth.circle = function({sc = 1, rz = 0.01, num=numInstances} = {}) {
+    for (let i=0; i<num; i++) {
+        const a = 2 * Math.PI * i / num;
         springs.setfix(i, sc*Math.cos(a), sc*Math.sin(a), sc*rz*(Math.random() - 0.5));
     }
     springs.finishFix();
 }
 
-/** make a twist, helix of rad r, twists n, bent into big circle of radius R */
-CSynth.twist = function({sc = 1, R = 1, r = 0.5, n = 17} = {}) {
-    for (let i=0; i<numInstances; i++) {
-        const a = 2 * Math.PI * i / numInstances;
-        const b = n * 2 * Math.PI * i / numInstances;
+/** make a twist, helix of rad r, twists n, bent into big circle of radius R
+ * pull may be true or 'pull' for pullsprings, false or 'fix' for fixsprings, otherwise return array
+ */
+CSynth.twist = function({sc = 1, R = 1, r = 0.5, n = 17, num=numInstances, cen = vec3(), pull = false} = {}) {
+    const arr = [];
+    for (let i=0; i<num; i++) {
+        const a = 2 * Math.PI * i / num;
+        const b = n * 2 * Math.PI * i / num;
         const y1 = R + r * Math.sin(b), z1 = r * Math.cos(b);
-
-        springs.setfix(i, sc * y1 * Math.cos(a), sc * y1 * Math.sin(a), sc*z1);
+        arr[i] = VEC3(sc * y1 * Math.cos(a) + cen.x, sc * y1 * Math.sin(a) + cen.y, sc*z1 + cen.z);
     }
-    springs.finishFix();
+    return CSynth.usedata(arr, num, pull);
 }
 
 
@@ -3406,6 +3801,7 @@ CSynth.kick = function(bv=1, item=undefined, w=10) {
         item = 0; w = 1e20;
     }
     const oos = springs.getpos();
+    if (oos.length === 0) return;
     for (let i=Math.max(item-w, 0); i < Math.min(item+w, numInstances-1); i++) {
         const oo = oos[i];
         const r = () => v * (Math.random()-0.5);
@@ -3452,7 +3848,7 @@ CSynth.nogapbed = function(ccc) {
 //   should go to point at each edge particle
 // if ty not set it generates 0, 0, NaN ( for 'standard' diameter)
 //   sharp cutoff at edge particles
-CSynth.nogapwig = function(ccc=0, ty) {
+CSynth.nogapwig = function(ccc=0, ty=undefined) {
     const vals = ty ? [0, 0, 0/0] : [1, 0, -1];
     const [ good, edge, bad ] =  vals;
 
@@ -3473,7 +3869,7 @@ CSynth.nogapwig = function(ccc=0, ty) {
         //    if (arr[1-1 === -1])  arr[i-1] = edge;
         //}
     }
-    const wigtext = CSynth.nogapwig.texture = newTHREE_DataTextureNamed('wig', arr, numInstances, 1, THREE.LuminanceFormat,
+    const wigtext = CSynth.nogapwig.texture = newTHREE_DataTextureNamed('wig', arr, numInstances, 1, THREESingleChannelFormat,
         THREE.FloatType, undefined,
         THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping, THREE.NearestFilter, THREE.NearestFilter, 1);
     wigtext.needsUpdate = true;
@@ -3532,20 +3928,23 @@ CSynth.msgAllFiles = function(f) {
 }
 
 CSynth.getAllFiles.click = function (e) {
-    const s = e.srcElement;
+    const s = e.target;
     const path = s.dataset.path;
     if (path) {
         // work out new href (not needed for plain click), prelace startscript in place
         let [pre, post] = location.href.split('startscript=');
         if (post === undefined) post = '';
+        if (!pre.match(/\?/)) pre += '?';
         const ppost = post.post('&') || '';
         const newhref = `${pre}startscript=${path}&${ppost}`;
         msgfixlog('fffclick', path);
         if (e.altKey) {
-            const win = window.open(location.href + '&startscript=' + path, '_blank');
-            win.focus();
+            //const win = window.open(location.href + '&startscript=' + path, '_blank');
+            const win = window.open(newhref, '_blank');
+            if (win) win.focus();
         } else if (e.ctrlKey) {
-            location.href += '&startscript=' + path;
+            // location.href += '&startscript=' + path;
+            location.href = newhref;
         } else {
             processFile(path);
         }
@@ -3582,16 +3981,18 @@ CSynth.setParticlesDyn = function(k) {
     // const old = {posw: springs.posWorkhist.texture, numInstances, numInstancesP2};
     k = Math.ceil(k);
     const cc = CSynth.current;
-    springs.VARY = 1;    // will need recompile first time, but not thereafter
+    const newvary = !springs.VARY;     // will need recompile first time, but not thereafter
+    springs.VARY = 1;
     springs.setPARTICLES(k);
+    if (newvary) springs.newmat();   // force that first recompile
     cc.numInstances = numInstances = k;
     numInstancesP2 = springs.numInstancesP2;
-    uniforms.numSegs.value = resoverride.skelnum = numInstances-1;
+    uniforms.numSegs.value = HW.resoverride.skelnum = numInstances-1;
 
     springs.setup();
-    springs.uniforms.stepsSoFar.value = 8;
+    // springs.uniforms.stepsSoFar.value = 8;          // TODO to remove Oct 2020?
     springs.copyworkhist();
-    springs.step();
+    springs.step(1);
 
     cc.contacts.forEach(ccc => {
         CSynth.contactsToTexture(ccc);  // in case not done yet
@@ -3636,22 +4037,34 @@ CSynth.checkParticlesDyn = function pcheck(thresh = 0.01) {
     return bad;
 }
 
+/** use colour schemes to define chain beds */
+CSynth.applySchemesToGroups = function(groups) {
+    for (const sc in CSynth.colorSchemes) {
+        CSynth.chainsToBed(groups, sc, CSynth.colorSchemes[sc]);
+    }
+    localStorage.colorSchemes = JSON.stringify(CSynth.colorSchemes);
+}
+
 /** make bed from chains
  * We construct as a string and have it parsed later,
  * as this is actually simpler within the code than the more logical creation of bed structure directly
  */
-CSynth.chainsToBed = function(gr = CSynth.current.groups) {
+CSynth.chainsToBed = function(gr = CSynth.current.groups, name = 'fromchains', colorScheme = CSynth.colorSchemes[name]) {
     // bed line chr, startbp, endbp, text
     if (!gr) return;
+
+    CSynth.current.beds = CSynth.current.beds.filter(b => b.shortname !== name)
 
     const lines = [];
     for(let gn in gr) {
         const g = gr[gn];
         lines.push([gn, g.startbp, g.endbp, gn].join('\t'));
     }
-    CSynth.current.beds.push({filename: 'fromchains', shortname: 'fromchains', description: 'fromchains',
-        bedtext: lines.join('\n')
-    });
+    const bed = {filename: name, shortname: name, description: 'colours generated from chains', bedtext: lines.join('\n'), colorScheme };
+    CSynth.current.beds.push(bed);
+    CSynth.useBed(bed);
+    CSynth.refreshBedGUIs();
+    CSynth.chooseBed(name);
 }
 
 CSynth.contactTypeCols = { S: '255,0,0',   D: '0,255,0', '?': '0,0,255'}
@@ -3742,6 +4155,7 @@ if (THREE) {  // not in worker
     CSynth.defaultMaterial.roughness = 0.5;
 }
 
+/** this can act as a proxy for meterialGUI, so that even if the underlying material is regenerated the properties are maintained */
 CSynth.materialProperties = () => { return {
     transparent: false,
     opacity: 1,
@@ -3793,7 +4207,7 @@ CSynth.getray = function () {
 */
 CSynth.rayToFixed = function() {
     var raycaster = new THREE.Raycaster();
-    raycaster.linePrecision=0.1;
+    raycaster.params.Line.threshold = 0.1;
     var mouse = new THREE.Vector2();
 
     //>>> TODO handle menuMode; not just return as we must at least do restore any now unselected items at end
@@ -3911,8 +4325,8 @@ CSynth.coordsToFix = function(p, perm = false) {
     for (let i = 0; i < p.length; i++)
         springs.setfix(i, p[i].x * k, p[i].y * k, p[i].z * k);
 
-    uniforms.stepsSoFar.value=4;    // stop springs auto-positioning
-    springs.step();                 // establish the position
+    // uniforms.stepsSoFar.value=4;    // stop springs auto-positioning          // TODO to remove Oct 2020
+    springs.step(1);                 // establish the position
     springs.settleHistory();        // and make it fill history
     CSynth.xyzfixed = true;         // so we don't tanper with end springs even if fixed
     if (!perm) {
@@ -4086,6 +4500,7 @@ CSynth.rotTo = async function(axis, maxang = 0.001, closest = true) {
 
 // optimize visibility by hiding/showing objects, can save quite a lot on unused matrix computation
 CSynth.optimizeVisible = function(o, recursive = false) {
+    if (!o.isObject3D) return;      // sometimes happens for ima etc tiling
 
     if (!o.realParent && o.parent) o.realParent = o.parent;
     if (o.visible && !o.parent && o.realParent) {
@@ -4120,7 +4535,10 @@ try {
     CSynth.bc = new BroadcastChannel('csynth');
     CSynth.bc.onmessage = function(ev) {
         const data = ev.data;
-        const fun = CSynth[data.command] || window[data.command];
+        const cmd = data.command;
+        const funname = cmd === 'function' ? data.function : cmd;
+        if (funname === 'setxyShow') return;    // intended for LMV, why did I see it??, TODO cleaner rules here
+        const fun = CSynth[funname] || window[funname];
         if (fun) {
             fun(...data.args)
         } else {
@@ -4129,6 +4547,17 @@ try {
     }
 } catch (e) {
     console.error(msgfixerror('no CSynth BroadcastChannel', e));
+}
+
+/** send data (probably to LMV) */
+CSynth.sendData = function(max = 2) {
+    const ccc = CSynth.current.contacts;
+    if (ccc.length === 0) return CSynth.bc.onmessage({command: '!nocontacts'})
+    max = Math.min(max, ccc.length);
+    for (let i = 0; i < max; i++) {
+        CSynth.bc.postMessage({command: '!data', positions: ccc[i].data});
+    }
+
 }
 
 /** use the image and bed to augment model */
@@ -4144,6 +4573,7 @@ CSynth.useImage = function({bedn = 0, remove = false, opacity}) {
     if (cpp >= 2) springs.setfix(k+1, CSynth.imagevis4.stats(1, undefined, 1).centroid);
     if (cpp >= 3) springs.setfix(k+2, CSynth.imagevis4.stats(2, undefined, 1).centroid);
 
+    const ty = 1;   // role
     for (let i = 0; i < cpp; i++) {
         let l = 0, h = cc.numInstances-1;
         if (bed && bed.data && bed.data[i]) {
@@ -4151,7 +4581,6 @@ CSynth.useImage = function({bedn = 0, remove = false, opacity}) {
             l = Math.max(l, Math.floor(CSynth.particle4bp(r.startbp)));
             h = Math.min(h, Math.ceil(CSynth.particle4bp(r.endbp)));
         }
-        const ty = 1;
         for (let p = l; p <= h; p++) {
             if (remove)
                 springs.removespring(p, k+i, ty); // len=1, str=1, pow=1, type=1
@@ -4159,6 +4588,7 @@ CSynth.useImage = function({bedn = 0, remove = false, opacity}) {
                 springs.addspring(p, k+i, 0, 1, 1, ty); // len=1, str=1, pow=1, type=1
         }
     }
+    springs.uniforms.roleforces.value[ty] = 1
 
     if (opacity !== undefined) {
         const c = CSynth.imagevis4.meshGroup.children;
@@ -4315,7 +4745,7 @@ CSynth.fogfix = function({sc = CSynth.referenceSize, fnear = 0, ffar = 1, t = 0}
     // No longer wanted, addtarget does that without killing other targets ... if (t === 0) vtargetNow();
 }
 
-var ima, I;
+var I;
 CSynth.tileToInteractive = function(t) {
     if (!t) t = CSynth.current.extraPDB[ima.showing].tiling;
     if (!t) return msgfixlog('CSynth.tileToInteractive', 'bad input');
@@ -4386,7 +4816,7 @@ CSynth.rotPosGui = function(pgui) {
         // without time 0 we get silly result just by holding mouse down on slider
         // below is (temporary) patch for damped from buttons but not slider, but does not work;
         // issue seems to be because fogfix called every frame with time 0
-        set: v => CSynth.cameraToDist(CSynth.referenceSize * G.scaleFactor * G._uScale * v, undefined, 0) // (v*4)%1 === 0 ? undefined : 0)
+        set: v => { CSynth.cameraToDist(CSynth.referenceSize * G.scaleFactor * G._uScale * v, undefined, 0); } // (v*4)%1 === 0 ? undefined : 0)
     });
 
     const t = CSynth.cameraToDist.time;
@@ -4472,8 +4902,8 @@ CSynth.reset = function() {
         }
     });
 
-    canvkeydown('shift,home');
-    canvkeydown('ctrl,home');
+    runkeys('shift,Home');
+    runkeys('ctrl,Home');
     const mat = new THREE.Matrix4();
     mat.makeRotationX(Math.atan(1/Plane.phi));
     G._rot4_ele.set(mat.elements);
@@ -4604,7 +5034,7 @@ CSynth.msgfix = function CSynth_msgfix(...m) {
     // test case setInterval(() => CSynth.msgfix('test', framenum), 1000)
     // below will let it punch its way through to be visible even when behind
     // CSynth.msgfix.threeobj.traverse(n => {if (n.material) {let x=n.material; log(x.depthTest = x.depthWrite = false, x.transparent)} } )
-    W.infobox.innerHTML = m.join('<br>').replaceall('\n', '<br>');
+    W.infobox.innerHTML = m.join('<br>').replace(/\n/g, '<br>');
 }
 
 /** display a fixed message from lookup of tag */
@@ -4625,13 +5055,13 @@ CSynth.msgtagadd = function CSynth_msgtagadd(text) {
     const m = CSynth.currentInfo || [];
     m.push(text);
     CSynth.msgfix.threeobj.updateLabel(m.join('\n'))
-    W.infobox.innerHTML = m.join('<br>').replaceall('\n', '<br>');
+    W.infobox.innerHTML = m.join('<br>').replace(/\n/g, '<br>');
 }
 
 CSynth.populateMessages = function() {
     const m =  {};
     const data = posturi('CSynth/messages.txt');
-    const xx = data.replaceall('\r','').split('\n*');
+    const xx = data.replace(/\r/g,'').split('\n*');
     xx.forEach(k => {
         m[k.pre('\n')] = k.trim().post('\n');
     });
@@ -4678,11 +5108,11 @@ Object.defineProperty(CSynth, 'publish', {
 
 
 Maestro.on('backgroundColorChanged', () => {
-    log('backgroundColorChanged');
+    // log('backgroundColorChanged');
     if (bigcol.r > 0.5) {
-        GX.setValue('historytrace/subtractivecolor',  true);
+        GX.setValue('historytrace/subtractivecolor',  true, false);  // false for no log error
     } else {
-        GX.setValue('historytrace/subtractivecolor',  false);
+        GX.setValue('historytrace/subtractivecolor',  false, false);
     }
 
 });
@@ -4737,14 +5167,160 @@ CSynth.useSubset = function(xyz, subset) {
     }
 }
 
-/** if requested try to match up the input xyzs */
+/** if requested try to match up the input xyzs if they are pdbs */
 CSynth.checkPdbs = function(cc) {
-    if (cc.matchPairs && cc.xyzs.length > 1) {
-        const r = CSynth.intersection(cc.xyzs); // find common keys
-        cc.xyzs.forEach(xyz => CSynth.useSubset(xyz, r));
-        numInstances = cc.numInstances = cc.xyzs[0].numInstances;
+    const pdbs = cc.xyzs.filter(p => p.pdbdata);
+    if (cc.matchPairs && pdbs.length > 1) {
+        const r = CSynth.intersection(pdbs); // find common keys
+        pdbs.forEach(xyz => CSynth.useSubset(xyz, r));
+        numInstances = cc.numInstances = pdbs[0].numInstances;
         cc.maxid = numInstances - 1; // ?? are there issues as ids are not dense ??
     }
+}
+
+/** merge matching pairs _l_/_r_ of pdbs for docking benchmark; eg
+ * eg 1E4K_l_b.pdb with 1E4K_r_b.pdb
+ * Thus given a set 1E4K_l_b.pdb, 1E4K_r_b.pdb, 1E4K_l_u.pdb, 1E4K_r_u.pdb
+ * we end up with a pair; one for bound and one for unbound,
+ * each comprising and _l and an _r
+ *
+ * Chain naming is odd in the benchmark database, so automatically rename the chains so they can match,
+ * n.b. Interesting benchmark cases: 1E4K (?as used by FoldSynth demo?) 3R9A, 1GGX, 1AKJ, **1BKD** 1EAW ***1PXV >foldsynth***, 1R8S, ** 1XD3, * 1XQS
+ * 1Y64 1ZM4 2AST
+ * bad: 1SYX 1ZL1 ??? 2AYO
+ */
+CSynth.mergePdbs = function(cc) {
+    const xyzs = cc.xyzs;
+    const remove = [];
+    for (let i = 0; i < xyzs.length;i++) {
+        const xi = xyzs[i];
+        const xis = xi.filename.split('_l_');
+        if (xis.length !== 2) continue;
+        for (let j = 0; j < xyzs.length; j++) {
+            const xj = xyzs[j];
+            const xjs = xj.filename.split('_r_');
+            if (xjs.length !== 2) continue;
+            if (xis[0] !== xjs[0] || xis[1] !== xjs[1]) continue;
+            // if here found matching pair
+            xi._tentativeSplitParticle = xi.numInstances; // this may be wrong if checkPDB merge eliminates some particles
+            xi.coords = xi.coords.concat(xj.coords);
+            xi.realcoords = xi.realcoords.concat(xj.realcoords);
+            xi.pdbdata = xi.pdbdata.concat(xj.pdbdata);
+            xi.splitChain = CSynth.rechainPDB(xi, xi.numInstances);
+            xi.numInstances += xj.numInstances;
+            xi.description += xj.description;
+            remove.push(xj);
+        }
+    }
+    for(const xj of remove) xyzs.splice(xyzs.indexOf(xj), 1);
+}
+
+CSynth.dock = async function(bfn = 'next') {
+    setExtraKey('K,L', 'dock next', () => CSynth.dock());
+    setExtraKey('K,J', 'dock previous', () => CSynth.dock('prev'));
+    let ll = CSynth.dock.list;
+    if (!ll) ll = CSynth.dock.list = window.fileEntries.filter(x=>x.name.endsWith('_l_b.pdb')).map(x => x.name.replace('_l_b.pdb', ''));
+    if (bfn === 'next') bfn = ll[(ll.indexOf(CSynth.dock.last) + 1) % ll.length];
+    if (bfn === 'prev') bfn = ll[(ll.indexOf(CSynth.dock.last) - 1 + ll.length) % ll.length];
+    CSynth.dock.last = bfn;
+    async function file(fn) {
+        const e = window.fileEntries.filter(x=>x.name === fn)[0];
+        let r;
+        e.file(x => { r = x; Maestro.trigger('xxx')});
+        await S.maestro('', 'xxx');
+        return r;
+    }
+    const f = [];
+    f[0] = await file(bfn + '_l_b.pdb');
+    f[1] = await file(bfn + '_l_u.pdb');
+    f[2] = await file(bfn + '_r_b.pdb');
+    f[3] = await file(bfn + '_r_u.pdb');
+    openfiles(f);
+    await S.maestro('', 'finishload');
+    onframe(() => {
+        GX.restoregui('>docbench.settings');
+        CSynth.xyzsExact(0);
+        CSynth.separate();
+        G.springrate = 0.1;
+
+     }, 5);
+}
+
+/** separate two docking parts */
+CSynth.separate = function(psep=20) {
+    let sep = psep;
+    const xyz = CSynth.current.xyzs[1];
+    const c = xyz.coords;
+    const split =  Math.ceil(CSynth.current.splitParticle);
+
+    if (typeof sep === 'number') {
+        const l = CSynth.stats(c.slice(0, split)).centroid;
+        sep = CSynth.stats(c.slice(split)).centroid;
+        sep.sub(l).normalize().multiplyScalar(psep);
+    }
+    for (let i = split; i < c.length; i++) {
+        c[i].add(sep);
+    }
+    xyz.texture = undefined;
+    CSynth.xyzToTexture(xyz);
+    // CSynth.xyzsExact(1);
+}
+
+CSynth.unzip = async function(dataStr, use='') {
+    // eslint-disable-next-line no-shadow
+    const log = console.log;
+    if (dataStr === 'test') {     // test
+        const file = 'CSynth/data/Lorentz/NoY_All_interIntraContact_1M_nml.zip';
+        dataStr = await posturibin(file);
+    }
+    console.log('././~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ZIPTIME')
+    // note: 1 Feb 2022
+    // zip much quicker than JSZip
+    // because JSZip doImmediate/setTimeout,0 gets 4ms waste
+    // Care needed with window/self to get JSZip working in web worker
+    // JSZip kept more up to date though ...
+    // note: 2 Deb 2022
+    // 'patched' jszip from outside by out own shim (copied) for setImmediate in utils.js
+    // n.b. code below copied into webworker test readzipfile in CSynthWorker.js without comments for full test
+    //
+    let text;
+    if (use == 'both') {        // generally only use JSZip in tests
+        console.time('././JSZip');
+        const jszip = new JSZip();
+        await jszip.loadAsync(new Uint8Array(dataStr));
+        const ff = Object.keys(jszip.files)[0];
+        let lastp = 0;
+        text = await jszip.file(ff).async('string', m => {
+            const p = m.percent;
+            if (p > lastp + 10) {
+                log(`././JSZip ${p.toFixed(2)}%`);
+                lastp = p;
+            }
+        });
+        console.timeEnd('././JSZip');
+    }
+    if (use === '' || use == 'both') {  // use zip by default
+        console.time('././zip');
+        // const tr = new zip.HttpReader(fid)
+        const tr = new zip.Uint8ArrayReader(new Uint8Array(dataStr));
+        const reader = new zip.ZipReader(tr)
+        const entries = await reader.getEntries()
+        let lastlog = 0;
+        text = await entries[0].getData( new zip.TextWriter(), {
+            onprogress: (index, max) => {
+                const p = index/max * 100;
+                if (p > lastlog + 10) {
+                    console.log(`././zip${index} of ${max}; ${p}%`)
+                    lastlog = p;
+                }
+            }
+        })
+        console.timeEnd('././zip');
+    }
+
+    // if (text !== textz) debugger
+
+    return text;
 }
 
 CSynth.addTooltips = function() {
@@ -4824,3 +5400,13 @@ CSynth.xtooltips = {
 CSynth.shortcuts = {
     cov: 'covid/Corona-httpkorkinlab.org-wuhan/4. Models of viral-human protein complexes/wS_trimer-ACE2.js'
 }
+
+/** spring oddities at end of big pdb
+ 60 ok
+ capsid.pdb, 11610, zigzag at end, alternate pairs fixed/free,12 pair/pairs (48 items)
+ 6atk.pdb, 2898, pairs as above, but just one pair very near end fixed (ima)
+ 6vxx.pdb, 2916, very simular to 6atk (6vxx covid spike closed)
+ 5tc1.pdb, 1594, two at end fixed
+
+ *
+ */

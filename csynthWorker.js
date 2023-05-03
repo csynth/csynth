@@ -2,10 +2,13 @@
 // worker code to assist CSynth
 // note: this is in the organicart level directory so paths are consistent between main thread and worker
 
-var springs, log, posturi, contactsReader, throwe, CSynth, showvals, posturiasync, copyFrom;
-var nop = ()=>{}, adduniform = nop, addgeneperm = nop, isNode = nop, osetTimeout = nop, minimizeSkelbuffer = nop;
-var window = { setTimeout, addEventListener: ()=>{} },
-HTMLTextAreaElement={}, HTMLElement={}, document = {}, Maestro = {on: nop}, V = {}, VH = {};    // lots of uses of W will be invalid because of this
+var springs, posturi, contactsReader, throwe, CSynth, showvals, posturiasync, posturibin, copyFrom;
+var nop = ()=>{}, adduniform = nop, addgeneperm = nop, isNode = nop, osetTimeout = nop, minimizeSkelbuffer = nop,
+zip, JSZip;
+// var window = { setTimeout, addEventListener: ()=>{} },
+// HTMLTextAreaElement={}, HTMLElement={}, document = {}, Maestro = {on: nop}, V = {}, VH = {};    // lots of uses of W will be invalid because of this
+var window = globalThis;
+Object.assign(window, {HTMLTextAreaElement: {}, HTMLElement: {}, document: {}, Maestro: {on: nop}, V: {}, VH: {}});    // lots of uses of W will be invalid because of this
 HTMLElement.prototype={};
 HTMLTextAreaElement.prototype={};
 var postmsg = postMessage;  // use postmsg to reduce number of errors reported by lint
@@ -16,9 +19,13 @@ loadStartTime = Date.now();
 
 console.log('starting worker');
 var inworker = true;
+var log = console.log;
 function newframe(f) { console.log('no newframe for worker'); }
-importScripts('JS/searchString.js', 'JS/utils.js', 'JS/springs.js', 'CSynth/csynth.js',
-    'CSynth/springsynth.js', 'CSynth/analysis.js', 'JSdeps/spearson.js');
+self.importScripts('JS/searchString.js', 'JS/utils.js', 'JS/springs.js', 'CSynth/csynth.js',
+    'CSynth/springsynth.js', 'CSynth/analysis.js', 'JSdeps/spearson.js',
+    'JS/scripts.js', 'JSdeps/zip.min.js',
+    'JSdeps/jszip.js' ,
+);
 
 springs.newmat = nop;
 const clog = log;
@@ -27,7 +34,7 @@ var myfile = 'nofile';
 log = function() { const m = showvals.apply(undefined, arguments); postmsg(['logmessage', myfile, m]); }
 
 // log('worker scripts loaded');
-onmessage = function(e) {
+onmessage = async function(e) {
     const data = e.data;
     // log('Message received from main script', e,data[0]);
     if (data[0] === 'contacts') {
@@ -102,6 +109,9 @@ onmessage = function(e) {
             };
             reader.readAsText(file);
         }
+    } else if (data[0] === 'readzipfile') {   // takes file, filename and does read and unzip test
+        clog('requested');
+        CSynth.unzip('test', 'both');
     } else {
         postmsg(['invalid', data[0]]);
     }

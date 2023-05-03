@@ -1,11 +1,13 @@
 {
     "compilerOptions": {
         "target": "es2018",
-        //"target": "es6",        // converts async/await into special wrapper and yield
         "module": "esnext",
         "moduleResolution": "node",
+        "resolveJsonModule": true,
+        "allowSyntheticDefaultImports": true,
         "outDir": "../JSTS",
         "sourceMap": true,
-        "rootDirs": [".", "../TSServer"]
-    }
+        "rootDirs": ["."]
+    },
+    "xinclude": [".", "./TS", "./JS", "./node_modules/@types/three/src/Three.d.ts"]
 }

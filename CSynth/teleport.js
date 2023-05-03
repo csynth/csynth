@@ -1,4 +1,4 @@
-var CSynth, THREE, camera, V, planeg;
+var CSynth, THREE, camera, V, HW;
 
 //loosely based on https://github.com/fernandojsg/aframe-teleport-controls/blob/master/index.js
 //we just want a simple circular region for now, which makes things a little simpler.
@@ -21,7 +21,7 @@ function Teleport() {
     const group = this.threeObj = new THREE.Group();
     group.name = 'teleport group';
     V.rawscene.add(group);
-    const plane = planeg(100000, 100000, 2, 2);
+    const plane = HW.planeg(100000, 100000, 2, 2);
     const mat = new THREE.MeshBasicMaterial({opacity: 0.1, transparent: true});
     mat.side = THREE.DoubleSide;
     mat.depthWrite = false;

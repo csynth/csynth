@@ -1,3 +1,4 @@
+/* eslint-disable no-var */
 /*
  * Apologies for the pompous sounding name.
  * This is supposed to handle musical logic, which also relates to being a kind of
@@ -15,7 +16,7 @@
 "use strict";
 
 // var ; // keep joiner short happy
-var serious, startOSCBundle, flushOSCBundle, sclog, sclogE, Worker; //OSC & sc stuff only used with nw_sc / mutsynth.
+var serious, startOSCBundle, flushOSCBundle, sclog, sclogE, Worker, msgfixlog; //OSC & sc stuff only used with nw_sc / mutsynth.
 
 //http://stackoverflow.com/questions/5767325/remove-specific-element-from-an-array
 var destroyObjInArr = function(obj, arr){
@@ -33,6 +34,9 @@ var destroyObjInArr = function(obj, arr){
 };
 
 var MaestroConstructor = function(useWorker = false) {
+    var m = this;
+    const worker = useWorker ? new Worker('./JS/maeswork.js') : null;
+
 
     //associates named events ("beat", "bar"...) with arrays of
     //function(msg) returning true when they are ready to be removed
@@ -49,11 +53,24 @@ var MaestroConstructor = function(useWorker = false) {
         callbacks[k].push({fn: fn, onParms: onParms, once: once, msgtype: k, regid: m.regid});
         return m.regid;
     };
+    this.once = (k, fn, onParms) => {
+        this.on(k, fn, onParms, true);
+    };
 
     //add a callback, but if function already there remove old one
     this.onUnique = function(k, fn, onParms, once) {
         m.remove(k, fn);
         m.on(k, fn, onParms, once);
+    };
+
+    /** returns when event 'k' is next triggered. */
+    this.await = async function(k) {
+        const promise = new Promise((resolve) => {
+            m.on(k, ()=>{
+                resolve();
+            }, null, true);
+        });
+        await promise;
     };
 
     /** remove object with regid from callback k,
@@ -77,7 +94,7 @@ var MaestroConstructor = function(useWorker = false) {
                 }
         } else {
             for (var kk in callbacks) {
-                var ev = this.remove(regid, kk);
+                var ev = this.remove(kk, regid);
                 if (ev) return ev;
             }
         }
@@ -94,12 +111,22 @@ var MaestroConstructor = function(useWorker = false) {
     }
 
     this.terminate = function() {
+        this.trigger('terminate');
         callbacks = {};
-        worker.terminate();
+        worker?.terminate();
     }
 
 
     this.ignoreQuarantined = true;
+
+    this.triggerCheck = function(k, eventParms) {
+        if (!callbacks[k])
+            msgfixlog('tad+', 'Maestro triggerCheck called with no listener', k);
+        const r =  this.trigger(k, eventParms);
+        msgfixlog('tad+', 'Maestro triggerCheck complete', k);
+        return r;
+    }
+
 
     /** trigger listeners on the specified event, and on "*"
      * We could have a more generic wildcard system,
@@ -128,7 +155,8 @@ var MaestroConstructor = function(useWorker = false) {
                             //... but how much would we break...?
                             //adding a check for 'cancelled' flag on event object, checked after fn invocation...
                             //although, had been considering not passing event object... so...
-                            if(fn.fn(event) || event.cancelled || fn.once) completed.push(fn);
+                            const r = fn.fn(event);
+                            if ((r && !(r instanceof Promise)) || event.cancelled || fn.once) completed.push(fn);
                         } catch (err){
                             if (!fn.quarantined && !this.ignoreQuarantined) { // only report one err
                                 console.log("[Maestro]Quarantine function "+ JSON.stringify(fn) +" as it threw error " + err);
@@ -139,7 +167,7 @@ var MaestroConstructor = function(useWorker = false) {
                         }
                     }
                 }
-                completed.map(function(el) { destroyObjInArr(el, callbacks[kk]); });
+                completed.forEach(function(el) { destroyObjInArr(el, callbacks[kk]); });
                 if (callbacks[kk] && callbacks[kk].length === 0) delete callbacks[kk];
             }
         }
@@ -151,7 +179,6 @@ var MaestroConstructor = function(useWorker = false) {
     //--polymeter::: make more than one & be sure to clean up after.
     //TODO: check whether our timer is causing significant problems in heavy VR graphics context
     //Moving to worker.  Maybe consider larger shift of audio related stuff to worker.
-    const worker = useWorker ? new Worker('../JS/maeswork.js') : null;
     let skipCount = 0;
     if (worker) {
         worker.onmessage = e => {
@@ -176,7 +203,6 @@ var MaestroConstructor = function(useWorker = false) {
     var interval;
     if (!sclog) sclog = function(msg) { console.log(msg); };
     if (!sclogE) sclogE = function(msg) { console.error(msg); };
-    var m = this;
     var startTime, lastStepTime, targetStepTime; //what is lastStepTime really for?
     this._intervalTime = 1;
     this.stepsPerBeat = 4;

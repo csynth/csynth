@@ -1,8 +1,8 @@
 // set defaults for CSynth
 var copyFrom, G, target, onframe, checkvr, vrresting, renderVR, V, usevr, genedefs, setInput, W, customSettings,
-    resoverride, CSynth, startvr, processFile, updateGuiGenes, newmain, log, framenum, DNASprings,
+    HW, CSynth, startvr, processFile, updateGuiGenes, newmain, log, framenum, DNASprings,
     nomess, GX, resetMat, camera, omvrpresshold, viveAnim, msgfixlog, numInstances, VEC3, CLeap;
-;
+
 
 CSynth.setDefaults = function(docustom = true) {
     // nomess('force');
@@ -54,7 +54,9 @@ CSynth.setDefaults = function(docustom = true) {
     // G.radTaper = 100; // G.radTaper = 10e10, for (almost) no taper ... obsolete ???
     G.bias = 0; G.tension = -0.75;  // control Hermite interpolation, defaults same as older code.  Use bias > 99 for older code
     G.NORMTYPE = 5;   // control setting up of tuv orientation, 1 was older method, se hornmaker.vs for more details
-    G.sphereRadius = 0.55;
+    G.sphereRadius = 0.7;
+    G.selectedSphereRadius = 0.9;
+
 
     GX.setValue('matrix/colour/input a', 'current distances');
     GX.setValue('matrix/colour/input b', 'current dynamics model')
@@ -101,7 +103,7 @@ CSynth.setDefaults = function(docustom = true) {
     G.bumpscale = 20;
     G.bumpstrength = 0.3;
 
-    DNASprings.stretch = false;  // we may sort out a sensible strech length later
+    DNASprings.stretch = DNASprings.laststretch = false;  // we may sort out a sensible strech length later
     DNASprings.fixends = false;
 
     if (docustom && CSynth.current.ready)

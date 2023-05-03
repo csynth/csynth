@@ -3,6 +3,7 @@
  * Part of organicart.  Copyright Goldsmiths, Stephen Todd, Peter Todd, 2015.
  */
 "use strict";
+
 var newframeAnim = 0, newframeNotanim = 0; // stats counters
 
 //  ... typescript not sure how to force geneSpped to be object of unknown properties
@@ -21,7 +22,7 @@ var tracketclate; // allow tracketc to be moved to end of loop (?better parallel
  * This needs a touch-based return true option as well.  <<< TODO
  * */
 function isSteeringInteraction() {
-//    return (keysdown.length === 1 && keysdown[0] === '#222' && lastDispobj > 0);
+//    return (keysdown.length === 1 && keysdown[0] === '#' && lastDispobj > 0);
     return (mousewhich > 0 && lastDispobj !== "nodispob" && lastDispobj.vn > 0);
 }
 
@@ -101,7 +102,7 @@ if (!hoverSteerMode) {
                 }
             //currentGenes[gn] = v;
         }
-        slots[mainvp].dispobj.render();
+        if (slots) slots[mainvp].dispobj.render();
     }
     // framescale(); // moved out of critical time
 }
@@ -132,12 +133,15 @@ var scalehalflife = 5000;
 var scalefrequency = 25;
 var scalehop = 1;
 var nextscale = 0, lastscale = 0;
+var preventScale = false;
 
 /** scale/centre the frame, with damping */
 function framescale(damp = undefined) {
+    if (preventScale) return;
     if (searchValues.nohorn) return;
     if (inputs.NOCENTRE && inputs.NOSCALE) return;  // we aren't using the scaling anyway
-    if (currentGenes.tranrule) {  // this is horn specific: later to move but use currentGenes.tranrule test for now
+    if (currentGenes.tranrule && !currentHset.hornhighlight) {  // this is horn specific: later to move but use currentGenes.tranrule test for now
+        // don't scale if highlight, silly if it is solo on a small part
         /****
         ****/
         //log(framenum, "framedelta p/g", framedelta);
@@ -145,6 +149,8 @@ function framescale(damp = undefined) {
         // split prep/get over two frames marginally improves performance consistency
         // but needs a little more work in case the frames are interrupted by a breed
         // or other operation that uses centrescale.  Todo, arrange at least two buffers.
+        // Random value for nextscale makes any performance hit of scaling less regular and so less noticable
+        // Added around GVGallery time, possibly no longer relevant
         if (framenum >= nextscale) {
             rangeiprep(currentGenes, "main");  // whether GPUSCALE or not
             lastscale = framenum;
@@ -166,7 +172,7 @@ function framescale(damp = undefined) {
             cr4[15] = 1;
             currentGenes.gscale = 1;
             scaleSmoothGPU("main", damp);
-            makeGenetransform();
+            rot4toGenes();
             newmain();
             return;
         }
@@ -177,7 +183,7 @@ function framescale(damp = undefined) {
             if (framenum === lastscale + shop || framenum === 0) {
                 //log("get", framenum);
                 var t = getcentrescale(currentGenes, "get");
-                if (!isNaN(t.gscale)) targetAutocam = t;
+                if (t && !isNaN(t.gscale)) targetAutocam = t;
             }
             if (targetAutocam) {
                 let rr = targetAutocam;
@@ -302,7 +308,7 @@ function makeaverage() {
         }
         // dispobj.needsPaint = true;  // ????
     }
-    useGenetransform(genes);
+    genestoRot4(genes);
     copyFrom(currentGenes, genes);
     newmain();
     //msgfix("avg", mmm);
@@ -364,6 +370,7 @@ function steer(steering, genes, level, vn) {
 var framenum = 0, debugframenum = 0, frametime = 0, framedelta = 0, framedeltasmooth = 0, framedeltahalflife = 500;
 var debugframedelta = [], debugframedeltasize = 100;  // for perf tests, time between start of js for each frame
 var debugframecpu = [];  // time in js for frame
+var debugframedeltabig = [];     // log of oversize debugframedelta
 
 var inAnimate = false; // flag to defer processNewframe() to end of animate cycle
 var nogl;    // usually undefined, used to 'hide' gl and make sure it is only used during callbacks, not used if gl = renderer.context = nogl; commented out below
@@ -374,12 +381,14 @@ var alwaysNewframe = 100; // set to number to keep goingfor number frames even w
 var animate : { t100?, cpu100?, last100?,fps100?, frame100?, readbefore?,readafter?,readwidth, readbuffer,
     frametime } = {readwidth:8, readbuffer: new Uint8Array(32), frametime: [] };
 
-/** animate function with error protection, should only be accessed from myDeferredRequestAnimationFrame() */
-function animateNum(oldFramenum) {
-    var now = performance.now();
-
-    if (oldFramenum !== framenum && oldFramenum%0)  // oldFramenum%0 for callback in XR
-        console.error('animateNum frames wrong?', oldFramenum, framenum)
+/**
+ * callback whether or not in XR
+ * @param time: number
+ * @param frame: XRFrame XR frame (not used directly yet, rely on three.js XR support)
+ */
+async function animateNum(time: number, frame?) {
+    const now = time;
+    const perfnow = performance.now();
 
     myRequestAnimationFrame.wanted = 0;  // only allow once per frame
     if (_ininit) return; //
@@ -391,13 +400,13 @@ function animateNum(oldFramenum) {
     // Not able to track down exactly when.
     // One example is clicking on the dat gui gui with mouse (nonVR),
     // which increases the gp utilzation eg from 40% to 50%
-    canvas.blur();
+    if ((window as any).canvasBlur) canvas.blur();
 
     for (let i=0; i < 50; i++) {  // loop to help measure separated cpu time, only with testcputimes.running
         if (testcputimes && testcputimes.running === "time") consoleTime("animate_" + i)
         if (renderer) {
             gl = renderer.xcontext;
-            if (+THREE.REVISION < 109) renderer.context = gl;
+            // if (+THREE.REVISION < 109) renderer.context = gl;
         }
         try {
             inAnimate = true;
@@ -417,19 +426,21 @@ function animateNum(oldFramenum) {
     }
     inAnimate = true;
     if (newframePending) { processNewframe(); newframeAnim++; }
+    Maestro.trigger('endframe');
     inAnimate = false;
     // if (renderer) gl = renderer.context = nogl;
+    if (WA.testslow) await sleep(WA.testslow);
     myDeferredRequestAnimationFrame();  // only do the real request when everything else done
-    debugframecpu[debugframenum % debugframedeltasize] = performance.now() - now;
-
-}
+    debugframecpu[debugframenum % debugframedeltasize] = performance.now() - perfnow;
+    renderer.xr.enabled = cheatxr && renderer.xr.isPresenting; // force before three.js does initial processing on next frame
+} // end animateNum
 
 //XXX: PJT: killing gsetTimeout in the face in Jan2020
 //const gsetTimeout = global &&  global.setTimeout;
 
-/** note sjpt: 25/11/2019 requestAnimationFrame has several extra requirements
+/** note sjpt: 25/11/2019 requestAnimation Frame has several extra requirements
  * VR
- * ? XR different to VR ... almost all RequestAnimationFrame skipped and three XR callback tp animateNum used
+ * ? XR different to VR ... almost all RequestAnimation Frame skipped and three XR callback tp animateNum used
  * detect (?and correct?) attempts to create parallel animation sequences by overzealous calls
  *
  * AFAP option to go as fast as possible, not frame synchronized ... mainly for performance tests
@@ -454,30 +465,30 @@ var myRequestAnimationFrame:any = function() {
 }
 myRequestAnimationFrame.wanted = 0;
 
-/** myDeferredRequestAnimationFrame wrappers various requestAnimationFrame options: NOT USED FOR XR */
+/** myDeferredRequestAnimationFrame wrappers various requestAnimation Frame options: NOT USED FOR XR */
 function myDeferredRequestAnimationFrame() {
     const oldFramenum = framenum;
     const animatex = () => animateNum(oldFramenum);
     if (myRequestAnimationFrame.wanted === 0)
         return;
-    let dev = renderer && renderer.vr.getDevice();
+    // NO VR 2/10/2020 let dev = renderer && renderer. vr.get Device();
     //nb PJT got rid of gsetTimeout case.
-    // if inputs.AFAP not defined at all then we are not in requestAnimationFrame territory
+    // if inputs.AFAP not defined at all then we are not in requestAnimation Frame territory
     if (inputs.AFAP !== false) { // lots of fps not rendered correctly, for timing tests
         setTimeout(animatex, 1);
-    } else if (dev && dev.isPresenting) { // VR case
-        // three.js gets away with dev.requestAnimationFrame() even before dev is presenting
-        // but for us it often failed to trigger as the device was first established before we even tried to enter VR
-        // so we use standard requestAnimationFrame until we really are presenting
-        //setTimeout(function() {  // more stable timing ?????
-            dev.requestAnimationFrame(animatex);
-        //}, 1);
+    // } else if (dev && dev.isPresenting) { // VR case ... NO VR 2/10/2020
+    //     // three.js gets away with dev.requestAnimation Frame() even before dev is presenting
+    //     // but for us it often failed to trigger as the device was first established before we even tried to enter VR
+    //     // so we use standard requestAnimatio nFrame until we really are presenting
+    //     //setTimeout(function() {  // more stable timing ?????
+    //         dev.requestAnimation Frame(animatex);
+    //     //}, 1);
     } else {    // normal non-webkit case
         WA.XrequestAnimationFrame(animatex);
     }
 }
 
-/** deferred requestAnimationFrame, allow other things to happen  */
+/** deferred requestAnimation Frame, allow other things to happen  */
 function requestAnimationFrameD(f, t=1) {
     //nb PJT got rid of gsetTimeout case.
     const timeoutFn = window.setTimeout;
@@ -499,9 +510,13 @@ function clearerror(evt) {
 var lasthearbeat = 0;
 var framespoil = {num: 10, time: 0};  // spoil every num'th frame, for debug
 var longstatlen = 100;
+var cheatxrRenderTarget; // passed through layers to renderObj callback; set anyway, used for cheatxr and >= three150
 /** standard animation function */
-function animatee(now = performance.now()) {
-    Maestro.trigger('animateStart');
+function animatee(now) {
+    // three.js sets up renderTarget for XR before this animation callback
+    // We need to do other things before 'final' render to XR framebuffer.
+    // so we capture this now so we can restore it when needed.
+    cheatxrRenderTarget = renderer.getRenderTarget();
     if (framespoil.time && framenum % framespoil.num === 0) {  // wate time in a spin loop
         var sss = Date.now();
         while (Date.now() < sss + framespoil.time) {}
@@ -531,6 +546,8 @@ function animatee(now = performance.now()) {
     if (framenum < 100) animate.frametime[framenum] = Date.now() - loadStartTime;
 
     framelog('>>>>>>>>>>>>>>>>>>>>>>>>> starting animateee at frame', framenum);
+    Maestro.trigger('animateStart');
+
     if (animate.readbefore) readpixtest();
     if (searchValues.heartbeatrate) {
         if (now > lasthearbeat + searchValues.heartbeatrate*1000 && renderVR.invr()) {  // do NOT give a heartbeat if no VR device
@@ -549,7 +566,12 @@ function animatee(now = performance.now()) {
 
     framedelta = now - frametime;
     // if (debugframedelta.length !== debugframedeltasize) debugframedelta = [];
-    debugframedelta[debugframenum % debugframedeltasize] = (framedelta);  // NOT rounded
+    debugframedelta[debugframenum % debugframedeltasize] = framedelta;  // NOT rounded
+    if (framedelta > 17) {
+        if (debugframedeltabig.length > 1000) debugframedeltabig.splice(0,500);
+        debugframedeltabig.push({framenum, frametime, framedelta})
+    }
+
     //if (framedelta > 40)
     //    log(framenum, "framedelta", framedelta);
     frametime = now;
@@ -562,10 +584,18 @@ function animatee(now = performance.now()) {
 //        log(framenum, "framedeltasmooth", "framedelta");
 
     //if (framenum % 30 == 0)
-    if (currentHset && multiScene.dummy)
-        msgfix("framedeltasmooth", format(framedeltasmooth,1), 'fps<b>', format(1000/framedeltasmooth,1), '</b><span style="margin-left:5em"></span>horn#', currentHset.horncount, 'mesh (M)', multiScene.dummy.meshused/1000000);
-    else  // in case not horn
+    if (currentHset && HW.multiScenedummy) {
+        if (currentHset.horncount !== currentHset.fullHornCount) {
+            msgfix("!framedeltasmooth", format(framedeltasmooth,1), 'fps<b>', format(1000/framedeltasmooth,1), '</b><span style="margin-left:5em"></span>horn#',
+            '<span style="color:red">',currentHset.horncount, currentHset.fullHornCount, '</span>mesh (M)', HW.multiScenedummy.meshused/1000000);
+        } else {
+            msgfix("framedeltasmooth", format(framedeltasmooth,1), 'fps<b>', format(1000/framedeltasmooth,1), '</b><span style="margin-left:5em"></span>horn#', currentHset.horncount, 'mesh (M)', HW.multiScenedummy.meshused/1000000);
+        }
+    } else {  // in case not horn
         msgfix("framedeltasmooth", format(framedeltasmooth,1), 'fps<b>', format(1000/framedeltasmooth,1), '</b><span style="margin-left:5em"></span>horn#');
+    }
+
+    //??? not needed, hovermessage logic changed 30/06/2021 if (hoverDispobj.vn === mainvp) dispmouseover(0, hoverDispobj); // update the hover value too
 
 
     // render outstanding models in renderDirectory, if any
@@ -628,6 +658,7 @@ function resetDebugstats() {
     debugframenum = 0;
     debugframecpu = [];
     debugframedelta = [];
+    // debugframedeltabig = [];
 }
 
 function tracketc() {
@@ -646,41 +677,50 @@ function tracketc() {
 
     genesToCam(currentGenes);  // move genes to camera so they can use three.js methods for manipulation
 
-    var kkk = keysdown.indexOf('shift') === -1 ? 1 : 10;
-    var m = gamespeed.move * kkk * renderVR.scale/400;
-    var r = gamespeed.rot * Math.PI / 180 * kkk;
-    var mm = camera.matrix.elements;
-    if (keysdown.indexOf('alt') === -1 && document.activeElement === document.body) { // alt arrow used for other things
-        if (keysdown.indexOf('up arrow') !== -1) {
-            if (keysdown.indexOf('ctrl') !== -1) {
-                camera.rotateX(r);
-            } else {
-                camera.position.x -= m * mm[8];
-                camera.position.y -= m * mm[9];
-                camera.position.z -= m * mm[10];
-            }
-         //camera.position.z += m;
+    // check for possible movement by arrow
+    if (keysdown.join().indexOf('Arrow') !== -1 && document.activeElement === canvas) {
+        let bad = false;
+        for (const k of keysdown) {
+            if (!(k.includes('Arrow') || k === 'ctrl'))   // 'shift' not allowed either
+                bad = true;
         }
 
-        if (keysdown.indexOf('down arrow') !== -1) {
-            if (keysdown.indexOf('ctrl') !== -1) {
-                camera.rotateX(-r);
-            } else {
-                camera.position.x += m * mm[8];
-                camera.position.y += m * mm[9];
-                camera.position.z += m * mm[10];
+        if (!bad && canvTransEnabled) { // arrow key can be used
+            newmain();
+            // var kkk = keysdown.indexOf('shift') === -1 ? 1 : 10;
+            var kkk = 1;
+            var m = gamespeed.move * kkk * renderVR.scale/400;
+            var r = gamespeed.rot * Math.PI / 180 * kkk;
+            var mm = camera.matrix.elements;
+            if (keysdown.indexOf('ArrowUp') !== -1) {
+                if (keysdown.indexOf('ctrl') !== -1) {
+                    camera.rotateX(r);
+                } else {
+                    camera.position.x -= m * mm[8];
+                    camera.position.y -= m * mm[9];
+                    camera.position.z -= m * mm[10];
+                }
+            //camera.position.z += m;
             }
+
+            if (keysdown.indexOf('ArrowDown') !== -1) {
+                if (keysdown.indexOf('ctrl') !== -1) {
+                    camera.rotateX(-r);
+                } else {
+                    camera.position.x += m * mm[8];
+                    camera.position.y += m * mm[9];
+                    camera.position.z += m * mm[10];
+                }
+            }
+
+            if (keysdown.indexOf('ArrowLeft') !== -1)
+                camera.rotateY(r);
+
+            if (keysdown.indexOf('ArrowRight') !== -1)
+                camera.rotateY(-r);
         }
-
-
-        if (keysdown.indexOf('left arrow') !== -1)
-            camera.rotateY(r);
-
-        if (keysdown.indexOf('right arrow') !== -1)
-            camera.rotateY(-r);
     }
 
-    if (keysdown.join().indexOf('arrow') !== -1) newmain();
 
     VRTrack();  // handle the VR tracking; operates directly on camera, not on genes
 
@@ -696,7 +736,7 @@ function tracketc() {
 /// test readPixels time in different situations
 function readpixtest() {
     if (animate.readbuffer.length < 4*animate.readwidth) animate.readbuffer = new Uint8Array(4*animate.readwidth);
-    renderer.setRenderTarget(); // the canvas should always be of a convenient type and big, so read that as test
+    renderer.setRenderTarget(null); // the canvas should always be of a convenient type and big, so read that as test
     gl.readPixels(0,0, animate.readwidth, 1, gl.RGBA, gl.UNSIGNED_BYTE, animate.readbuffer);
 
 }
@@ -714,16 +754,16 @@ function debugframehist(n) {
     return st;
 }
 
-var logframenum;
+var logframenum = 0;
 /** log a single frame */
 function framelog(...a) {
-    if (logframenum !== framenum) return;
+    if (logframenum < framenum) return;
     log.apply(undefined, arguments);
 }
 /** set up to log next frame */
-function logframe() {
-    newmain();
-    logframenum = framenum + 1;
+function logframe(n:N = 1) {
+    newmain(n);
+    logframenum = framenum + n;
 }
 
 /** randomize gene speed */
@@ -839,18 +879,21 @@ function toTargetNow() {
 var sineAnimFrom, sineAnimTo, sineAnimStart, sineAnimLength, sineAnimFilter;
 ///// y=sin(x) - 0.7 * sin(0.7 + 3.7 * x) + 0.5 * sin(1.7 + 5.3 * x)
 /** set up sine animate from and to */
-function sineAnimate(filter?) {
+function sineAnimate(filter?: Genes) {
     if (filter === undefined) {
-        var horns = Object.keys(getHornSet(currentGenes.tranrule).horns);
-        var i = horns.indexOf(sineAnimFilter) + 1;
-        if (i === horns.length) i= 0;
-        filter = horns[i];
-        // ??? if (!filter) filter = first; // <<< check
-        console.log("anim >>>" + filter);
+        console.error('sineAnimate default filter needs looking at');
+        filter = resolveFilter();
+        // var horns = Object.keys(HW.getHornSet(currentGenes).horns);
+        // var i = horns.indexOf(sineAnimFilter) + 1;
+        // if (i === horns.length) i= 0;
+        // filter = horns[i];
+        // // ??? if (!filter) filter = first; // <<< check
+        // console.log("anim >>>" + filter);
     }
     sineAnimFilter = filter;
     sineAnimFrom = clone(currentGenes);
-    sineAnimTo = mutateObj(currentGenes, 10, filter);
+    // note: sineAnimate does not use slotw for _mutateObj
+    sineAnimTo = _mutateObj(currentGenes, 10, filter, 0);
     delete sineAnimTo.gscale;
     delete sineAnimTo.tranrule;
     for (let gn in sineAnimTo) {
@@ -923,10 +966,15 @@ function genesToCam(genes = currentGenes) {
     camera.scale.set(sk, sk, sk); // in case upset by something else
     // camera.quaternion.normalize();
     camera.updateMatrix();
-    if (camera.fov !== genes._fov) {
-        camera.fov = genes._fov;
+    if (genes._camnear) camera.near = genes._camnear;
+    if (genes._camfar) camera.far = genes._camfar;
+    if (genes._camaspect) camera.aspect = genes._camaspect;
+    // if (camera.fov !== genes._fov) {
+    camera.fov = genes._fov;
+    // do NOT upset carefully tailored VR cameras' projectionMatrix
+    if (!camera.name.startsWith('eye_'))
         camera.updateProjectionMatrix();
-    }
+    // }
 }
 /** make sure all the camera genes are defined, if not derive them from the camera */
 function fillCamGenes(genes) {

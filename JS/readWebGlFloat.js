@@ -3,9 +3,86 @@
  */
 'use strict';
 
-var THREE, renderer;
+var THREE, renderer, serious, checkglerror, throwe, tracing;
+
+function _rtData(rtin, options) {
+    const gl = renderer.getContext();
+
+    // image size
+    const v = options || {};
+    const imw = v.width || rtin.width || rtin.image.width;
+    const imh = v.height || rtin.height || rtin.image.height;
+
+    const w = v.width || imw;
+    const h = v.height || imh;
+    const channels = v.channels || 4;
+    const formats = {1: gl.RED, 3: gl.RGB, 4: gl.RGBA}; // gl style, not THREE style, 1 does not work, readPixel limitations
+    const format = formats[channels];
+    
+    if (!format) return serious('readWebGlFloatDirect bad number of channels: ' + channels);
+    const l = FIRSTV(v.left, (imw - w)/2);  // centre if not explicit
+    const t = FIRSTV(v.top, (imh - h)/2);  // centre if not explicit
+    const size = w * h * channels;
+    const bufferType = v.bufferType || Float32Array;
+
+    let buffer
+    if (v.buffer) {
+        if (v.buffer.length !== size) throwe(`incorrect buffer length to readWebGlFloatDirect: wanted ${size} given ${v.buffer.length}`);
+        buffer = v.buffer;
+    } else {
+        buffer = new bufferType(size);
+    }
+
+    return {imw, imh, w, h, channels, format, l, t, size, buffer, gl};
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/readPixels claims RGB valid
+
+/** read using direct readPixels that can use float data.
+ * probably pretty much equivalent to renderer.readRenderTargetPixels()
+ */
+function readWebGlFloatDirect(rtin, options) {
+    const {imw, imh, w, h, channels, format, l, t, size, buffer, gl} = _rtData(rtin, options);
+    let rrt = rtin;
+    if (rtin instanceof THREE.Texture) {
+        rrt = new THREE.WebGLRenderTarget(imw, imh);
+        rrt.setTexture(rtin);
+    }
+
+    //const rc1 = checkglerror('readWebGlFloatDirect');
+    //if (rc1) throwe('PRE readWebGlFloatDirect ' + rc1)
+
+    
+    renderer.setRenderTarget(rrt);
+    gl.readPixels(l, t, w, h, format, gl.FLOAT, buffer);
+    const rc = checkglerror('readWebGlFloatDirect');
+    if (rc) throwe('readWebGlFloatDirect ' + rc)
+    return buffer;
+}
+
+/** read using direct readPixels
+ * probably pretty much equivalent to renderer.readRenderTargetPixels()
+ */
+function readWebGlByteDirect(rtin, options = {}) {
+    options.bufferType = Uint8Array;
+    const {imw, imh, w, h, channels, format, l, t, size, buffer, gl} = _rtData(rtin, options);
+
+    renderer.setRenderTarget(rtin);
+    gl.readPixels(l, t, w, h, format, gl.UNSIGNED_BYTE, buffer);
+    const rc = checkglerror('readWebGlByteDirect');
+    if (rc) throwe('readWebGlByteDirect ' + rc)
+    return buffer;
+}
+
 
 function readWebGlFloat(rtin, options={}, id) {
+    const v = options;
+    const skipx = v.skipx || 1, skipy = v.skipy || 1;
+    const channels = v.channels || 4;
+    // if (skipx === 1 && skipy === 1 && [0,3,4].includes(channels) && v.mask === undefined && id === undefined) {
+    //     return readWebGlFloatDirect(rtin, options);
+    // }
+
     if (id) {
         if (!readWebGlFloat.pend[id])
             readWebGlFloat.prep(rtin, options, id);
@@ -29,8 +106,8 @@ readWebGlFloat.prep = function readWebGlFloatprep(rtin, options={}, id) {
         console.error('input to readWebGlFloat not correct texture', rttext);
         return;
     }
-    const checkglerror = ()=>{};  // yse window.checkglerror if we really want to check
-    checkglerror('before readWebGlFloat');
+    const _checkglerror = ()=>{};  // yse window.checkglerror if we really want to check
+    _checkglerror('before readWebGlFloat');
 // ========================================================================
     // The first method of encoding floats based on:
     // https://github.com/cscheid/facet/blob/master/src/shade/bits/encode_float.js
@@ -47,10 +124,15 @@ readWebGlFloat.prep = function readWebGlFloatprep(rtin, options={}, id) {
     //
     if (!readWebGlFloat.mat) {  // initialization
         readWebGlFloat.vertShader = `
+            precision highp float;
+            attribute vec3 position;
             void main() {
                 gl_Position = vec4(position.xy, 0, 1);
             }`;
-        readWebGlFloat.fragShader =  `uniform sampler2D textureD; // 'texture' reserved name in WebGL2
+        readWebGlFloat.fragShader =  `
+            precision highp float;
+            precision highp sampler2D;
+            uniform sampler2D textureD; // 'texture' reserved name in WebGL2
             uniform vec4 dotsel;
             uniform float l, t, texw, texh;
             uniform float channels, skipx, skipy;
@@ -124,7 +206,7 @@ readWebGlFloat.prep = function readWebGlFloatprep(rtin, options={}, id) {
         };
 
         // define the material using the matvariant
-        readWebGlFloat.mat = new THREE.ShaderMaterial({
+        readWebGlFloat.mat = new THREE.RawShaderMaterial({
             uniforms: readWebGlFloat.uniforms,
             vertexShader: readWebGlFloat.vertShader,
             fragmentShader: readWebGlFloat.fragShader,
@@ -183,7 +265,7 @@ readWebGlFloat.prep = function readWebGlFloatprep(rtin, options={}, id) {
     if (options.rtout) {
         rtout = options.rtout
     } else if (rtout && rtout.width === fullw && rtout.height === h) {
-
+        //
     } else {
         rtout = readWebGlFloat.rtout[key] = options.rtout || new THREE.WebGLRenderTarget(fullw, h, {
             minFilter: THREE.NearestFilter,
@@ -211,8 +293,8 @@ readWebGlFloat.prep = function readWebGlFloatprep(rtin, options={}, id) {
     renderer.setRenderTarget(null);
 
     // gl.finish();
-    checkglerror('after readWebGlFloat readBackFloat');
-    readWebGlFloat.pend[id] = {rtout, fullw, h, checkglerror};
+    _checkglerror('after readWebGlFloat readBackFloat');
+    readWebGlFloat.pend[id] = {rtout, fullw, h, _checkglerror};
 }
 readWebGlFloat.pend = {};
 
@@ -224,7 +306,7 @@ readWebGlFloat.finish = function readWebGlFloatfinish(id, ibuff) {
     const data = readWebGlFloat.pend[id];
     delete readWebGlFloat.pend[id];
     if (!data) { console.error('readWebGlFloat.finish without prep', id); return; }
-    const {rtout, fullw, h, checkglerror} = data;
+    const {rtout, fullw, h, _checkglerror} = data;
 
     renderer.setRenderTarget(rtout);
     const len = fullw * h * 4;
@@ -235,7 +317,7 @@ readWebGlFloat.finish = function readWebGlFloatfinish(id, ibuff) {
     gl.readPixels(0, 0, fullw, h, gl.RGBA, gl.UNSIGNED_BYTE, buff);
     renderer.setRenderTarget(null);
 
-    checkglerror('after readWebGlFloat readPixels');
+    _checkglerror('after readWebGlFloat readPixels');
     const output = new Float32Array(buff.buffer);
     return output;
 }
@@ -270,4 +352,149 @@ function readTextureAsVec4(t, options = {}) {
         s.push( new THREE.Vector4().set(d[0][i], d[1][i], d[2][i], d[3][i]));    // avoid NaN bug
     }
     return s;
+}
+
+
+var sleep, log;
+/**
+ * A new AsyncReadPixels object 'aa' can be used for async readpixels
+ * aa.prep(renderTarget) will initiate the reading
+ * aa.finish(buffer) will populate buffer with the data
+ *
+ * AsyncReadPixels.finish() is a blocking call,
+ * but should be quick as long as the finish() is submitted well after the prep()
+ *
+ * Once established an AsyncReadPixels object can be used for multiple prep/finish pairs.
+ * It will run most efficiently if the size and format of the data is the same for all pairs.
+ *
+ */
+function AsyncReadPixels(_renderer = window.renderer) {
+    var me = this, bufferdata, maxsize, size, type, constructor;
+    const gl = _renderer.getContext();
+    const buffer = gl.createBuffer();
+    const constructors = {}; constructors[THREE.FloatType] = Float32Array;
+    const gltypes = {}; gltypes[THREE.FloatType] = gl.FLOAT;
+    const channelss = {}; channelss[THREE.RGBAFormat] = 4;
+    const glformats = {}; glformats[THREE.RGBAFormat] = gl.RGBA;
+
+    /** prepare to read the pixels, this will start the transfer into the intermediate buffer */
+    me.prep = function(rt = window.springs.posNewvals) {
+        if (tracing) console.time('AsyncReadPixels');
+        const {type: _type, format: _format} = rt.texture;
+        const _channels = channelss[_format];
+        if (!_channels) throwe ('AsyncReadPixels unsupported format ' + _format);
+        size = rt.width * rt.height * _channels;                     // number of elements needed for this request
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        if (_type !== type || size > maxsize) {
+            constructor = constructors[_type];
+            if (!constructor) throwe ('AsyncReadPixels unsupported type ' + _type);
+            bufferdata = new constructor(size);                             // access to this may help debug, but it always seems to be 0s
+            gl.bufferData(gl.ARRAY_BUFFER, bufferdata, gl.STATIC_DRAW);     // one buffer that grows as needed (may reduce if type changes)
+            type = _type; maxsize = size;
+        }
+
+        // the following can be replaced by _renderer.setRenderTarget(rt),
+        // that might be more stable over three.js changes, but that has extra overheads
+        const framebuff = _renderer.properties.get(rt).__webglFramebuffer   // extract the gl level framebuffer
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuff);                      // tell readPixels where the source data is
+
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);                        // tell readPixels where the target is
+        gl.readBuffer(gl.COLOR_ATTACHMENT0);                                // Framebuffer texture is bound to this attachment ????
+        gl.readPixels(0, 0, rt.width, rt.height, glformats[_format], gltypes[_type], 0);        // As there isn't a data argument it reads into the PIXEL_PACK_BUFFER, buffer
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);                          // clear binding
+    }
+
+    /** actually get the pixels, they will be read from the intermediate buffer into a provided or new arrayBuffer */
+    me.finish = function(arrBuffer) {
+        if (!arrBuffer) arrBuffer = new constructor(size);
+        // gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);                             // tell getBufferSubData where its source is
+        gl.getBufferSubData(gl.ARRAY_BUFFER, 0, arrBuffer);                 // read into user buffer. Blocking, but with luck ready to go
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);                               // clear binding
+        if (tracing) console.timeEnd('AsyncReadPixels');
+        return arrBuffer;
+    }
+
+    /** this acts as a test for the main functions setup/prep/finish */
+    me.test = async function test(rt = window.springs.posNewvals) {
+        console.time('prep'); me.prep(rt); console.timeEnd('prep');
+        await sleep(8)
+        console.time('finish'); const arrBuffer = me.finish(), l = arrBuffer.length; console.timeEnd('finish')
+        log('data...', arrBuffer.slice(0,8));
+        log('...data', arrBuffer.slice(l-8, l));
+    } // test
+} // AsyncReadPixels
+
+
+
+
+
+
+
+
+
+///// from https://forum.babylonjs.com/t/speeding-up-readpixels/12739
+///// heavily modified
+async function _clientWaitAsync(gl, sync, flags, interval_ms = 4) {
+    loop: while (true) {
+        const res = gl.clientWaitSync(sync, flags = 0, 0);
+        switch (res) {
+            case gl.WAIT_FAILED: throw new Error('async pixels read, _clientWaitAsync error');
+            case gl.TIMEOUT_EXPIRED: break;
+            default: break loop;
+        }
+        await sleep(interval_ms);
+        // console.timeLog('test');
+
+    }
+}
+
+async function _readPixelsAsync(gl, x, y, w, h, format, type, dstBuffer, idn) {
+    const buffer = gl.createBuffer();
+
+    // set up the buffer for readPixels and read ~~~~~~~~~~~~~~~~~~~~~~
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
+    gl.bufferData(gl.PIXEL_PACK_BUFFER, dstBuffer.byteLength, gl.STREAM_READ);
+    gl.readPixels(x, y, w, h, format, type, 0);
+    // const rc = checkglerror('readPixels ASYNC');
+    // if (rc) throw('readWebGlFloatSync ' + rc)
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+
+    // wait for the read operation to be complete ~~~~~~~~~~~~~~~~~~~~~
+    const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+
+    await _clientWaitAsync(gl, sync);
+    gl.deleteSync(sync);
+
+    // and extract the data from the read operation ~~~~~~~~~~~~~~~~~~~
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
+    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, dstBuffer); //, 0, length);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+
+    gl.deleteBuffer(buffer);
+    if (idn) { console.timeEnd(idn); console.log('end  ', idn); }
+
+    return dstBuffer;
+}
+
+var tracingid = 0;
+/** read a float buffer/texture async */
+async function readWebGlFloatAsync(rtin, options) {
+    let idn;
+    if (tracing) {
+        idn = 'readWebGlFloatAsync' + tracingid++; 
+        console.time(idn);
+        console.log('start', idn)
+    }
+    const {imw, imh, w, h, channels, format, l, t, size, buffer, gl} = _rtData(rtin, options);
+    renderer.setRenderTarget(rtin);
+    return _readPixelsAsync(gl, l, t, w, h, format, gl.FLOAT, buffer, idn);
+}
+
+async function testasyncread() {
+    const dest = new Float32Array(400)
+    await readWebGlFloatAsync(window.slots[0].dispobj.rt, {width: 10, height: 10, buffer: dest})
+    return dest;
 }

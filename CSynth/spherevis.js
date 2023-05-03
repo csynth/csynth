@@ -1,7 +1,7 @@
 'use strict';
 
-var THREE, numInstancesP2, numInstances, renderer, CSynth, uniforms, currentGenes, log, W, V, dat, guiFromGene,
-addgeneperm, copyFrom, CSynthFast, G, glsl;
+var THREE, numInstancesP2, numInstances, renderer, CSynth, uniforms, log, W, V, dat, guiFromGene,
+addgeneperm, copyFrom, CSynthFast, G, glsl, HW;
 
 /** simplified rendering for non-organic use */
 CSynth.SphereParticles = function() {
@@ -9,7 +9,7 @@ CSynth.SphereParticles = function() {
 //see https://medium.com/@pailhead011/extending-three-js-materials-with-glsl-78ea7bbb9270
     addgeneperm('sphereRadius', 20, 0, 100,  0.1, 0.1, 'sphere radius for particles', 'geom', 0);
     //some confusion about ranges / specs here... in particular, why are these ending up massive?
-    addgeneperm('selectedSphereRadius', 0.6, 0, 100,  0.1, 0.1, 'sphere radius for selected particles', 'geom', 0);
+    addgeneperm('selectedSphereRadius', 0.8, 0, 100,  0.1, 0.1, 'sphere radius for selected particles', 'geom', 0);
 
     const me = this;
     const uniformsC = { sphereRadius: W.uniforms.sphereRadius };
@@ -18,7 +18,6 @@ CSynth.SphereParticles = function() {
     copyFrom(uniformsC, CSynth.getCommonUniforms());
     //these should not be clones...
     uniformsC.t_ribboncol = {type: "t", value: undefined};
-    uniformsC.colmix = {type: "f", value: 0};
 
     const materialExperiment = new THREE.MeshStandardMaterial();
     const material = materialExperiment; //deleted old 'non-Experimental' code...
@@ -134,6 +133,8 @@ CSynth.SphereParticles = function() {
     }
 
     var res;
+    var geometry;
+    var mesh = new THREE.Mesh(geometry, material);
     this.setres = function(a, b = a) {
         res = [a, b];
         var sphere = new THREE.SphereBufferGeometry(1, a, b);
@@ -142,14 +143,10 @@ CSynth.SphereParticles = function() {
         delete geometry.attributes.uv;
         geometry.name = 'SphereParticles geometry';
         material.name = 'SphereParticles material';
-        if (instanceIDBuff) me.setInstances();
+        if (HW.instanceIDBuff) me.setInstances();
         if (mesh) mesh.geometry = geometry;
     }
 
-    var geometry;
-    this.setres(CSynthFast ? 7 : 17);
-
-    var mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'SphereParticles';
     mesh.visible = false;  // initially, for now
     mesh.frustumCulled = false;
@@ -157,42 +154,30 @@ CSynth.SphereParticles = function() {
     V.rawscene.add(mesh);
     V.rawscene.sphereparticles = mesh;
 
-    var instanceIDs = [];
-    var instanceIDBuff;
 
     // set up instances, n parameter mainly for debug (but why do we have an extra particle, to check >>>
     this.setInstances = function setInstances(n = numInstances, start = 0) {
-        const newstart = instanceIDs[0] !== start;
-        if (instanceIDs.length < n || newstart) {
-            for (let i = instanceIDs.length; i < n * 1.3 + 50; i++) instanceIDs.push(i + start);
-            if (newstart) for (let i = 0; i < instanceIDs.length; i++) instanceIDs[i] = i + start;
+        const newstart = HW.instanceids[0] !== start;
+        if (HW.instanceids.length < n || newstart) {
+            for (let i = HW.instanceids.length; i < n * 1.3 + 50; i++) HW.instanceids.push(i + start);
+            if (newstart) for (let i = 0; i < HW.instanceids.length; i++) HW.instanceids[i] = i + start;
             //three100: THREE.InstancedBufferAttribute: The constructor now expects normalized as the third argument.
             //was meshPerAttribute in r86: https://github.com/mrdoob/three.js/blob/r86/src/core/InstancedBufferAttribute.js
-            instanceIDBuff = new THREE.InstancedBufferAttribute( new Float32Array(instanceIDs), 1, true );
+            HW.instanceIDBuff = new THREE.InstancedBufferAttribute( new Float32Array(HW.instanceids), 1, true );
         }
 
-        instanceIDBuff.setDynamic(true);
-        geometry.addAttribute( 'instanceIDx', instanceIDBuff ); // per mesh instance
-        geometry.maxInstancedCount = n;
+        HW.instanceIDBuff.setUsage(THREE.DynamicDrawUsage);
+        geometry.setAttribute( 'instanceIDx', HW.instanceIDBuff ); // per mesh instance
+        geometry.instanceCount = geometry._maxInstanceCount = n;    // _maxInstanceCount needed as three does not handle instancing very well
     }
+
+    me.setres(CSynthFast ? 7 : 17);
     me.setInstances();
 
 
     this.createGUIVR = function() {
         var gui = dat.GUIVR.createX("SphereParticles");
         gui.add(mesh, 'visible').listen().showInFolderHeader();
-        // CSynth.addColourGUI(gui, (psource) => {
-        //     //set colour of (x) from given source.
-        //     //might refactor so addColorGUI is responsible for most of this, and just needs to be provided 'uniforms'
-        //     //object (with the option of an additional callback)
-        //     let source = CSynth.getBed(psource);
-        //     if (source && source.texture) {
-        //         uniformsC.t_ribboncol.value = source.texture;
-        //         uniformsC.colmix.value = 0;
-        //     } else {
-        //         uniformsC.colmix = source === 'rainbow' ? 1 : 0;
-        //     }
-        // });
         CSynth.addColourGUI(gui, uniformsC);
 
         const xx = W.xxx = {

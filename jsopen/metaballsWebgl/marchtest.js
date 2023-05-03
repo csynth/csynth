@@ -155,7 +155,7 @@ function jstring(k) {
         function jrep (key, val) {
             return val && val.toFixed ? Number(val.toFixed(3)) : val;
         }, '<br>'
-    ).split('"').join('');
+    ).split('"').join('').split('<br><br>').join('');
 }
 
 function funkeyup(evt) {
@@ -166,7 +166,7 @@ function funkeyup(evt) {
 var sd = Date.now(), time = 0, speed = 0.1;
 function animate() {
     framenum++;
-    try {eval(window.code.value);} catch(e){}
+    try {eval(window.code.value);} catch(e){/**/}
     // X.funcode = window.funcode.value;
     window.funcode.style.background = X.funcode === window.funcode.value ? 'lightgreen' : 'lightpink';
 

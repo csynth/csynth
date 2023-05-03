@@ -2,8 +2,8 @@
 // template taken from HistoryTrace
 'use strict';
 
-var CSynth, V, THREE, dat, planeg, W, currentGenes, CSynthFast, disposeArray, VH,
-copyFrom, badshader, log, renderMainObject, serious, glsl;
+var CSynth, V, THREE, dat, HW, CSynthFast, disposeArray, VH,
+copyFrom, badshader, log, renderMainObject, serious, glsl, W;
 
 // aside: good article on 3d image options
 // http://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002519
@@ -137,7 +137,7 @@ float str = 1.;
         //  NOTE: inefficiecy for cpp=3, we still make colour (colsx, colsy, colsz) rgb using extra space
 
         {
-        geox = planeg(ynum, znum, ynum-1, znum-1, xnum);
+        geox = HW.planeg(ynum, znum, ynum-1, znum-1, xnum);
         var colsx = new Float32Array( xnum * ynum * znum * 3);  // var as may be cleared after upload
         const pos = geox.attributes.position.array;
         // unwrap colour information from matrices
@@ -157,12 +157,12 @@ float str = 1.;
                     o -= 3; pos[o++] = x - xnum/2; pos[o++] = y - ynum/2; pos[o++] = z - znum/2;
                 }
             }
-        };
-        geox.addAttribute( 'color', new THREE.BufferAttribute( colsx, 3 ).onUpload( () => colsx = null ) );
+        }
+        geox.setAttribute( 'color', new THREE.BufferAttribute( colsx, 3 ).onUpload( () => colsx = null ) );
         }
 
         {
-        geoy = planeg(znum, xnum, znum-1, xnum-1, ynum);
+        geoy = HW.planeg(znum, xnum, znum-1, xnum-1, ynum);
         var colsy = new Float32Array( xnum * ynum * znum * 3);  // var as may be cleared after upload
         const pos = geoy.attributes.position.array;
         // unwrap colour information from matrices
@@ -181,13 +181,13 @@ float str = 1.;
                     o -= 3; pos[o++] = x - xnum/2; pos[o++] = y - ynum/2; pos[o++] = z - znum/2;
                 }
             }
-        };
-        geoy.addAttribute( 'color', new THREE.BufferAttribute( colsy, 3 ).onUpload( () => colsy = null ) );
+        }
+        geoy.setAttribute( 'color', new THREE.BufferAttribute( colsy, 3 ).onUpload( () => colsy = null ) );
         }
 
 
         {
-        geoz = planeg(xnum, ynum, xnum-1, ynum-1, znum);
+        geoz = HW.planeg(xnum, ynum, xnum-1, ynum-1, znum);
         var colsz = new Float32Array( xnum * ynum * znum * 3);  // var as may be cleared after upload
         const pos = geoz.attributes.position.array;
         // unwrap colour information from matrices
@@ -206,8 +206,8 @@ float str = 1.;
                     o -= 3; pos[o++] = x - xnum/2; pos[o++] = y - ynum/2; pos[o++] = z - znum/2;
                 }
             }
-        };
-        geoz.addAttribute( 'color', new THREE.BufferAttribute( colsz, 3 ).onUpload( () => colsz = null ) );
+        }
+        geoz.setAttribute( 'color', new THREE.BufferAttribute( colsz, 3 ).onUpload( () => colsz = null ) );
         }
 
         if (!mat) me.newmat();

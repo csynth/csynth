@@ -1,3 +1,4 @@
+/* eslint-disable no-use-before-define */
 /**
  * @author alteredq / http://alteredqualia.com/
  * @author mrdoob / http://mrdoob.com
@@ -376,7 +377,7 @@ CSynth.MarchingCubes1 = function (xnum, ynum, znum) {
         count += 3;
 
     }
-    this.makePolygons = function (pfield, thresh = 10, pcols) {
+    this.makePolygons = function (pfield, thresh = 10, pcols=undefined) {
         field = pfield;
         cols = pcols;
         positionArray = new Float32Array(maxCount * 3);
@@ -412,7 +413,7 @@ CSynth.MarchingCubes1 = function (xnum, ynum, znum) {
     };
 
     // make the polygons and generate geometry
-    this.makeGeometry = function(pfield, thresh = 10, pcols) {
+    this.makeGeometry = function(pfield, thresh = 10, pcols=undefined) {
         const k = `makePolygons1 ${xnum} ${ynum} ${znum} ${thresh} `
         const st = Date.now();
         if (CSynth.recordProfiles) console.profile(k);
@@ -426,10 +427,10 @@ CSynth.MarchingCubes1 = function (xnum, ynum, znum) {
 
         const mgeo = new THREE.BufferGeometry();
 
-        mgeo.addAttribute('position', new THREE.BufferAttribute( dd.positionArray, 3 ));
-        mgeo.addAttribute('normal', new THREE.BufferAttribute( dd.normalArray, 3 ));
+        mgeo.setAttribute('position', new THREE.BufferAttribute( dd.positionArray, 3 ));
+        mgeo.setAttribute('normal', new THREE.BufferAttribute( dd.normalArray, 3 ));
         if (cols) {
-            mgeo.addAttribute('color', new THREE.BufferAttribute( dd.colArray, 3 ));
+            mgeo.setAttribute('color', new THREE.BufferAttribute( dd.colArray, 3 ));
             if (dd.colArray instanceof Uint8Array)
                 mgeo.attributes.color.normalized = true;
         }

@@ -1,7 +1,8 @@
 "use strict";
 
 var canvas, Utils, applyScale, inputs, canvdampz, applyMatop, rot, lastTouchedDispobj, interacttime, getDispobj,
-V, lastDispobj, NODO, mousewhich, canvmousemove, canvmousedown, canvmouseup, msgfix, log;
+V, lastDispobj, NODO, mousewhich, canvmousemove, canvmousedown, canvmouseup, msgfix, log, searchValues,
+currentGenes;
 /*
  * Touch gesture control.
  * This uses a hybrid approach.
@@ -38,6 +39,7 @@ var Touch = new function() {
         // pinch is fire for pinch and (almost all) rotations, so we just catch it as pinch.
         var Hammer = window.Hammer; //PJT: quick dirty hack.
         function pinchrot(event){
+            // if (searchValues.inmutate) return;
             //touchlog( "pinch ");
             // ignore two fingers too close together
             var toucha = {x:event.gesture.touches[0].clientX, y:event.gesture.touches[0].clientY };
@@ -47,7 +49,7 @@ var Touch = new function() {
 
             // convert values to deltas and apply them
             // lastscale and lastrotation are reset on touchstart.
-            applyScale(UI.lastscale / event.gesture.scale);  // not sure why not inverse of this
+            applyScale(UI.lastscale / event.gesture.scale, currentGenes);  // not sure why not inverse of this, to mainvp only
             var dr = UI.lastrotation - event.gesture.rotation;
             dr = (dr + 900) % 360 - 180;
             if (inputs.doAutorot) {
@@ -55,7 +57,7 @@ var Touch = new function() {
             } else {
                 var sss = 0.01;
                 //log("r ot", UI.lastrotation, event.gesture.rotation, dr);
-                applyMatop(0,1, dr*sss, rot, lastTouchedDispobj);
+                applyMatop(0,1, dr*sss, rot, currentGenes); // lastTouchedDispobj);
             }
             interacttime = Date.now();
             UI.lastscale = event.gesture.scale;
@@ -92,12 +94,15 @@ function Touch2Init() {
         log(`V.BypassHammer flag set to true: skipping Touch2Init()`);
         return;
     }
+    if (canvas._ontouchstart) return; // do not repeat
     // on Hammer events we are able to set which as we like to simulate mouse
     // evt.which = TWHICH does not work on 'real' events we see in this code
     // (no error, but does not change the value)
     // so we treat touch exactly the same as left mouse
+
+    // 27 Sept 2022, canvas.ontouchstart etc do not work, we need canvas.addEventListener(...)
     var TWHICH = 1;
-    canvas.ontouchstart = function(evt) {
+    canvas._ontouchstart = function(evt) {
         lasttouchtime = Date.now();
         var vn = getDispobj(evt);
         touchlog("touchstart " + evt.targetTouches.length + " vn=" + vn + " $mousewhich$lastDispobj$lastTouchedDispobj$dragObj");
@@ -111,7 +116,7 @@ function Touch2Init() {
         return eventend(evt);
     };
 
-    canvas.ontouchmove = function(evt) {
+    canvas._ontouchmove = function(evt) {
         lasttouchtime = Date.now();
         var vn = getDispobj(evt); ltt = vn;
         touchlog("ontouchmove " + evt.targetTouches.length + " vn=" + vn);
@@ -121,7 +126,7 @@ function Touch2Init() {
         return eventend(evt);
     };
 
-    canvas.ontouchend = function(evt) {
+    canvas._ontouchend = function(evt) {
         lasttouchtime = Date.now();
         //var vn = getDispobj(evt); ltt = vn;
         if (evt.targetTouches.length !== 0) return;
@@ -131,11 +136,17 @@ function Touch2Init() {
         return eventend(evt);
     };
 
-    canvas.ontouchcancel = function(evt) {
+    canvas._ontouchcancel = function(evt) {
         lasttouchtime = Date.now();
         log(">>>>>>>>> ontouchcancel " + evt.targetTouches.length);
         return eventend(evt);
     };
+
+    canvas.addEventListener('touchmove', canvas._ontouchmove);
+    canvas.addEventListener('touchstart', canvas._ontouchstart);
+    canvas.addEventListener('touchend', canvas._ontouchend);
+    canvas.addEventListener('uchcancel', canvas._ontouchcancel);
+
     log ("Touch2 initialized");
     Touch.Init();
 }

@@ -2,7 +2,7 @@
 // template taken from HistoryTrace
 'use strict';
 
-var CSynth, V, THREE, dat, planeg, W, currentGenes, CSynthFast, disposeArray, VH, copyFrom,
+var CSynth, V, THREE, dat, W, CSynthFast, disposeArray, VH, copyFrom,
 Maestro, badshader, log, onframe;
 
 // aside: good article on 3d image options
@@ -249,7 +249,7 @@ CSynth.align = function(stats1, stats2) {
         m.setPosition(c.x, c.y, c.z)
         return m;
     }
-    const mat1t = tomat(stats1); mat1t.getInverse(mat1t);
+    const mat1t = tomat(stats1); mat1t.invert();
     const mat2 = tomat(stats2);
     const r = mat2.multiply(mat1t);
     return r;

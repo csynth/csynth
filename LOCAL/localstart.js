@@ -46,8 +46,8 @@ function localstartLate() {
         // We can be in VR mode with dual screen and presenting,
         // but if we got our inital full screen in too early no image on headset.
         // I haven't yet found a reliable test for this, so using horrible timeout below.
-            //setTimeout(function() {renderVR.fs(false);}, 5000);
-            //setTimeout(renderVR.fs, 7000);
+            //setTimeout(function() {renderVR.xrfs(false);}, 5000);
+            //setTimeout(renderVR.xrfs, 7000);
         } else if (hostname === "xtoddlap") {
             getserveroao("gallery/newFeedback.oao");	// simple for fast tests
         } else if (hostname === "toddlap" || hostname === "defaulthost" || hostname === 'Peters-MacBook-Pro.local') {
@@ -82,9 +82,9 @@ function localstartLate() {
             getserveroao("gallery/ediPCC.oao");
         } else if (hostname === "DESKTOP-U2FR2J8") { // || hostname === "WINDOWS-4PQGKTN"){  // William machine in Hove with 960 gpu, or GS 1080
             getserveroao("gallery/York_15x_NewS2.oao");
-            //if (!nwwin) renderVR.fs(true);
-            //setTimeout(renderVR.fs, 1000);
-            //setTimeout(renderVR.fs, 2000);
+            //if (!nwwin) renderVR.xrfs(true);
+            //setTimeout(renderVR.xrfs, 1000);
+            //setTimeout(renderVR.xrfs, 2000);
         } else if (false) {
             getserveroao("gallery/Edinburgh.oao");	// serious for exhibition etc
             Maestro.on("postframe", function() {

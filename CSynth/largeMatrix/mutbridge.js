@@ -26,7 +26,7 @@ function setval(name, val) {
 }
 var addgene = adduniform;
 
-function nop() {};
+function nop() {}
 
 var Maestro = {stop: nop, start: nop, onUnique: nop, remove: nop };
 var kinect = {standardOff: nop};

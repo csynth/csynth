@@ -7,7 +7,7 @@
 
 var V, VH, THREE, CSynth, sharedgeo, addgeneperm, extraRender, rrender, dat,
     currentGenes, onframe, remakeShaders, newscene, camera, baseTrancodeForTranrule, usemask,
-    material, genedefs, setval, readWebGlFloat, log, copyFrom, guiFromGene, W, numInstances, planeg, processFile, updateMat,
+    material, genedefs, setval, readWebGlFloat, log, copyFrom, guiFromGene, W, numInstances, HW, processFile, updateMat,
     customSettings, msgfix, addtaggeduniform, uniforms, uniformsForTag, copyFromSel, G, setKeyRgb, hsv2rgb,
     getstats, GX, PICKNUM, searchValues;
 
@@ -323,7 +323,7 @@ CSynth.Matrix = function() {
             //##addgeneperm('mathotb', 1.0, 0, 1, 0.01, 0.001, 'matrix "hot" B', 'matrix', 0);
             for (let gn in crcols){
                 addgeneperm(gn, crcols[gn], 0, 1, 0.01, 0.001, 'compare matrix' + gn, 'matrix', 0)
-            };
+            }
 
             addgeneperm('matMinD', 0, 0, 50, 0.01, 0.001, 'matrix "hot" threshold for height', 'matrix', 0);
             addgeneperm('matMaxD', 0, 0, 50, 0.01, 0.001, 'matrix "cold" threshold for height', 'matrix', 0);
@@ -463,7 +463,7 @@ CSynth.Matrix = function() {
                 CSynth.positionMatrix();
             }
             // the extrs .005 gives a slight rim to show matrix edge
-            let geometry = planeg(1.005, -1.005, r,r, 1, true);  // last true is triangle
+            let geometry = HW.planeg(1.005, -1.005, r,r, 1, true);  // last true is triangle
             CSynth.matrixMesh.geometry = geometry;
             CSynth.Matrix.curres = r;
         }
@@ -511,8 +511,8 @@ CSynth.Matrix = function() {
     //     matboxmat.wireframe = false;
     //     matboxmat.fog = false;
     //     // matboxmat.side = 2;
-    //     matboxgeo = matboxmesh.geometry = new THREE.Geometry();
-    //     var vv = matboxgeo.vertices;
+    //     matboxgeo = matboxmesh.geometry = new THREE. Geometry();
+    //     var vv = matboxgeo.vert ices;
     //     const m = -0.5 - extra;
     //     const p = 0.5 + 2*extra;
 
@@ -696,7 +696,7 @@ function heightMatrixMaterial() {
         // for a particle p, is it in the range of the region occupied by particle 'pr'?
         // for example, while rendering 'p', should it be considered in range of 'pr' which is a picked particle?
         // returns 0 or 1 (areas within 'smooth' range will fade)
-        float isInPickRange(float p, float pr, float smooth) {
+        float isInPickRange(float p, float pr, float psmooth) { // nb 'smooth' does not compile under webgl2
             vec4 r = texture2D(matrixbed, vec2(pr, 0.75));
             // !!! NOTE this is almost duplicate of cod ein springsynth.js
             // Next lines prevent the end spheres failing to reduce near the ends.
@@ -705,8 +705,8 @@ function heightMatrixMaterial() {
             if (r.y == 0.) r.y = -1.;
             if (r.z == 1.) r.z = 2.;
             //smooth feathers inward rather than out...
-            float v = smoothstep(r.y, r.y + smooth, p);
-            v = min(v, 1. - smoothstep(r.z - smooth, r.z, p));
+            float v = smoothstep(r.y, r.y + psmooth, p);
+            v = min(v, 1. - smoothstep(r.z - psmooth, r.z, p));
             return v;
         }
 
@@ -829,14 +829,14 @@ function heightMatrixMaterial() {
             float ti = t * 255. - 0.0;
             // when BED doesn't have explicit colour, then all elements will be same... that doesn't make this logic right
             // but close enough for now (famous last words), closer with test against green as well
-            bedrgb = bed.r != t || bed.g != t ? bed.rgb : t == 0. ? vec3(0) : stdcol(ti);
+            bedrgb = bed.r != t || bed.g != t ? bed.rgb : t == 0. ? vec3(0) : stdcolY(ti);
             c.col.rgb += bedrgb * matrixbedtint;
 
             // TODO factor bed colour option and use for x and y (and ribbon)
             vec4 bedy = texture2D(matrixbed, vec2(mtp.y, 0.25));
             float ty = bedy.w;  // t_ribboncol is bed texture, small 'integer' values for now, but mapped to range 0..1
             float tiy = ty * 255. - 0.0;
-            bedrgby = bedy.r != ty || bedy.g != ty ? bedy.rgb : ty == 0. ? vec3(0) : stdcol(tiy);
+            bedrgby = bedy.r != ty || bedy.g != ty ? bedy.rgb : ty == 0. ? vec3(0) : stdcolY(tiy);
             c.col.rgb += bedrgby * matrixbedtint;
         //}
 
@@ -959,7 +959,7 @@ CSynth.Matrix.colUpdateGui = function() {
 //  */
 // CSynth.distortMatrix = function(p) {
 //     const r = CSynth.Matrix.curres;
-//     const geometry = planeg(1, -1, r,r, 1, true);
+//     const geometry = HW.planeg(1, -1, r,r, 1, true);
 //     CSynth.matrixMesh.geometry = geometry;
 //     const a = geometry.attributes.position.array;
 //     for (let k=0; k < a.length; k += 3) {

@@ -10,10 +10,13 @@
 
 // Do we want to make these be functions that you call with 'new CSynth.HistoryTrace()'
 // or rather objects made accessible...  In the case of Matrix, we may well want several instances, differently configured.
-CSynth.HistoryTrace = function() {
+// xsteps controls the granularity along the ribbon, 1 = 1 step per particle
+CSynth.HistoryTrace = function({xsteps = 1, numhist = undefined} = {}) {
     const vertcol = CSynth.HistoryTrace.vertcol;
-    let histlen = springs.getHISTLEN();
-    let histalong = CSynth.current.numInstances*1;
+    let histlen = numhist || springs.getHISTLEN();
+    let histalong = numInstances*xsteps - 1;  // did use CSynth.current.numInstances, but did not work for Organic
+
+
     const col = /*glsl*/`
 uniform float opacity;
 uniform float fadeFactor;
@@ -24,6 +27,8 @@ uniform float highlightStrength;
 uniform float highlightStrengthSelection;
 uniform float highlightStripes;
 uniform float highlightShape; //use might change, 0..1 for how quickly each stripe falls off
+uniform float particleWidth;    // set small just to show track of particles
+uniform float nonParticleStrength;  // strength for non-particle
 
 uniform vec3 startCol, endCol;
 
@@ -60,19 +65,21 @@ vec4 col(vec2 uv) {
         if (p > 99.9) continue;
         float v = isInPickRange(rp, p, 1./255., t_ribboncol);
         if (v > 0.4) {
-        //if (abs(rp-p) < pickwidth) { //consider different highlight combination / options
+            //if (abs(rp-p) < pickwidth) { //consider different highlight combination / options
             vec3 pcol = bed; //getPickColor(i);
             c += pcol * pickbrightness;
             selected = 1.;
             alpha *= 2.;
         }
     }
-    if (true) { //marching highlight stripes...
+
+    if (true) { // echos
         //this should probably always be in frag as it's cheap & would benefit from fidelity
         float w = 1./highlightStripes;
         float t = abs(-mod(highlightTime - uv.x, w));
+        // float t = abs(highlightTime - uv.x);
         t = 1. - smoothstep(0., w * highlightShape, t);
-        t *= highlightStrength * selected;
+        t *= highlightStrength; // * selected;
         c += vec3(t);
         alpha += t;
     }
@@ -87,6 +94,8 @@ vec4 col(vec2 uv) {
         #define KILLRADLEN ${WA.KILLRADLEN}
         uniform float killrads[KILLRADLEN];
         uniform float killradwidth;
+        uniform float ribbonStart, ribbonEnd;
+        uniform bool isCubic;
 
         //uniform float numSegs,numInstancesP2;
         ${vertcol ? 'varying vec4 vCol' + col : 'varying vec2 vUv'};
@@ -94,10 +103,16 @@ vec4 col(vec2 uv) {
         // varying vec3 vNormal;
 
 
-        // puv.y should be normalised to relative position
+        // puv.x is time normalized 0..1, puv.y should be normalised to relative position,
         vec4 posf(in vec2 puv) {
             //TODO: cubic interpolation?
-            vec4 pos = histpostCubic(puv.y, puv.x) * scaleFactor;
+            vec4 pos;
+            if (isCubic) {
+                pos = histpostCubic(puv.y, puv.x) * scaleFactor;
+            } else {
+                vec2 puv2 = vec2(fract(1. + histtime - puv.x), puv.y);      // time, partice
+                pos = texture2D(posHist, puv2) * scaleFactor;
+            }
             pos.xyz += travelDir * puv.x;
             pos.w = 1.0;
             return pos;
@@ -125,7 +140,12 @@ vec4 col(vec2 uv) {
         }
 
         void main() {
-            vec2 xuv = position.xy + 0.5;  // do not use uv, not passed by optimized planeg, 0..1
+            vec2 xuv = position.xy + 0.5;   // do not use uv, not passed by optimized planeg, 0..1
+            // xuv.x = xuv.x * (1. -1. /HISTLEN) + 0.5/HISTLEN;     // avoid the wrapping seam,
+            // histtime in posf includes a 0.5/HISTLEN offset ??
+
+            xuv.x *= 1. -1.001/HISTLEN;     // avoid the wrapping seam
+
             // this gets correct width, BUT is causing issues in the interpolation ends looking at particles out of range
             // rp = xuv.y * Normalised ToTexCo * (numInstances/numSegs) + 0.5/numInstancesP2;
             float id = xuv.y * numSegs;  // input is 0..1 => 0..numSegs, eg first particle at 0, last particle at 1.
@@ -133,6 +153,7 @@ vec4 col(vec2 uv) {
             //float rp = xuv.y * Normalised ToTexCo + 0.5/numInstancesP2;
             //rp = xuv.y * numSegs / numInstancesP2; // ???
             float rp = (xuv.y*numSegs + 0.5)/numInstancesP2;    // index for looking up in springs
+            float NaN = sqrt(-1. + 0.000000001*rp);
 
             vec4 pos = posf(vec2(xuv.x, rp));
 
@@ -148,13 +169,17 @@ vec4 col(vec2 uv) {
 
             ${vertcol ? 'vCol = col(xuv);' : ' vUv = xuv;'}
 
+            gl_Position = logdepth(projectionMatrix * modelViewMatrix * pos);
+
             // killrads in particles, this is used to create breaks between chains/chroms, eg in full yeast example
             // we need killradwidth to take out all details
-            for (int i=0; i < KILLRADLEN; i++)
-              if (abs(id - killrads[i]) <= killradwidth * 2.) ${vertcol ? 'vCol = vec4(0);' : ' vUv = vec2(0);'}
-
-
-            gl_Position = logdepth(projectionMatrix * modelViewMatrix * pos);
+            for (int i=0; i < KILLRADLEN; i++) {
+              if (abs(id - killrads[i]) <= killradwidth * 2.) {
+                // ${vertcol ? 'vCol = vec4(0);' : ' vUv = vec2(NaN);'}
+                gl_Position = vec4(NaN);
+              }
+            }
+            if (xuv.y < ribbonStart || xuv.y > ribbonEnd) gl_Position = vec4(NaN);
         }
     `;
 
@@ -169,8 +194,11 @@ vec4 col(vec2 uv) {
 
         void main() {
             // gl_FragColor = vec4(1,1,1,0.1); return;
+            float fractp = fract(vUv.y * numSegs);      // ONLY VALID FOR VERTCOL false
+            if (fractp > particleWidth*0.5 && fractp < 1.-particleWidth*0.5 && nonParticleStrength != 0.) discard;
 
             gl_FragColor = ${vertcol ? 'vCol' : 'col(vUv);'};
+            if (fractp > particleWidth*0.5 && fractp < 1.-particleWidth*0.5) gl_FragColor.rgb *= nonParticleStrength;
             // fold alpha values into opacity: see long comment at end on blending ....
             gl_FragColor.rgb *= colMult;
             gl_FragColor.rgb *= gl_FragColor.a;
@@ -187,7 +215,14 @@ vec4 col(vec2 uv) {
     // PlaneBufferGeometry is more efficient than PlaneGeometry
     // planeg is more efficent still
     //if (!geo) geo = new THREE.PlaneBufferGeometry(1, 1, 512, 512);    // #planeg#
-    if (!geo) geo = planeg(1, 1, histlen, histalong);
+    this.newgeo = function(phistlen = 0, pxsteps = 1) {
+        histlen = Math.floor(phistlen || springs.getHISTLEN());
+        histalong = Math.floor(numInstances*pxsteps - 1);  // did use CSynth.current.numInstances, but did not work for Organic
+        geo = HW.planeg(1, 1, histlen, histalong);
+        for (const m of sheet.children) (m as THREE.Mesh).geometry = geo;
+    }
+
+    if (!geo) geo = HW.planeg(1, 1, histlen, histalong);
     const htuniforms: any = CSynth.HistoryTrace.uniforms = {
         travelDir: { value: new THREE.Vector3(0, 0, 0) },
         opacity: { value: 0.01 },
@@ -199,21 +234,26 @@ vec4 col(vec2 uv) {
         highlightTime: { value: 1 },
         highlightStrength: { value: 0.4 },
         highlightStrengthSelection: { value: 0.4 },
-        highlightStripes: { value: 10 },
+        highlightStripes: { value: 1 },
         highlightShape: { value: 0.1 },
+        particleWidth: { value: 1},
+        nonParticleStrength: { value: 0},
         normalViz: { value: 0 },
         colMult: { value: 1 },
         startCol: { value: new THREE.Vector3(1, 1, 1)},  // << no api or giu to this yet
         endCol: { value: new THREE.Vector3(1, 1, 1)},
         cubicCatS: window.uniforms.cubicCatS,
         killrads: window.uniforms.killrads,
-        killradwidth: window.uniforms.killradwidth
+        killradwidth: window.uniforms.killradwidth,
+        ribbonStart: window.uniforms.ribbonStart,
+        ribbonEnd: window.uniforms.ribbonEnd,
+        isCubic:  {value: false}
     };
     copyFrom(htuniforms, CSynth.getCommonUniforms());
     htuniforms.t_ribboncol = {type: "t", value: undefined};
-    htuniforms.colmix = {type: "f", value: 0};
     Maestro.on("preframe", ()=> {
-        htuniforms.highlightTime.value = (Date.now() * 0.2) % 1000 / 1000;
+        htuniforms.highlightTime.value = 1 - (Date.now() * 0.2) % 1000 / 1000;
+        if (keysdown.join('') === 'Q') htuniforms.highlightTime.value = 1 - lastdocx/width;
         //htuniforms.highlightTime.value = 0.5 + 0.5*Math.sin(Math.PI * 2 * Date.now() / 1000);
     });
 
@@ -227,8 +267,9 @@ vec4 col(vec2 uv) {
     //mat.opacity = 0.8;
     mat.side = THREE.DoubleSide;
     mat.depthWrite = false;
-    const sheet = new THREE.Group();// new THREE.Mesh(geo, mat);
+    const sheet = this.sheet = new THREE.Group();// new THREE.Mesh(geo, mat);
     sheet.visible = false;
+    sheet.name = 'historyTraceGroup';
     let invert = false;
     Object.defineProperty(this, 'invertCol', {
         get: () => { return invert; },
@@ -239,6 +280,7 @@ vec4 col(vec2 uv) {
         }
     });
     sheet.name = 'historytrace';
+    sheet.frustumCulled = false;
     V.rawscene.remove(V.rawscene.historytrace);  // just one historytrace for now (maybe with children)
     V.rawscene.add(sheet);
     V.rawscene.historytrace = sheet;
@@ -281,9 +323,14 @@ vec4 col(vec2 uv) {
         gui.add(u.brightness, 'value', 0, 1).listen().name('Brightness');
         gui.add(u.pickbrightness, 'value', 0, 3).listen().name('Pick Brightness');
         gui.add(u.pickwidth, 'value', 0, 0.01).step(0.0001).listen().name('Pick Width');
+        gui.add(u.particleWidth, 'value', 0, 1).listen().name('Particle width').setToolTip('width of the trace to track particles');
+        gui.add(u.nonParticleStrength, 'value', 0, 1).listen().name('non particle strength').setToolTip('strength of parts of the trace that are not on the particle');
+        gui.add(u.isCubic, 'value', 0, 1).listen().name('isCubic').setToolTip('whether to use cubic');
+
         // gui.add(currentGenes, 'scaleFactor', 1, 100).listen().name('Scale Factor');
         gui.add(u.fadeFactor, 'value', 0.1, 10).listen().name('Fade Factor');
         gui.add(_h, 'rotations', 0, 10).listen();//.step(1);
+
 
         const h = dat.GUIVR.createX("Echoes");
         // highlightTime: { value: 1 },
@@ -324,11 +371,52 @@ CSynth.newht = function() {
 
 }
 
-// change resolution for historytrace
+// change resolution for historytrace (largely replaced by newgeo())
+// We want to be able to keep length of recorded history trace more separate from history trace geo resolution
 CSynth.newhtres = function({histlen = springs.getHISTLEN(), histalongres = 1} = {}) {
     if (histlen !== springs.getHISTLEN()) springs.setHISTLEN(histlen);
-    V.rawscene.historytrace.children[0].geometry = planeg(1,1, histlen, CSynth.current.numInstances * histalongres);
+    V.rawscene.historytrace.children[0].geometry = HW.planeg(1,1, histlen, (numInstances * histalongres) - 1); // numsegs
 }
+
+/** set up history trace in Organic (eg tadpoles) context */
+function OrganicHistoryTrace() {
+            if (springs.getHISTLEN() === 0) springs.setHISTLEN(32);
+
+            adduniform('killrads', new Array(WA.KILLRADLEN).fill(-999), 'fv');
+            adduniform('numSegs', numInstances-1, 'f');
+            adduniform('scaleFactor', 1, 'f');
+
+            addgene('killradwidth', 0, 0, 20, 1, 1, 'numer of particles to kill each side of killrad points', 'geom', 1);
+            addgene('ribbonStart', 0, 0,1, 0.001,0.001, 'start of ribbon, range 0..1 for full data');
+            addgene('ribbonEnd', 1, 0,1, 0.001,0.001, 'end of ribbon, range 0..1 for full data');
+            addgeneperm("cubicCatS", 0.5, 0, 1, 0.1, 0.01, "CatMull-Rom s factor", "springs", "frozen");
+
+
+            // addgene('scaleFactor', 30., 1., 100., 0.01, 0.01, 'scaling factor for 3d ribbon etc', 'geom', 1);
+
+            const hist = VH.hist = new CSynth.HistoryTrace();  // ??? 1/4
+            hist.sheet.visible = true;
+            // for very basic test, not for tadpoles
+            if (tad.TADS) {
+                G.ribbonEnd = tad.TADS * tad.RIBS/numInstances;
+            } else {
+                inps.doAnim = true;
+                inps.animSpeed = 1;
+            }
+
+            const u = VH.hist.sheet.children[0].material.uniforms;
+            u.particleWidth.value = 0.04;
+            u.saturation.value = 1;
+            u.opacity.value = 0.06;
+            u.fadeFactor.value = 1.5
+            u.highlightStrength.value = 0;
+            runkeys('K,V,B');
+            // tad.topos();
+
+            if (!V.gui) V.gui = dat.GUIVR.createX("forhistorytrace");
+            V.gui.addFolder(VH.hist.createGUIVR());
+}
+
 
 /*
 comment on blending.

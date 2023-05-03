@@ -1,3 +1,4 @@
+/* eslint-disable no-use-before-define */
 /**
  * @author alteredq / http://alteredqualia.com/
  * @author mrdoob / http://mrdoob.com
@@ -190,7 +191,7 @@ CSynth.MarchingCubes2SK = function (xnum, ynum, znum) {
             let t;
             t = new Float32Array(n); t.set(bpos); bpos = t;
             t = new Float32Array(n); t.set(bnorm); bnorm = t;
-            if (cols) {t = new Float32Array(n); t.set(bcol); bcol = t};
+            if (cols) {t = new Float32Array(n); t.set(bcol); bcol = t}
         }
         if (bindn + 60 > indices.length) {
             let n = Math.floor(bindn * 1.5);  // arbitary growth factor
@@ -336,7 +337,7 @@ CSynth.MarchingCubes2SK = function (xnum, ynum, znum) {
         indices[bindn++] = il[o2];
         indices[bindn++] = il[o3];
     }
-    this.makePolygons = function (pfield, thresh = 10, pcols) {
+    this.makePolygons = function (pfield, thresh = 10, pcols=undefined) {
         field = pfield;
         cols = pcols;
         //positionArray = new Float32Array(maxCount * 3);
@@ -376,7 +377,7 @@ CSynth.MarchingCubes2SK = function (xnum, ynum, znum) {
     };
 
     // make the polygons and generate geometry
-    this.makeGeometry = function(pfield, thresh = 10, pcols) {
+    this.makeGeometry = function(pfield, thresh = 10, pcols=undefined) {
         const k = `makePolygons2 ${xnum} ${ynum} ${znum} ${thresh} `
         const st = Date.now();
         if (CSynth.recordProfiles) console.profile(k);
@@ -386,10 +387,10 @@ CSynth.MarchingCubes2SK = function (xnum, ynum, znum) {
         msgfixlog('>>>> ind SK vertices', dd.bpos.length/3, 'tri', dd.indices.length/3, 'thresh', thresh, 'time', time);
 
         const mgeo = new THREE.BufferGeometry();
-        mgeo.addAttribute('position', new THREE.BufferAttribute( dd.bpos, 3 ));
-        mgeo.addAttribute('normal', new THREE.BufferAttribute( dd.bnorm, 3 ));
+        mgeo.setAttribute('position', new THREE.BufferAttribute( dd.bpos, 3 ));
+        mgeo.setAttribute('normal', new THREE.BufferAttribute( dd.bnorm, 3 ));
         if (cols)
-            mgeo.addAttribute('color', new THREE.BufferAttribute( dd.bcol, 3 ));
+            mgeo.setAttribute('color', new THREE.BufferAttribute( dd.bcol, 3 ));
         mgeo.setIndex(new THREE.BufferAttribute(dd.indices,1));
 
         return mgeo;

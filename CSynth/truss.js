@@ -172,12 +172,12 @@ T.opt = async function({settle1 = 2000, settle2 = 500} = {}) {
         await sleep(settle2);
         // s[G.pushapartpow] = T.stats(10); // cheating, we don't 'know' the toys to optimize against
         const ss = s[G.pushapartpow] = CSynth.correl('c0', 'cur', flags);
-        msgfix('opt', format(s).replaceall('},', '},<br>'));
+        msgfix('opt', format(s).replace(/},/g, '},<br>'));
         const val = ss.spearman;
         if (val > best.val) best = {pushapartpow : G.pushapartpow, val};
         if (T.stop) return;
     }
-    log('opt', format(s).replaceall('},', '},\n'));
+    log('opt', format(s).replace(/},/g, '},\n'));
 
     G.pushapartpow = best.pushapartpow;
     await sleep(settle1);

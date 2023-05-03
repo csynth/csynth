@@ -1,9 +1,12 @@
 //import { ChildProcess } from "child_process";
 //import { write } from "fs"; // will make this a module, at which point nothing can find anything defined here.
 //I think Intellisense did that accidentally at some point.
+var _a;
 //XXX::: WARNING: changing this to var or const upsets other parts of code in a fatal way.
 //var declaration in localstart.js may be (part of) problem...
 var NW_SC = new function () {
+    if (!islocalhost)
+        return;
     const synthNames = this.SynthNames = [];
     const synthNameListeners = [];
     //some extra housekeeping: not sure about this, currently very partial, not cleaned up properly
@@ -59,9 +62,7 @@ var NW_SC = new function () {
 let synthdefDir = "synthdefs/bin", synthdefSrcDir = "synthdefs", synthCtrlNamesFile = "./synthdefs/map/ctrlNames.yaml";
 //----------> OSCWorker -------->
 //TODO: try switching back to udp, has some issues.
-let scprotocol = 'tcp', clumsySend = 0, clumsyRec = 0; // protocol tcp, udp, ws
-if (!isNode())
-    scprotocol = 'ws';
+let clumsySend = 0, clumsyRec = 0; // protocol tcp, udp, ws
 ///// not used ?????
 var xxbufs = [];
 var xxbuffnum = 0;
@@ -526,7 +527,7 @@ function Synth(type, args, opts) {
         throwe("No type specified for Synth!"); //this actually happens... when adding a new SynthDef?
     this.type = type;
     args = args.filter(a => a !== undefined);
-    var _s = this;
+    const _s = this;
     //2020: think this is fairly irrelevant now.
     _s.autoReload = true; //consider making this false by default, but maybe true for existing SynthBus() code
     if (!args)
@@ -536,7 +537,7 @@ function Synth(type, args, opts) {
     //Just noticed quite correct JSlint warning about not using constructor for side effects...
     _s._load(args, opts);
     _s.parms = {};
-    for (var i = 0; i < args.length; i += 2) {
+    for (let i = 0; i < args.length; i += 2) {
         _s.parms[args[i]] = args[i + 1];
     }
 }
@@ -802,6 +803,8 @@ Synth.prototype.setParm = function (name, value) {
         sclogE(log("bad synth number value", name, inVal));
         return;
     }
+    if (value === this.parms[name])
+        return;
     this.parms[name] = value; //TODO: make a parm object? Or property with get / set?
     if (this.confirmedStartOn !== this.id) {
         //sclog(`${this.type}[${name}] set to ${value}, but we're not calling /n_set yet because not sure about status on server`);
@@ -839,6 +842,13 @@ Synth.prototype.setParm = function (name, value) {
         else
             this.bundle.n_map.push(ctrlIndex, vID.id);
         return;
+    }
+    else if (value instanceof Array) {
+        //wrap in an SCBuffer & use the id
+        //could be naughty and attach a ref to the buf to the array...
+        //or we need to think about cleanup.
+        const b = new SCBuffer(value);
+        value = b.id;
     }
     else {
         if (value instanceof SCBuffer) {
@@ -1013,6 +1023,7 @@ function SCBuffer(opts) {
     b.readRequestsComplete = 0; // requests completed with at least some reply
     b.readRequestsCorrupt = 0; // requests completed but with corrupt reply
     if (opts) {
+        //TODO Float32Array
         if (Array.isArray(opts)) {
             var arr = opts;
             opts = {
@@ -1160,13 +1171,13 @@ SCBuffer.prototype.onRecData = function (f) {
     this.recDataListeners.push(f);
 };
 SCBuffer.prototype.setData = function (d) {
-    startOSCBundle();
+    // startOSCBundle();
     if (this.nFrames !== d.length) {
         this.nFrames = d.length;
         writeOSC("/b_alloc", [this.id, d.length, 1]);
     }
     writeOSC("/b_setn", [this.id, 0, d.length].concat(d));
-    flushOSCBundle();
+    // flushOSCBundle();
 };
 /** XXX: we still have some trouble knowing how to access the buffer from within completion
  * when we first try to use this in GrainContraption, so behaviour is still not really defined yet; reverting to on done*/
@@ -1236,6 +1247,11 @@ function SCBus(name, n = 1, busID) {
     this.ids = ids;
     this.name = name;
     this.synths = [];
+    Object.defineProperty(this, 'lastSynth', {
+        get: function () {
+            return this.synths[this.synths.length - 1];
+        }
+    });
 }
 //nb this is actually undefined at start (initialised in startSC in the hopes of being able to restartSC...
 //but many things would be likely to go wrong if that was attempted)
@@ -1288,12 +1304,35 @@ SCKBus.prototype.Set = function (v) {
     return this;
 };
 SCKBus.prototype.processBundle = SCBus.prototype.processBundle;
-///////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////
-////////////////////////////
-////////////////////////////    Scope-y things...
-////////////////////////////
+const activeScopes = new Map(); //maybe rather than this here, we have Maestro events
+function ampDb(amp) { return 20 * Math.log10(amp); }
+function dbAmp(db) { return Math.pow(10, db / 20); }
+const meterUnityWidth = 400; //width of bar at 0dB
+const meterFactor = meterUnityWidth / 80; //0px at -80dB
+function meterWidth(amp) {
+    const w = meterUnityWidth + meterFactor * ampDb(amp);
+    return Math.min(w, 480);
+}
+function addMeterScaleBars(el) {
+    const scale = document.createElement('div');
+    scale.className = 'meterScale';
+    for (let db = 0; db > -80; db -= 6) {
+        const bar = document.createElement('div');
+        bar.className = 'meterScaleBar';
+        const x = meterWidth(dbAmp(db));
+        bar.style.left = `${x}px`;
+        bar.innerText = `${db}`;
+        scale.appendChild(bar);
+    }
+    el.appendChild(scale);
+}
+const scopesRootEl = document.getElementById('scScopes');
+function hbar() {
+    const bar = document.createElement('div');
+    bar.className = 'hbar';
+    bar.style.width = '0px';
+    return bar;
+}
 function VUMeter(targetSynth, label) {
     var addOpt, bus;
     if (targetSynth) {
@@ -1309,21 +1348,23 @@ function VUMeter(targetSynth, label) {
     }
     var vu = this;
     this.synth = new Synth("vuMeter", ["bus", bus], addOpt);
-    this.peak = 0;
-    this.rms = 0;
+    this.peak = -100;
+    this.rms = -100;
+    this.label = label || bus.name;
     //marking for attention WRT lfOut...
-    // on("/vuReply", function (msg) {
-    //     if (msg.args[0] === vu.synth.id) {
-    //         vu.rms = msg.args[2];
-    //         vu.peak = msg.args[3];
-    //         //if (isNaN(vu.rms)) SynthNaNdetected();
-    //     }
-    //     for (var i = 0; i < vu.listeners.length; i++) vu.listeners[i](vu.rms, vu.peak);
-    // });
-    vu.synth.on("/vuReply", (msg) => {
-        vu.rms = msg.args[2];
-        vu.peak = msg.args[3];
+    on("/vuReply", function (msg) {
+        if (msg.args[0] === vu.synth.id) {
+            vu.peak = msg.args[2];
+            vu.rms = msg.args[3];
+            //if (isNaN(vu.rms)) SynthNaNdetected();
+            for (var i = 0; i < vu.listeners.length; i++)
+                vu.listeners[i](vu.rms, vu.peak);
+        }
     });
+    // vu.synth.on("/vuReply", (msg) => {
+    //     vu.rms = msg.args[2];
+    //     vu.peak = msg.args[3];
+    // });
     this.listeners = [];
     this.makeGraphics();
 }
@@ -1331,16 +1372,24 @@ VUMeter.prototype.onData = function (fn) {
     this.listeners.push(fn);
 };
 VUMeter.prototype.makeGraphics = function () {
-    var el = $('<div/>', { class: 'scScope' });
-    this.div = el[0];
-    $('#scScopes').append(el);
-    var rms = $('<div/>', { class: 'hbar' });
+    const el = document.createElement('div'); // $('<div/>', { class: 'scScope' });
+    el.className = 'scScope';
+    this.div = el;
+    addMeterScaleBars(this.div);
+    //$('#scScopes').append(el);
+    scopesRootEl.appendChild(el);
+    const label = $('<p/>', { class: 'label' });
+    label.text(this.label);
+    el.append(label);
+    const rms = hbar();
+    rms.innerText = 'rms';
     el.append(rms);
-    var peak = $('<div/>', { class: 'hbar' });
+    const peak = hbar();
+    peak.innerText = 'peak';
     el.append(peak);
     this.onData(function (rmsV, peakV) {
-        rms.css('width', rmsV * 200);
-        peak.css('width', peakV * 400);
+        rms.style.width = meterWidth(rmsV) + 'px';
+        peak.style.width = meterWidth(peakV) + 'px';
     });
 };
 VUMeter.prototype.free = function (reason = "") {
@@ -1349,23 +1398,26 @@ VUMeter.prototype.free = function (reason = "") {
     //TODO: check cleanup of listeners
 };
 var VUMeter2 = function VUMeter2(targetSynth) {
-    var bus = targetSynth ? targetSynth.parms.bus || targetSynth.parms.outBus : 0;
-    var addOpt = naddTail();
-    var vu = this;
+    const bus = targetSynth ? targetSynth.parms.bus || targetSynth.parms.outBus : 0;
+    const addOpt = naddTail();
+    const vu = this;
     //scope ids are actually redundant - we have the node id in messages received anyway...
     //but removing too hastily caused very short-term problem.
     this.synth = new Synth("vuMeter2", ["bus", bus], addOpt);
-    this.peak = 0;
-    this.rms = 0;
-    vu.synth.on("/vuReply", function (msg) {
-        var a = msg.args;
-        //if (a[0] === vu.synth.id) { //?
-        vu.rms = [a[2], a[4]];
-        vu.peak = [a[3], a[5]];
-        //if (isNaN(vu.rms)) SynthNaNdetected();
-        //}
-        for (var i = 0; i < vu.listeners.length; i++)
-            vu.listeners[i](vu.rms, vu.peak);
+    this.peak = [-100, -100];
+    this.rms = [-100, -100];
+    // vu.synth.on("/vuReply", function (msg) {
+    on("/vuReply", function (msg) {
+        const a = msg.args;
+        if (a[0] === vu.synth.id) { //?
+            vu.peak[0] = a[2];
+            vu.peak[1] = a[4];
+            vu.rms[0] = a[3];
+            vu.rms[1] = a[5];
+            //if (isNaN(vu.rms)) SynthNaNdetected();
+            for (let i = 0; i < vu.listeners.length; i++)
+                vu.listeners[i](vu.rms, vu.peak);
+        }
     });
     this.listeners = [];
     this.makeGraphics();
@@ -1374,21 +1426,21 @@ VUMeter2.prototype.onData = function (fn) {
     this.listeners.push(fn);
 };
 VUMeter2.prototype.makeGraphics = function VUMeter2_prototype_makeGraphics() {
-    var el = $('<div/>', { class: 'scScope' });
-    this.div = el[0];
-    $('#scScopes').append(el);
-    var left = $('<div/>', { class: 'hbar' });
-    el.append(left);
-    var right = $('<div/>', { class: 'hbar' });
+    const el = document.createElement('div'); // $('<div/>', { class: 'scScope' });
+    el.className = 'scScope';
+    this.div = el;
+    addMeterScaleBars(this.div);
+    scopesRootEl.appendChild(el);
+    const left = hbar();
+    el.appendChild(left);
+    const right = hbar();
     el.append(right);
-    var w = 480;
     this.onData(function VUMeter_display(rmsV, peakV) {
-        if (VUMeter2.nometer)
-            return; // sjpt todo for avoiding unneeded async work
+        //if (VUMeter2.nometer) return;  // sjpt todo for avoiding unneeded async work
         //TODO: in cases where we're buffering incoming data, maybe better just to directly update.
         setTimeout(function VUMeter_display_inner() {
-            left.css('width', rmsV[0] * w);
-            right.css('width', rmsV[1] * w);
+            left.style.width = meterWidth(rmsV[0]) + 'px';
+            right.style.width = meterWidth(rmsV[1]) + 'px';
         }, 0);
     });
 };
@@ -1669,6 +1721,8 @@ function OscScope(target, label, displayFrames = 4096) {
     this.data.fill(0);
     let t = Date.now();
     let tFact = -1;
+    let min = Number.MAX_VALUE;
+    let max = Number.MIN_VALUE;
     this.buf.onRecData(newData => {
         const t1 = Date.now();
         //how much time has past compared to the length of the recieved buffer?
@@ -1722,8 +1776,8 @@ function OscScope(target, label, displayFrames = 4096) {
         var data = this.data.slice(this.data.length - this.displayFrames); //this.buf.data; //XXX
         if (!data || data.length === 0)
             return;
-        const min = data.reduce((a, b) => a < b ? a : b);
-        const max = data.reduce((a, b) => a > b ? a : b);
+        min = Math.min(min, data.reduce((a, b) => a < b ? a : b));
+        max = Math.max(max, data.reduce((a, b) => a > b ? a : b));
         //centre on zero if range is asymetric, always include -1,1 and always have some padding
         const absMax = Math.max(Math.abs(min), Math.abs(Math.max(max, 1)));
         const range = absMax * 1.1;
@@ -1976,7 +2030,8 @@ function defaultAudioFileName() {
 }
 var scRecorder;
 function startAudioRecording(name, onDoneFn) {
-    if (!NW_SC.shuttingDown)
+    log('startAudioRecording', name);
+    if (NW_SC.shuttingDown)
         return; // ?? best test for audio ??
     const t = new Date();
     if (isNode()) {
@@ -2006,7 +2061,7 @@ function startAudioRecording(name, onDoneFn) {
     }
 }
 function stopAudioRecording(onDonep) {
-    if (!NW_SC.shuttingDown)
+    if (NW_SC.shuttingDown)
         return; // ?? best test for audio ??
     //not the cleanest way, but quick way to ensure that the last block of audio is written.
     //I also reduced the size of buffer that SCRecorder uses to 65536 frames, which should make the amount lost smaller anyway.
@@ -2034,6 +2089,7 @@ function stopAudioRecording(onDonep) {
     }, 1000);
 }
 function setAudioRecording(v) {
+    console.log('setAudioRecording', v);
     if (v === undefined)
         v = trygetele("audioRecord", "checked");
     if (v)
@@ -2147,7 +2203,7 @@ class TSCGroup extends TSCNode {
         //or pay less attention to things being unexpectedly freed...
         //... or for now for the specific case of mutsynth parent node, just flag all of the synths in that context first...//
         childrenToFlag === null || childrenToFlag === void 0 ? void 0 : childrenToFlag.forEach(s => s.freed = `flagged as by free() of ${this.id}`);
-        writeOSC('/g_deepFree', this.id);
+        writeOSC('/g_freeAll', this.id);
     }
 }
 NW_SC.queryControlNamesForAllSynthNames = async function (chunkLength) {
@@ -2155,7 +2211,7 @@ NW_SC.queryControlNamesForAllSynthNames = async function (chunkLength) {
         sclog("queryControlNamesForAllSynthNames in browser version relies on last dump from Electron... TODO: move this to proxy (really todo review supercolliderjs)");
         // set NW_SC.SynthNames & NW_SC.ctrlNames from yaml (and make sure they're safe)
         const str = getfiledata(synthCtrlNamesFile);
-        const data = yaml.safeLoad(str);
+        const data = jsyaml.safeLoad(str);
         NW_SC.ctrlNames = data;
         NW_SC.SynthNames = Object.keys(data);
         sclog(`data loaded for ${NW_SC.SynthNames.length} synth modules (many should be culled, some more will be added...)`);
@@ -2196,9 +2252,9 @@ NW_SC.queryControlNamesForAllSynthNames = async function (chunkLength) {
             //update: as with many things, would be good to transition to Promises. In this case, see Promise.all(...)
             syncThen(function () {
                 tempGroup.queryProperties(function (ctrls) {
-                    writeOSC("/g_deepFree", tempGroup.id); //with queryProperties done and the result recieved, we can free
-                    //_.each(mSynths, function (s) { s.killed = `flagged as killed after /g_deepFree of ${tempGroup.id} in queryControlNamesForAllSynths` });
-                    mSynths.forEach(s => s.killed = `flagged as killed after /g_deepFree of ${tempGroup.id} in queryControlNamesForAllSynths`);
+                    writeOSC("/g_freeAll", tempGroup.id); //with queryProperties done and the result recieved, we can free
+                    //_.each(mSynths, function (s) { s.killed = `flagged as killed after /g_freeAll of ${tempGroup.id} in queryControlNamesForAllSynths` });
+                    mSynths.forEach(s => s.killed = `flagged as killed after /g_freeAll of ${tempGroup.id} in queryControlNamesForAllSynths`);
                     //still getting 'trying to remove...' log noise, not thought through right.
                     sclog("...queried properties for chunk " + i + "-" + (i + j - 1));
                     i += j;
@@ -2256,7 +2312,7 @@ nb. map.json was an earlier idea of how to arrange gene mapping and is now dead.
 NW_SC.dumpControlNamesForAllSynths = function () {
     if (NW_SC.preparingCtrlNameDump)
         return; //I suppose there could be situation where later call got missed
-    const newYaml = yaml.safeDump(NW_SC.ctrlNames, { sortKeys: true });
+    const newYaml = jsyaml.safeDump(NW_SC.ctrlNames, { sortKeys: true });
     if (!isNode()) {
         //send newYaml back to server. I could try to use preparingCtrlNameDump again
         //but that mechanism would be better replaced by async something, and really higher level changes anyway.
@@ -2306,7 +2362,7 @@ let scsynth, sclang, config; //typing as ChildProcess turns this into a module..
 let oscWorker;
 // scsender is default sender if nothing else specified
 var osc, udp, tcpSocket, tcpSocketid = 0, scsender, scstatus, statusInterval, wssender;
-const UDP_PORT = 57115, TCP_PORT = 57121, WS_PORT = 57171, WS_IPC_PORT = 57122, HOST = "127.0.0.1";
+const UDP_PORT = 57115, TCP_PORT = 57121, WS_PROXY_PORT = 57171, WS_IPC_PORT = 57122, HOST = "127.0.0.1";
 if (isNode()) {
     //holy JS-scope nonsence, batman. (!!!)
     var fs = require('fs'); // , path = require('path');
@@ -2448,51 +2504,25 @@ function runProcesses() {
 async function runProcess(isRetry) {
     if (noaudio)
         return; //==== todo complete browser audio
-    let args = ["-u", '' + UDP_PORT, "-t", '' + TCP_PORT, "-m", 1024 * 64, "-a", 512, '-n', MAX_NODES]; //-S for sample rate, not used
-    (function processConfigOptions() {
-        let device = startvr ? config.VRAudioDevice : config.audioDevice;
-        //maybe consider useSystemClock? (this is in ServerOptions in sclang, not sure about how to set over cmd line)
-        NW_SC.sampleRate = 48000; //TODO: review sampleRate?
-        if (device !== 'default')
-            args.concat(["-H", device]);
-        if (config.bufSize)
-            args = args.concat(["-Z", config.bufSize]);
-        //XXX HACK to act like we know we're on Windows
-        // because for now, if we're in a browser (where there's no 'process'), we probably are.
-        const isWindows = process ? process.platform === 'win32' : true;
-        const isMac = process && process.platform === 'darwin';
-        if (config.scsynth === 'default' && isWindows) {
-            config.scsynth = '../SuperCollider/scsynth';
-            sclog("Using our default local scsynth & ugenPluginPath '-U ../SuperCollider/plugins'");
-            //Thought (again) about putting ugenPluginsPath in config, sometimes that's also fiddly.
-            //*** Especially on other platforms where our default local copies will be the wrong build ...
-            //Current expectation is that if you're in Windows and using our local default SC you will use local plugins
-            //(for which we can add a hardcoded argument to scsynth)
-            //otherwise you'll have SuperCollider + plugins installed (and probably want SC to look in the normal place,
-            //by not providing a -U argument, as in useSCDefault)
-            args = args.concat(["-U", '../SuperCollider/plugins']);
-            //if (process.platform === 'win32') args.push("-U", "..\\SuperCollider\\plugins");
-        }
-        else {
-            if (config.scsynth === 'default' && isMac) {
-                config.scsynth = "/Applications/SuperCollider/SuperCollider.app/Contents/Resources/scsynth";
-                args = args.concat(['-Z', 64]);
-            }
-            sclog(`Either we're not on windows, or we're using non-local scsynth. Using default SC ugenPluginPath (no -U)`);
-        }
-    })();
+    /// assert processConfigOptions no longer relevant in client 2023-02
     async function startSession() {
         //---> OSCWorker --->
         function initOSCWorker() {
             oscWorker = new Worker('JS/OSCWorker.js');
             W.encodeAndSendOSCBundle = msg => oscPost('encodeAndSendOSCBundle', msg);
             W.encodeAndSendOSCPacket = msg => oscPost('encodeAndSendOSCPacket', msg);
+            let firstmessage = true;
             function oscPost(cmd, oscArgs) {
                 oscWorker.postMessage({ command: cmd, args: oscArgs });
             }
             oscWorker.onmessage = e => {
+                if (firstmessage) {
+                    msgfixlog('tad+', 'first message from oscWorker');
+                    firstmessage = false;
+                }
                 const d = e.data;
-                if (d.log)
+                if (d === null) { } // happened under Edge
+                else if (d.log)
                     sclog('[OSCWorker] ' + d.log);
                 else if (d.error)
                     sclogE('[OSCWorker] ' + d.error);
@@ -2502,8 +2532,12 @@ async function runProcess(isRetry) {
                     d.oscArr.forEach(processParsedOSC);
                 else if (d.connected)
                     SC_initialOSCMessages();
-                else if (d.noaudio)
+                else if (d.noaudio) {
+                    msgfixerrorlog('tad+', 'oscWorker.onmessage d.noaudio');
                     noaudio = true;
+                }
+                else if (d.udpStats)
+                    udpStats = d.udpStats;
             };
             //TODO: maybe elsewhere, like preframe?
             Maestro.on("synthUpdate", () => oscWorker.postMessage({ command: 'pollIncomingMessages' }));
@@ -2514,69 +2548,17 @@ async function runProcess(isRetry) {
             //oscPost('newSession', SC_initialOSCMessages);
             oscPost('newSession'); //will postMessage({connected: true}), then we call SC_initialOSCMessages.
         }
-        if (scprotocol === 'ws' && !searchValues.noOscWorker) {
-            initOSCWorker();
-            setupWsIPC();
-        }
-        else {
-            scsession = await newsession(SC_initialOSCMessages, SC_processOSC);
-        }
+        initOSCWorker();
+        setupWsIPC();
     }
     ////////////////// Spawn proxy process ////////////////////////
-    if (!isNode()) {
-        //don't assume that !isNode() means windows server commands.
-        //TODO: differentiate how to call in Electron.
+    msgfixlog('tad+', 'startSCSynth');
+    if (!noaudio)
         await fetch("/startSCSynth/", { method: "POST" });
-        await startSession();
-        return;
-    }
-    ////////////////// Spawn native process ////////////////////////
-    (function spawnNative() {
-        var spawn = require('child_process').spawn;
-        scsynth = spawn(config.scsynth, args);
-        sclog(`started '${config.scsynth} ${args.join(' ')}': pid = ${scsynth.pid}`);
-        scsynth.on('exit', function (code, signal) {
-            //----------> OSCWorker -------->
-            sclog("[scsynth]Exit with code " + code + ", '" + signal + "'");
-            const logStr = document.getElementById('sclogbox').textContent;
-            NW_SC.nodevice = logStr.substr(-400).replaceall('<br />', '').replaceall('[sc=stdout]', '').indexOf("error: 'Device unavailable'") === -1;
-            if (NW_SC.nodevice) {
-                msgfix('Synths', '<span class="errmsg">Synths cannot run, maybe there is no sound input device connected to the computer.;</span>');
-            }
-            if (!NW_SC.shuttingDown && !NW_SC.nodevice) {
-                sclog("      ---- we didn't intend for scsynth to shutdown, so will attempt to start again...");
-                sclog("           If the problem was the TCP port not being ready yet after previous session, this should help");
-                sclog("           If there's some other unexpected reason (not expected), it'll mean all of our housekeeping falls apart");
-                //NOT TODO: the network connection from lang process. We're somewhat decided on not involving sclang much.
-                setTimeout(function () { runProcess(true); }, 2000); //---> review retry attempt...
-            }
-        });
-        scsynth.on('error', function (err) {
-            sclog("[scsynth]Error " + err);
-        });
-        let sessionStarted = false;
-        scsynth.stdout.on('data', async function (data) {
-            //if (data.indexOf("command FIFO full" !== -1)) //todo something!
-            /********/ //---> don't timeout, wait on a promise?
-            //first stdout data probably means we're good to go. Seems ok. looking for 'server ready' anyway.
-            //may not be reliable across all versions...
-            if (!sessionStarted && data.indexOf('server ready') !== -1) {
-                await startSession();
-                sessionStarted = true;
-            }
-            sclog('[sc-stdout]' + data);
-        });
-        scsynth.stderr.on('data', function (data) {
-            sclog('[sc-stderr]' + data);
-        });
-        scsynth.on('close', function (code) {
-            //TODO: reset if necessary.
-            sclog("scsynth closed with code " + code);
-        });
-        /********/
-        if (!isRetry)
-            NW_SC.startWatchingSynthDefBinFiles();
-    })();
+    msgfixlog('tad+', 'startSession');
+    await startSession();
+    msgfixlog('tad+', 'startSession done');
+    return;
 }
 NW_SC.startWatchingSynthDefBinFiles = function () {
     var watchedFiles = [];
@@ -2892,10 +2874,11 @@ function reloadSynthdef(path) {
         return true;
     });
 }
-var usingSC = false, usingSCLang = false, noaudio = false;
+var usingSC = false, usingSCLang = false, noaudio = (_a = searchValues.noaudio) !== null && _a !== void 0 ? _a : false;
+var staticAudio = false;
 window.addEventListener('beforeunload', stopSC);
 var startSC = function () {
-    if (staticAudio || noaudio || oxcsynth)
+    if (staticAudio || noaudio || oxcsynth || !islocalhost)
         return; // no synth
     //clearLog(true);
     usingSC = true;
@@ -2917,7 +2900,7 @@ var startSC = function () {
     // });
     //TODO: change config mechanism, tend to use default install location...
     var specialConf = './scconfigOverride.json';
-    var hasOverride = getfiledata(specialConf, true); //second argument to allow for the file probably being missing
+    var hasOverride = fileExists(specialConf) && getfiledata(specialConf, true); //second argument to allow for the file probably being missing
     config = JSON.parse(hasOverride || getfiledata('./scconfig.json'));
     sclog(`using scconfig: ${JSON.stringify(config)}`);
     if (!config) {
@@ -2927,315 +2910,6 @@ var startSC = function () {
     runProcesses();
 };
 var scsession;
-//only used with 'ws' protocol (in browser) at present.
-//should ideally make Electron/nw bits share server code, and communicate differently.
-let ipcWS;
-function setupWsIPC() {
-    const ws = new WebSocket('ws://localhost:' + WS_IPC_PORT, 'binary');
-    ipcWS = ws;
-    ws.binaryType = "arraybuffer";
-    ws.onopen = () => {
-        sclog('opened WebSocket for IPC');
-        Maestro.trigger('IPCstarted');
-    };
-    ws.onmessage = (msgEvent) => {
-        try {
-            const data = msgEvent.data;
-            const msg = osc.readPacket(data, {}, 0);
-            if (msg.address === '/oa/reloadSynthdef') {
-                reloadSynthdef(msg.args[0]);
-            }
-            if (msg.address === '/oa/newTadmus') {
-                sclog('---- newTadmus event on client ----');
-                Maestro.trigger('newHornSynth'); //should be more forceful?
-            }
-        }
-        catch (e) {
-            sclogE(`error parsing IPC data as OSC: '${e}'`);
-        }
-    };
-}
-let ipcSend = (msg) => {
-    if (!ipcWS)
-        return;
-    ipcWS.send(osc.writePacket(msg));
-};
-async function newsession(initialOSCMessages, i_processOSC) {
-    let tcpconnectFail = 0;
-    function processOSC(data) {
-        try {
-            i_processOSC(data);
-        }
-        catch (err) {
-            //XXXXX:::: it used to be that the only known error case here was malformed TCP data.
-            //we may now also send error strings, in particular socket errors are just sent as strings.
-            //serious("processOSC error", err);
-            // this will usually be caught by data length,
-            // but may be caught here where there is bad data but length happens to be in range
-            //what makes us think that starting (countless) newtcp will help??!
-            sclogE(":::: Server output not (valid) OSC.  Could be an error message from proxy, or malformed TCP from scsynth?");
-            sclogE(`"${err}"`);
-            sclogE(`"${new TextDecoder('utf-8').decode(data)}"`);
-            //W.scConsole.classList.add('sc-networkLost');
-            //return newtcp("error trying to interpret data as OSC: \"" + err + "\"");
-        }
-    }
-    var session = {};
-    session.bufferSize = 10000; //PJT: I infer that the '10000' used in various places could be well represented this way...
-    if (scprotocol === 'udp') {
-        // remote.require can help in electron
-        // but the various other async setTimeouts seem to have helped more
-        udp = (remote && false ? remote.require : require)('dgram').createSocket('udp4');
-        scsender = udp;
-        udp.on('message', onudpdata);
-        udp.on('error', function (ex) {
-            //serious("UDP ERROR: " + ex);
-            sclog("UDP ERROR: " + ex);
-        });
-        //setTimeout(initialOSCMessages, 100);
-        initialOSCMessages(); // too soon after tcpconnect if doesn't work at once, maybe need delay for udp as well ???
-    }
-    else if (scprotocol === 'tcp') {
-        tcpconnect(initialOSCMessages);
-        session.tcpbuffer = new Uint8Array(session.bufferSize);
-        session.tcpbuffer.pos = 0;
-    }
-    else if (scprotocol === 'ws') {
-        setupWsIPC();
-        for (let ttry = 0; ttry < 10; ttry++) {
-            scsender = wssender = new WebSocket('ws://localhost:' + WS_PORT, 'binary');
-            wssender.binaryType = 'arraybuffer';
-            wssender.onopen = initialOSCMessages;
-            wssender.onmessage = wsdata;
-            wssender.type = 'ws';
-            session.tcpbuffer = new Uint8Array(session.bufferSize);
-            session.tcpbuffer.pos = 0;
-            for (let ttry2 = 0; ttry2 < 100; ttry2++) {
-                await sleep(1);
-                if (wssender.readyState !== wssender.CONNECTING)
-                    break;
-                else
-                    log('wssender still connecting');
-            }
-            if (wssender.readyState === wssender.OPEN) {
-                log('wssender opened ok');
-                break;
-            }
-            else {
-                log('wssender status wrong', wssender.readyState);
-            }
-        }
-    }
-    else {
-        serious('invalid protocol', scprotocol);
-    }
-    function wsdata(msg) {
-        tcpdata3(msg.data);
-    }
-    // Some issues about how to call tcpreadall
-    // on readable sometimes locks up, and the unshift sometimes seems to cause infinite recursion.
-    // This setTimeout works quite well.
-    // Might be better to use on data and do the extra work for package assembly.
-    //
-    // Runs often end with length out of range,
-    // presumably because of internal ipc corruption???
-    /** read all outstanding complete tcp osc messages */
-    function tcpreadallOld() {
-        //log("read");
-        while (true) {
-            var lbuf = tcpSocket.read(4);
-            if (lbuf === null)
-                break;
-            var l = lbuf.readInt32BE(0);
-            if (l < 0 || l > session.bufferSize) {
-                // this should not happen, usually seems to be in extreme case
-                // the newtcp patchup should recover things, but some messages will have been lost
-                //////
-                sclogE(`############ give up hope #############`);
-                return newtcp("tcpreadallOld length out of range: " + l);
-            }
-            var data = tcpSocket.read(l);
-            if (data === null) {
-                tcpSocket.shifts++;
-                tcpSocket.unshift(lbuf);
-                break;
-            }
-            if (tcpSocket.shifts > 4)
-                log("tcpSocket.shifts ", tcpSocket.shifts);
-            tcpSocket.shifts = 0;
-            processOSC(data);
-        }
-        setTimeout(tcpreadallOld, 10);
-    }
-    /** read not in callback, then do assembly etc work in function readfun */
-    function tcpreadall(readfun) {
-        var data = tcpSocket.read();
-        if (data !== null)
-            readfun(data);
-        setTimeout(function () { tcpreadall(readfun); }, 10);
-    }
-    /** add data to a buffer. If there isn't enough space, make a new buffer big enough... */
-    function bufadd(buff, data) {
-        buff.pos = buff.pos || 0;
-        if (buff.pos < 0)
-            serious("buff.pos -ve", buff.pos);
-        var newpos = buff.pos + data.length; // length after concat
-        if (newpos > buff.length) {
-            //??sclog(`expanding tcp buffer to ${newpos} (was ${buff.length})`);
-            //??session.bufferLimit = newpos;
-            var temp = new Uint8Array(newpos);
-            // buff.copy(temp, 0, 0, buff.pos);
-            temp.set(buff);
-            temp.pos = buff.pos;
-            buff = temp;
-        }
-        //data.copy(buff, buff.pos);
-        // NO data.set(buff, buff.pos);
-        buff.set(data, buff.pos);
-        buff.pos = newpos;
-        return buff;
-    }
-    var timeoutorder = { out: 0, in: 0, err: 0 };
-    var tcphist = [];
-    /** add new data and extract packets from tcp stream,
-    method 2 uses buffer copying but much less allocation */
-    function tcpdata2(data) {
-        //log("in tcpdata2");
-        tcphist[udpStats.receivedCalls % 10] = data; // help to review history
-        udpStats.receivedCalls++;
-        udpStats.receivedBytes += data.length;
-        session.tcpbuffer = bufadd(session.tcpbuffer, data);
-        var pos = 0;
-        while (pos < session.tcpbuffer.pos) {
-            var dv = new DataView(session.tcpbuffer.buffer);
-            var l = dv.getInt32(pos); //data starts with an int for message length
-            //nb, limit here was 100000
-            if (l < 0 || l > 5000000) { // limit is debug test to capture parsing errors early and not try to read silly lengths of data
-                sclog(`WARNING::: tcpdata2 deranged length (${l}), but we're going to attempt to plow on...`);
-                //editing synthdefs with a lot of active synths often does it...
-                //I should try to throttle messages before restarting connection or something
-                //maybe timeout or promises here could help
-                //may need to consider more drastic measures (or just limiting calls to newtcp)
-                return newtcp("tcpdata2 length out of range: " + l);
-            }
-            if (pos + 4 + l <= session.tcpbuffer.pos) {
-                var pac = session.tcpbuffer.slice(pos + 4, pos + 4 + l);
-                //is it possible for pac to be undefined here?  Buffer overrun? (or did I think it was undefined because of devtools scope confusion)
-                processOSC(pac);
-                pos += 4 + l;
-            }
-            else {
-                break; //we still haven't got the whole packet
-            }
-        }
-        // shift remaining partial packet to start
-        var newpos = session.tcpbuffer.pos - pos;
-        if (newpos !== 0 && pos !== 0) {
-            //session.tcpbuffer.copy(session.tcpbuffer, 0, pos, session.tcpbuffer.pos);
-            session.tcpbuffer.copyWithin(0, pos, pos + newpos);
-        }
-        session.tcpbuffer.pos = newpos;
-    }
-    /** safer? async tcpdata2 */
-    function tcpdata3(xdata) {
-        //log("in tcpdata3");
-        var data = new Uint8Array(xdata); // not sure if copy is needed
-        deferuow(function tcpdata2_deferred() {
-            tcpdata2(data);
-        });
-    }
-    /** set up tcp connection then do initial messages */
-    function tcpconnect(initmessfun) {
-        tcpconnectFail = 0;
-        tcpconnectin(initmessfun);
-    }
-    function tcpconnectin(initmessfun) {
-        if (noaudio)
-            return;
-        var net = require('net');
-        tcpSocketid++;
-        tcpSocket = net.connect(TCP_PORT, 'localhost', tcpconnectComplete);
-        tcpSocket.on('error', function () {
-            if (!NW_SC.nodevice) {
-                log('retry tcpconnection', tcpconnectFail++);
-                sclog('retry tcpconnection ' + tcpconnectFail);
-                if (tcpconnectFail > 10)
-                    noaudio = true;
-                setTimeout(function () { tcpconnectin(initmessfun); }, 500);
-            }
-        });
-        function tcpconnectComplete() {
-            sclog("tcp connected on port " + tcpSocket.localPort + "<->" + tcpSocket.remotePort);
-            scsender = tcpSocket;
-            //    tcpSocket = new net.Socket({type: 'tcp4', allowHalfOpen: false });
-            tcpSocket.on("error", function (err) {
-                sclog("TCP Error: \"" + err + "\"");
-                console.error("TCP Error: \"" + err + "\"");
-            });
-            // experimental code below to see which is the most realiable way to read the data.
-            // any option should be ok, but ...???
-            // as it is, they all seem pretty good but none seems quite 100%
-            ///PJT:::: "not quite 100%"" is meaning quite bad at times (not in exhibition runtime fingers crossed)...
-            var xxx = '3';
-            if (xxx === '1') {
-                //tcppending = undefined;
-                //tcpSocket.on('data', tcpdata);
-            }
-            else if (xxx === '2') {
-                tcpSocket.on('data', tcpdata2);
-            }
-            else if (xxx === '3') {
-                tcpSocket.on('data', tcpdata3);
-            }
-            else if (xxx === "allold") {
-                tcpSocket.shifts = 0;
-                setInterval(tcpreadallOld, 10);
-            }
-            else if (xxx === "all2") {
-                tcpSocket.pause();
-                tcpreadall(tcpdata2);
-            }
-            else if (xxx === "all3") {
-                tcpSocket.pause();
-                tcpreadall(tcpdata3);
-            }
-            else {
-                serious("bad value for xxx");
-            }
-            //    tcpSocket.connect(TCP_PORT, 'localhost', function() {
-            //        sclog("tcp connected on port " + tcpSocket.localPort + "<->" + tcpSocket.remotePort);
-            //    });
-            if (initmessfun)
-                initmessfun();
-        }
-    }
-    /** get a new tcp connection */
-    function newtcp(reason) {
-        console.error("restarting tcp: reason: " + reason);
-        sclog("requesting new tcp socket, reason: " + reason);
-        tcpSocket.destroy(); //
-        tcpconnect(function renotify() {
-            writeOSC("/notify", 1);
-            sclog("tcp socket running");
-        });
-    }
-    function onudpdata(xdata) {
-        // this could happen if xdata already corrupted
-        //XXX: or if there was a genuinely long message, like a buffer read. (or the result of querying all synth params at startup)
-        //UDP is currently a bit broken for other reasons, but made this limit much longer which helps somewhat. (was 10000)
-        if (xdata.length > 1000000 || xdata.length < 0) {
-            serious('overlong processOSC data ignored, l=' + xdata.length);
-            return;
-        }
-        var data = new Buffer(xdata); // make safe copy asap, Buffer ok for UDP
-        processOSC(data);
-        // do most of the work in separate work unit
-        // to reduce risk of inappropriate things happening in the wrong place
-        setTimeout(udpdprocessOSC, 0);
-        function udpdprocessOSC() { processOSC(data); } // defer real work and return asap
-    }
-    return session;
-} // newsession
 // stop the current Synth (and clean up ???)
 var stopSC = function () {
     if (!usingSC)
@@ -3284,18 +2958,12 @@ function showSCLog(v) {
 function toggleSCLog() {
     setInput(W.doShowSCLog, !trygetele("doShowSCLog", "checked"));
 }
-var gsynthcopy;
+let gsynthcopy;
 var debuglastReloadTried;
 function reloadAllSynths() {
-    var n = Object.keys(synths).length;
-    //    if (n > 32) {
-    //        // restartSC();
-    //        setTimeout(reloadAllSynths, 500);
-    //        sclog("!!!! Too many synths " + n + " Reloading all synths DEFERRED AT " + new Date());
-    //        return;
-    //    }
-    for (var s in synths) {
-        var sy = synths[s];
+    const n = Object.keys(synths).length;
+    for (const s in synths) {
+        const sy = synths[s];
         if (s !== sy.id * 1) {
             //Is there any reason to believe this could ever happen?
             sclog("???? potentially bad housekeeping encountered in reloadAllSynths ????");
@@ -3313,12 +2981,12 @@ function reloadAllSynths() {
     sclog("Reloading all " + n + " synths " + new Date());
     if (!gsynthcopy) {
         gsynthcopy = {};
-        for (s in synths) {
+        for (const s in synths) {
             if (synths[s].autoReload)
                 gsynthcopy[s] = synths[s];
         }
     }
-    for (var k in gsynthcopy)
+    for (const k in gsynthcopy)
         gsynthcopy[k].reload();
     syncThen(cleanupSynthIDs);
 }
@@ -3333,6 +3001,7 @@ function setLogSCStatusWarning(v) {
  * and then inform anyone waiting on scReadyFunc
  */
 function SC_initialOSCMessages() {
+    msgfixlog('tad+', 'SC_initialOSCMessages');
     sclog("initial OSC...");
     //writeOSC("/dumpOSC", 1);
     writeOSC('/status'); //newer version support '/version' query which looks sensible.
@@ -3351,9 +3020,11 @@ function SC_initialOSCMessages() {
                 dumpSCStatus();
             }
         }
+        // msgfixlog('tad+', 'requesting /status');
         writeOSC('/status');
     }, 1000);
-    on("/status.reply", function () {
+    on("/status.reply", function scStatusReply() {
+        // msgfixlog('tad+', 'received /status');
         sclog("Initial /status.reply received, setting up... " + new Date());
         on("/done", function (msg) {
             if (msg.args[0] === "/notify") {
@@ -3361,23 +3032,22 @@ function SC_initialOSCMessages() {
                 return true;
             }
         });
-        if (scprotocol === "tcp")
-            writeOSC("/notify", tcpSocketid);
-        else
-            writeOSC("/notify", 1); // ??? todo verify this, but 0 won't do
+        writeOSC("/notify", 1); // ??? todo verify this, but 0 won't do
+        msgfixlog('tad+', 'requesting /d_loadDir');
         writeOSC("/d_loadDir", synthdefDir);
-        on("/done", function (msg) {
+        on("/done", function scDone(msg) {
             if (msg.args[0] !== "/d_loadDir")
                 return false;
             //TODO: un-hardcode this stuff... soon(TM)...
             //master = new Synth("MasterCompander", ["amp", 1, 'db', -200], { addAction: ADD_TAIL });
             master = new Synth("MasterCompander", [], { addAction: SCAddAction.AddTail });
             freeverb = new Synth("FreeVerb", ["damp", 0.1, "room", 0.9]);
-            new VUMeter2();
+            // new VUMeter2();
             //spat = new Synth("spatStereoDopC", ["bus", spatBus, "pan", 0, "distance", 3]);
             //spat = new SpatNode();
             //spatBus = spat.bus;
             sclog("Hello audio...");
+            msgfixlog('tad+', 'scDone /d_loadDir');
             // playChimes(Date.now());
             //this is not really used, not problematic AFAIK, but eliminates a source of potential confusion not doing it.
             // Consider revisit if I want to really use sclang eg for PBind lib... but that's a big change anyway.
@@ -3498,8 +3168,8 @@ function RandomMono() {
     //this.setPeriod(this.period);
     //return { interval: interval, synth: synth };
 }
-function dumpTree() {
-    writeOSC("/g_dumpTree", [0, 1]);
+function dumpTree(values = true) {
+    writeOSC("/g_dumpTree", [0, values ? 1 : 0]);
 }
 function cleanupSynthIDs(funafter) {
     /*
@@ -3516,24 +3186,24 @@ function cleanupSynthIDs(funafter) {
     sclog("cleanupSynthIDs() called... >>> YMMV <<<");
     on("/g_queryTree.reply", function (msg) {
         //sclog("[scsynth] /queryTree.reply for cleanupSynthIDs  @ " + new Date());
-        var tree = {};
-        var i = 0;
-        var args = msg.args;
-        var controls = args[i++] === 1;
+        const tree = {};
+        let i = 0;
+        const args = msg.args;
+        const controls = args[i++] === 1;
         tree.rootNode = args[i++];
         if (tree.rootNode !== 0)
             return false;
-        var children = args[i++];
-        var serverIDs = [];
-        for (var j = 0; j < children; j++) {
-            var nID = args[i++];
+        const children = args[i++];
+        const serverIDs = [];
+        for (let j = 0; j < children; j++) {
+            const nID = args[i++];
             serverIDs.push(nID);
             //note that maybe my synths[id] should really be nodes[id]
             //TODO: note if we encounter a group here and want to expand the entire tree,
             //I believe it will be necessary to make a recursive call to /g_queryTree...
             //would be handy if there was a way of querying this information in JSON format or something.
-            var isSynth = args[i++] === -1;
-            var n = tree[nID] = {};
+            const isSynth = args[i++] === -1;
+            const n = tree[nID] = {};
             if (!isSynth)
                 n.type = "group";
             if (isSynth) {
@@ -3550,10 +3220,10 @@ function cleanupSynthIDs(funafter) {
                 //controls will always be false in this context, but leaving in parsing logic for when I want it.
                 if (controls) {
                     n.parms = {};
-                    var numControls = args[i++];
-                    for (var k = 0; k < numControls; k++) {
-                        var ctrlName = args[i++];
-                        var ctrlVal = args[i++];
+                    const numControls = args[i++];
+                    for (let k = 0; k < numControls; k++) {
+                        const ctrlName = args[i++];
+                        const ctrlVal = args[i++];
                         if (ctrlVal.match(/^[ac]\d+$/))
                             sclog(`found control bus mapping symbol ${ctrlVal} for ${ctrlName} of ${n.type}...`);
                         n.parms[ctrlName] = ctrlVal; //could be something like "a17" for bus mapping
@@ -3564,8 +3234,8 @@ function cleanupSynthIDs(funafter) {
         //remove nodes from synths where their key isn't in ids
         //trouble is that we don't put nodes back in if they get removed a bit early for example...
         //I'm not really convinced this helps...
-        var t = Date.now() - 10000; // allow 10 secs to get things right
-        var rejects = [];
+        const t = Date.now() - 10000; // allow 10 secs to get things right
+        const rejects = [];
         for (let kk in synths) {
             const kn = Number.parseInt(kk);
             if (serverIDs.indexOf(kn) === -1 && synths[kk].loadRequestTime < t)
@@ -3596,6 +3266,7 @@ function cleanupSynthIDs(funafter) {
     writeOSC("/g_queryTree", [0, 0]);
 }
 function processStatusReply(msg) {
+    statSC.sendLEDOpacity = 1;
     scstatus = {
         statusTime: new Date(),
         nUgens: msg.args[1],
@@ -3621,7 +3292,7 @@ function processStatusReply(msg) {
     W.scUDPDelay.innerHTML = ((Math.round(100 * udpStats.meanSendDelay) / 100).toFixed(2) + 'ms');
 }
 function processNEnd(msg) {
-    var id = msg.args[0];
+    const id = msg.args[0];
     // sclog('/n_end: ' + id);
     // sclog(JSON.stringify(synths[id]));
     if (freeNodeIDs)
@@ -3630,8 +3301,8 @@ function processNEnd(msg) {
     removeSynthIDRef(id); //and this... 2020
 }
 function processBadValue(msg) {
-    var type = msg.args.length <= 2 ? -1 : msg.args[2];
-    var typeStr;
+    const type = msg.args.length <= 2 ? -1 : msg.args[2];
+    let typeStr;
     switch (type) {
         case 0:
             typeStr = "normal";
@@ -3650,8 +3321,8 @@ function processBadValue(msg) {
     }
     if (type === 3 || type === -1) // sclog("denormal ignored...");
         return; //we don't care about denormals, thanks.
-    var id = msg.args[0];
-    var synth = synths[id];
+    const id = msg.args[0];
+    const synth = synths[id];
     if (synth) {
         if (synth.id === id) {
             sclogE(`[scsynth] --------------- bad value (${typeStr}) on ${synth.mutID || synth.type} #{id} @${new Date()}`);
@@ -3956,7 +3627,7 @@ var udpStatsInit = {
     lastSendDelay: 0, minSendDelay: Number.MAX_VALUE, maxSendDelay: -1, meanSendDelay: undefined,
     skipped: 0, tried: 0, sent: 0, sentBytes: 0, receivedBytes: 0, receivedCalls: 0, maxSize: 0
 };
-var udpStats = clone(udpStatsInit);
+var udpStats = Object.assign({}, udpStatsInit);
 var udpHousekeeping = { tried: 0, sent: 0 };
 /** send a message using given sender, with either udp or tcp as appropriate.
 If sender is not specified use default scsender. */
@@ -4005,8 +3676,10 @@ netSend = function (buf, sender) {
     }
     else if (sender.type === 'ws') {
         if (wssender.readyState !== wssender.OPEN) {
-            sclogE(msgfix('websocket', 'audio web socket in unexpected state', wssender.readyState, '... stopping audio'));
+            sclogE(msgfix('websockettad+', 'audio web socket in unexpected state', wssender.readyState, '... stopping audio'));
             noaudio = true;
+            if (wssender.readyState === wssender.CLOSED)
+                scsender = wssender = undefined;
             return;
         }
         netSend.dv.setInt32(0, buf.length);
@@ -4036,6 +3709,11 @@ var scStats = function () {
     //var graph = document.createElement('div');
     //graph.id = 'scStats';
     s.ledInterval = setInterval(function scStats_interval() {
+        if (noaudio) {
+            clearInterval(s.ledInterval);
+            clearInterval(s.statsLogInterval);
+            return;
+        }
         s.sendLEDOpacity *= 0.9;
         s.sendLED.style.opacity = s.sendLEDOpacity;
     }, 50);
@@ -4043,16 +3721,9 @@ var scStats = function () {
         //sclog("udpStats: " + JSON.stringify(udpStats) + " " + new Date());
         //if (udpStats.receivedCalls === 0) document.getElementById('scConsole').classList.add('sc-networkLost');
         udpStats = clone(udpStatsInit);
-    }, 10000);
+    }, 1000);
 };
-var statSC = new scStats();
-/*
-var udpProxyWindow;
-function setupUDPProxy() {
-    udpProxyWindow = window.open("udp.html");
-
-}
-*/
+const statSC = new scStats();
 var syInt1, syInt2;
 function syKiller() {
     stopsyKiller();
@@ -4092,4 +3763,5 @@ function sizekill() {
         msgfix("sizekill", q / q, "tcpsocketid", tcpSocketid, "sizekillnum", sizekillnum);
     }, 200);
 }
+startSC();
 //# sourceMappingURL=nw_sc.js.map

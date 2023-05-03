@@ -70,7 +70,8 @@ async function setHolo(tilesx = Holo.tilesX, tilesy = Holo.tilesY) {
             if (Holo.rot) {
                 const ang = (ti/vpn - 0.5) * Holo.viewCone * Math.PI / 180;
                 const d = camera.position.length(); // Holo.camz;
-                camset(g, Math.sin(ang) * d, 0, Math.cos(ang) * d);
+                alert('this code for holo not checked after redfining camset')
+                camset({g, x: Math.sin(ang) * d, y: 0, z: Math.cos(ang) * d});
                 dobj.camera = undefined;
             } else {
                 /// this version uses the holoply cameras

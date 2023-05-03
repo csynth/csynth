@@ -1,3 +1,5 @@
+// added for horn.ts
+var showvals, nextpow2, onpostframe, minimizeSkelbuffer, xxxgenes, incgene, geneonkeydown, floatstring, dstring, yamlSave, cloneNoCircle, substituteExpressions, xxxvn;
 //should make maestro TS //(also this is undefined at this point)
 //const MEvents = MaestroConstructor; //would probably rather import EventEmitter for many things...
 //const MEvents = () => new MaestroConstructor(); //this code is never evaluated, only effects compiler

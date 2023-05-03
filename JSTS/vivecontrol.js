@@ -1,9 +1,47 @@
 'use strict';
+const _navigatorGetVRDisplays = navigator.getVRDisplays;
+;
+var V = {};
+//??? experiment namespace VC {
 var _boxsize = 500;
-var vivecontrol = function () {
+function vivecontrol() {
     //if (!W.currentHset) return;  // eg for fano
+    // The initial code here should get done each frame regardless of Vive, VR etc
+    // The should probably be in another method in another file. sjpt 8 July 22
     addvirtualgenes();
-    if (V.trigger === undefined)
+    //######## these need to work even when not doing vive stuff, should move elsewhere
+    uniforms.clearposA0.value.copy(camera.position); // just once while camera still centre camera
+    uniforms.clearposA1.value.copy(camera.position); // just once while camera still centre camera
+    if (!V.offb)
+        V.offb = { x: 200, y: -100, z: 200 }; // should allow for view rotation
+    uniforms.clearposB0.value.addVectors(camera.position, V.offb); // in case no live controllers
+    uniforms.clearposB1.value.copy(uniforms.clearposB0.value); // in case no live controllers
+    // temp experiment for ellipsoid cut
+    //uniforms.clearposA0.value.z = 0;
+    //uniforms.clearposA1.value.z = 0;
+    //uniforms.clearposA1.value.x += kkk;
+    // msgfix('shrinkradii', currentGenes.shrinkradiusA, currentGenes.shrinkradiusB);
+    // V.currentdb should be echo of master.parms.db, but ...??? keep it local
+    if (V.currentdb !== undefined && V.currentdb !== V.masterdb) {
+        if (V.currentdb < V.masterdb)
+            V.currentdb += 1;
+        else
+            V.currentdb = V.masterdb;
+        try {
+            setMasterVolume(V.currentdb);
+        }
+        catch (eee) {
+        }
+    }
+    //XXX: TODO: properly change the way control schemes are configured.
+    if (framenum % V.framepick === 0 && oxcsynth) {
+        if (V.gpR && V.gpR.menuMode) {
+        }
+        else {
+            vivepick();
+        }
+    }
+    if (!renderer.xr.getSession())
         return; // wait till XR/XR details properly initialized
     vivepatch(); // patch models designed outside VR for vr
     vrresting(); // check for resting and take appropriate action
@@ -17,81 +55,37 @@ var vivecontrol = function () {
     // We have a dummy extra one V.gps[4] for the case of keyboard simulation
     if (!V.gps)
         V.gps = [
-            { buttons: [{}, {}, {}, {}], raymatrix: new THREE.Matrix4(), poseMatrix: new THREE.Matrix4() },
-            { buttons: [{}, {}, {}, {}], raymatrix: new THREE.Matrix4(), poseMatrix: new THREE.Matrix4() },
-            { buttons: [{}, {}, {}, {}], raymatrix: new THREE.Matrix4(), poseMatrix: new THREE.Matrix4() },
-            { buttons: [{}, {}, {}, {}], raymatrix: new THREE.Matrix4(), poseMatrix: new THREE.Matrix4() },
-            { buttons: [{}, {}, {}, {}], raymatrix: new THREE.Matrix4(), poseMatrix: new THREE.Matrix4() }
+            { buttons: [{}, {}, {}, {}, {}, {}, {}], raymatrix: new THREE.Matrix4(), poseMatrix: new THREE.Matrix4() },
+            { buttons: [{}, {}, {}, {}, {}, {}, {}], raymatrix: new THREE.Matrix4(), poseMatrix: new THREE.Matrix4() },
+            { buttons: [{}, {}, {}, {}, {}, {}, {}], raymatrix: new THREE.Matrix4(), poseMatrix: new THREE.Matrix4() },
+            { buttons: [{}, {}, {}, {}, {}, {}, {}], raymatrix: new THREE.Matrix4(), poseMatrix: new THREE.Matrix4() },
+            { buttons: [{}, {}, {}, {}, {}, {}, {}], raymatrix: new THREE.Matrix4(), poseMatrix: new THREE.Matrix4() }
         ];
-    // V.currentdb should be echo of master.parms.db, but ...??? keep it local
-    if (V.currentdb !== undefined && V.currentdb !== V.masterdb) {
-        if (V.currentdb < V.masterdb)
-            V.currentdb += 1;
-        else
-            V.currentdb = V.masterdb;
-        try {
-            setMasterVolume(V.currentdb);
-        }
-        catch (eee) {
-        }
-    }
-    //########
-    uniforms.clearposA0.value.copy(camera.position); // just once while camera still centre camera
-    uniforms.clearposA1.value.copy(camera.position); // just once while camera still centre camera
-    if (!V.offb)
-        V.offb = { x: 200, y: -100, z: 200 }; // should allow for view rotation
-    uniforms.clearposB0.value.addVectors(camera.position, V.offb); // in case no live controllers
-    uniforms.clearposB1.value.copy(uniforms.clearposB0.value); // in case no live controllers
     if (V.gpR)
         uniforms.gpRmat.value.copy(V.gpR.raymatrix);
     if (V.gpL)
         uniforms.gpLmat.value.copy(V.gpL.raymatrix);
-    // temp experiment for ellipsoid cut
-    //uniforms.clearposA0.value.z = 0;
-    //uniforms.clearposA1.value.z = 0;
-    //uniforms.clearposA1.value.x += kkk;
-    // msgfix('shrinkradii', currentGenes.shrinkradiusA, currentGenes.shrinkradiusB);
-    //XXX: TODO: properly change the way control schemes are configured.
-    if (framenum % V.framepick === 0 && oxcsynth) {
-        if (V.gpR && V.gpR.menuMode) {
-        }
-        else {
-            vivepick();
-        }
-    }
     if (V.skip)
         return;
-    // if (!navigator.getVRDisplays) return; // todo add explicit alternatives for no vive
+    // if (!_navigatorGetVRDisplays) return; // todo add explicit alternatives for no vive
     // we never want these for VR, they just confuse the transforms
     currentGenes._uXrot = currentGenes._uYrot = currentGenes._uZrot = 0;
     // currently only works in VR with cubic walls (?non-cubic seems ok, sjpt 6/2/20)
     // aspect -1 means use stated aspect not compensated by'screen' aspect
-    currentGenes.wallAspect = V.wallAspect || -1;
+    currentGenes.wallAspect = V.wallAspect !== undefined ? V.wallAspect : -1;
     // for always animate audio and wall
     V.vraudioframe();
     V.wallframe();
     tranInteractDelay = 1e99; // we will always count as interacting
     genesToCam(currentGenes); // all this works using camera
-    function pos(n) {
-        var gp = gps[n];
-        if (!gp || !gp.pose)
-            return undefined;
-        return gp.pose.position;
-    }
-    var ogps = V.gamepads = navigator.getGamepads(); // Gamepad definition was incomplete
-    ogps = _.filter(ogps, (gp) => {
-        return gp && gp.id
-            && gp.id.indexOf('OpenVR') !== -1 && gp.buttons.length === 4;
-    });
-    if (renderer.vr.isxr && V.getXrGamepads) { // in xr
-        ogps = V.getXrGamepads();
-    }
+    var ogps = V.getXrGamepads();
+    if (!V.buttons)
+        return; // not got any gamepads (yet)
     // keyboard simulation
     //    if (!V.dummygp) {
-    V.dummygp = { buttons: [{}, {}, {}, {}], pose: { position: [1, 0, 0], orientation: [0, 0, 0, 1] }, axes: [0, 0] };
+    V.dummygp = { buttons: [{}, {}, {}, {}, {}, {}, {}], pose: { position: [1, 0, 0], orientation: [0, 0, 0, 1] }, axes: [0, 0] };
     //    }
-    if (!renderVR.mycam)
-        renderVR.mycam = new THREE.Matrix4();
+    //??? if (!renderVR.my cam) renderVR.my cam = new THREE.Matrix4();
     V.dummygp.buttons[V.trigger].pressed = keysdown[0] === 'B';
     V.dummygp.buttons[V.trigger].value = +(keysdown[0] === 'B');
     if (keysdown[0] === 'B')
@@ -109,7 +103,10 @@ var vivecontrol = function () {
             for (let f in ogp)
                 if (f !== 'buttons')
                     ngp[f] = ogp[f];
-            for (let bn = 0; bn < ogp.buttons.length; bn++) {
+            //April 2021: serious: ogp.buttons is undefined
+            //looks as though we need ogp.gamepad.buttons instead, but then need to grok surrounding logic.
+            // const ogpTyped: THREE.XRInputSource = ogp as THREE.XRInputSource;
+            for (let bn = 0; bn < Math.min(ogp.buttons.length, ngp.buttons.length); bn++) {
                 var ob = ogp.buttons[bn];
                 var nb = ngp.buttons[bn];
                 nb.lastpressed = nb.pressed;
@@ -228,8 +225,8 @@ var vivecontrol = function () {
                 b.presstime = frametime;
                 b.presslength = 0;
                 msgfix('presstime', b.presstime, 'ind', gp.index, 'but', but);
-                V.gps.lastNewpressButton = b;
-                V.gps.lastNewpressFrame = frametime;
+                V.gpx.lastNewpressButton = b;
+                V.gpx.lastNewpressFrame = frametime;
                 interactDownTime = Date.now();
             }
             if (b.pressed) {
@@ -282,7 +279,8 @@ var vivecontrol = function () {
         V.gp0mat = V.tempo3.matrix.elements.slice(0); // remember now we have the matrix for use later
         // SJPT gp0mat is used to keep orientation of gamepad so 'forward' can be relative to pointing direction
         // SJPT but we do need to makie sure we use if for the appropriate controller???
-        //PJT gp0mat seemed to smell a bit fishy, but it looks like it's never used, only assigned to.
+        // PJT gp0mat seemed to smell a bit fishy, but it looks like it's never used, only assigned to.
+        // SJPT it will be used if we want to follow controller.
         V.tempo3.matrix.multiply(renderVR.mycam);
         var kk = renderVR.scale;
         V.tempv.set(gpp[0] * kk, gpp[1] * kk, gpp[2] * kk);
@@ -290,14 +288,20 @@ var vivecontrol = function () {
         V.tempq.set(q.x, q.y, q.z, q.w);
         //V.tempq.set(ppo[0], ppo[1], ppo[2], ppo[3]);
         gp.raymatrix.compose(V.tempv, V.tempq, camera.scale); // camera.scale convenient 1,1,1
-        gp.raymatrix.multiplyMatrices(renderVR.mycam, gp.raymatrix);
+        if (!tad || !tad.headResting) // if this is right move headResting to V
+            gp.raymatrix.multiplyMatrices(renderVR.mycam, gp.raymatrix);
+        else
+            gp.raymatrix.elements[14] += tad.fixpos.z;
         if (V.laserRotateModifier) {
             //set poseMatrix to be similar to how raymatrix would be without the rotateModifier
             V.tempo3.quaternion.set(ppo[0], ppo[1], ppo[2], ppo[3]);
             V.tempo3.updateMatrix();
             V.tempq.set(ppo[0], ppo[1], ppo[2], ppo[3]);
             gp.poseMatrix.compose(V.tempv, V.tempq, camera.scale);
-            gp.poseMatrix.multiplyMatrices(renderVR.mycam, gp.poseMatrix);
+            if (!tad || !tad.headResting) // if this is right move headResting to V
+                gp.poseMatrix.multiplyMatrices(renderVR.mycam, gp.poseMatrix);
+            else
+                gp.poseMatrix.elements[14] += tad.fixpos.z;
         }
         else {
             gp.poseMatrix.copy(gp.raymatrix);
@@ -317,11 +321,12 @@ var vivecontrol = function () {
         gp.threeObject = new THREEA.ViveController(i);
         gp.threeObject.name = 'ViveController object ' + hand;
         // if (renderVR. controls) gp.threeObject.standingMatrix = renderVR. controls.getStandingMatrix();
-        if (renderer.vr.getDevice()) {
-            let amat = renderer.vr.getDevice().stageParameters.sittingToStandingTransform;
-            gp.threeObject.standingMatrix = new THREE.Matrix4();
-            gp.threeObject.standingMatrix.elements.set(amat);
-        }
+        // todo remove/tidy Nov 2020
+        // if (renderer. vr.get Device()) {
+        //     let amat = renderer. vr.get Device().stageParameters.sittingToStandingTransform;
+        //     gp.threeObject.standingMatrix = new THREE.Matrix4();
+        //     gp.threeObject.standingMatrix.elements.set(amat);
+        // }
         // the controller threeObject will have the menu attached
         // so adding the threeObject to camscene makes sure the menu is displayed
         V.camscene.add(gp.threeObject); //funny old thing....V
@@ -333,7 +338,7 @@ var vivecontrol = function () {
         //??? V.rawscene.add(gp.laserx);
         //gp.threeObject.addEventListener('triggerdown', () => CSynth.select(gp.raymatrix, 0, slotOff, slotOffMat));
         if (CSynth && CSynth.trigger)
-            CSynth.trigger('viveGPInit_' + hand, { gp: gp, slotOff: slotOff, slotOffMat: slotOffMat, hand: hand });
+            CSynth.trigger('viveGPInit_' + hand, { gp, slotOff, slotOffMat, hand });
     }
     function makePointerGraph(gp) {
         // cannot use group within rawscene as called twice
@@ -341,9 +346,10 @@ var vivecontrol = function () {
         // gp.threeObject = newgroup('threeObject');
         V.raylength = V.raylength || 8;
         V.boxz = V.boxz || 0.005;
-        var geom = new THREE.Geometry();
-        geom.vertices.push(new THREE.Vector3());
-        geom.vertices.push(new THREE.Vector3(1, 0, 0)); //data not important, will be set dynamically
+        var geom = new THREE.BufferGeometry();
+        geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, -1, 0, 0, 0]), 3));
+        //geom.vert ices.push(new THREE.Vector3());
+        //geom.vert ices.push(new THREE.Vector3(1,0,0)); //data not important, will be set dynamically
         //gp.drawmat = new THREE.LineBasicMaterial({blending: THREE.AdditiveBlending, transparent: true});
         gp.drawmat = new THREE.LineBasicMaterial();
         gp.drawmat.depthTest = V.depthTest;
@@ -351,7 +357,7 @@ var vivecontrol = function () {
         gp.drawmat.color.setRGB(0, 0, 1);
         gp.meshray = new THREE.Line(geom, gp.drawmat);
         gp.meshray.position.set(0, 0, 0);
-        gp.meshray.updateMatrix(true);
+        gp.meshray.updateMatrix();
         gp.meshray.updateMatrixWorld(true);
         gp.meshray.matrixAutoUpdate = false;
         gp.threeObject.add(gp.meshray);
@@ -381,11 +387,11 @@ var vivecontrol = function () {
         // if we do this at start it seems to hang, limitation of Micro-Apache???
         onframe(() => initControllerRenderingScene(gp), 200);
     }
-    var gpR = V.gps.gpR = V.gpR = gps[V.rightb];
-    var gpRok = V.gps.gpRok = V.gpRok = newvals(gpR, 'right');
-    var gpL = V.gps.gpL = V.gpL = gps[V.leftb];
-    var gpLok = V.gps.gpLok = V.gpLok = newvals(gpL, 'left');
-    var gpBothok = V.gps.gpBothok = V.gpBothok = gpRok && gpLok;
+    var gpR = V.gpx.gpR = V.gpR = gps[V.rightb];
+    var gpRok = V.gpx.gpRok = V.gpRok = newvals(gpR, 'right');
+    var gpL = V.gpx.gpL = V.gpL = gps[V.leftb];
+    var gpLok = V.gpx.gpLok = V.gpLok = newvals(gpL, 'left');
+    var gpBothok = V.gpx.gpBothok = V.gpBothok = gpRok && gpLok;
     if (gpBothok)
         V.controllerDiffs();
     // 0 is flat pad, 1 is trigger, 2 is side button, 3 is above pad button
@@ -399,8 +405,8 @@ var vivecontrol = function () {
     //+++++++
     // // This was always slightly questionalble, and now seems broken, 9 Feb 2019
     // var ah = 0.3;  // above head height
-    // if (gpR && gpR.trigger.pressed && gpR.pose.position && gpR.pose.position[1] > ah &&
-    //     gpL && gpL.trigger.pressed && gpL.pose.position && gpL.pose.position[1] > ah) {
+    // if (gpR && gpR.trigger.pressed && gpR.pose. position && gpR.pose. position[1] > ah &&
+    //     gpL && gpL.trigger.pressed && gpL.pose. position && gpL.pose. position[1] > ah) {
     //     if (gpR.trigger.newpress || gpL.trigger.newpress) {
     //             V.recentre();
     //             // .hapticActuators appears to have been removed from Chrome
@@ -430,15 +436,15 @@ var vivecontrol = function () {
     organicViveUpdateRightController();
     organicViveUpdateLeftController();
     if (V.resting) {
-        V.gps.lastNewpressButton = V.restbutton;
+        V.gpx.lastNewpressButton = V.restbutton;
         V.restbutton.presshold = true;
         V.restbutton.value = 1;
         viveAnim(V.restbutton);
     }
     organicRoomCamera();
     aftercontrol(); // extra features added ater controls done
-}; // vivecontrol
-var V = vivecontrol;
+} // vivecontrol
+const gpx = V.gpx = {};
 let angleOption = 0;
 //slightly weird value; -1.5 seems straight along long edge, 0 for pistol aim direction.
 Object.defineProperty(V, 'angleOptions', {
@@ -450,18 +456,6 @@ Object.defineProperty(V, 'angleOptions', {
     }
 });
 V.angleOptions = angleOption;
-// when we know if we are in xr we know button order
-S.waitVal(() => renderer).then(() => {
-    // 0 is flat pad, 1 is trigger, 2 is side button, 3 is above pad button
-    V.buttons = ['pad', 'trigger', 'sidebutton', 'abovepadbutton']; // old gamepad
-    /// Firefoxx seems to have moved to Chrome standard, remove Oct 2017 if so TODOlight0s
-    //if (navigator.userAgent.indexOf('Firefoxx/') !== -1)
-    //    V.buttons = ['abovepadbutton', 'sidebutton', 'pad', 'trigger'];
-    if (renderer.vr.isxr)
-        V.buttons = ['trigger', 'sidebutton', 'pad', 'abovepadbutton']; // XR
-    for (let i = 0; i < V.buttons.length; i++)
-        V[V.buttons[i]] = i;
-});
 V.masterdb = -6;
 V.restbutton = { pressed: true, presshold: true };
 V.pretendbutton = {};
@@ -480,7 +474,7 @@ function organicRoomCamera() {
     if (inputs.animSpeed > 0.8)
         setInput(W.animSpeed, 0.8);
     if (V.forceup && renderVR.camera) {
-        renderVR.inv.getInverse(renderVR.camera.matrix); // get old inverse  vcam**-1 ... todo optimize this, we usually alreay have it
+        renderVR.inv.copy(renderVR.camera.matrix).invert(); // get old inverse  vcam**-1 ... todo optimize this, we usually alreay have it
         var A = renderVR.inv, B = renderVR.camera.matrix;
         ////>> todo V.rawcam === ??? renderVR.mycam
         V.rawcam.matrix.multiplyMatrices(camera.matrix, A); // compute the raw matrix (without headset)
@@ -556,6 +550,7 @@ V.fromwall = 0.35; // real distance I must keep from wall, meters
 /// was 0.25 ... should be able to use less (eg 0.15)? check camera.near
 // yes; camera.near is part culprit, can't fix till log depth buffer better
 // or we bulge walls or ...???
+/** update and  use right controller (not used by TAD) */
 let organicViveUpdateRightController = function organicViveUpdateRightControllerDefault() {
     if (V.gpRok) {
         const gpR = V.gpR;
@@ -588,7 +583,7 @@ let organicViveUpdateRightController = function organicViveUpdateRightController
         //        if (trigger.zeroed && frametime > trigger.presstime + V.clickmaxtime*2)
         //            vtarget = {};
         if (!V.resting)
-            viveAnim(trigger); // V.gps.lastNewpressButton); // (gpR.trigger);
+            viveAnim(trigger); // V.gpx.lastNewpressButton); // (gpR.trigger);
         //####
         if (V.useorientation && gpR.pose.angularVelocity && inputs.using4d) { // compute orientation using delta values, damped by head movement
             var ang = gpR.pose.angularVelocity;
@@ -601,7 +596,7 @@ let organicViveUpdateRightController = function organicViveUpdateRightController
     }
     else { // NOT gpROK
         //#####
-        if (navigator.getVRDisplays)
+        if (_navigatorGetVRDisplays)
             msgfixerror('gpR', V.rightb, 'missing'); // do not expect gamepads if no VR, may be wrong assumption ???
         const k = renderVR.scale / 400;
         currentGenes.light1x = 500 * k;
@@ -612,6 +607,7 @@ let organicViveUpdateRightController = function organicViveUpdateRightController
         currentGenes.light1dirz = -1;
     } // controller 0
 };
+/** update and  use left controller (not used by TAD) */
 let organicViveUpdateLeftController = function organicViveUpdateLeftControllerDefault() {
     if (V.gpLok) {
         const gpL = V.gpL, gpR = V.gpR;
@@ -718,7 +714,7 @@ let organicViveUpdateLeftController = function organicViveUpdateLeftControllerDe
         }));
     }
     else {
-        if (navigator.getVRDisplays)
+        if (_navigatorGetVRDisplays)
             msgfixerror('gpL', V.leftb, 'missing'); // do not expect gamepads if no VR, may be wrong assumption ???
         //// V.lastgpp1 = undefined;
     } // end controller 1
@@ -832,8 +828,7 @@ function vrresetall() {
         copyFrom(camera.quaternion, renderVR.camera.quaternion);
     camera.updateMatrix();
     camera.updateMatrixWorld();
-    camToGenes();
-    //camToGenes();
+    camToGenes(currentGenes);
     //delete renderVR.camera;
     // this can upset gpL and gpR for some reason, so swap test must be first
     // camera.position.z = currentGenes._camz = 400;
@@ -903,11 +898,12 @@ var vrcanv = function () {
  */
 function vrcanvCentreOnLeft(scale = 2.74 * window.innerHeight / height) {
     let cx = canvas.width / 4; // left eye
-    if (renderer.vr.isxr) { // for XR we are only sending  the left eye to canvas
-        canvas.width = width / 2;
-        canvas.height = height;
-        cx = canvas.width / 2; // onlyleft eye copied to canvas in XR
-    }
+    // todo remove/tidy Nov 2020
+    //if (renderer. vr.is xr) {  // for XR we are only sending  the left eye to canvas
+    canvas.width = width / 2;
+    canvas.height = height;
+    cx = canvas.width / 2; // onlyleft eye copied to canvas in XR
+    //}
     let cy = canvas.height / 2;
     let cw = canvas.width * scale; // canvas display h/w
     let ch = canvas.height * scale;
@@ -958,10 +954,13 @@ V.setupPointerForFrame = function vsetupPointerForFrame(gp, bypass) {
     if (intersections && intersections.length > 0) {
         raylength = intersections[0].distance;
     }
-    gp.meshray.geometry.vertices[1].set(0, 0, -raylength);
+    const p = gp.meshray.geometry.getAttribute('position');
+    p.array[2] = -raylength;
+    p.needsUpdate = true;
+    // gp.meshray.geometry.vertices[1].set(0, 0, -raylength);
     gp.meshray.geometry.computeBoundingSphere();
     gp.meshray.geometry.computeBoundingBox();
-    gp.meshray.geometry.verticesNeedUpdate = true;
+    // gp.meshray.geometry.verticesNeedUpdate = true;
     if (V.laserRotateModifier)
         gp.meshray.quaternion.copy(V.laserRotateModifier);
     else
@@ -1001,6 +1000,7 @@ function initControllerRenderingScene(gp) {
         gp.threeObject.add(gp.bigcontroller);
     });
 }
+V.usePrecamTexture = false;
 V.render = function vrender(rt) {
     //// make sure scale factor change recentres, probably better to do elsewhere, csynth specific on frame ...???
     // This was very bad with mouse wheel to change dynamically. Why was it ever needed?
@@ -1008,6 +1008,12 @@ V.render = function vrender(rt) {
     //    centrescalenow();
     //    V.render.lastScaleFactor = G.scaleFactor;
     //}
+    // if required, capture the data for feedback before details such as purple man spots are rendered
+    if (V.usePrecamTexture && cMap.wallType.includes('rt')) {
+        if (!V.precamRT || V.precamRT.width !== rt.width || V.precamRT.height !== rt.height)
+            V.precamRT = rt.clone();
+        copyTextureToRenderTarget(rt, V.precamRT);
+    }
     renderer.setRenderTarget(rt);
     if (V.alwaysShowRender)
         renderer.clearDepth(); // clearDepth NOT directly associated with depthTest, but can permit menu to be seen in busy scene, eg texture
@@ -1054,7 +1060,7 @@ V.render = function vrender(rt) {
         // }
         if (V.gpR && V.gui)
             V.gpR.meshray.material.color.b = +V.gpR.menuMode; // change color when pointing at menu
-        if (G.USELOGDEPTH ^ renderer.capabilities.logarithmicDepthBuffer) {
+        if (G.USELOGDEPTH ^ +renderer.capabilities.logarithmicDepthBuffer) {
             let n = 0;
             V.camscene.traverse(l => { if (l.geometry)
                 n++; });
@@ -1068,8 +1074,14 @@ V.render = function vrender(rt) {
         rrender('camscene_rawscene', V.camscene, camera, rt);
         renderer.sortObjects = s;
     })();
-    if (width / height !== V.nocamcamera.aspect) {
-        V.nocamcamera.aspect = width / height;
+    // V.renderNocam(rt); // ? move to postrender
+};
+V.renderNocam = function (rt = null) {
+    const asp = width / height;
+    if (asp !== V.nocamcamera.aspect) {
+        V.nocamcamera.aspect = asp;
+        V.nocamcamera.left = -asp;
+        V.nocamcamera.right = asp;
         V.nocamcamera.updateProjectionMatrix();
         VH.positionGUI();
         if (VH.positiongui2)
@@ -1077,9 +1089,11 @@ V.render = function vrender(rt) {
     }
     const st = performance.now();
     (function rendernocam() {
+        var _a;
         const s = renderer.sortObjects;
         renderer.sortObjects = true;
-        if (V.nocamscene)
+        rendererSetViewportCanv(0, 0, width, height);
+        if ((_a = V.nocamscene) === null || _a === void 0 ? void 0 : _a.visible)
             rrender('nocam', V.nocamscene, V.nocamcamera, rt);
         renderer.sortObjects = s;
     })();
@@ -1091,7 +1105,7 @@ V.mendamp = 0.99; // to help measure menu time
 /** keep audio animating always at own speed */
 V.audioMutateSpeed = 1;
 V.vraudioframe = function vraudioframe() {
-    if (oxcsynth)
+    if (oxcsynth || noaudio)
         return;
     if (!setsynths.done)
         return;
@@ -1103,13 +1117,15 @@ V.vraudioframe = function vraudioframe() {
     }
     animStep(currentGenes, currentHset.audiogenes, V.audioMutateSpeed);
 };
-/** keep wall animating always at own speed */
+/** keep wall animating always at own speed; TODO separate from from VR code */
 V.wallMutateSpeed = 1;
 V.wallframe = function vwallframe() {
     if (!currentHset)
         return; // no hset so wall, need to separate wall from horn better, eg fano
-    if (!currentHset.wallgenes) {
-        currentHset.wallgenes = {};
+    if (inputs.backgroundSelect === 'color')
+        return;
+    if (!currentHset.wallgenes._set) {
+        currentHset.wallgenes._set = true; // .wallgenes  = {};
         for (let gn in genedefs)
             if (genedefs[gn].tag.indexOf('wallcol') !== -1 && genedefs[gn].free)
                 currentHset.wallgenes[gn] = true;
@@ -1165,11 +1181,11 @@ V.setobjscale = function Vsetobjscale(n) {
     currentGenes._rot4_ele[11] *= rat;
 };
 V.recentre = function vrecentre() {
-    if (renderer.vr.getDevice().resetPose)
-        renderer.vr.getDevice().resetPose();
+    // todo remove/tidy Nov 2020
+    // if (renderer. vr.get Device().resetPose) renderer. vr.get Device().resetPose();
     // renderVR. controls.update();
     // renderVR.camera.updateMatrix();
-    camToGenes();
+    camToGenes(currentGenes);
     currentGenes._camx = 0;
     currentGenes._camy = 0;
     currentGenes._camz = 0; // 400 * (backwards ? -1 : 1);
@@ -1211,16 +1227,27 @@ function addtarget(ntarget) {
     }
 }
 function addvirtualgenes() {
-    if (!('_scale' in currentGenes) || !Object.getOwnPropertyDescriptor(currentGenes, '_scale').get) {
-        Object.defineProperty(currentGenes, '_scale', { get: function () { return currentGenes._uScale; }, set: function (v) { V.setobjscale(v); } });
-        Object.defineProperty(currentGenes, '_roomsize', { get: function () { return V.roomsize; }, set: function (v) { setroomsize(v); } });
-        Object.defineProperty(currentGenes, '_lroomsize', { get: function () { return Math.log10(currentGenes._roomsize); }, set: function (v) { currentGenes._roomsize = Math.pow(10, v); } });
-        Object.defineProperty(currentGenes, '_posx', { get: function () { return inputs.using4d ? 0 : currentGenes._rot4_ele[3] * currentGenes._uScale; }, set: function (v) { if (!inputs.using4d)
-                currentGenes._rot4_ele[3] = v / currentGenes._uScale; } });
-        Object.defineProperty(currentGenes, '_posy', { get: function () { return inputs.using4d ? 0 : currentGenes._rot4_ele[7] * currentGenes._uScale; }, set: function (v) { if (!inputs.using4d)
-                currentGenes._rot4_ele[7] = v / currentGenes._uScale; } });
-        Object.defineProperty(currentGenes, '_posz', { get: function () { return inputs.using4d ? 0 : currentGenes._rot4_ele[11] * currentGenes._uScale; }, set: function (v) { if (!inputs.using4d)
-                currentGenes._rot4_ele[11] = v / currentGenes._uScale; } });
+    if (!slots)
+        return;
+    for (const s of slots) {
+        if (!s)
+            continue;
+        const genes = s.dispobj.genes;
+        if (!genes)
+            continue;
+        if (!genes._rot4_ele)
+            genes._rot4_ele = new THREE.Matrix4().elements;
+        if (!('_scale' in genes) || !Object.getOwnPropertyDescriptor(genes, '_scale').get) {
+            Object.defineProperty(genes, '_scale', { get: function () { return genes._uScale; }, set: function (v) { V.setobjscale(v); } });
+            Object.defineProperty(genes, '_roomsize', { get: function () { return V.roomsize; }, set: function (v) { setroomsize(v); } });
+            Object.defineProperty(genes, '_lroomsize', { get: function () { return Math.log10(genes._roomsize); }, set: function (v) { genes._roomsize = Math.pow(10, v); } });
+            Object.defineProperty(genes, '_posx', { get: function () { var _a; return inputs.using4d ? 0 : genes._rot4_ele[3] * ((_a = genes._uScale) !== null && _a !== void 0 ? _a : 1); }, set: function (v) { var _a; if (!inputs.using4d)
+                    genes._rot4_ele[3] = v / ((_a = genes._uScale) !== null && _a !== void 0 ? _a : 1); } });
+            Object.defineProperty(genes, '_posy', { get: function () { var _a; return inputs.using4d ? 0 : genes._rot4_ele[7] * ((_a = genes._uScale) !== null && _a !== void 0 ? _a : 1); }, set: function (v) { var _a; if (!inputs.using4d)
+                    genes._rot4_ele[7] = v / ((_a = genes._uScale) !== null && _a !== void 0 ? _a : 1); } });
+            Object.defineProperty(genes, '_posz', { get: function () { var _a; return inputs.using4d ? 0 : genes._rot4_ele[11] * ((_a = genes._uScale) !== null && _a !== void 0 ? _a : 1); }, set: function (v) { var _a; if (!inputs.using4d)
+                    genes._rot4_ele[11] = v / ((_a = genes._uScale) !== null && _a !== void 0 ? _a : 1); } });
+        }
     }
 }
 var vtargetNow = function (targ = vtarget) {
@@ -1236,6 +1263,8 @@ var vtargetNow = function (targ = vtarget) {
 /** move towards target, cubic */
 var viveAnim = function (button) {
     if (!button)
+        return;
+    if (!V.gps)
         return;
     if (viveAnim.newtarget) {
         viveAnim.newtarget = false;
@@ -1254,9 +1283,9 @@ var viveAnim = function (button) {
     var pressval = button.value; // for continuous press
     if (!button.pressed && button.presslength < V.clickmaxtime) // for after quick click
         pressval = 1;
-    if (V.gps.lastNewpressButton !== button) // after some other button clicked
+    if (V.gpx.lastNewpressButton !== button) // after some other button clicked
         pressval = 1;
-    if (!pressval && V.gps.lastNewpressButton === V.gpR.trigger)
+    if (!pressval && V.gpx.lastNewpressButton === V.gpR.trigger)
         vtarget = {}; // right button released in middle of slow mutate, do not try to keep that mutation any more, 30/8/17, revert to superpull etc
     viveAnim.cdt += framedelta * pressval / viveAnim.time;
     var dt = viveAnim.cdt;
@@ -1283,7 +1312,7 @@ var viveAnim = function (button) {
     // continuous period for trigger
     if (button !== V.restbutton && button !== V.pretendbutton && V.gpR && button !== V.gpR.trigger)
         return;
-    if (V.gps.lastNewpressButton !== button)
+    if (V.gpx.lastNewpressButton !== button)
         return; // after some other button clicked
     // compute how much resting time before end ... for historic reasons realtive to viveAnim.time
     // TODO some time? make more sensible
@@ -1512,7 +1541,7 @@ function rot4dw(x, y, z) {
 // not yet found an automated detection for this
 // but code below appears to fix it
 function reforcevr() {
-    renderVR.fs(false);
+    renderVR.xrfs(false);
     onframe(forcevr);
 }
 V.deltaStack = 1000;
@@ -1557,9 +1586,9 @@ V.controllerDiffs = function VcontrollerDiffs() {
     catch (e) {
         return;
     }
-    const rl = gps.lrdist = xzdist(rpos, lpos);
-    const cl = gps.camldist = xzdist(cpos, lpos);
-    const cr = gps.camrdist = xzdist(cpos, rpos);
+    const rl = gpx.lrdist = xzdist(rpos, lpos);
+    const cl = gpx.camldist = xzdist(cpos, lpos);
+    const cr = gpx.camrdist = xzdist(cpos, rpos);
     // xdiff is a measure of 'openness' of the two hands
     const usedist = Math.min(cl, cr); // used to normalize the two arm distances to remove twist component, one arm in other arm out
     const scr = usedist / cr;
@@ -1567,36 +1596,36 @@ V.controllerDiffs = function VcontrollerDiffs() {
     const scl = usedist / cl;
     const lreach = [(lpos[0] - cpos[0]) * scl, 0, (lpos[2] - cpos[2]) * scl]; // normalized left arm reach
     // work out diff values
-    const xdiff = gps.xdiff = xzdist(rreach, lreach);
+    const xdiff = gpx.xdiff = xzdist(rreach, lreach);
     // xdiff = rl;  // unnormalized version, impaced by
-    const dxdiff = gps.dxdiff = xdiff - gps.lastxdiff;
-    gps.lastxdiff = gps.xdiff;
+    const dxdiff = gpx.dxdiff = xdiff - gpx.lastxdiff;
+    gpx.lastxdiff = gpx.xdiff;
     // up/down difference
-    const ydiff = gps.ydiff = rpos[1] - lpos[1];
-    const dydiff = gps.dydiff = ydiff - gps.lastydiff;
-    gps.lastydiff = ydiff;
+    const ydiff = gpx.ydiff = rpos[1] - lpos[1];
+    const dydiff = gpx.dydiff = ydiff - gpx.lastydiff;
+    gpx.lastydiff = ydiff;
     // twist component, one arm in, other arm out
-    const zdiff = gps.zdiff = cr - cl;
-    const dzdiff = gps.dzdiff = zdiff - gps.lastzdiff;
-    gps.lastzdiff = zdiff;
+    const zdiff = gpx.zdiff = cr - cl;
+    const dzdiff = gpx.dzdiff = zdiff - gpx.lastzdiff;
+    gpx.lastzdiff = zdiff;
     //msgfix('diffs', xdiff, ydiff, zdiff, '...', cl, cr, rl, '>delta diffs', dxdiff, dydiff, dzdiff);
     // work out sum values
     const dir = v => Math.atan2(v[0], v[2]); // direction of vector, (-pi, pi]
-    const xsum = gps.xsum = dir(rreach) + dir(lreach); // probably not much use as raw value, only dxsum
-    let dxsum = gps.dxsum = xsum - gps.lastxsum;
+    const xsum = gpx.xsum = dir(rreach) + dir(lreach); // probably not much use as raw value, only dxsum
+    let dxsum = gpx.dxsum = xsum - gpx.lastxsum;
     if (dxsum > Math.PI)
         dxsum -= Math.PI; // in case we went right round the back
     if (dxsum < -Math.PI)
         dxsum += Math.PI;
-    gps.lastxsum = gps.xsum;
+    gpx.lastxsum = gpx.xsum;
     // up/down together sum
-    const ysum = gps.ysum = rpos[1] + lpos[1];
-    const dysum = gps.dysum = ysum - gps.lastysum;
-    gps.lastysum = ysum;
+    const ysum = gpx.ysum = rpos[1] + lpos[1];
+    const dysum = gpx.dysum = ysum - gpx.lastysum;
+    gpx.lastysum = ysum;
     // in/out arms together
-    const zsum = gps.zsum = cr + cl;
-    const dzsum = gps.dzsum = zsum - gps.lastzsum;
-    gps.lastzsum = zsum;
+    const zsum = gpx.zsum = cr + cl;
+    const dzsum = gpx.dzsum = zsum - gpx.lastzsum;
+    gpx.lastzsum = zsum;
     //msgfix('sums', xsum, ysum, zsum, '...', cl, cr, rl, '>delta sums', dxsum, dysum, dzsum);
     // distance between two array points in xz plane
     function xzdist(a, b) {
@@ -1610,7 +1639,7 @@ V.controllersForShape = function VcontrollersForShape(trigger) {
     if (trigger.newpress)
         return; // we have established new starting point, but deltas are rubbish till next sample
     var gps = V.gps;
-    if (!gps.gpBothok)
+    if (!gpx.gpBothok)
         return;
     for (let gns in genedefs) {
         const gn = gns;
@@ -1623,12 +1652,12 @@ V.controllersForShape = function VcontrollersForShape(trigger) {
             // rest = true;  // to avoid use of the rotation for the tails
             if (rest) {
                 // these changes apply to the core horns but not to the tails
-                if (gps.dxdiff !== 0 && gn.endsWith('stack'))
-                    setvalr(gn, currentGenes[gn] + V.deltaStack * gps.dxdiff);
-                if (gps.dydiff !== 0 && gn.endsWith('bend'))
-                    setvalr(gn, currentGenes[gn] + V.deltaBend * gps.dydiff);
-                if (gps.dzdiff !== 0 && gn.endsWith('twist'))
-                    setvalr(gn, currentGenes[gn] + V.deltaTwist * gps.dzdiff);
+                if (gpx.dxdiff !== 0 && gn.endsWith('stack'))
+                    setvalr(gn, currentGenes[gn] + V.deltaStack * gpx.dxdiff);
+                if (gpx.dydiff !== 0 && gn.endsWith('bend'))
+                    setvalr(gn, currentGenes[gn] + V.deltaBend * gpx.dydiff);
+                if (gpx.dzdiff !== 0 && gn.endsWith('twist'))
+                    setvalr(gn, currentGenes[gn] + V.deltaTwist * gpx.dzdiff);
             }
             else {
                 // the angular changes to the controllers apply to the tips headtwigtail and twigtail
@@ -1645,12 +1674,12 @@ V.controllersForShape = function VcontrollersForShape(trigger) {
             }
         }
         else if (tag.indexOf('NOTYETwallcol') !== -1) {
-            if (gps.dxsum !== 0 && gn.startsWith('wall_shin'))
-                setvalr(gn, currentGenes[gn] + V.deltaShine * gps.dxsum);
-            if (gps.dysum !== 0 && (gn.startsWith('wall_texscale') || gn.startsWith('wall_bumpscale')))
-                setvalr(gn, currentGenes[gn] + V.deltaTexscale * gps.dysum);
-            if (gps.dzsum !== 0 && gn.startsWith('wall_gloss'))
-                setvalr(gn, currentGenes[gn] + V.deltaGloss * gps.dzsum);
+            if (gpx.dxsum !== 0 && gn.startsWith('wall_shin'))
+                setvalr(gn, currentGenes[gn] + V.deltaShine * gpx.dxsum);
+            if (gpx.dysum !== 0 && (gn.startsWith('wall_texscale') || gn.startsWith('wall_bumpscale')))
+                setvalr(gn, currentGenes[gn] + V.deltaTexscale * gpx.dysum);
+            if (gpx.dzsum !== 0 && gn.startsWith('wall_gloss'))
+                setvalr(gn, currentGenes[gn] + V.deltaGloss * gpx.dzsum);
         }
     }
 };
@@ -1750,7 +1779,7 @@ V.camscene.name = 'camscene';
 V.rawscene = new THREE.Group();
 V.rawscene.name = 'rawscene';
 V.camscene.add(V.rawscene);
-V.rawscene.autoUpdate = true;
+V.rawscene.autoUpdate = true; // ???? as this is a Group, not a real Scene, autoUpdate works, but ? matrixWorldAutoUpdate is as good ?
 V.setCamLights = function () {
     V.camscene.remove(V.lightGroup);
     V.lightGroup = new THREE.Group();
@@ -1777,6 +1806,7 @@ V.nocamcamera.autoUpdate = false;
 V.nocamcamera.matrixAutoUpdate = false;
 V.nocamcamera.frustumCulled = false;
 updateMat(V.nocamcamera);
+Maestro.on('postframe', () => V.renderNocam(null));
 /** VR nothing happening, test for change and take action */
 vrresting = function () {
     if (vrresting.bypassResting) {
@@ -1857,7 +1887,7 @@ vrresting.lookup = 0.7; // amount to look up at object above.  0 look forward, 1
 // PJT: not sure why this was this wasn't made opt-in for new things that wanted it.
 // things that don't can set this to false now...
 // sjpt: at least don't go into resting when we are not remotely near VR
-vrresting.bypassResting = !navigator.getVRDisplays;
+vrresting.bypassResting = !_navigatorGetVRDisplays;
 // length for array
 function alen(a) {
     if (!a)
@@ -1869,7 +1899,7 @@ function alen(a) {
 }
 /** check for VR, and if none then avoid some VR code */
 var checkvr = function () {
-    if (!navigator.getVRDisplays) {
+    if (!_navigatorGetVRDisplays) {
         log('checkvr reset at ', framenum);
         V.skip = true;
         vrresting.bypassResting = true;
@@ -1896,16 +1926,26 @@ V.still = function () {
     animStep = nop;
     vrresting.bypassResting = true;
 };
+var lastGamepads = [];
 /*** sort of polyfill to provide gamepads with poses in XR
  *
 */
 V.getXrGamepads = function () {
     const gps = [];
-    const session = renderer.vr.getSession();
+    const session = renderer.xr.getSession();
     if (!session)
         return gps; // we are in XR but don't have a session
     for (let i = 0; i < session.inputSources.length; i++) {
+        if (!V.buttons) {
+            const prof = session.inputSources[0].profiles[0] || ' ';
+            V.buttons = prof.startsWith('oculus')
+                ? ['trigger', 'sidebutton', '?', 'pad', 'X', 'abovepadbutton'] // XR Oculus, abovepadbutton is Y, ? as no touchpad
+                : ['trigger', 'sidebutton', 'pad', 'abovepadbutton']; // XR Vive
+            for (let i = 0; i < V.buttons.length; i++)
+                V[V.buttons[i]] = i;
+        }
         // the gamepad style information such as buttons comes (when available) from the session inputSources
+        // NOTE: interface claims it has
         const igp = session.inputSources[i].gamepad;
         if (!igp) {
             msgfixerror('Webxr gamepads' + i, 'WebXR input source does not have "gamepad" field');
@@ -1913,16 +1953,21 @@ V.getXrGamepads = function () {
         }
         msgfix('Webxr gamepads' + i); // clean error message if it goes away
         const gp = {};
-        copyFrom(gp, igp);
+        for (let k in igp)
+            gp[k] = igp[k]; // nb, copyFrom and Object.assign failed ...!!! sjpt 13 Apr 2021
+        // https://www.w3.org/TR/webxr-gamepads-module-1/#xr-standard-heading
+        if (gp.axes.length === 4)
+            gp.axes = igp.axes.slice(2, 4); // Oculus reports axes as [0,0,x,y], thumbstick not gamepad
         // The controller will have been set up in the three.js XR manager onAnimationFrame/inputPose
         // using XRframe.getPose supplied by XR.
         // Rather than trying to get access to the XRframe we take
         // position/orientation (pose) information from the three controller (Group)
         //
-        // controller.visible will be set in three.js based on XR   frame.getPose( inputSource.targetRaySpace, referenceSpace ) === null
+        // controller.visible will be set in three.js based on XR frame.getPose( inputSource.targetRaySpace, referenceSpace ) === null
         // not sure if we really use hasPosition/hasOrientation
         //
-        const controller = renderer.vr.getController(i);
+        const controller = renderer.xr.getController(i);
+        const b = -999;
         const pose = {
             rayMatrix: controller.matrix,
             poseMatrix: controller.matrix,
@@ -1930,32 +1975,30 @@ V.getXrGamepads = function () {
             hasPosition: controller.visible,
             orientation: controller.quaternion.toArray(),
             hasOrientation: controller.visible,
-            visible: controller.visible
+            visible: controller.visible,
+            linearVelocity: [b, b, b],
+            angularVelocity: [b, b, b, b],
         };
-        const b = -999;
-        if (!controller.visible) {
-            pose.position.set(b, b, b);
-            pose.orientation.set(b, b, b, b);
-        } // invalidate unguarded use
+        // if (!controller.visible) {pose.position.set(b,b,b); pose.orientation.set(b,b,b,b); }  // invalidate unguarded use
         // synthesize velocities; were available in old nagigator.getGamepads(), but not in XR
-        const last = V.getXrGamepads.last[i];
-        if (last) {
+        const last = lastGamepads[i];
+        if (last && framedelta) { // in rare cirumstances animation loop gets called twice with same time
             pose.linearVelocity = controller.position.clone().sub(last.position).multiplyScalar(1000 / framedelta).toArray();
-            const av = controller.quaternion.clone().multiply(last.quaternion.inverse());
+            const av = controller.quaternion.clone().multiply(last.quaternion.invert());
             const ava = av.toArray().slice(0, 3).map(v => v * 1000 / framedelta * V.rotrate);
             pose.angularVelocity = ava;
+            Math.abs(-Infinity) === Infinity;
         }
         else {
             pose.linearVelocity = [0, 0, 0];
             pose.angularVelocity = [0, 0, 0, 0];
         }
-        V.getXrGamepads.last[i] = { position: controller.position.clone(), quaternion: controller.quaternion.clone() };
+        lastGamepads[i] = { position: controller.position.clone(), quaternion: controller.quaternion.clone() };
         // copyFrom(rr, gp);
         gp.pose = pose;
         gps.push(gp);
     }
     return gps;
 };
-V.getXrGamepads.last = [];
 V.rotrate = 1;
 //# sourceMappingURL=vivecontrol.js.map

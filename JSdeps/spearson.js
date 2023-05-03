@@ -196,7 +196,7 @@
                 bucket[b] = i;
                 count[b]++;
             }
-        };
+        }
         fillbuckets();
         const ranks = new Array(n);  // do Not use typed array, upsets .map later
         function setranks() {
@@ -210,7 +210,7 @@
                     r += bn;
                 }
             }
-        };
+        }
         setranks();
         return ranks;
     }

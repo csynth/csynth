@@ -15,7 +15,7 @@ CSynth.HornLaser = function() {
         void main() {
             int i = int(pickIndex);
             float pi = getPick(i);
-            vec4 pos = partposWorld(pi);
+            vec4 pos = partposWorld(pi  * numSegs / numInstancesP2);
             col = vec4(getPickColor(i), opacity);
             gl_Position = logdepth(projectionMatrix * viewMatrix * pos);
         }
@@ -45,7 +45,7 @@ CSynth.HornLaser = function() {
     //and from one side of matrix pick to another.
     const geometry = new THREE.BufferGeometry();
     const pickIndices = new Float32Array([4, 5, 12, 13]); //yuck
-    geometry.addAttribute('pickIndex', new THREE.BufferAttribute(pickIndices, 1));
+    geometry.setAttribute('pickIndex', new THREE.BufferAttribute(pickIndices, 1));
     geometry.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 2, 3]),1));
 
     this.threeObj = new THREE.LineSegments(geometry, material);

@@ -11,7 +11,7 @@ and each call to the fragment shader performs a calculation for a single time sl
 Each spring is thus calculated twice each time slot, once for each end particle.
 
 */
-var addtaggeduniform, addgeneperm, getdata, uniformsForTag, springs, G, uniforms, ffloat, Springs, torsionSprings, THREE;
+var addtaggeduniform, addgeneperm, getdata, uniformsForTag, springs, G, uniforms, ffloat, Springs, torsionSprings, THREE, inps;
 
 const springUniformCache = {};
 /** set the uniforms and genes used by springs */
@@ -68,6 +68,11 @@ function getSpringUniforms(springModel = springs) {
     addTaggedUniform_withID('springs', 'topologybuff', undefined, "t", false);
     addTaggedUniform_withID('springs', 'contactbuff', undefined, "t", false);
     addTaggedUniform_withID('springs', 'distbuff', undefined, "t", false);
+    addTaggedUniform_withID('springs', 'pullskelbuff', undefined, "t", false);
+    addTaggedUniform_withID('springs', 'pullskelwidth', 8, "i", false);
+    addTaggedUniform_withID('springs', 'springCentre', new THREE.Vector3(), "v3", false);
+    addTaggedUniform_withID('springs', 'springRotate', new THREE.Matrix4(), "m4", false);   // rotation between spring positions and 'real' positions
+
 
     addTaggedUniform_withID('springs', 'maxv', undefined, "f", false);
     addTaggedUniform_withID('springs', 'representativeContact', undefined, "f", false);
@@ -81,9 +86,12 @@ function getSpringUniforms(springModel = springs) {
 
     // name, def, min, max, delta, step, help, tag, free, internal
     addGenePerm_withID("damp", 0.995, 0,1, 0.01, 0.001, "damping factor", "springs", "frozen");
+    addGenePerm_withID("visc", 0, 0,1, 0.01, 0.001, "viscocity factor", "springs", "frozen");
+    addGenePerm_withID("viscpow", 1, 0,3, 0.01, 0.001, "viscocity power factor, 1 viscous, 2 turbulent", "springs", "frozen");
     addGenePerm_withID("springrate", 1, 0,10, 0.1, 0.1, "velocity multipler for global speed", "springs", "frozen");
     addGenePerm_withID("stepsPerStep", 1, 1, 50, 5, 1, "simulation steps for each step call", "springs", "frozen");
-    addGenePerm_withID("springlen", 1, 0,5, 0.1, 0.01, "spring length", "springs", "frozen");
+    addGenePerm_withID("springlen", 1, 0,5, 0.1, 0.01, "spring length multiplier", "springs", "frozen");
+    addGenePerm_withID("springlenfix", 0, 0,5, 0.1, 0.01, "fixed length to add to all springs", "springs", "frozen");
     addGenePerm_withID("nonBackboneLen", 1, 0,5, 0.1, 0.1, "length multiplier for non-backbone springs", "springs", "frozen");
     addGenePerm_withID("backboneStrength", 10, 0, 25, 0.1, 0.01, "relative strength of backbone springs to strongest other", "springs", "frozen");
     addGenePerm_withID("backboneScale", 1, 0, 10, 0.1, 0.01, "base expected length of backbone spring", "springs", "frozen");
@@ -94,6 +102,10 @@ function getSpringUniforms(springModel = springs) {
     addGenePerm_withID("contactforcesc", 0.0, 0, 1, 0.01, 0.001, "pairwise contact force, scaled", "springs", "frozen");
 
     addGenePerm_withID("pullspringforce", 0, 0, 1, 0.01, 0.001, "pull spring force (to given position)", "springs", "frozen");
+    addGenePerm_withID("pullfixdamp", 0, 0, 1, 0.01, 0.001, "damp towards using pull spring as fix (0, no effect, 1 jump to pull", "springs", "frozen");
+
+    addGenePerm_withID("pullskelforce", 0, 0, 1, 0.01, 0.001, "pull spring force to skeleton", "springs", "frozen");
+    addGenePerm_withID("pullskelscale", 1, 0, 3, 0.0001, 0.0001, "skeleton scale for pullskel", "springs", "frozen");
 
     //addgeneperm("contactforce2", 0.0, 0, 1, 0.01, 0.001, "pairwise contact force", "springs", "frozen");
     //addgeneperm("contactforce2pow", 0, -2, 2, 1, 0.1, "contact distance power", "springs", "frozen");
@@ -120,6 +132,12 @@ function getSpringUniforms(springModel = springs) {
     addGenePerm_withID("noiseprob", 1, 0, 1, 0.001, 0.001, "probability of noise on each particle in a given step", "springs", "frozen");
     addGenePerm_withID("noiseforce", 0, 0, 0.1, 0.001, 0.001, "noise force", "springs", "frozen");
     addGenePerm_withID("gradforce", 0, 0, 1, 0.01, 0.01, "gradient field force", "springs", "frozen");
+
+    addGenePerm_withID("noisefieldforce", 0, 0, 1, 0.01, 0.01, "noise field force", "springs", "frozen");
+    addGenePerm_withID("noisefieldscale", 1, 0, 10, 0.01, 0.01, "noise field scale", "springs", "frozen");
+    addGenePerm_withID("noisefieldtimefac", 1, 0, 10, 0.01, 0.01, "noise field time factor", "springs", "frozen");
+    addGenePerm_withID("noisefieldpartfac", 1, 0, 10, 0.01, 0.01, "noise field particle factor", "springs", "frozen");
+    addGenePerm_withID("noisefieldmod", 1, 0, 10, 0.01, 0.01, "noise field mod, which particles to hit", "springs", "frozen");
 
     addGenePerm_withID("fractforce", 0.0, 0, 0.1, 0.001, 0.001, "fractal force", "springs", "frozen");
     addGenePerm_withID("fractpow", -2, -4, 2, 1, 0.01, "fractal power", "springs", "frozen");
@@ -157,6 +175,8 @@ function getSpringUniforms(springModel = springs) {
     addGenePerm_withID("patchval", 1, 0, 50, 0.1, 0.1, "patch strength for backbone with missing contacts", "springs", "frozen");
     addGenePerm_withID("patchwidth", 1.5, 0, 50, 0.1, 0.1, "patch width for backbone with missing contacts", "springs", "frozen");
 
+    addGenePerm_withID("randvecscale", 1, 0, 2, 0.0001, 0.0001, "scale of random vector (for position of hidden particles", "springs", "frozen");
+
     return [myUniforms, myParms];
 }
 
@@ -169,7 +189,8 @@ function getSpringUniforms(springModel = springs) {
  * backboneStrength                  x       |  multiplier of 'standard' force for backbone
  * springforce                       x       |  factor for (almost?) all single springs; also roleforce
  * roleforce                         X       |  allow to scale by role
- * springlen                         X       |  scale up all spring lengths
+ * roleforceFix                      X       |  + fixed (nonscaled extra) (springforce*roleforce)+roleforceFix
+ * springlen/springlenfix            X       |  scale up all spring lengths
  *                            |
  * maxBackboneDist         x         x       |  which part in use, also minActive, maxActive.  not related to backbone
  *                            |
@@ -203,8 +224,12 @@ const frag = /*glsl*/`
 // #extension GL_ARB_gpu_shader_fp64 : enable
 precision highp float;
 
-#define ROLEFORCESLENGTH ${springs.ROLEFORCESLENGTH}
+#define NOSPRING float(${springModel._NOSPRING})
+#define ROLEFORCESLENGTH ${springs._ROLEFORCESLENGTH}
+${inps.PUSHPAIRS ? '#define PUSHPAIRS' : ''}
+${inps.SMALLPAIRS ? '#define SMALLPAIRS' : ''}
 uniform float roleforces[ROLEFORCESLENGTH];
+uniform float roleforcesFix[ROLEFORCESLENGTH];
 uniform float time;         // for noise
 ${uniformsForTag('springs') //<<---------- probably harmless?
 }
@@ -214,6 +239,7 @@ ${uniformsForTag('springs') //<<---------- probably harmless?
 
 
 varying float part;           // particle backbone position, ranges from 0..1 (actdually off to 1-off)
+uniform sampler2D scaleDampTarget;  // used for pull to dynamc skeleton
 
 // uniform sampler2D topologybuff;  // the data arrray use to set up spring/particle topology
 // this buffer is indexed in y by particle number
@@ -250,11 +276,13 @@ varying float part;           // particle backbone position, ranges from 0..1 (a
 #define VnumInstancesP2 ${ffloat(numInstancesP2)}
 #define VnumInstances ${ffloat(numInstances)}
 #define ACTIVERANGE ${ffloat((numInstances + 0.5)/numInstancesP2)}
+#define SMALLTEXTURE ${ffloat(numInstancesP2/numInstances)}       // for lookup in numInstance sized texture
 #define INVPARTICLESP2 ${ffloat(1/numInstancesP2)}
 #else
 #define VnumInstancesP2 numInstancesP2
 #define VnumInstances numInstances
 #define ACTIVERANGE ((numInstances + 0.5)/numInstancesP2)
+#define SMALLTEXTURE (numInstancesP2/numInstances)
 #define INVPARTICLESP2 (1.0/numInstancesP2)
 #endif
 
@@ -263,7 +291,7 @@ varying float part;           // particle backbone position, ranges from 0..1 (a
 
 // These constants show the locations in the texture used to extract different spring details
 //const float MAX_DEFS_PER_PARTICLE = 8.0;
-const float SPRINGS = MAX_DEFS_PER_PARTICLE - 3.0;
+const float SPRINGS = MAX_DEFS_PER_PARTICLE - float(${springModel.NUMSPECIALS});
 const float spstart = 0.5 / MAX_DEFS_PER_PARTICLE;
 const float spstep = 1.0 / MAX_DEFS_PER_PARTICLE;
 const float spend = SPRINGS / MAX_DEFS_PER_PARTICLE;
@@ -275,6 +303,22 @@ float currt;            // last time for which data saved in workhist
 #define virtual
 virtual vec3 customForce(vec3 mypos) { return vec3(0.); }
 
+${window.THREE.ShaderChunk.O_noiseGLSL}
+// inefficent 3d texture noise field
+vec3 noisefield(vec3 texpos, float d) {
+    // float a = snoise(texpos);
+    // return vec3(snoise(texpos+vec3(d,0,0)), snoise(texpos+vec3(0,d,0)), snoise(texpos+vec3(0,0,d)));
+    return vec3(snoise(texpos), snoise(texpos.yzx), snoise(texpos.zxy));
+}
+vec3 noisefield(vec4 texpos) {
+    // float a = snoise(texpos);
+    // return vec3(snoise(texpos+vec3(d,0,0)), snoise(texpos+vec3(0,d,0)), snoise(texpos+vec3(0,0,d)));
+    // ... return vec3(snoise(texpos.xyw), snoise(texpos.ywz), snoise(texpos.wzx));
+    return vec3(cnoise(texpos), cnoise(texpos.yzwx), cnoise(texpos.xwxy)); // cnose is real 4d
+
+}
+
+
 bool isNaN(float v) { return !(v <= 0. || v >= 0.); }
 bool isNaN(vec3 v) { return isNaN(v.x + v.y + v.z); }
 bool isNaN(vec4 v) { return isNaN(v.x + v.y + v.z + v.w); }
@@ -284,6 +328,32 @@ vec3 poso(float o) { return texture2D(posWorkhist, vec2(currt, o)).xyz; }
 vec4 poso4(float o) { return texture2D(posWorkhist, vec2(currt, o)); }
 /** convenience function to find position of particle o at time t */
 vec3 posot(float o, float t) { return texture2D(posWorkhist, vec2(t, o)).xyz; }
+
+float distsq(vec3 x, vec3 y) { vec3 d = x-y; return dot(d,d); }
+float nearpointOnLine(vec3 p, vec3 l1, vec3 l2, out vec3 nearp) {
+    vec3 dd = l2 - l1;
+    vec3 d1 = p - l1; //, d2 = l2 - p;
+    float ldsq = dot(dd,dd);
+    if (ldsq == 0.) { nearp = l1; dd = p - l1; return 0.; }
+    float t = dot(d1, dd) / ldsq;
+    t = clamp(t, 0., 1.);
+    nearp = l1 + t * dd;
+    return t;
+    // return distsq(p, nearp);
+  }
+
+  float nearpointOnInfLine(vec3 p, vec3 l1, vec3 l2, out vec3 nearp) {
+    vec3 dd = l2 - l1;
+    vec3 d1 = p - l1; //, d2 = l2 - p;
+    float ldsq = dot(dd,dd);
+    if (ldsq == 0.) { nearp = l1; dd = p - l1; return 0.; }
+    float t = dot(d1, dd) / ldsq;
+    // not for Inf t = clamp(t, 0., 1.);
+    nearp = l1 + t * dd;
+    return t;
+    // return distsq(p, nearp);
+  }
+
 
 // soft clipping, rr is range 0 to infinity, ss (internal) is soft clipped value, rat is multiplier needed to bring to soft value
 float soft(float rr) {
@@ -323,18 +393,25 @@ float boost(float part, float opart) {
 ${torsionSprings()}
 
 // compute the effect of regular (addspring topology style) spring on me, and return force vector
+// NOT for pull, fix, rod
 vec3 spring(vec3 mypos, vec4 spr) {
 
     // split spr.x to find other end and spring type
-    float roleforce = 1.;
+    float roleforce = 1., roleforceFix = 0.;
     if (spr.x < float(ROLEFORCESLENGTH)) {
         int type = int(floor(spr.x));
-        for (int i=0; i < ROLEFORCESLENGTH; i++) {
-            if (type == i) {
-                roleforce = roleforces[i];
-                break;
+        #ifdef ISES300
+            roleforce = roleforces[type];
+            roleforceFix = roleforcesFix[type];
+        #else
+            for (int i=0; i < ROLEFORCESLENGTH; i++) {
+                if (type == i) {
+                    roleforce = roleforces[i];
+                    roleforceFix = roleforcesFix[i];
+                    break;
+                }
             }
-        }
+        #endif
     }
 
     float opart = fract(spr.x);                 // other particle
@@ -347,13 +424,13 @@ vec3 spring(vec3 mypos, vec4 spr) {
     } else {
         backbonedist = 99999.;
     }
-    float lspringlen = spr.y * springlen;       // length of this spring
+    float lspringlen = spr.y * springlen + springlenfix;       // length of this spring
     //>> 17/12/2019 backboneScale and nonBackboneLen should NOT apply to these single springs
     //>> The spring generation code should allow for the equivalent if appropriate.
     //>> The horrid patch below is for York projects in progress ... TODO review and remove when a safe time comes
     //>> The offending line is commented out except for York case detected by window.springdemo.defs.fixedPoints
-    ${window.springdemo && window.springdemo.defs.fixedPoints ? '' : '// '} lspringlen *= min(backbonedist * VnumInstancesP2, nonBackboneLen) * backboneScale;  // <<<< WRONG
-    float lspringforce = spr.z * springforce * roleforce;   // force of this spring
+    ${window.springdemo && window.springdemo.defs && window.springdemo.defs.fixedPoints ? '' : '// '} lspringlen *= min(backbonedist * VnumInstancesP2, nonBackboneLen) * backboneScale;  // <<<< WRONG
+    float lspringforce = spr.z * (springforce * roleforce + roleforceFix);   // force of this spring
     float lspringpow = spr.w + springpow;       // power to apply to this spring
 
     lspringforce *= boost(part, opart);         // allow for boosting (if any)
@@ -363,23 +440,58 @@ vec3 spring(vec3 mypos, vec4 spr) {
     vec3 dir = otherpos - mypos;                   // direction from mypos to other
     float len = length(dir);                    // length of spring
     if (len == 0.) return vec3(0.,0.,0.);       // no reliable direction
-    float sforce = (len - lspringlen) * lspringforce * min(1., pow(len/powBaseDist, lspringpow));
+    float sforce = (len - lspringlen) * lspringforce * min(1000., pow(len/powBaseDist, lspringpow));
 //    sforce *= pow(abs(len - lspringlen), springdiffpow);
 //    if (spr.z == 0.) sforce *= pow(abs(len - lspringlen), springzeropow);
     sforce *= (backbonedist < INVPARTICLESP2 * 1.1) ? backboneStrength : 1.;
 
-    return dir * (sforce / len);                 // dir/len is normalized direction
+    float k = min(sforce / len, 0.5 / springrate);   // prevent overshoot, 0.5 in case the other end is shooting our way too
+
+    return dir * k;                                 // dir/len is normalized direction
 }  // spring
 
 // compute effect of a pull to position style special spring
-virtual vec3 pull(vec3 mypos, vec4 spr) {
-    vec4 ss = pullspringmat * vec4(spr.xyz, 1);
-    return pullspringforce * spr.w * (ss.xyz - mypos);
+// for stability make sure it does not overshoot
+// (better might be to try to work on integral of force of time interval)
+// +ve spr.w allow transformation of position, -ve uses position as given
+virtual vec3 pull(vec3 mypos, vec4 spr, float force, out vec3 tranpull) {
+    vec3 pos = spr.xyz;
+    vec3 ss = spr.w < 0. ? pos : (pullspringmat * vec4(pos - springCentre, 1) ).xyz + springCentre;
+    tranpull = ss;
+    float k = min(force * abs(spr.w), 1./springrate);
+    return k * (ss - mypos);
 }
+
+#ifdef SMALLPAIRS
+    #define pairforces pairforcessmall
+#else
+    #define pairforces pairforcesfull
+#endif
+
+vec3 pairforcessmall(vec3 mypos, float opart, in float olddensity, inout float density, in vec3 vel, inout float dirdensity) {
+    float backbonedist = abs(part - opart);             // backbone distance (fractional)
+    float backbonedistP = backbonedist * VnumInstancesP2;   // backbone distance (particles)
+    vec4 other = poso4(opart);                          // full data for other particle
+    if (isNaN(other.y + mypos.y)) return vec3(0);       // other is zombie, or I am (TODO factor me zombie at higher level)
+    vec3 otherpos = other.xyz;                          // others 'current' (previous) position
+    vec3 dir = otherpos - mypos;                        // direction from me to other
+    float len = length(dir);                            // length from me to other
+    if (len == 0.) return vec3(0.,0.,0.);               // overlap, can't even repulse as no direction
+    float lforce = 0., gforce = 0., bforce = 0.;        // local, global and backbone forces to be accumulated
+
+    // local pushapart, force is max at half way from pushapartuse 'edge' to centre, trailing to 0 at edge
+    float pushapartuse = min(backbonedistP, nonBackboneLen)* backboneScale  + pushapartdelta;
+    float dlen = len - pushapartuse;
+    float rellen = len / pushapartuse;         // 1/2 at halfway (max force), 1 at edge (no force)
+    float tlocalforce = pushapartlocalforce;
+    float force = -tlocalforce * (1. - smoothstep(0.5, 1.0, rellen));
+    return dir * (force / len);
+}
+
 
 // compute the effect of pushapart spring and other pairwise forces on me, and return force vector
 // also compute local density of objects, and directional density (according to my direction)
-vec3 pairforces(vec3 mypos, float opart, in float olddensity, inout float density, in vec3 vel, inout float dirdensity) {
+vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float density, in vec3 vel, inout float dirdensity) {
     // note, ACTIVERANGE already allowed for before calling pairforces
 
     // collect basic information used in several places
@@ -414,16 +526,18 @@ vec3 pairforces(vec3 mypos, float opart, in float olddensity, inout float densit
 
     // global pushapart, don't push backbone neighbours apart
     if ((sameRegion && backbonedistP > 1.5) || ignoreBackbone != 0.)
-        gforce += -pushapartforce * pow(len/powBaseDist, pushapartpow);
+        // gforce += -pushapartforce * pow(len/powBaseDist, pushapartpow);
+        gforce += -pushapartforce * pow(max(len,backboneScale)/powBaseDist, pushapartpow);
 
     // fractal force
+    // was set to gforce, but that gave issues with -999 special values 21/01/2022
     if (backbonedist < ACTIVERANGE * maxBackboneDist)
-        gforce += fractforce * pow(backbonedistP, fractpow) * len;
+        bforce += fractforce * pow(backbonedistP, fractpow) * len;
 
     // main 'spring' force from xyz
     if (xyzforce != 0. && (backbonedist < ACTIVERANGE * maxBackboneDist)) {
-        //float targlen = texture2D(distbuff, vec2(part, opart) * VnumInstancesP2 / VnumInstances).x;
-        float targlen = texture2D(distbuff, vec2(part, opart) / ACTIVERANGE).x;
+        // float targlen = texture2D(distbuff, vec2(part, opart) * VnumInstancesP2 / VnumInstances).x;
+        float targlen = texture2D(distbuff, vec2(part, opart) * SMALLTEXTURE).x;
         if (targlen < xyzMaxDist) {
             float dlen = len - targlen;
             gforce += dlen * xyzforce / pow(targlen, xyzpow);
@@ -438,21 +552,25 @@ vec3 pairforces(vec3 mypos, float opart, in float olddensity, inout float densit
 
     // main 'spring' force from contacts
     if (contactforcesc != 0. && backbonedist < ACTIVERANGE * maxBackboneDist) {
-        float contact = texture2D(contactbuff, vec2(part, opart) / ACTIVERANGE).x;
-        // handle patching for missing contacts and chrom boundaries
-        if (contact <= -9.) {  // probably == -999., but may not be exactly if using linear interpolation and expand
-            gforce = 0.;
-            if (backbonedistP <= patchwidth) contact = patchval;
-            // else it will be set to 0 below ...
+        float contact = texture2D(contactbuff, vec2(part, opart) * SMALLTEXTURE).x;
+        if (contact < -1000.) {     // probably -9898, chrom boundary,  but may not be exactly if using linear interpolation and expand
+            bforce = 0.;  // means no boundary join, clear bforce and don't add to gforce
+            // ??? should we cancel gforce ???
+        } else {
+            if (contact <= -9.) {  // probably == -999., but may not be exactly if using linear interpolation and expand
+                gforce = 0.;
+                if (backbonedistP <= patchwidth) contact = patchval;
+                // else it will be set to 0 below ...
+            }
+            // replaced by < -1000 above if (contact == 0. && backbonedistP == 1.) bforce = 0.;  // 0 after patch really means no boundary join
+            contact = max(0., contact - contactthreshold);
+            gforce += contactforcesc * contact * len * boost(part, opart);
         }
-        if (contact == 0. && backbonedistP == 1.) bforce = 0.;  // 0 after patch really means no boundary join
-        contact = max(0., contact - contactthreshold);
-        gforce += contactforcesc * contact * len * boost(part, opart);
     }
 
     /** / test contact force
     if (contactforce2 != 0. && backbonedist < ACTIVERANGE * maxBackboneDist) {
-        float contact = texture2D(contactbuff, vec2(part, opart) / ACTIVERANGE).x;
+        float contact = texture2D(contactbuff, vec2(part, opart) * SMALLTEXTURE).x;
         contact = max(0., contact - contactthreshold);
         if (contact > 0.) {  // not needed ?
             float percent90 = 0.0006;
@@ -472,7 +590,7 @@ vec3 pairforces(vec3 mypos, float opart, in float olddensity, inout float densit
 
     if (m_force != 0.) {
         // to decide, how much to share with contactforce path
-        float contact = texture2D(contactbuff, vec2(part, opart) / ACTIVERANGE).x;
+        float contact = texture2D(contactbuff, vec2(part, opart) * SMALLTEXTURE).x;
         contact /= representativeContact;    // normaize, should not change shape, only scale
         if (contact <= -9.) {  // probably == -999., but may not be if using linear interpolation and expand
             gforce = 0.;
@@ -496,55 +614,76 @@ vec3 pairforces(vec3 mypos, float opart, in float olddensity, inout float densit
 
 // compute the effect of rod on me, and return new position of me
 vec3 rod(vec3 mypos, vec4 rodd) {
-    float opart = rodd.x;                        // other particle
-    float lrodlen = rodd.y * springlen;          // length of this rod
+    float opart = rodd.x;                           // other particle
+    float lrodmin = rodd.y * springlen + springlenfix;             // min length of this rod
+    float lrodmax = rodd.z * springlen + springlenfix;             // max length of this rod
+    float damp = rodd.w;
 
-    vec3 otherpos = poso(opart);     // others 'current' (previous) position
+    vec3 otherpos = poso(opart);                    // others 'current' (previous) position
 
-    vec3 dir = otherpos - mypos;                   // direction from me to other
-    float len = length(dir);                    // distance as now
-    if (len == 0.) return mypos;                   // no reliable direction
+    vec3 dir = otherpos - mypos;                    // direction from me to other
+    float len = length(dir);                        // distance as now
+    if (len == 0.) return mypos;                    // no reliable direction
+    float lrodlen = clamp(len, lrodmin, lrodmax);   // length to achieve
+    lrodlen = lrodlen * damp + len * (1. - damp);
     return otherpos - dir * (lrodlen / len);
 }
 
 void dospringset(sampler2D tbuff, vec3 old, inout vec3 force) {
     // other masses
-    for (float i=spstart; i < spend; i +=spstep) {        // iterate over springs
+    for (float i=spstart; i < spend; i +=spstep) {        // iterate over springs; ? break loop on first NOSPRING ?
         vec4 spr = texture2D(tbuff, vec2(i, part));
-        if (spr.x > 0.) {
+        if (spr.x != NOSPRING) {
             force += spring(old, spr);
         }
     }
 }
 
-vec3 randvec3(float p) { return vec3(fract(p*1379.3), fract(p*1795.3), fract(p*1994.3)) - 0.5; }
+vec3 randvec3(float p) { return (vec3(fract(p*1379.3), fract(p*1795.3), fract(p*1994.3)) - 0.5) * randvecscale; }
+
+virtual vec3 finalFixPos(vec3 v) {
+    return v;
+}
+
 
 /// Fragment shader entry.
 void main() {
 
     //float partn = part * VnumInstancesP2 - 0.5;  // partn ranges from 0..VnumInstancesP2-1
     currt = workhisttime;                   // 'current' time = last time for which values recorded
-    float pprevt = currt - 1./WORKHISTLEN;  // previous time, use to establish velocity
+    float pprevt = fract(1. + currt - 1./WORKHISTLEN);  // previous time, use to establish velocity, nb repeat wrap was sometimes wrong
 
     vec4 old4 = poso4(part);
     vec3 old = old4.xyz;        // my 'current' position
     float olddensity = old4.w;  // my 'current' density
-//gl_FragColor = vec4(old, 1.0);
-//if (stepsSoFar > 2.) return;
+
     // accumulate force for this mass,
-    vec3 force = vec3(0.,0.,0.);
+    vec3 force = vec3(0);
 
     // establish previous velocity
     vec3 prev = posot(part, pprevt);     // my previous position for velocity
     vec3 velold = (old - prev)/springrate;  // compute velocity from last frame, so large forces are damped
 
     dospringset(topologybuff, old, force);
-    if (pullspringforce != 0.) {
+    #define NOTRANPULL NOSPRING
+        vec3 tranpull = vec3(NOTRANPULL);  // initial value, set as OUT parameter by pull() calls below
+    /** 'normal' pull force using spechial pullspring (if defined) for particle */
+    if (pullspringforce != 0. || pullfixdamp != 0.) {
         vec4 spr = texture2D(topologybuff, vec2(pullpos, part));
-        if (spr.w != -1.)
-            force += pull(old, spr);
+        if (spr.w != NOTRANPULL)
+            force += pull(old, spr, pullspringforce, tranpull);
     }
-#define PUSHPAIRS        // define PUSHPAIRS to do full pairwise check
+    /** pull to skeleton, eg for tadpole to track horn skeletons  */
+    if (pullskelforce != 0.) {
+        int partn = int(floor(part * VnumInstancesP2));
+        vec4 auto = texelFetch(scaleDampTarget, ivec2(0,0), 0);
+        vec4 spr;
+        spr.xyz = texelFetch(pullskelbuff, ivec2((partn % pullskelwidth), partn / pullskelwidth), 0).xyz;
+        spr.xyz = (spr.xyz - auto.xyz) * auto.w * pullskelscale + springCentre;
+        spr.w = 1.; // force +ve for transform
+        force += pull(old, spr, pullskelforce, tranpull);
+    }
+#define noPUSHPAIRS        // define PUSHPAIRS to do full pairwise check: now checkbox
 #define noPUSHRAND 1000. // define PUSHRAND to do PUSHRAND pseodo-random pairwise checks
 
 
@@ -592,13 +731,33 @@ void main() {
         force += gradforce * texture2D(gradField, lpos).xyz;
     }
 
+    // viscocity
+    if (visc != 0.) {
+        vec3 velnew = velold * damp + force;     // tentative new velocity
+        vec3 velavg = (velnew + velold) * 0.5;  // average vel over timestep
+        velavg = velold;
+        float ll = dot(velavg, velavg);
+        float llp = pow(ll, viscpow * 0.5 - 0.5); // 0.5 as ll is square, -1 as velavg still has length
+        force -= visc * velavg * llp;
+    }
+
+
     force += customForce(old);
     float tt = time + part;
     if (fract(42.1 * tt) < noiseprob)
-        force += (fract(vec3( 17.9 * tt, 19.2 * tt, 11.3 * tt)) - 0.5) * noiseforce ;
+        force += (fract(vec3( 17.9 * tt, 19.2 * tt, 11.3 * tt)) - 0.5) * noiseforce;
+
+    if (noisefieldforce != 0.) {
+        float partn = floor(part * VnumInstancesP2);
+        //if (mod(partn, noisefieldmod) == 0.)
+        //    force += noisefieldforce * noisefield((old + vec3(part * noisefieldpartfac, sin(time * noisefieldtimefac), 0)) / noisefieldscale, 0.00001);
+        if (mod(partn, noisefieldmod) == 0.)
+            force += noisefieldforce * noisefield(vec4( (old + vec3(part * noisefieldpartfac, 0, 0)) / noisefieldscale, time * noisefieldtimefac));
+    }
+
 
     // allow for my damped velocity
-    float use;                                  // proportion of vel to use, allowing for damping
+    float use = damp;                                  // proportion of vel to use, allowing for damping
 #define damptype ${setspringshaders.damptype}
 #if damptype == 1                                   // for exponential damping, e.g. G.damp = 0.9
     use = damp;
@@ -633,6 +792,7 @@ use = clamp(use, 0., 1.);
     use = 1.;
 
 #endif
+
     #if ${torsionSprings.use ? '1==1' : '1==0'}
     if (backbonetorsionspringforce != 0. || backbonetorsionspringconst != 0.) {
         force += autotorsion();
@@ -644,6 +804,8 @@ use = clamp(use, 0., 1.);
         if (xdist > 0.)
             force -= modelSphereForce * normalize(old) * xdist;
     }
+
+    if (damp < 0.) use = -damp;  // partly for debug, force damp value
 
 
     // soft clipped maximum force
@@ -673,6 +835,8 @@ use = clamp(use, 0., 1.);
     }
     ***/
 
+// force = vec3(0);
+
     // establish new velocity
     vec3 vel = velold * use + force;
     vel += vec3(0, -gravity, 0.);
@@ -682,24 +846,19 @@ use = clamp(use, 0., 1.);
     // soft clipped maximum velocity
     float rr = length(vel) / springmaxvel;
     vel *= soft(rr);
-    if (isNaN(vel)) vel = velold;
+    if (isNaN(vel)) vel = vec3(0); // velold;
 
     vec3 mypos = old + vel*springrate;        // my new position
 
+    // improve stability in bistable case, 19/10/2020, especially for tad virus?
+    // changed from velold->vel 31 Mar 2021, with velold was making CSynth/Lorenz LESS stable
+    // This is over the top damping, generally a moving particle will have drag force against it ????
+    if (dot(vel, force) < 0.) mypos =  (old + mypos) * 0.5;
+
     // enforce rod if any
     vec4 rodd = texture2D(topologybuff, vec2(rodpos, part));
-    if (rodd.x > 0.)
+    if (rodd.x != NOSPRING && rodd.w >= 0.)   // x!= NOSPRING rod exists, w>0 rod enabled
         mypos = rod(mypos, rodd);
-
-    // primitive initialization
-    if (stepsSoFar < 2.5) {  // for steps 0 and 1, to establish points and 0 velocity
-        float pp = part / ACTIVERANGE;
-        // y -ve, 11/10/18, helps rsse fold with extrusion part on top ... arbitrary otherwise
-        // also makes helix righthanded
-        mypos = vec3(pp * 10.0 - 5.0, -sin(pp*31.42), cos(pp*31.42) ) * springlen /31.42 * VnumInstances;
-    }
-
-    // if (length(mypos) > 50.) mypos = old;    // so we can see if it goes out of control
 
     if (part > maxActive * ACTIVERANGE && part <= ACTIVERANGE) {
         vec3 a = poso(maxActive * ACTIVERANGE - INVPARTICLESP2);
@@ -715,14 +874,21 @@ use = clamp(use, 0., 1.);
 
     if (isNaN(mypos)) mypos = old + normalize(vel)*springrate;
 
+    // apply centre and continuous spring rotation, BEFORE fix so fix still really fixes
+    mypos = mix(springCentre, mypos, springCentreDamp);
+    // mypos = (vec4(mypos,1) * springRotate).xyz;
+
     // enforce fix if any  NOTE, should be able to combine rod and fix into single lookup
     // we intentionally allow fix to set NaN
     vec4 fixd = texture2D(topologybuff, vec2(fixpos, part));
-    if (fixd.x > 0.)
+    if (fixd.x != NOSPRING)
         mypos = fixd.yzw;
 
+    if (pullfixdamp != 0. && tranpull.x != NOTRANPULL)
+        mypos = pullfixdamp * tranpull + (1. - pullfixdamp) * mypos;
 
-    mypos *= springCentreDamp;
+    mypos = finalFixPos(mypos);
+
 
 	gl_FragColor = vec4(mypos,density);
 }
@@ -734,7 +900,7 @@ use = clamp(use, 0., 1.);
 
 } // setspringshaders
 
-setspringshaders.damptype = 4; // set in springs.js
+setspringshaders.damptype = 4;
 //setspringshaders();
 
 /* springpow notes:
@@ -747,4 +913,22 @@ applies to gforce (NOT lforce, bforce)
     m_force (m_alpha etc)  Lorentz
 
 
+*/
+/* viscosity
+v' = g-k*v
+c is initial velocity v0
+
+e = Math.E
+ln = Math.log
+v = (f,k,c, x=1) => (f + e**(k*(ln(c*k-f)/k - x)))/k
+// old dd = (f,k,c, x=1) => (f*x - e**(k*(c-x))/k ) / k + c
+// export dd = (f,k,c, x=1) => (e^(-k*q)*((f*k*q+c*k-f)*e^(k*q)-c*k+f))/k^2
+dd = (f,k,c, q=1) => (e**(-k*q)*((f*k*q+c*k-f)*e**(k*q)-c*k+f))/k**2
+
+v from
+https://www.emathhelp.net/calculators/differential-equations/differential-equation-calculator/?i=y%27%28x%29+%3D+f+-+k*y%2C+y%280%29%3Dc
+y'(x) = f - k*y, y(0)=c
+
+dd from https://www.integral-calculator.com/
+(f + e**(k*(ln(c*k-f)/k - x)))/k
 */

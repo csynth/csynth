@@ -2,8 +2,8 @@
 // template taken from HistoryTrace
 'use strict';
 
-var CSynth, V, THREE, dat, planeg, W, currentGenes, CSynthFast, disposeArray, VH, copyFrom, badshader, gl, msgfixerror,
-newTHREE_DataTextureNamed;
+var CSynth, V, THREE, dat, HW, W, CSynthFast, disposeArray, VH, copyFrom, badshader, gl, msgfixerror,
+newTHREE_DataTextureNamed, THREESingleChannelFormat;
 
 // aside: good article on 3d image options
 // http://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002519
@@ -133,7 +133,7 @@ float str = 1.;
 
     function grids() {
         {
-        geox = planeg(ynum, znum, 1,1, xnum);
+        geox = HW.planeg(ynum, znum, 1,1, xnum);
         const pos = geox.attributes.position.array;
         let o = 0;  // output pos
         for (let x = 0; x < xnum; x++) {
@@ -142,11 +142,11 @@ float str = 1.;
                     pos[o++] = x - xnum/2; pos[o++] = y - ynum/2; pos[o++] = z - znum/2;
                 }
             }
-        };
+        }
         }
 
         {
-        geoy = planeg(znum, xnum, 1,1, ynum);
+        geoy = HW.planeg(znum, xnum, 1,1, ynum);
         const pos = geoy.attributes.position.array;
         let o = 0;  // output pos
         for (let y = 0; y < ynum; y++) {
@@ -155,11 +155,11 @@ float str = 1.;
                     pos[o++] = x - xnum/2; pos[o++] = y - ynum/2; pos[o++] = z - znum/2;
                 }
             }
-        };
+        }
         }
 
         {
-        geoz = planeg(xnum, ynum, 1,1, znum);
+        geoz = HW.planeg(xnum, ynum, 1,1, znum);
         const pos = geoz.attributes.position.array;
         let o = 0;  // output pos
         for (let z = 0; z < znum; z++) {
@@ -168,7 +168,7 @@ float str = 1.;
                     pos[o++] = x - xnum/2; pos[o++] = y - ynum/2; pos[o++] = z - znum/2;
                 }
             }
-        };
+        }
         }
 
         uniforms.xnum.value = xnum;
@@ -222,10 +222,10 @@ float str = 1.;
                     }
                 }
             }
-        };
+        }
 
         texture = newTHREE_DataTextureNamed('imagecols', cols, xnum * split, ynum * znum / split,
-        cpp === 3 ? THREE.RGBFormat : THREE.LuminanceFormat,
+        cpp === 3 ? THREE.RGBFormat : THREESingleChannelFormat,
            THREE.FloatType, undefined,
            THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping, THREE.NearestFilter, THREE.NearestFilter, 1);
 
@@ -239,7 +239,7 @@ float str = 1.;
         const s = Math.round(f32data.length ** (1/3));
         xnum = s; ynum = s; znum = s;
 
-        texture = newTHREE_DataTextureNamed('imagetext_' + fid, f32data, xnum * split, ynum * znum / split, THREE.LuminanceFormat,
+        texture = newTHREE_DataTextureNamed('imagetext_' + fid, f32data, xnum * split, ynum * znum / split, THREESingleChannelFormat,
             THREE.FloatType, undefined,
             THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping, THREE.NearestFilter, THREE.NearestFilter, 1);
 

@@ -68,8 +68,8 @@ var UICom = new function() {
     UI.MessageHandler = function( event )
     {
         if (event.data.type && event.data.type.startsWith('SS_')) return;  // do not interfere with screen sharing extension
-        var func = event.data['func'];
-        var arg = event.data['arg'];
+        var func = event.data.func;
+        var arg = event.data.arg;
         if (func) {
             console.log(func);
             console.log(arg);

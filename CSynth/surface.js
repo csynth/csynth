@@ -1,7 +1,7 @@
 // old code used for LMV and simple pre-organic rendering
 'use strict';
 
-var THREE, numInstancesP2, numInstances, renderer, CSynth, uniforms, currentGenes, log, W, V, dat, guiFromGene,
+var THREE, numInstancesP2, numInstances, renderer, CSynth, uniforms, log, W, V, dat, guiFromGene,
 addgeneperm, copyFrom, CSynthFast, G, arrayStats, VEC3, col3, randi, msgfixerror, performance, msgfix, S,
 frametime, framedelta, FIRST, msgfixlog;
 
@@ -228,7 +228,7 @@ CSynth.colourMeshByxyz = function CSynth_colourMeshByxyz(mesh = CSynth.pdbmesh, 
         colArray = colAtt.array;
     } else {
         colArray = new CSynth.colorType(size*3);
-        mesh.geometry.addAttribute('color', new THREE.BufferAttribute(colArray, 3 ));
+        mesh.geometry.setAttribute('color', new THREE.BufferAttribute(colArray, 3 ));
         mesh.geometry.attributes.color.normalized = true;    // if it is Float32Array normalization ignored anyway
         if (mesh.material.vertexColors !== THREE.VertexColors) {
             mesh.material.vertexColors = THREE.VertexColors;
@@ -270,7 +270,7 @@ CSynth.genColfun = function CSynth_genColfun(lowdist=110, highdist=120) {
 /** colour surface based on id saved, set up atom colorBy unless called with by = 'current',
  * mesh may also be a group or other detail, in which case called recursively
   */
-CSynth.colourSurfaceFromID = async function CSynth_colourSurfaceFromID(glmol = window.glmol, options, mesh) {
+CSynth.colourSurfaceFromID = async function CSynth_colourSurfaceFromID(glmol = window.glmol, options=undefined, mesh=undefined) {
     if (!mesh)
         debugger;
     const st = performance.now();
@@ -302,7 +302,7 @@ CSynth.colourSurfaceFromID = async function CSynth_colourSurfaceFromID(glmol = w
     if (!colatt || colatt.array.length !== ids.length*channels) {
         colarr = new CSynth.colorType(ids.length*channels);
         const colbuff = new THREE.BufferAttribute(colarr, channels);
-        mesh.geometry.addAttribute('color', colbuff);
+        mesh.geometry.setAttribute('color', colbuff);
         mesh.geometry.attributes.color.normalized = true;    // if it is Float32Array normalization ignored anyway
     } else {
         colarr = colatt.array
@@ -339,7 +339,7 @@ CSynth.colourSurfaceFromID = async function CSynth_colourSurfaceFromID(glmol = w
             colarr[p++] = (hex & 255);
             // if (channels === 4) colarr[p++] = 100;
             if (i === nextIdStop) await nframe(i);
-        };
+        }
     } else {
         let p = 0;
         let colscale = 1/255;
@@ -351,7 +351,7 @@ CSynth.colourSurfaceFromID = async function CSynth_colourSurfaceFromID(glmol = w
             colarr[p++] = (hex & 255) * colscale;
             // if (channels === 4) colarr[p++] = 0.3;
             if (i === nextIdStop) await nframe(i);
-        };
+        }
     }
     mesh.geometry.attributes.color.needsUpdate = true;
     // colatt.needsUpdate = true

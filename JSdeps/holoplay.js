@@ -245,7 +245,7 @@ function HoloPlay(scened, camerad, rendererd, focalPointVector, constantCenter, 
         if (navigator.appVersion.indexOf("X11")!==-1) OSName="UNIX";
         if (navigator.appVersion.indexOf("Linux")!==-1) OSName="Linux";
 
-		var ws = new WebSocket('ws://localhost:11222/');
+		var ws = new WebSocket(`ws://${location.hostname}:11222/`);
 		var finished = function () {
 			ws.close();
 		};

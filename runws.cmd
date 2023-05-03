@@ -7,10 +7,10 @@ pushd %~dp0
 rem - call organicts.cmd
 
 set NODE_PATH=NOTUSED\..\nodejs\node_modulesNOTUSED
-rem start /min "node organic server: %~dp0" ..\nodejs\node.exe  ..\nodeserver.js
+rem start /min "node organic server: %~dp0" ..\nodejs\node.exe dist\organserver.js
 set nodee=..\nodejs\node.exe
 if not exist %nodee% set nodee=node.exe
-start /min "node organic server: %~dp0" %nodee%  dist\organserver.js
+start /min "node organic server: %~dp0\dist\organserver.js" %nodee%  dist\organserver.js
 
 popd
 exit /b

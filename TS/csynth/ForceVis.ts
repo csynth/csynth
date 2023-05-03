@@ -69,8 +69,8 @@ class ForceVis {
         const geoIndex = new Uint32Array(n2).map((v, i) => i); //duh
 
         const geometry = new THREE.BufferGeometry();
-        geometry.addAttribute('particleIndex', new THREE.BufferAttribute(particleIndex, 1));
-        geometry.addAttribute('oPart', new THREE.BufferAttribute(oPart, 1));
+        geometry.setAttribute('particleIndex', new THREE.BufferAttribute(particleIndex, 1));
+        geometry.setAttribute('oPart', new THREE.BufferAttribute(oPart, 1));
         geometry.setIndex(new THREE.BufferAttribute(geoIndex, 1));
         const linkVert = `
             ${CSynth.CommonShaderCode()}
@@ -198,8 +198,8 @@ class ForceVis {
         const particleRanges = new Float32Array( flatten( linkData.map(d => d.r.concat(d.r)) ) );
         const geoIndex = new Uint16Array( flatten( linkData.map((d, j) => [j*2, j*2+1]) ) );
 
-        geometry.addAttribute('particleIndex', new THREE.BufferAttribute(particleIndices, 1));
-        geometry.addAttribute('particleRange', new THREE.BufferAttribute(particleRanges, 3));
+        geometry.setAttribute('particleIndex', new THREE.BufferAttribute(particleIndices, 1));
+        geometry.setAttribute('particleRange', new THREE.BufferAttribute(particleRanges, 3));
         geometry.setIndex(new THREE.BufferAttribute(geoIndex, 1));
         geometry.name = 'annotationSpringLink geometry';
 
@@ -305,7 +305,7 @@ class ForceVis {
                 gl_FragColor.a *= smoothstep(0., 0.5, 1. - abs(1.-2. * vUv.x));
             }
         `;
-        const geometry = planeg(100, 100, linkData.length, 2);
+        const geometry = HW.planeg(100, 100, linkData.length, 2);
         //const geometry = new THREE.BufferGeometry();
         const flatten = arr => arr.reduce((a, b) => a.concat(b), []);
 
@@ -316,10 +316,10 @@ class ForceVis {
         const geoIndex = new Uint16Array( flatten( linkData.map((d, i) => [0, 1, 2, 1, 2, 3].map(v=>v+(i*4))) ) );
         const UVs = new Float32Array( flatten( linkData.map(d => [0,0,1,0,0,1,1,1]) ) );
 
-        geometry.addAttribute('particleIndex', new THREE.BufferAttribute(particleIndices, 1));
-        geometry.addAttribute('adjacentParticleIndex', new THREE.BufferAttribute(adjacentParticleIndices, 1));
-        geometry.addAttribute('particleRange', new THREE.BufferAttribute(particleRanges, 3));
-        geometry.addAttribute('uv', new THREE.BufferAttribute(UVs, 2));
+        geometry.setAttribute('particleIndex', new THREE.BufferAttribute(particleIndices, 1));
+        geometry.setAttribute('adjacentParticleIndex', new THREE.BufferAttribute(adjacentParticleIndices, 1));
+        geometry.setAttribute('particleRange', new THREE.BufferAttribute(particleRanges, 3));
+        geometry.setAttribute('uv', new THREE.BufferAttribute(UVs, 2));
         geometry.setIndex(new THREE.BufferAttribute(geoIndex, 1));
         geometry.name = 'annotationSpringLink geometry';
 

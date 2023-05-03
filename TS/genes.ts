@@ -4,12 +4,13 @@
  */
 "use strict";
 
-var fixedgenes = {};
+var fixedgenes = {};        // override genes for all renders
+var fixedgenesmain = {};    // further override for mainvp
 
 
 /** HTML objects for each gene */ var guigenes = {};
 /** default gene values */ var defaultObj = {};
-/** current gene values */ var currentGenes:Geneset = {};
+/** current gene values */ var currentGenes:Genes = {};
 
 /** map of gene definitions */ var genedefs:Genedefs = {};
 
@@ -22,7 +23,7 @@ function usedgenes() {
     // should also pick up the generic horn ones that are not recompiled
     if (material) {
         for (var op in material) {  // scan
-            var mm = material[op] ? material[op][currentGenes.tranrule] : undefined;
+            var mm = material[op] ? material[op][currentGenes.tranrule.pre('SynthBus')] : undefined;
             if (mm) {
                 copyFrom(list, mm.genes);
             }
@@ -40,7 +41,7 @@ function usedgenes() {
 
 // alternative way to compute used genes,  -4 can maybe be -1, doube recompile of horns sometimes TODO CHECK
 let lastaddframe: number = -999;
-function usedgenes2():Geneset {
+function usedgenes2():Genes {
     var ug = {};
     for(var gn in genedefs)
         if (genedefs[gn].lastaddframe >= lastaddframe-4)
@@ -53,7 +54,8 @@ function cleangenes(genes, id, list:any = usedgenes(), clearList = false, dolog 
     if (!genes) return;
     var cleaned = {};
     for (var gn in genes) {
-        if ((!!list[gn] as any ^ (!clearList as any)) && gn[0] !== "_" && gn !== "tranrule" && gn !== "name") {
+        // if ((!!list[gn] as any ^ (!clearList as any)) && gn[0] !== "_" && gn !== "tranrule" && gn !== "name") {
+        if ((  (gn in list) === clearList) && gn[0] !== "_" && gn !== "tranrule" && gn !== "name") {
             cleaned[gn] = genes[gn];
             delete genes[gn];
             //if (id) log("clean ", id, gn);
@@ -68,6 +70,8 @@ function cleangenesall(list:any = usedgenes(), clearList = false, dolog = true) 
     if (Array.isArray(list))
         list = list.reduce((c,v) => {c[v] = true; return c}, {});
     var cleaned = cleangenes(currentGenes, "currentGenes", list, clearList, dolog);
+    geneids = Object.keys(currentGenes);
+
     for (let o in currentObjects)
         cleangenes(currentObjects[o].genes, "obj" + o, list, clearList, dolog);
     for (let o in slots)
@@ -147,8 +151,8 @@ function addgenes(list) {
 
 // var permgenes = { foldradius: true, foldradiuslowr: true }; // genes always to be allowed in filter
 var permgenes = { }; // genes always to be allowed in filter
-function addgeneperm(name, def, min, max, delta, step, help, tag, free?, internal?) {
-    addgene(name, def, min, max, delta, step, help, tag, free, internal);
+function addgeneperm(name, def, min, max, delta, step, help, tag, free?, internal?, genes?) {
+    addgene(name, def, min, max, delta, step, help, tag, free, internal, undefined, undefined, genes);
     permgenes[name] = true;
 }
 
@@ -158,8 +162,9 @@ function Genedef(args) {
     var gd = this;
     for (var a in args) this[a] = args[a];
 
-    this.activerate = function() {
+    this.activerate = function(mutateFrozen: number = 0) {
         var r = this.free;
+        if (mutateFrozen !== 0 ) return mutateFrozen;
         if (inputs.usefilter && guigenes[this.name] && guigenes[this.name].style.display === 'none')
             r = 0;
         return r;
@@ -170,24 +175,25 @@ var autoAddGenesToExtraObjs = true;
 
 //would maybe rather this had a Genedef rather than duplicating all the parameters.
 interface GeneConfig {
-    gn:string, def:number, min:number, max:number, delta?: number, step?:number,
+    name:string, def:number, min:number, max:number, delta?: number, step?:number,
     //free could probably be changed to enum, currently string | boolean(?).
     help?:string, tag?:string, free?, internal?, useUniform?:boolean, addGui?:boolean
 }
 /** calls addgene with a list of arguments taken from config object */
 function addGene(c: GeneConfig) {
-    addgene(c.gn, c.def, c.min, c.max, c.delta, c.step, c.help, c.tag, c.internal, c.useUniform, c.addGui);
+    addgene(c.name, c.def, c.min, c.max, c.delta, c.step, c.help, c.tag, c.free, c.internal, c.useUniform, c.addGui);
 }
 
 /** add a gene if not already present: todo decide what to replace in old if already present  */
-function addgene(gn:string, def:number, min:number, max:number, delta?, step?:number, help?:string, tag?:string, free?, internal?, useuniform = true, addGui = true) {
+function addgene(gn:string, def:number, min:number, max:number, delta?, step?:number, help?:string, tag?:string, free:number|string=1, internal=false, useuniform = true, addGui = true, genes = currentGenes) {
 
     // whether new or not, setup or replace the other details
     delta = (delta === undefined || delta === '?' || delta === 'u') ? (max - min)/10 : delta;
     if (step === undefined) step = delta / 10;
     if (free === "free") free = 1;
     if (free === "frozen") free = 0;
-    if (free === false) free = 0;
+    if (free === "fixed") free = 0;
+    if (free as any === false) free = 0;    // will be removed when all typing complete
     if (free === undefined) free = 1;  // history
     if (tag === undefined) tag = "undefined";  // history
     if (help === undefined) help = "gene " + gn;
@@ -231,19 +237,33 @@ function addgene(gn:string, def:number, min:number, max:number, delta?, step?:nu
     }
     gdef.lastaddframe = framenum;
     lastaddframe = framenum;
-    if (currentGenes[gn] === undefined) currentGenes[gn] = def;
+    if (genes && genes[gn] === undefined) genes[gn] = def;
     geneSpeedSave[gn] = geneSpeed[gn] = (2 + Math.random()) * (max - min) * 0.001;
     addGeneToExtraObjects(gn);
+    gdef.addGui = addGui;
 
     if (useuniform !== false)
         if (tag === 'texture' || tag === 'wallcol')
             {}
         else
             adduniform(gn, def, 'f', tag);
-    if (addGui) addgui(gn, gdef, geneCallback);
+    if (addGui && !searchValues.noguigenes) addgui(gn, gdef, genes);
 }
 
-function addgui(gn, gd, geneCallback) {
+/** turn gll genedefs into guigenes, in case not done during addgene */
+async function guiAllGenes(genes = currentGenes) {
+    let i = 0;
+    for (const gn in genedefs) {
+        const gdef = genedefs[gn];
+        if (gdef.addGui) addgui(gn, gdef, genes);
+        if (i++ % 10 === 0) await sleep(1);
+    }
+}
+
+var _testcompile = false;   // doing test compile, miss some full compile features
+function addgui(gn, gd, genes) {        // geneCallaback removed as argument 28/12/2021
+    if (_testcompile) return;
+    if (!guigenes) return;
     let nnn;
     const {min, max, step, free, tag} = gd;
     if (guigenes[gn] === undefined) {
@@ -263,7 +283,7 @@ function addgui(gn, gd, geneCallback) {
     nnns.min = min;
     nnns.max = max;
     nnns.step = step;
-    nnns.value = currentGenes[gn];
+    nnns.value = genes ? genes[gn] : genedefs[gn].def;
     if (free === 0) nnn.classList.add("frozen"); else nnn.classList.remove("frozen");
     var tags = tag.split(" ");
     for (var i=0; i<tags.length; i++) nnn.classList.add(tags[i]);
@@ -304,8 +324,15 @@ function addgui(gn, gd, geneCallback) {
         geneHead.onclick = toggleFold;
         geneFieldset.onkeydown = groupToggleFreeze;
         geneFieldset.tabIndex = 0;   // needed to make sure keystrokes can register
+        geneFieldsets[tag] = geneFieldset;
     }
     geneGroup.appendChild(nnn);
+}
+const geneFieldsets: { [name: string]: HTMLFieldSetElement} = {};
+
+function foldGeneGui(hide=true) {
+    const className = hide ? 'hidebelow' : '';
+        for (const fs of Object.values(geneFieldsets)) fs.className = className;
 }
 
 /** add this gene to extra objects, mutated */
@@ -352,12 +379,13 @@ function setval(gn, v, forcegui=false) {
 
     // main functional parts first
     newmain();
-    if ((uniforms && uniforms[gn]) || (COL && COL.num[gn] !== undefined)) {
-        if (genedefs[gn] && genedefs[gn].tag === 'texture')
-            COL.setG(gn, 0, v);
-        else
-            uniforms[gn].value = v;
-    }
+    const isuni = uniforms && uniforms[gn];
+    const iscol = COL && COL.num[gn] !== undefined
+    if (iscol)
+        //if (genedefs[gn] && genedefs[gn].tag === 'texture')
+        COL.setG(gn, 0, v);
+    if (isuni)
+        uniforms[gn].value = v;
     currentGenes[gn] = v;
 
     // then gui parts if needed
@@ -366,10 +394,11 @@ function setval(gn, v, forcegui=false) {
     if (inputs.showhtmlrules || refreshGuiGene) {
         // v = format(v);  // should be accurate enough for gui. disturbs text edit, TODO make conditional
         // could also ignore based on window.getComputedStyle(...).display
-        if (refreshGuiGene && guigenes[gn] !== undefined) {
-            if (guigenes[gn].currentEle.value*1 !== v)  // do not mess while editing
-                guigenes[gn].currentEle.value = v;
-            guigenes[gn].sliderEle.value = v;
+        const ggn = guigenes[gn];
+        if (refreshGuiGene && ggn !== undefined && ggn.style.display !== 'none') {
+            if (+ggn.currentEle.value !== v)  // do not mess while editing
+                ggn.currentEle.value = v;
+            if (+ggn.sliderEle.value !== v) ggn.sliderEle.value = v;
         }
         if (inputs.showhtmlrules)
             trysetele("TR_" + gn, 'textContent', format(v));
@@ -385,11 +414,13 @@ function setvalf(gn, v) {
 /** set gene values based on a filter match */
 function setlots(genes, pattern, value) {
     var filt = resolveFilter(pattern);
-    var res = {};
+    var res = {__changed: 0};
     for (var gn in filt) {
         if (gn in genes || gn in currentGenes) {
-            res[gn] = genes[gn];
-            genes[gn] = value;
+            const old = genes[gn];
+            genes[gn] = randrange(value);
+            res[gn] = old;
+            res.__changed += Number(genes[gn] !== old);
             //    log("set", gn, value);
         }
     }
@@ -397,9 +428,45 @@ function setlots(genes, pattern, value) {
     return res;
 }
 
-/** set genes for all objects and genedefs */
-function setAllLots(pattern, values) {
-    var pattern = resolveFilter(pattern);
+/** rrange all genes matching pattern, set genedefs min/max */
+function rerangeAllLots(ppattern, min, max) {
+    const pattern = resolveFilter(ppattern);
+    const ggs = allGeneSets();
+
+    for (var gn in pattern) {
+        var gd = genedefs[gn];
+        if (gd) {
+            const omin = gd.min, omax = gd.max;
+            gd.min = min;
+            gd.max = max;
+
+            const sc = (max - min) / (omax - omin)
+            for (const gg of ggs) {
+                if (typeof gg[gn] === 'number')
+                    gg[gn] = (gg[gn] - omin) * sc + min;
+                else
+                    log('cannot rerange', gn)
+            }
+        }
+    }
+    updateGuiGenes();
+    refall();
+}
+
+/** find all gene collections currently in use */
+function allGeneSets():Set<Genes> {
+    var ggs = new Set();
+    for (const dispobj of Object.values(currentObjects)) if (dispobj.genes) ggs.add(dispobj.genes);
+    if (slots) for (const slot of slots) if (slot && slot.dispobj && slot.dispobj.genes) ggs.add(slot.dispobj.genes);
+    ggs.add(currentGenes);
+    return ggs;
+}
+
+/** set genes for all objects and genedefs
+ * return changed values
+ */
+function setAllLots(ppattern, values) {
+    const pattern = resolveFilter(ppattern);
 
     // handle gene values for all objects
     if (typeof values === 'number') values = {value : values };
@@ -419,8 +486,8 @@ function setAllLots(pattern, values) {
             }
         }
     }
-    updateGuiGenes();
-return result;
+    if (result?.__changed) updateGuiGenes();
+    return result;
     //for (var o in currentObjects) {
     //    if (currentObjects[o].genes) {
     //        constrain(currentObjects[o].genes);
@@ -446,7 +513,7 @@ function constrain(genes) {
         }
     }
     console.log(o);
-    msgfix("constrain", o.replaceall("\n", "<br>") + "<br>" + genes.name);
+    msgfix("constrain", o.replace(/\n/g, "<br>") + "<br>" + genes.name);
 }
 
 
@@ -475,12 +542,9 @@ function extractGenesFrom(xobj, filter) {
 function setAllFromFilter(filter, genes) {
     var list = resolveFilter(filter);
     genes = genes || currentGenes;
-    for (var o in currentObjects) {
-        if (currentObjects[o].genes) {
-            for (var gn in list) {
-                currentObjects[o].genes[gn] = genes[gn];
-                //log(gn);
-            }
+    for (const gg of allGeneSets()) {
+        for (var gn in list) {
+            gg[gn] = genes[gn];
         }
     }
     refall();
@@ -538,6 +602,7 @@ function setvals(ss, v) {
 var SG = new Proxy(currentGenes, {
     get: function(ig, name: string) {
         const g = currentGenes;   // in case they are redefined
+        if (!g) return;
         if (name in g) return g[name];
         if (name.indexOf('xyz') !== -1)
             return new THREE.Vector3(g[name.replace('xyz', 'x')], g[name.replace('xyz', 'y')], g[name.replace('xyz', 'z')]);
@@ -547,6 +612,7 @@ var SG = new Proxy(currentGenes, {
     },
     set: function(ig, name: string, v) {
         const g = currentGenes;   // in case they are redefined
+        if (!g) return;
         if (name in g) {
             g[name] = v;
         } else if (name.indexOf('xyz') !== -1) {
@@ -603,3 +669,59 @@ function getNormalisedGeneValue(name: string, genome = currentGenes) {
     return gd.min + originalVal / (gd.max - gd.min);
 }
 
+
+/** compare two sets of genes, with tolerance
+ * no specific check for orphan genes
+ */
+ function compareGenes(a,b, d=1e-5) {
+    a = xxxgenes(a);
+    b = xxxgenes(b);
+    return compareStruct(a,b);
+}
+
+/** sweep the value of a gene, start and end in current position */
+async function sweepgene(gn, genes = currentGenes, time = 3000) {
+    const gd = genedefs[gn];
+    const v = genes[gn];
+    if (!gd || v === undefined) return log('no gene for sweepgene', gn);
+    const {min, max} = gd;
+    const sr = (v - min) / (max-min);
+    setval(gn, min);
+    const st = Date.now()
+    while(true) {
+        const dt = (Date.now() - st)/time * 2;
+        if (dt > 2) break;
+        const xdt = (dt + sr) % 2;
+        const nv = min + (max-min) * (xdt < 1 ? xdt : 2-xdt);
+        setval(gn, nv);
+        // log('sweep', dt, xdt, nv);
+        await S.frame();
+    }
+    setval(gn, v);
+}
+
+let _sweepall_sweeping = false;
+/** sweep over gene values in turn, toggle */
+async function sweepall(filter = undefined, genes = currentGenes, time = 1500) {
+    if (_sweepall_sweeping) {_sweepall_sweeping = false; return; }
+    _sweepall_sweeping = true;
+    const gg = resolveFilter(filter);
+    for (const gn in gg) {
+        await sweepgene(gn, genes, time);
+        if (!_sweepall_sweeping) return;
+    }
+    _sweepall_sweeping = false;
+}
+
+/** force tranrule and all genes across all items */
+function forceTranrule(genes = currentGenes) {
+    for (const gg of allGeneSets()) {
+        if (gg === genes) continue;
+        gg.tranrule = genes.tranrule;
+        for (const gn in genes) {
+            if (!(gn in gg))
+                gg[gn] = genes[gn];
+        }
+    }
+    refall();
+}

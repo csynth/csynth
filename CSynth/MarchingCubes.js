@@ -1,3 +1,4 @@
+/* eslint-disable no-use-before-define */
 /**
  * @author alteredq / http://alteredqualia.com/
  * @author mrdoob / http://mrdoob.com
@@ -233,8 +234,8 @@ CSynth.MarchingCubes = CSynth.MarchingCubes2SK = function CSynth_MarchingCubes(x
             let t;
             t = new Float32Array(n); t.set(bpos); bpos = t;
             t = new CSynth.normalType(n); t.set(bnorm); bnorm = t;
-            if (cols) {t = new colorType(n); t.set(bcol); bcol = t};
-            if (ids) {t = new idType(Math.ceil(n/3)); t.set(bid); bid = t};
+            if (cols) {t = new colorType(n); t.set(bcol); bcol = t}
+            if (ids) {t = new idType(Math.ceil(n/3)); t.set(bid); bid = t}
         }
         if (bindn + 60 > indices.length) {
             let n = Math.floor(bindn * 1.5);  // arbitary growth factor
@@ -385,7 +386,7 @@ CSynth.MarchingCubes = CSynth.MarchingCubes2SK = function CSynth_MarchingCubes(x
         indices[bindn++] = il[o2];
         indices[bindn++] = il[o3];
     }
-    this.makePolygons = function MarchingCubes_makePolygons (pfield, thresh = 10, pcols, pids) {
+    this.makePolygons = function MarchingCubes_makePolygons (pfield, thresh = 10, pcols=undefined, pids=undefined) {
         field = pfield;
         cols = pcols;
         ids = pids;
@@ -434,7 +435,7 @@ CSynth.MarchingCubes = CSynth.MarchingCubes2SK = function CSynth_MarchingCubes(x
     };
 
     // make the polygons and generate geometry
-    this.makeGeometry = function MarchingCubes_makeGeometry(pfield, thresh = 10, pcols, pids) {
+    this.makeGeometry = function MarchingCubes_makeGeometry(pfield, thresh = 10, pcols=undefined, pids=undefined) {
         const k = `makePolygons2SK ${xnum} ${ynum} ${znum} ${thresh} `
         const st = Date.now();
         if (CSynth.recordProfiles) console.profile(k);
@@ -446,11 +447,11 @@ CSynth.MarchingCubes = CSynth.MarchingCubes2SK = function CSynth_MarchingCubes(x
         //    'nnnn', nnx, nnxr, nny, nnz);
 
         const mgeo = new THREE.BufferGeometry(); mgeo.name = 'mcubesBufferGemetry';
-        mgeo.addAttribute('position', new THREE.BufferAttribute( dd.bpos, 3 ));
-        mgeo.addAttribute('normal', new THREE.BufferAttribute( dd.bnorm, 3 ));
+        mgeo.setAttribute('position', new THREE.BufferAttribute( dd.bpos, 3 ));
+        mgeo.setAttribute('normal', new THREE.BufferAttribute( dd.bnorm, 3 ));
         if (cols) {
             // n.b. last parameter allows for normalized buffer (0..1, not 0..255) for Uint8Array
-            mgeo.addAttribute('color', new THREE.BufferAttribute( dd.bcol, 3));
+            mgeo.setAttribute('color', new THREE.BufferAttribute( dd.bcol, 3));
             mgeo.attributes.color.normalized = true;    // if it is Float32Array normalization ignored anyway
         }
 

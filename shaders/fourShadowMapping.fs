@@ -5,6 +5,7 @@ precision highp float;
 
 // gene for shadow strength -- default at 0 (max)
 gene(shadowstrength, 0.0, 0.0, 1.0,   0.1, 0.01, shadows, frozen)   // strenght of light when in shadow (1 => no shadow)
+gene(wall_shadowstrength, 0.0, 0.0, 1.0,   0.1, 0.01, shadows, frozen)   // strenght of light when in shadow, for wall (1 => no shadow)
 //ge ne(shadowdepthoff, 0.0005, 0.0, 0.001, 0.0001, 0.0001, shadows, frozen)  // depth offset used to prevent false shadows
 gene(shadowdepthoffZ, 10, 0.0, 20, 1, 1, shadows, frozen)  // depth offset used to prevent false shadows (with full Z depth)
 // gene for shadow sharpness -- default at 2
@@ -104,7 +105,10 @@ void ShadPointTest(const vec2 dxy, const float x, const float y, const float dep
 	// However, removing the test considerably increases the cost (62 -> 85) unless we optimize
 	// Bad results with just the x>0 part or just x<1, ok with both; the y tests don't seem to make much difference on way or the other
 	// Again, optimization eliminates the difference.
-	if ( (offset.x >= 0.0)  && (offset.x <= 1.0) ){// && (offset.y >= 0.0) && (offset.y <= 1.0) ) { // test if inside shadow map region
+	// 29/09/2020, y test added back in, it does prevent some false shadow errors
+	// 29/09/2020, check reduced a fraction to stop occasional false edge lines
+	const float l = 0.001, h = 1. - l;
+	if ( (offset.x >= l)  && (offset.x <= h) && (offset.y >= l) && (offset.y <= h) ) { // test if inside shadow map region
 		//if ( depthz <= shadowDepth )  seen += w; // old inefficient version kept for reference, sjpt, 27/11/2017
 		seen += step( depthz, shadowDepth) * w;
 	//} else if (shadowstrength < 0.) {
@@ -378,7 +382,7 @@ float getShadowA(const vec4 trpos, const mat4 lightmat, const sampler2D depthTex
 
 	//r = S(r);
 	//r = sqrt(r);
-	r = mix(r, 1., shadowstrength);
+	r = mix(r, 1., xhornid == WALLID ? wall_shadowstrength : shadowstrength);
 	return r;
 }
 

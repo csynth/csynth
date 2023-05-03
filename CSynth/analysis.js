@@ -3,6 +3,8 @@
 var CSynth, msgfixlog, springs, spearson, G, format, msgfix, sleep, log, numInstances, distxyz, col3, throws,
 Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S;
 
+var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain;
+
 // get positions for key or ready made positions
 CSynth.pos = function(inputDef) {
     const cc = CSynth.current;
@@ -34,7 +36,7 @@ CSynth.pos = function(inputDef) {
 }
 
 /** compute dists for positions, return [distances, reason], dres can have array ready for distances */
-CSynth.dists = function csynthdists(inputDef, statsres = CSynth.statsres, dres) {
+CSynth.dists = function csynthdists(inputDef, statsres = CSynth.statsres, dres=undefined) {
     const cc = CSynth.current;
     let use;
 
@@ -112,12 +114,12 @@ flags may be any (string) combination of rmse wrmse pearson spearman to choose s
 and nonormalize to prevent normalization
 dres1 and dres2 are optional arrays to hold distances for s1 and s2
 */
-CSynth.correl = function csynthcorrel(s1, s2, flags='all', statsres, dres1, dres2) {
+CSynth.correl = function csynthcorrel(s1, s2, flags='all', statsres=undefined, dres1=undefined, dres2=undefined) {
     flags = ' ' + flags + ' ';
     if (flags.indexOf(' all ') !== -1) flags += ' rmse wrmse pearson spearman '; // bucket ';
     let [d1, reason1] = CSynth.dists(s1, statsres, dres1);
     let [d2, reason2] = CSynth.dists(s2, statsres, dres2);
-    if (d1.length !== d2.length) {msgfixlog('rmse', 'cannot compare rmse, wrong lengths', d1.length, d2.length)};
+    if (d1.length !== d2.length) {msgfixlog('rmse', 'cannot compare rmse, wrong lengths', d1.length, d2.length)}
 
     if (flags.indexOf(' filter1 ') !== -1) {
         const mm = d1.reduce((c,x) => Math.max(c,x), 0);  // why does d1.reduce(Math.max) not work
@@ -173,7 +175,7 @@ CSynth.rmse = function csynthrmse(d1, d2) {
 /** weighted root mean square error */
 CSynth.wrmse = function csynthwrmse (d1, d2) {
     const n = d1.length;
-    let ss = 0, sw = 0;;
+    let ss = 0, sw = 0;
     for (let i=0; i<n; i++) {
         const w = 1 / Math.max(d1[i], d2[i]);
         ss += (w * (d1[i]-d2[i])) ** 2;
@@ -294,7 +296,7 @@ CSynth.meandists = function(contact) {
     const dists = CSynth.contactToDist(contact);
     const n = contact.numInstances;
     const c = contact.textureData;
-    let sv=0, swd = 0, sd = 0, p = 0;;
+    let sv=0, swd = 0, sd = 0, p = 0;
     for (let i=0; i<n; i++) {   // complicated as c is square, dists triangular
         for (let j=i+1; j<n; j++) {
             const d = dists[p];     // MAY GET OUT OF DATE
@@ -320,7 +322,7 @@ CSynth.meandists = function(contact) {
 // compare the weights, assume two IF inputs, for debug
 var yaml;
 CSynth.compareWeights = function() {
-    const cc = CSynth.current, ccc0 = cc.contacts[0], ccc1 = cc.contacts[1];;
+    const cc = CSynth.current, ccc0 = cc.contacts[0], ccc1 = cc.contacts[1];
     CSynth.meandists(ccc0);
     CSynth.meandists(ccc1);
     const  r = {};
@@ -475,7 +477,7 @@ CSynth.genArray = function(def, popts = {}) {
         for(let v=litem.from; v <= litem.to; v += litem.step || 1) x.push(v);
         litem = x;
     }
-    if (!Array.isArray(litem)) litem = [litem];;
+    if (!Array.isArray(litem)) litem = [litem];
     for (const v of litem) {
         xopts.vals[key] = v;
         if (keys.length === 1) {
@@ -594,7 +596,7 @@ var gpuStats;
 // return eigenvalues and 'volume'
 CSynth.stats = function(p = springs.getpos()) {
     // let x=0, y=0, z=0, xx=0, yy=0, zz=0, xy=0, yz=0, zx=0;
-    let max = VEC3(Number.MIN_VALUE, Number.MIN_VALUE, Number.MIN_VALUE);
+    let max = VEC3(-Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE);
     let min = VEC3(Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE);
     const n = p.length;
 
@@ -616,6 +618,8 @@ CSynth.stats = function(p = springs.getpos()) {
     }
     const r =CSynth._stats2({sx, sy, sz, sxx, syy, szz, sxy, syz, szx, n})
     r.min = min; r.max = max;
+    r.rx = max.x - min.x; r.ry = max.y - min.y; r.rz = max.z - min.z;
+    r.rmax = Math.max(r.rx, r.ry, r.rz);
     return r;
 }
 
@@ -679,19 +683,16 @@ CSynth._stats2 = function({sx, sy, sz, sxx, syy, szz, sxy, syz, szx, n}) {
 
     return { eigenvalues: eigv, radii, volume, centroid, trace, eigenvectors} ;
 }
-var THREE, V, ColorKeywords;
+var THREE, ColorKeywords;
 if (!inworker)
 CSynth.stats.mats = {
     full: new THREE.Matrix3(), d1: new THREE.Matrix3(), d2: new THREE.Matrix3(), d3: new THREE.Matrix3(),
     s1: new THREE.Matrix3(), s2: new THREE.Matrix3(), s3: new THREE.Matrix3()
 };
 
-/** show the eigenvectors and centroid */
-CSynth.showEigen = function(doOrient) {
-    const d = CSynth.stats();
-    const lineGeometry = new THREE.Geometry();
-    const vertices = lineGeometry.vertices;
-    const cols = lineGeometry.colors;
+/** show the eigenvectors and centroid, d is a stats object */
+CSynth.showEigen = function(doOrient, d = CSynth.stats()) {
+    const lineGeometry = new THREE.BufferGeometry(), positions=[], colors=[];
     const vert = /*glsl*/`
         precision highp float;
         ${CSynth.CommonShaderCode()}
@@ -723,12 +724,17 @@ CSynth.showEigen = function(doOrient) {
     const line = CSynth.eigenLine = new THREE.LineSegments(lineGeometry, lineMaterial);
     V.rawscene.add(line);
     const kcols = ['red','green','blue'].map(c=>new THREE.Color(c));
+    const pushv = (v) => positions.push(v.x, v.y, v.z);
+    const pushc = (v) => colors.push(v.r, v.g, v.b);
     for (let i = 0; i < 3; i++) {
-        vertices.push(d.centroid.clone().sub(d.eigenvectors[i]));
-        vertices.push(d.centroid.clone().add(d.eigenvectors[i]));
-        cols.push(kcols[i]);
-        cols.push(kcols[i]);
+        pushv(d.centroid.clone().sub(d.eigenvectors[i]));
+        pushv(d.centroid.clone().add(d.eigenvectors[i]));
+        pushc(kcols[i]);
+        pushc(kcols[i]);
     }
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    lineGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+
 
     if (doOrient) {
         const e = d.eigenvectors;
@@ -741,6 +747,9 @@ CSynth.showEigen = function(doOrient) {
 
         if (doOrient === 'angled')
             applyMatop(0,1, Math.atan2(height, width));
+        else
+            rot4toGenes();
+        refmain();
     }
 }
 
@@ -910,7 +919,7 @@ CSynth.alignModels = function(type = 'auto') {
         //    copyFrom(CSynth.springSettings.contactLor, x);
         //else
         //    copyFrom(G, x);
-    } else if (type === 'xyz') {
+    } else if (type === 'xyz') { //
 
     } else {
         console.error(`'Unexpected type '${type}' in CSynth.alignModels.`);
@@ -923,16 +932,16 @@ CSynth.alignModels = function(type = 'auto') {
 
     // make x apply to both current and pending (if any)
 
-    const q = {}
-    q.m_alpha = -1 / (G.pushapartpow - 1)
-    q.m_k = G.powBaseDist * Math.pow(G.contactforce/1e6/G.pushapartforce * G.powBaseDist, -G.m_alpha)
+    // const q = {};    // for debug logging
+    // q.m_alpha = -1 / (G.pushapartpow - 1)
+    // q.m_k = G.powBaseDist * Math.pow(G.contactforce/1e6/G.pushapartforce * G.powBaseDist, -G.m_alpha)
     // log (`diffs, m_alpha ${q.m_alpha} ${G.m_alpha} ... ${q.m_k} ${G.m_k}`);
     CSynth.lastAlign = types.map(p => [p[0], G[p[0]]]);
 }
 CSynth.lastAlign = [];
 
 CSynth.saveRuns = async function CSynth_compareRuns({nruns=10, fid, time1=4000, time2=1000}) {
-    if (!fid) fid = '>csynth_' + (new Date()).toJSON().replaceall(":", ".") + '_';
+    if (!fid) fid = '>csynth_' + (new Date()).toJSON().replace(/:/g, ".") + '_';
     G.stepsPerStep = 40;
     for (let run=0; run<nruns; run++) {
         CSynth.randpos(6);
@@ -1008,7 +1017,7 @@ var Plane;
 /**
 Make planes to illustrate the inside packing of the 60 capsid chain groups.
 */
-CSynth.planesForInside = function(glmol = CSynth.glmol["All_capsid_proteins.pdb"], maxd=120, chains, pgroup = CSynth.rawgroup) {
+CSynth.planesForInside = function(glmol = CSynth.glmol["All_capsid_proteins.pdb"], maxd=120, chains=undefined, pgroup = CSynth.rawgroup) {
     if (typeof glmol === 'string') glmol = CSynth.glmol[glmol];
     const planes = CSynth.planes = [];
     const atoms = glmol.atoms;
@@ -1044,7 +1053,7 @@ CSynth.planesForInside = function(glmol = CSynth.glmol["All_capsid_proteins.pdb"
 
 }
 
-CSynth.manyPlanes = function(show = false, fid, chains) {
+CSynth.manyPlanes = function(show = false, fid=undefined, chains=undefined) {
     if (fid) CSynth.planesForInside(fid, undefined, chains).visible = show;
     if (CSynth.current.fixedPointsData) CSynth.planesForFixed().visible = show;
     Plane.icosa().visible = show;
@@ -1137,11 +1146,10 @@ CSynth.volume = function({res = 1, p = springs.getpos()} = {}) {
 }
 
 /** work in progress, mutation for CSynth parameters */
-var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObj, renderObjsInner, mainvp;
 CSynth.mutate = async function(w = 2000, use = 'pushapartpow springpow'.split(' ')) {
     if (vps[0] + vps[1] === 0) setViewports([3,3]);
     // V.gui.visible = false;
-    for (let gn in genedefs) {genedefs[gn].free = +use.includes(gn)};
+    for (let gn in genedefs) {genedefs[gn].free = +use.includes(gn)}
     mutate();
     for (const slot of slots) {
         if (slot === undefined) continue;
@@ -1172,3 +1180,38 @@ CSynth.draw8 = function() {
     refall();               // ensure all objects are repainted
     dustbinvp = 99;
 }
+
+var U, skelbuffer, readWebGlFloatDirect;
+/** make stats from skeleton */
+function skelstats() {
+    const d = readWebGlFloatDirect(skelbuffer, {width:U.skelnum+1 + 2*U.skelends, height: U.horncount})
+    let maxx = -Number.MAX_VALUE, maxy = -Number.MAX_VALUE, maxz = -Number.MAX_VALUE;
+    let minx = Number.MAX_VALUE, miny = Number.MAX_VALUE, minz = Number.MAX_VALUE;
+    const mxx = Math.max;
+    const mnn = Math.min;
+    const n = d.length;
+
+    // compute raw sums, assuming the w is radius used as weight
+    let sx=0, sy=0, sz=0, sxx=0, syy=0, szz=0, sxy=0, syz=0, szx=0, sw = 0;
+    for (let i=0; i < n; ) {
+        const x = d[i++], y = d[i++], z = d[i++], w = d[i++];
+        sx += x * w;
+        sy += y * w;
+        sz += z * w;
+        maxx = mxx(maxx, x); maxy = mxx(maxy, y); maxz = mxx(maxz, z);
+        minx = mnn(maxx, x); miny = mnn(maxy, y); minz = mnn(maxz, z);
+        sxx += x * x * w;
+        syy += y * y * w;
+        szz += z * z * w;
+        sxy += x * y * w;
+        syz += y * z * w;
+        szx += z * x * w;
+        sw += w;
+    }
+    const r = CSynth._stats2({sx, sy, sz, sxx, syy, szz, sxy, syz, szx, n:sw})
+    Object.assign(r, {minx, miny, minz, maxx, maxy, maxz})
+    r.rx = maxx - minx; r.ry = maxy - miny; r.rz = maxz - minz;
+    r.rmax = Math.max(r.rx, r.ry, r.rz);
+    return r;
+}
+// CSynth.showEigen('angleed', skelstats());

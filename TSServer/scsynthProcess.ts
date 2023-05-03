@@ -1,6 +1,7 @@
 import { sclogS, sclogSE, sclogRaw } from './sclog';
 import { UDP_PORT, TCP_PORT, MAX_NODES } from './scconfig';
 import * as config from './scconfig';
+import * as scserver from './scserver'
 
 import { ChildProcess, spawn } from 'child_process';
 
@@ -15,7 +16,7 @@ export async function spawnSCSynth({isRetry=false, startvr=false}={}) {
     if (scsynth) quitSCSynth(); //still has some bug with e.g. sleep I think...
 
     console.log(`spawnSCSynth called... isRetry: ${isRetry}, startvr: ${startvr}`);
-    let args = ["-u", '' + UDP_PORT, "-t", '' + TCP_PORT, "-m", 1024 * 64, "-a", 512, '-n', MAX_NODES];
+    let args = ["-u", '' + UDP_PORT, "-t", '' + TCP_PORT, "-m", 1024 * 64, "-a", 512, '-n', MAX_NODES, '-i', config.audioInputs];
     let scsynthPath;
     (function processConfigOptions() {
         let device = startvr ? config.VRAudioDevice : config.audioDevice;
@@ -39,45 +40,53 @@ export async function spawnSCSynth({isRetry=false, startvr=false}={}) {
             args = args.concat(["-U", '../SuperCollider/plugins']);
         } else {
             if (config.scsynth === 'default' && isMac) {
-                scsynthPath = "/Applications/SuperCollider/SuperCollider.app/Contents/Resources/scsynth";
+                scsynthPath = "/Applications/SuperCollider.app/Contents/Resources/scsynth";
                 args = args.concat(['-Z', 64]);
             }
             sclogS(`Either we're not on windows, or we're using non-local scsynth. Using default SC ugenPluginPath (no -U)`); //was hitting this after mutating config.scsynth. Don't do that.
         }
+        if (!isMac && !isWindows) {
+            if (config.scsynth === 'default') {
+                scsynthPath = 'scsynth';
+            }
+        }
     })();
     async function startSession() {
-        //TODO: figure out proxy vs Electron messaging?
-        //scsession = await newsession(SC_initialOSCMessages, SC_processOSC);
+        await scserver.start();
+        sclogS('---- startSession done ----');
     }
 
-
+    let resolveHack;
+    const promise = new Promise<void>((resolve, reject) => {
+        resolveHack = resolve;
+    });
     ////////////////// Spawn native process ////////////////////////
-    (function spawnNative(){
-
+    (function spawnNative() {
         scsynth = spawn(scsynthPath, args.map(v => v.toString()));
         sclogS(`started '${scsynthPath} ${args.join(' ')}': pid = ${scsynth.pid}`);
+        scsynth.on('spawn', runPostBootCmds);
         scsynth.on('exit', function (code, signal) {
             //----------> OSCWorker -------->
             sclogS("[scsynth]Exit with code " + code + ", '" + signal + "'");
-            //const logStr: any = document.getElementById('sclogbox').textContent;
-            //////------ TSServer-TODO ------
-            // NW_SC.nodevice = logStr.substr(-400).replaceall('<br />', '').replaceall('[sc=stdout]', '').indexOf("error: 'Device unavailable'") === -1;
-            // if (NW_SC.nodevice) {
-            //     msgfix('Synths', '<span class="errmsg">Synths cannot run, maybe there is no sound input device connected to the computer.;</span>')
-            // }
         });
         scsynth.on('error', function (err) {
             sclogS("[scsynth]Error " + err);
         });
-        let sessionStarted = false;
+        let sessionStarted = false, sdata = ''; // accumulate data as it is broken up in random ways so 'server ready' test can fail
         scsynth.stdout.on('data', async function (data) { //log performance problem associated? some Electron Node / Renderer thread contention...
             //if (data.indexOf("command FIFO full" !== -1)) //todo something!
             /********/ //---> don't timeout, wait on a promise?
             //first stdout data probably means we're good to go. Seems ok. looking for 'server ready' anyway.
             //may not be reliable across all versions...
-            if (!sessionStarted && data.indexOf('server ready') !== -1) {
-                await startSession();
-                sessionStarted = true;
+            if (!sessionStarted) {
+                sdata += data;
+                if (sdata.indexOf('server ready') !== -1) {
+                    //if (data.indexOf('SuperCollider 3 server ready.') === -1)
+                    //    console.log('server ready seen broken up', data);
+                    await startSession(); // what does it mean for this to resolve?
+                    sessionStarted = true;
+                    resolveHack();
+                }
             }
             //how to avoid broken lines?
             sclogRaw(data);
@@ -93,6 +102,30 @@ export async function spawnSCSynth({isRetry=false, startvr=false}={}) {
         //////------ TSServer-TODO ------
         //if (!isRetry) NW_SC.startWatchingSynthDefBinFiles();
     })();
+
+    return promise;
+}
+
+/** sometimes there might be things to execute on shell after scsynth boots.
+ * These can be added to `.scconfig.json` "postBootShellCmds".
+ * As of this writing, this applies to connecting jack inputs & outputs (on PiSound)
+ */
+export async function runPostBootCmds() {
+    // there should be a better way of syncing this to when scsynth is ready, but for now, just sleep.
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    for (const cmd of config.postBootShellCmds || []) {
+        console.log('[scsynth postBootCmd]', cmd);
+        const args = cmd.split(' ');
+        const c = args.shift();
+        const p = spawn(c, args);
+        p.on('error', console.error);
+        p.on('message', console.log);
+        p.stdout.on('data', sclogRaw);
+        await new Promise(resolve => {
+            p.on('close', resolve);
+            p.on('exit', resolve);
+        });
+    }
 }
 
 export function quitSCSynth() {

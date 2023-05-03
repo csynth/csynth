@@ -1,7 +1,6 @@
 /**
  * Revisit for server building...
  * "npx webpack" builds the new 'organserver.ts' with any dependencies included.
- * I haven't yet made it so that the various cmd files etc use this version, or automated the build.
  *
  * XXX: This was an experiment in using webpack for bundling ES modules dependencies,
  * along with some other percieved benefits. Webpack can't (easily currently) output ESM
@@ -29,6 +28,7 @@
  * For exhibition / distribution, it's not too much of a stretch to imagine that we have a 'main' js (or other) file
  * which uses all of it's dependencies via import
  * and allows us to build in the sort of way webpack wants
+ * --- 13/11/20 --- looking at this again...
  *
  * In the shorter term, I should experiment with making a new version of the HTML, with a single <script src="main.js">#
  * and make that main.js simply pull in everything from JS & JSTS,
@@ -59,34 +59,47 @@ module.exports = {
     //"- configuration.target should be one of these:"
     //"web" | "webworker" | "node" | "async-node" | "node-webkit" | "electron-main" | "electron-renderer" | "electron-preload" | function
     target: 'node',
-    devtool: 'cheap-source-map', //https://webpack.js.org/configuration/devtool/
+    // devtool: 'cheap-source-map', //https://webpack.js.org/configuration/devtool/
+    // devtool: 'eval-source-map', //https://webpack.js.org/configuration/devtool/ // ?? gave exception loading things up
+    devtool: 'source-map', //https://webpack.js.org/configuration/devtool/
     module: {
         rules: [
             {
                 //got really weird results without test, pulling in some completely irrelevant stuff but not the actual code...
                 test: /\.tsx?$/,
-                use: 'ts-loader',
-                //exclude: /node_modules/
+                use: 'ts-loader'
             }
         ]
     },
+    externals: [
+        "fsevents", //rollup tries to load this, which causes a build error
+        //maybe getting rid of rollup, but fsevents can remain "external" in case similar happens later.
+
+        "bufferutil", "utf-8-validate", //warnings about these from ws
+        //some suggest using "webpack-node-externals" plugin, and calling nodeExternals() here
+        //but we are not distributing a library - we want node_modules to be bundled,
+        //including ones that are a basic part of node.
+        //"webpack" //when webpack tries to bundle itself it gets lots of warnings
+        //and an error about pnpapi.
+        //"typescript"
+        // {
+        //     webpack: "commonjs2 webpack",
+        //     typescript: "commonjs2 typescript",
+        //     bufferutil: "commonjs2 bufferutil",
+        //     "utf-8-validate": "commonjs2 utf-8-validate",
+        //     esbuild: "commonjs2 esbuild"
+        // }
+    ],
     resolve: {
         extensions: [ '.tsx', '.ts', '.js' ]
     },
     //watch: true,
     mode: 'development',
     output: {
-        //filename: '[name]--wp.js',
         filename: 'organserver.js',
         library: '[name]',
         devtoolModuleFilenameTemplate: '[absolute-resource-path]', //https://github.com/kube/vscode-ts-webpack-node-debug-example
-        //libraryTarget: 'commonjs', //no esm target, not sure why (lack of time on part of devs partly)
-        path: path.resolve(__dirname, 'dist') //was 'wpdist' but now experimenting with rollup, don't want too many dirs
-    },
-    // entry: {
-    //     tadmus: './TS/mod/sketch/tadmus.ts'
-    //     // tonal: './TS/tonal.ts',
-    //     // graphbase: './TS/graphbase.ts',
-    //     // nw_scsy: ['./JS/nw_sc.js', './JS/mutsynth.js']
-    // }
+        //libraryTarget: 'commonjs',
+        path: path.resolve(__dirname, 'dist')
+    }
 };
