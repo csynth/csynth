@@ -4292,6 +4292,7 @@ var startcommit;
 function checkres() {
     if (!startcommit) return;  // eg used from some small test function
     if (location.href.indexOf('csynthstatic/stephensvn') !== -1) return;    // testing will probably be wrong versions
+    if (location.href.contains('csynth.github.io')) return;
     const current = startcommit.trim();
     let uuu = '../startcommit.txt';
     if (location.pathname.indexOf('matrixexplorer') !== -1) uuu =  '../../' + uuu;
