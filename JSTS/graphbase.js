@@ -3770,11 +3770,6 @@ var saveframetga = function (fid, rt = null, kkk = 3) {
         else {
             WA.fileWriteWS(fid, savebuff);
         }
-        //log("make blob");
-        //// todo ppm requires raster order reversal
-        ///let bb = new Blob([savebuff]);
-        //log("saveAs");
-        //saveAs(bb, fid);
     }
     else if (sync) {
         let xbpv3b = new Buffer(savebuff); // fast, control length in write
@@ -4110,79 +4105,6 @@ async function saveimage(ww, hh, bmp, oneonly, ffid) {
     saveframetga(fid, rt, rt ? 3 : 4);
     clearrendertargets_exclusions = [];
     log('image saved,  current totsize', newTHREE_DataTextureSize / 1e6);
-    /*********************************************  disabled, slower than tga version and wrong for large images ************ /
-    // save by readpixels, and copy the image from 4 bytes per pix to 3
-    let hrat = hh;  // rows at a time
-    for (let i = 0; ; i++) {
-        try {
-            let pv4 = xpv4 || new Uint8Array(4*ww*hrat);
-            if (!bmp) let pv3 = xpv3 || nw fs ? new Buffer(3*ww*hh) : new Uint8Array(3*ww*hh);
-            break;
-        } catch (e) {
-            hrat = Math.ceil(hrat / 2);
-            if (hrat < 100) break;
-        }
-    }
-    if (!pv4) {
-        alert("failed to allocate space to save image");
-        if (rt) rt.dispose();
-        rt = undefined; // help garbage collection ~ I hope this frees GL resources
-        pv4 = undefined;  // help garbage collection
-    } else {
-        let p3=0, i;
-        for (let row=0; row<hh; row+=hrat) {
-            if (row+hrat > hh) hrat = hh-row;
-            let p4 = 0;
-            //log("start readPixesl", row);
-            gl.readPixels(0,row, ww, hrat, gl.RGBA, gl.UNSIGNED_BYTE, pv4);
-            if (bmp) {
-                //surely it's wrong to call this for every row.
-                //assuming this code hasn't been checked recently
-                let pre = _bmp(ww,hh, "","", 32,0);
-                let bb = new Blob([pre, pv4]);
-                saveAs(bb, iname + ".bmp");
-                return;
-            }
-            checkglerror("gl after readPixels");
-            //log("start copy");
-            for (let srow=row; srow<row+hrat; srow++) {  // row at a time to allow to upsidedown
-                p3 = (hh-srow-1)*ww*3;
-                for (i=0; i<ww; i++) { pv3[p3++]=pv4[p4++]; pv3[p3++]=pv4[p4++]; pv3[p3++]=pv4[p4++]; p4++; }
-            }
-        }
-
-
-        if (rt) rt.dispose();
-        rt = undefined; // help garbage collection ~ I hope this frees GL resources
-        pv4 = undefined;  // help garbage collection
-        let mmsg = "# Saved by organic" +
-            ", res=" + inputs.resbaseui +
-            ", delta=" + inputs.resdyndeltaui +
-            ", renderRatio=" + inputs.renderRatioUi +
-            "";
-
-        let str = "P6\n" + mmsg + "\n" + ww + " " + hh + "\n255\n";
-        let fid = iname + nmsg + ".ppm";
-        if (nw fs) {
-            let fid = process.env.USERPROFILE + "\\Desktop\\" + fid;
-
-            //let fid = iname + ".ppm";
-            let tiffid = fid.replace(".ppm", ".tif");
-            writetextremote(fid, str);
-            let fd = nw fs.openSync(fid, 'a');
-            nw fs.writeSync(fd, pv3, 0, ww*hh*3);
-            nw fs.closeSync(fd);
-       } else {
-            log("make blob");
-            // todo ppm requires raster order reversal
-            let bb = new Blob([str, pv3]);
-
-            log("saveAs");
-            saveAs(bb, fid);
-        }
-        //log("all done, restore");
-    }
-    /************************/
     /**** convert saved image if possible */
     if (nwfs) {
         let tiffid = fid.replace(".ppm", ".tif").replace(".tga", ".tif");

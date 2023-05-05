@@ -1269,7 +1269,7 @@ async function springdemoinner(defs) {
     if (searchValues.wsListenerPort)
         startWsListener(searchValues.wsListenerPort);
 
-}
+}  // end springdemoinner
 
 /** return reps value from contact, with some jit evaluation if needed */
 CSynth.getProperty = function(cccx, reps) {

@@ -14,7 +14,7 @@ var screens, W = window, opmode, HTMLElement, HTMLDocument, HTMLTextAreaElement,
     searchValues, $, inworker, serious, loadTime, loadTimes, _insinit, isFirefox, keysdown, copyXflip,
     ErrorEvent, animateNum, dustbinvp, testopmode, S, sclogE, sclog, islocalhost, dataURItoBlob, saveAs, GX, lastToggleGuiAction,
     foldStates, restoreFoldStates, ises300, deferRender, startSC, isCSynth, WA, G, mutate, addGene, runkeys, regularizeColourGeneVisibility, maxInnerHeight,
-    resoverride, U, usemask, numInstances, tad, mutateTad, xxxdispobj, centrescalenow, resetCamera, target
+    resoverride, U, usemask, numInstances, tad, mutateTad, xxxdispobj, centrescalenow, resetCamera, target, Files
     ;
 
 // convenience function to find dom element, W. sometimes failed at very start
@@ -4914,6 +4914,15 @@ function measureResources(node, s = 0, nodes = []) {
     return [s, nodes];
 }
 
+/** save a files locally, using Files.dirhandle if available, downloads if not */
+async function saveLocal(data, fid) {
+    if (Files.dirhandle) {
+        Files.write(fid, data);
+    } else {
+        saveAs(data, fid);
+    }
+}
+
 if (!serious) serious = console.error;
 
 /** download current image, complete with gui */
@@ -4924,7 +4933,7 @@ async function downloadImageGui(fn = 'test', imtype = 'png') {
     log(imtype);
     const datauri = canvas.toDataURL(imformat);
     const blob = dataURItoBlob(datauri, 1);
-    saveAs(blob, fid);
+    saveLocal(blob, fid);
     await S.frame();
 }
 
@@ -4942,10 +4951,12 @@ function UnusedForNowcreateImage(saveAsFileName) {
 /** download current image, default option to hide gui */
 async function downloadImage(fn = 'test', imtype = 'png', gui = false) {
     const ss = GX.guilist.map(g => g.visible);  // save visibility
+    const sg = window.V.gui.visible;
     GX.guilist.forEach(g => g.visible = false)  // hide all menu items
     window.V.gui.visible = gui;
     await downloadImageGui(fn, imtype);
     GX.guilist.forEach((g,i) => g.visible = ss[i]); // restore menu visibility
+    window.V.gui.visible = sg;
 }
 
 /** download current image at higher resolution */

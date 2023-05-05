@@ -1923,6 +1923,8 @@ FrameSaver.batchSize = 300;     // batch of images before running ffmpeg
  *   saveAs                             FileSaver.js, saves as download
  *   writetextremote                    saves where told by parm
  *
+ *   saveLocal => Files.write | saveAs
+ *
  *
  *   writetextremote                    saves text using XMLHttpRequest and savefile.php
  *   writeUrlImageRemote                saves image using XMLHttpRequest and savefile.php
@@ -1942,6 +1944,8 @@ FrameSaver.batchSize = 300;     // batch of images before running ffmpeg
  *   GX.write -> localStorage | saveAs | writetextremote
  *
  *   Files.write -> javascript local file | writetextremote
+ *
+ *   downloadImageXXX -> saveAs
  *
  *
  *   also a set of webSocket based functions for streaming

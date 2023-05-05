@@ -94,7 +94,7 @@ declare let
     CSynth, fileTypeHandlers, GX,
     oMaestro,
     G, readWebGlFloat, readWebGlFloatDirect, readbinaryasync, readWebGlFloatAsync,
-    NOVN, saveAs, hostname, Perftest,
+    NOVN, hostname, Perftest,
     writeUrlImageRemote, onnextframe, FractEVO, $, funtry, clearPostCache,
     getWebGalByNum, appendtextremote, douows, runcommandphp, postCache, restoringInputState,
     springs: TSprings,
