@@ -449,6 +449,12 @@ function TadpoleSystem() {
         doReserved();
         me.smoothrad();
         me.springframe();
+        if (me.oldseq && me.seq !== me.oldseq) {
+            // check for dynamic change of me.seq
+            console.log('tad+ tad.seq has changed, extra on beat required');
+            me.oldseq = me.seq;
+            me.seq.on('beat', () => { me.tadBeat(); return 0; }); // step, beat, bar, measure;  seq.step is number within beat, etc
+        }
         if (!me.docovid) {
             const off = 0.03; // offset from wall where force starts (metres)
             // covidSetScene has -ve on the x, as boxsize is -ve because of view from back
@@ -645,8 +651,8 @@ function TadpoleSystem() {
     };
     /** on each frame set up the reserved slots for controllers/pseudo-controllers */
     function doReserved() {
-        if (useKinect)
-            return;
+        if (CONTROLS === 0)
+            return; // todo check doReserved vs tad.showbait()
         // compute real position for gamepad
         function ss(gp) {
             if (!gp)
@@ -1365,6 +1371,7 @@ function TadpoleSystem() {
             else {
                 (async () => {
                     await S.waitVal(() => me.seq);
+                    me.oldseq = me.seq; // in case me.seq changes
                     me.seq.on('beat', () => { me.tadBeat(); return 0; }); // step, beat, bar, measure;  seq.step is number within beat, etc
                 })();
             }
@@ -5473,11 +5480,11 @@ forGp uses these from gp: raymatrix, baitPosition, axesbias, pad, trigger
         }
     };
     me.saveInfBin = async function (role = me.T[0].role) {
-        const h = fileOpenWrite('data/' + role.id + '.infbin');
-        await fileAppend(h, Float32Array.from([role.numtads, role.springs.length, role.roleprops.length]));
-        await fileAppend(h, me.springsToFloat(role));
-        await fileAppend(h, role.roleprops);
-        fileClose(h);
+        const h = fileOpenWriteWS('data/' + role.id + '.infbin');
+        await fileAppendWS(h, Float32Array.from([role.numtads, role.springs.length, role.roleprops.length]));
+        await fileAppendWS(h, me.springsToFloat(role));
+        await fileAppendWS(h, role.roleprops);
+        fileCloseWS(h);
     };
     me.loadInfBin = async function (role = me.T[0].role) {
         const fid = 'data/' + role.id + '.infbin';
@@ -5485,21 +5492,21 @@ forGp uses these from gp: raymatrix, baitPosition, axesbias, pad, trigger
             role.infdone = false;
             return;
         }
-        const h = fileOpenRead(fid);
+        const h = fileOpenReadWS(fid);
         let o = 0;
         let l = 3 * 4;
-        const [numtads, springlen, roleprolen] = new Float32Array(await fileRead(h, l, o));
+        const [numtads, springlen, roleprolen] = new Float32Array(await fileReadWS(h, l, o));
         o += l;
         role.numtads = numtads;
         l = springlen * 9 * 4;
-        role.springs = me.floatToSprings(new Float32Array(await fileRead(h, l, o)));
+        role.springs = me.floatToSprings(new Float32Array(await fileReadWS(h, l, o)));
         o += l;
         l = roleprolen * 4;
-        role.roleprops = new Float32Array(await fileRead(h, l, o));
+        role.roleprops = new Float32Array(await fileReadWS(h, l, o));
         o += l;
         log('tad+ data read', fid, o);
         role.infdone = true;
-        fileClose(h);
+        fileCloseWS(h);
     };
     // me.typedict = {pullspring: -1000, rod: -1001};
     // me.typedicti = {'-1000': 'pullspring', '-1001': 'rod'};
@@ -5607,9 +5614,11 @@ forGp uses these from gp: raymatrix, baitPosition, axesbias, pad, trigger
         if (me._monitorTrackerGPS)
             for (const gp of me._monitorTrackerGPS)
                 gp.baitPosition.copy(me.hide);
+        // ??? not sure about this change, but it was certainly wrong with tad.displayControl() with no args
+        // if (TADS > 0) for (let i = TADS*RIBS; i < (TADS + CONTROLS)*RIBS; i++) tad.displayControl();
         if (TADS > 0)
-            for (let i = TADS * RIBS; i < (TADS + CONTROLS) * RIBS; i++)
-                tad.displayControl();
+            for (let i = 0; i < CONTROLS; i++)
+                tad.displayControl(i);
     };
     /** setup and then save positions for the current role,
      * especially for forms with some pullsprings but not enough (eg some virus's) */

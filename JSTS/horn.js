@@ -3056,7 +3056,8 @@ HornSet.mutateStructHsId = 0;
 ; // end class HornSet
 HornSet.controlMutation(true);
 WA.horn2html = HornSet.htmlmain;
-Maestro.onUnique('preframe', HornSet.monitorSynthdef);
+//hack to avoid double-init of synth
+setTimeout(() => Maestro.onUnique('preframe', HornSet.monitorSynthdef), 2000);
 /** mutate the horn structure for given genes, with in/out dispobj for debug */
 WA.mutateStructHs = function (genes, fromdo, todo) {
     const sgenes = {};

@@ -3761,10 +3761,14 @@ var saveframetga = function (fid, rt = null, kkk = 3) {
         bbb[17] = 8;
     let sync = true;
     if (!nwfs) {
-        if (WA.saveframetga_writetextremote)
+        if (Files.dirhandle) {
+            Files.write(fid, savebuff);
+        }
+        else if (WA.saveframetga_writetextremote) {
             writetextremote(fid, savebuff);
+        }
         else {
-            WA.fileWrite(fid, savebuff);
+            WA.fileWriteWS(fid, savebuff);
         }
         //log("make blob");
         //// todo ppm requires raster order reversal
@@ -4073,7 +4077,8 @@ async function saveimage(ww, hh, bmp, oneonly, ffid) {
         for (let i = 0; i < loop || (i < loopmax && slots.some(s => s.dispobj.needsRender)); i++) { // make sure up to date, even including feedback
             //renderFrame(rt);
             //framenum++;         // update for
-            await S.frame();
+            // await S.frame();
+            await sleep(40); // S.frame does not finish if minimized, broken if minimized anyway
             msgfixlog('saveimage', `${i} tot:${slots.reduce((c, s) => c += s ? s.dispobj.needsRender : 0, 0)} byslot:${slots.map(s => s.dispobj.needsRender)}`);
         }
         checkglerror("gl after renderFrame");

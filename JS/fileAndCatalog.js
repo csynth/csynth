@@ -5,7 +5,7 @@
 "use strict";
 
 /** for encapsulation verification */
-var W, genedefs, mainvp, savedef, keysdown, inputs, fileOpenRead, fileRead, fileClose, fileOpenWrite, fileAppend,
+var W, genedefs, mainvp, savedef, keysdown, inputs, fileOpenReadWS, fileReadWS, fileCloseWS, fileOpenWriteWS, fileAppendWS,
         vpxQuadScene, zoomdef, permgenes, NODO, posturi, yaml,
         framenum, width, height, vps, frametime, Director, process,
         killev, log, getFileExtension, FileReader, serious, msgfix, getDispobj,  currentGenes, clone,
@@ -1250,7 +1250,7 @@ FrameSaver._Start = function() {
     frameSaver.saveId = savedir.split('/').pop()
     mkdir(frameSaver.saveDirectory);
     if (frameSaver.type === "buffer") {
-        frameSaver.modelstream = fileOpenWrite(frameSaver.saveDirectory + "/genes.binary");
+        frameSaver.modelstream = fileOpenWriteWS(frameSaver.saveDirectory + "/genes.binary");
         frameSaver.recordlen = (geneids.length + 16) * 4;
         // saveSnap(frameSaver.lastSaveDirectory + "/" + frameSaver.lastSaveDirectory + ".oao");
     }
@@ -1335,7 +1335,7 @@ FrameSaver.PreStep = function() {
             msgfix("saveanim", "saving frames, saved=", frameSaver.num , "secs=",  currentGenes._recordTime/1000, "frames=", Math.floor(currentGenes._recordTime/1000 * frameSaver.fps),
                 "average record fps", format(frameSaver.num * 1000/currentGenes._recordTime, 1)); // "MB=" + Math.floor(frameSaver.totsize/1024/1024));
             if (frameSaver.type === "buffer") {
-                fileAppend(frameSaver.modelstream, sg);
+                fileAppendWS(frameSaver.modelstream, sg);
             } else if (frameSaver.type === "director") {
                 if (frameSaver.quickout) {
                     frameSaver.quickout = false;
@@ -1458,7 +1458,7 @@ FrameSaver.StopRecord = function() {
     frameSaver.lastSaveDirectory = frameSaver.saveDirectory;
     delete frameSaver.saveDirectory;
     if (frameSaver.type === "buffer") {
-        fileClose(frameSaver.modelstream);
+        fileCloseWS(frameSaver.modelstream);
     }
     delete frameSaver.modelstream;
 
@@ -1534,16 +1534,16 @@ FrameSaver.StartRender = async function(rdir, fps = Director.fps || frameSaver.f
             }
 
             // read last record to find time
-            var ffd = fileOpenRead(fid); // nw fs.openSync(fid, 'r');
+            var ffd = fileOpenReadWS(fid); // nw fs.openSync(fid, 'r');
             // frameSaver.in buff = Buffer.alloc(frameSaver.recordlen);
-            let buffer = await fileRead(ffd, frameSaver.recordlen, frameSaver.streamlen - frameSaver.recordlen );
+            let buffer = await fileReadWS(ffd, frameSaver.recordlen, frameSaver.streamlen - frameSaver.recordlen );
             // var l = nw fs.readSync(ffd, frameSaver.in buff, 0, frameSaver.recordlen, frameSaver.streamlen - frameSaver.recordlen );
             if (buffer.byteLength !== frameSaver.recordlen) {
                 // frameSaver.render Directory=undefined;
                 let mmmm = log('unexpected read');
                 throwe(mmmm);
             }
-            fileClose(ffd); //  nw fs.closeSync(ffd);
+            fileCloseWS(ffd); //  nw fs.closeSync(ffd);
             var g = { _rot4_ele: [] };
             g._recordTime = 99999999999;
 
@@ -1552,7 +1552,7 @@ FrameSaver.StartRender = async function(rdir, fps = Director.fps || frameSaver.f
             //W.wrongtime = true;   // TODO, temp for Peterburg till record corrected for playback when recorded frames have time stamp on wrong buffer frame
             frameSaver.lastRecordTime = g._recordTime;
 
-            frameSaver.inputfd = fileOpenRead(fid);
+            frameSaver.inputfd = fileOpenReadWS(fid);
             if (frameSaver.replaysmooth === undefined) frameSaver.replaysmooth = 10;
             // frameSaver.in buff = Buffer.alloc(frameSaver.recordlen * frameSaver.replaysmooth);
             msgfix('inputstream', 'size', frameSaver.streamlen, 'genes', geneids.length, 'reclen', frameSaver.recordlen, 'records', frameSaver.numInputRecords, 'time', frameSaver.lastRecordTime);
@@ -1662,7 +1662,7 @@ FrameSaver.Render = function FrameSaverRender() {
                     // var l = nw fs.readSync(frameSaver.inputfd, frameSaver.in buff, 0, framesToRead * frameSaver.recordlen );
                     if (frameSaver.newBuffer) {
                         frameSaver.newBuffer = undefined;
-                        var sgProm = fileRead(frameSaver.inputfd, framesToRead * frameSaver.recordlen, frameSaver.num * frameSaver.recordlen)
+                        var sgProm = fileReadWS(frameSaver.inputfd, framesToRead * frameSaver.recordlen, frameSaver.num * frameSaver.recordlen)
                             .then(nsg => {
                                 frameSaver.newBuffer = frameSaver.currentBuffer = nsg;
                                 framesRead = nsg.byteLength / frameSaver.recordlen;
@@ -1774,9 +1774,9 @@ FrameSaver.Render = function FrameSaverRender() {
 FrameSaver.Endup = function() {
     if (!frameSaver.renderDirectory) return console.error('FrameSaver.Endup called with no renderDirectory');
 
-    if (frameSaver.modelstream) fileClose(frameSaver.modelstream);
+    if (frameSaver.modelstream) fileCloseWS(frameSaver.modelstream);
     frameSaver.modelstream = undefined;
-    if (frameSaver.inputfd !== undefined) fileClose(frameSaver.inputfd);
+    if (frameSaver.inputfd !== undefined) fileCloseWS(frameSaver.inputfd);
     frameSaver.inputfd = undefined;
 // all models rendered, save video if possible and go back to normal mode
     msgfix("saveanim", "time taken", Date.now() - frameSaver.startRecordTime);
@@ -1911,15 +1911,16 @@ FrameSaver.batchSize = 300;     // batch of images before running ffmpeg
  * saveCilly ->saveTextfile                 saves Cilly definitions
  * stl output -> saveTextfile               saves stl file (coords for 3d)
  *
- *   saveTextfile -> saveAs                 saves text [only used by stl and cilly]
+ *   saveTextfile -> saveAs                 saves text [only used by stl and cilly] and previously also CSynth.savepdb
  *
  *   saveframe -> saveAs                    captures using canvas.canvas.toDataURL
  *             -> writeUrlImageRemote
- *   saveimage -> saveAs                    captures using readPixel, ppm and bmp only
+ *   NONONO? saveimage -> saveAs                    captures using readPixel, ppm and bmp only
+ *   saveimage -> saveframetga
  *
  *
  *   saveAs                             FileSaver.js, saves as download
- *   writetextremote                 saves where told by parm
+ *   writetextremote                    saves where told by parm
  *
  *
  *   writetextremote                    saves text using XMLHttpRequest and savefile.php
@@ -1939,7 +1940,11 @@ FrameSaver.batchSize = 300;     // batch of images before running ffmpeg
  *
  *   GX.write -> localStorage | saveAs | writetextremote
  *
+ *   Files.write -> javascript local file | writetextremote
  *
+ *
+ *   also a set of webSocket based functions for streaming
+ * fileReadWS, etcx
  *    ~~~~~~~~~~~~~~~ gallery
  *    allGal contains populated list of gallery as Object   -> getGal()
  *    webGalByNum  same as allGal, but sorted array         -> readWebGal()  [was webGalNames)

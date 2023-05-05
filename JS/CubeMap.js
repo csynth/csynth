@@ -114,7 +114,7 @@ var CubeMap = new function () {
         cMap.rot4.elements[11] = (dd - w) / 2;  // zpan so box at right depth
 
         // add wall mesh to the wallScene
-        cMap.wallScene.addX(cMap.wallMesh);
+        // cMap.wallScene.addX(cMap.wallMesh); // moved to newmesh
     };
     cMap.wallres = 100;  // was 20, needs to be higher for superegg walls, else sections sometimnes go missing when near wall
 
@@ -159,6 +159,13 @@ var CubeMap = new function () {
         }
 
         //note, material set at render ... TODO choose wallScene or rot4
+        while (true) {   // should only be 0 (first time in) or 1 children
+            const c = cMap.wallScene.children[0];
+            if (!c) break;
+            cMap.wallScene.remove(c);
+            c.geometry.dispose();
+        }
+        cMap.wallScene.addX(cMap.wallMesh);
     }
 
     // make genes for wall color/texture (initially copied from horn)
@@ -228,7 +235,7 @@ var CubeMap = new function () {
             }
         }
 
-        cMap.wallScene.children[0] = cMap.wallMesh;
+            // cMap.wallScene.children[0] = cMap.wallMesh;// do in newmesh
         wallScene.children[0].material = mat;
 
         var save = uniforms.rot4.value;  // save and move to local matrix
@@ -470,7 +477,7 @@ var CubeMap = new function () {
      * major side-effect is to set uniforms.flatMap.value or uniforms.cubeMap.value
      */
     cMap.renderFeedback = function (dispobj) {
-        if (cMap.wallscene === 'walls' || cMap.renderState === 'color' || cMap.renderState === 'walls' || usemask === -98) return;
+        if (cMap.renderState === 'color' || cMap.renderState === 'walls' || usemask === -98) return;
         if (inputs.FLATMAP && cMap.wallType) {  // very temp while sorting out
             const mat = {};  // << temporary silly interface, sjpt 1 Dec 2017
             const wt =  cMap.wallType[5];  // << temporary silly interface

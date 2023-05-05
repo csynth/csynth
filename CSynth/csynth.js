@@ -14,11 +14,11 @@ msgfixerror, getstats, posturierror, ml, fileTypeHandlers, startvr, getFileName,
 performance, getFileExtension, posturiasync, serious, customSettings,
 indexedDB, posturimsgasync, genbar, searchValues, readtext, readbinaryasync,
 array2Table, format, TextDecoder, consoleTime, consoleTimeEnd, uriclean, quietReject, setPickRenderTarget,
-frametime, random, seed, GX, zip, loadTime, startscript, readdir, location, killev, saveTextfile, JSZip,
+frametime, random, seed, GX, zip, loadTime, startscript, readdir, location, killev, JSZip,
 springdemo, yaml, readTextureAsVec3, col3, VEC3, lastdocx, lastdocy, mousewhich, SG, FFG, distxyz, setNovrlights,
 GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, runkeys, renderer, viveAnim, S, setExtraKey,
 badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt,
-HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs
+HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files
 ;
 //, msgbox, serious, slider1, slider2, uniforms, currentGenes, dat; // keep linter happy
 
@@ -2340,7 +2340,8 @@ CSynth.savepdb = function(fid) {
         res.push(line);
     }
     res.push();
-    saveTextfile(res.join('\n'), fid);
+    // saveTextfile(res.join('\n'), fid);
+    Files.write(fid, res.join('\n'));
 }
 
 CSynth.parseVDB = function(data, fid) {
@@ -3177,7 +3178,7 @@ CSynth.patchBoundaryPending = function(contact, start, nn=1) {
 CSynth.xyzsToTexture = function(xyznum) {
     const xyz = (typeof xyznum === 'number') ? CSynth.current.xyzs[xyznum] : xyznum;
     if (!xyz) {
-        if (G.xyzforce !== 0) msgfixerror('xyzsToTexture called with no xyzs for number', xyznum); 
+        if (G.xyzforce !== 0) msgfixerror('xyzsToTexture called with no xyzs for number', xyznum);
         return;
     }
     if (xyz.texture) return xyz.texture;
@@ -3213,7 +3214,7 @@ CSynth.UNUSEDsetContactRange = function() {
 CSynth.xyzToTexture = function(xyznum) {
     const xyz = typeof xyznum === 'number' ? CSynth.current.xyzs[xyznum] : xyznum;
     if (!xyz) {
-        if (G.xyzforce !== 0) msgfixerror('xyzsToTexture called with no xyzs for number', xyznum); 
+        if (G.xyzforce !== 0) msgfixerror('xyzsToTexture called with no xyzs for number', xyznum);
         return;
     }
     if (xyz.texture) return xyz.texture;

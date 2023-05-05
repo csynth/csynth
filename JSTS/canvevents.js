@@ -42,7 +42,7 @@ var _overmain;
 var canvmousedown = function (evt) {
     if (!canvTransEnabled)
         return;
-    _canvdownGX = GX.interactions && GX.interactions.length !== 0;
+    _canvdownGX = GX.interactions && GX.interactions.length !== 0; // && V.nocamscene.visible; // handled in datguix
     if (_canvdownGX)
         return;
     interacted(evt); // signal to automode

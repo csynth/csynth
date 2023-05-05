@@ -1,5 +1,5 @@
 var nwfs, posturi, post, uriclean, msgfix, genbar, posturibin, startscript, frametime, S, Maestro, sleep,
-log, saveTextfile, location, msgfixlog, XMLHttpRequest, File, FormData, $, runcommandphp, WebSocket, throwe, HW, Buffer, islocalhost;
+log, saveTextfile, location, msgfixlog, XMLHttpRequest, File, FormData, $, runcommandphp, WebSocket, throwe, HW, Buffer, islocalhost, getdesksave;
 function readtext(fid, quiet = false) {
     if (nwfs) {
         return nwfs.readFileSync(fid, 'ascii');
@@ -78,7 +78,7 @@ async function readbinaryasync(fid) {
 }
 
 
-/** save to a remote location  */
+/** save to a remote location, effectively synonym of writetextremote  */
 function remotesave(fid, newVersion) {
     var newVersionString = (typeof newVersion === 'string') ? newVersion : JSON.stringify(newVersion, undefined, 2);
     if (nwfs) {
@@ -123,6 +123,43 @@ function writetextremote(fid, text, append = false) {
     oReq.send(text);
     if (oReq.responseText !== 'OK') log("writetextremote", fid, "response text", oReq.responseText);
 }
+
+function _Files() {
+    const me= this
+    me.dirhandle;
+    me.setDirectory = async function(startIn = 'documents') {
+        me.dirhandle = await window.showDirectoryPicker({startIn, mode:'readwrite'});
+        // const ok = await me.dirhandle.queryPermission({mode:'readwrite'})
+        // log('[[[[ orgsaveHandle rw already granted', ok)
+        // if (ok !== 'granted') {
+        //     const oknow = await me.dirhandle.requestPermission({mode:'readwrite'});
+        //     log('[[[[ orgsaveHandle rw requested', oknow)
+        // }
+       return me.dirhandle; // not generally used, implicity in read/write
+    }
+
+    me.write = async function (fid, data, append) {
+        if (!me.dirhandle) return writetextremote(fid, data, append);
+
+        const dd = getdesksave();  // remove desksave prefix if there to help backwards compatability
+        if (fid.startsWith(dd)) fid = fid.substring(dd.length);
+
+        const fileHandle = await me.dirhandle.getFileHandle(fid, {create:true})
+        const writeable = await fileHandle.createWritable();
+        if (append) {
+            // https://stackoverflow.com/questions/68069145/is-it-possible-to-append-to-an-existing-file-with-chromes-file-system-access-ap
+            let offset = (await fileHandle.getFile()).size
+            writeable.seek(offset)
+        }
+        await writeable.write(data);
+        writeable.close();
+    }
+
+    me.read  = function(fid) {
+        alert('read pending')
+    }
+}
+var Files = new _Files();
 
 /** write text to Oxford server
  * does not work on Edge, https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/9551546/
@@ -304,8 +341,9 @@ function readdirRec(dir, list=[]) {
     return list;
 }
 
+//~~~~~~~~~~~~~~~~~ websocket based IO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 /** open a file for random access read, using websocket */
-function fileOpenRead(fid) {
+function fileOpenReadWS(fid) {
     if (nwfs) {
         return nwfs.openSync(fid);
     } else {
@@ -323,14 +361,14 @@ function fileOpenRead(fid) {
 }
 
 /** read part of file, return a buffer */
-async function fileRead(handle, length, pos) {
+async function fileReadWS(handle, length, pos) {
     if (nwfs) {
         const buffer = Buffer.alloc(length);
         const l = nwfs.read(handle, buffer, 0, length, pos);
         return l === length ? buffer : buffer.slice(0, l);
     } else {
         while (handle.readyState === WebSocket.CONNECTING) await sleep(1);
-        if (handle.readyState !== WebSocket.OPEN) throwe('fileRead websocket in bad state ' + handle.readyState)
+        if (handle.readyState !== WebSocket.OPEN) throwe('fileReadWS websocket in bad state ' + handle.readyState)
         handle.send(length + ' ' + pos + ' ');
         const pend = await S.maestro('messageReady');
         const buff = pend.data;
@@ -350,7 +388,7 @@ async function fileRead(handle, length, pos) {
 // }
 
 /** open a file for (streamed?) write */
-function fileOpenWrite(fid) {
+function fileOpenWriteWS(fid) {
     if (nwfs) {
         return nwfs.openSync(fid);
     } else {
@@ -362,22 +400,22 @@ function fileOpenWrite(fid) {
 }
 
 /** write to file (append) TODO: check if early calls can get out of order from this async */
-async function fileAppend(handle, data) {
+async function fileAppendWS(handle, data) {
     while (handle.readyState === WebSocket.CONNECTING) await sleep(1);
-    if (handle.readyState !== WebSocket.OPEN) throwe('fileAppend websocket in bad state ' + handle.readyState)
+    if (handle.readyState !== WebSocket.OPEN) throwe('fileAppendWS websocket in bad state ' + handle.readyState)
     handle.send(data);
 }
 
 /** close file */
-function fileClose(handle) {
+function fileCloseWS(handle) {
     return nwfs ? nwfs.closeSync(handle) : handle.close();
 }
 
 /** write binary */
-async function fileWrite(fid, data) {
-    const h = fileOpenWrite(fid);
-    await fileAppend(h, data);
-    fileClose(h);
+async function fileWriteWS(fid, data) {
+    const h = fileOpenWriteWS(fid);
+    await fileAppendWS(h, data);
+    fileCloseWS(h);
 }
 
 

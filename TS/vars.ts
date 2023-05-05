@@ -164,7 +164,7 @@ declare let
     numInstances, numInstancesP2, Springs, readdir, fileExists, fileExistsAsync, posturiasync, fileDelete, getcurrentdir, getFileExtension, march2021,
     arraydiff: (a: any[], b: any[]) => any[],
     checkTranruleAll, safeFunction, setlight,
-    fileOpenWrite, fileAppend, fileClose, fileOpenRead, fileRead, dateToFilename, cheatxr,
+    fileOpenWriteWS, fileAppendWS, fileCloseWS, fileOpenReadWS, fileReadWS, dateToFilename, cheatxr,
 
     vrresting: (()=>void) & { bypassResting?, angMult?, linMult?, dampToSleep?, dampToWake?, damped?, wakeThresh?, sleepThresh?, msg?,
         xrotsecs?, yrotsecs?, pistexrotsecs?, pisteyrotsecs?, mutatespeed?, extrawait?, fov?, lookup?
@@ -174,7 +174,8 @@ declare let
     _R, RG, RU, Rtadkin, RGXX,
     randvec3:(p?:N) => THREE.Vector3, randrange: (v:(N | [N] | [N,N]), v2?:N) => N,
     shaderFromFiles,
-    randfrom: <T>(x: (Dictionary<T> | T[])) => T
+    randfrom: <T>(x: (Dictionary<T> | T[])) => T,
+    Files
 
     //OM /** OM contains lots of variables in an out-of-the-way namespace */
 ;
