@@ -141,8 +141,10 @@ function _Files() {
     me.write = async function (fid, data, append) {
         if (!me.dirhandle) return writetextremote(fid, data, append);
 
-        const dd = getdesksave();  // remove desksave prefix if there to help backwards compatability
-        if (fid.startsWith(dd)) fid = fid.substring(dd.length);
+        if (fid.contains(':\\')) {
+            const dd = getdesksave();  // remove desksave prefix if there to help backwards compatability
+            if (fid.startsWith(dd)) fid = fid.substring(dd.length);
+        }
 
         const fileHandle = await me.dirhandle.getFileHandle(fid, {create:true})
         const writeable = await fileHandle.createWritable();

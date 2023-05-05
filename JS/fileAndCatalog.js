@@ -20,7 +20,7 @@ var W, genedefs, mainvp, savedef, keysdown, inputs, fileOpenReadWS, fileReadWS, 
         consoleTime, consoleTimeEnd, _insinit, CSynth, File, FormData, $, fileExistsAsync,
         loadStartTime, genbar, uriclean, S, isNode, mkdir, readdir, readtext, runcommandphp,
         writetextremote, fileExists, remotesave, fileStat, currentLoadingData, target, defaultObj, filterDOMEv, checkoao, msgflash, canvdroppaste,
-        searchValues, inps, COL, cMap, setBackgroundColor, addscript, GX
+        searchValues, inps, COL, cMap, setBackgroundColor, addscript, GX, islocalhost
 , HW;
 
 var _binfiles = ['.tif', '.bintri', '.zip', '.map'];
@@ -1185,6 +1185,7 @@ function getcurrentdir() {
 
 // get the organic desktop (or other save) dir, with optional subdirectory
 function getdesksave(...subdir) {
+    if (!islocalhost) return '';
     // serverdir = posturi('/eval/process .cwd()')
     // homedir = posturi('/eval/var os = require("os"); os.homedir()')
     // homedir = posturi('/eval/process .env.USERPROFILE')
