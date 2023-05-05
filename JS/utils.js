@@ -4964,6 +4964,7 @@ async function downloadImageHigh(big = 3840, fn=undefined, imtype=undefined, gui
     const [w, h, gv] = [width, height, window.V.gui.visible];
     const r = big / Math.max(w, h);
     setSize(Math.round(w*r), Math.round(h*r));
+    await S.frame()
     await downloadImage(fn, imtype);
     setSize(w, h);
 }
