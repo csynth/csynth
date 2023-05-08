@@ -1309,7 +1309,7 @@ function TadpoleSystem() {
         me.forcepow = function (thing, pow) {
             thing.springs.forEach(s => s.pow = pow);
         };
-        /** get all the models loaded async, just covid loaded sync */
+        /** get all the models loaded async, just initial one loaded sync */
         me.extraDetails = async () => {
             if (searchValues.dotadpomp)
                 return me.extraDetailsPomp();
@@ -2561,7 +2561,11 @@ function TadpoleSystem() {
             //hset.setuphorn(genes.tranrule, genes);
             me.enterHorncontext();
             try {
+                // don't corrupt currentHset, which is set as side-effect of hornTrancodeForTranrule
+                // TODO: ? find more generic way of only setting currentHset when it is appropriate
+                const sh = currentHset;
                 hset = role.details.hset = WA.hornTrancodeForTranrule(genes.tranrule, genes);
+                currentHset = sh;
                 hset._genhornrun(genes); // no uniforms, populate the hornun details
             }
             finally {
@@ -3379,6 +3383,7 @@ function TadpoleSystem() {
     me.nextThing = -1;
     me.useDists = false; // if set to true, horns etc will use distance springs
     function newThing(role) {
+        var _a, _b;
         //if (TRA.length === 0) return; //in case we don't really have valid tadpole context.
         if (!role) { // role my ne undefined because of call with no parms, or because of explicit call with missing role
             me.nextThing++;
@@ -3402,7 +3407,7 @@ function TadpoleSystem() {
         uniforms.LRIBS.value = RIBS; // unless overridden after call to newThing
         let col = role.details.colarray;
         if (!col)
-            col = me.roles.tadskel_BoneStack1.details.colarray;
+            col = (_b = (_a = me.roles.tadskel_BoneStack1) === null || _a === void 0 ? void 0 : _a.details) === null || _b === void 0 ? void 0 : _b.colarray;
         if (col)
             tad.colload(col);
         //else

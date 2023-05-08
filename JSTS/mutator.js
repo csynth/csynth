@@ -60,7 +60,7 @@ var mutvarybyslot = 10; /* vary mutation rate from top of screen to bottom, regu
 var mutUseCurated = 0.1; /** proportion of curated to mix */
 var mutCurated = []; /** candidate curated */
 var postmutFixgenes = {}; /** forced values for genes after mutation */
-var mutateOrientation = false; /** true to mutate orentation values such as _qux, _panx */
+var mutateOrientation = 'none'; /** true to mutate orentation values such as _qux, _panx */
 /** mutate an object, return new one */
 const _mutateObj = function (genes, mutrate, filter, mutateFrozen, slotw = 0) {
     let res = {};
@@ -101,7 +101,7 @@ const _mutateObj = function (genes, mutrate, filter, mutateFrozen, slotw = 0) {
         // centre and scale the objects, and check the result reasonable
         // return if ok, otherwise look to try again
         var rr;
-        if (!inputs.NOSCALE && !mutateOrientation && W.centrescale) {
+        if (!inputs.NOSCALE && !(mutateOrientation === 'all') && W.centrescale) {
             centrescale.lastgenes = undefined; // force repeat of centrescale, same genes object, but content changed
             rr = centrescale(res, "now", 1, false); // for GPUSCALE done on display
         }
@@ -307,7 +307,7 @@ function _mut(sel, nosel, marryFun, structmutate, filter, mutateFrozen, mutrate,
         }
         newframe(targDispobj);
         centrescale.lastgenes = undefined; // force centrescale to do its job, (stop bad optimization)
-        if (mutateOrientation) {
+        if (mutateOrientation !== 'none') {
             genestoRot4(sgenes); // ensure the orientation genes are captured in _rot4_ele
         }
         else {
@@ -402,16 +402,18 @@ function getmutrate() {
 // shorthand, especially useful in debug, moved up for use in combined code
 //delete window.G;
 //Object.defineProperty(window, 'G', { get : function() { return currentGenes; } });
-function setupViewMutation() {
+function setupViewMutation(rotonly = false) {
+    mutateOrientation = rotonly ? 'rotonly' : 'all';
     addgene('_qux', 0, -1, 1, 0.1, 0.1, 'orient', 'orient', 1);
     addgene('_quy', 0, -1, 1, 0.1, 0.1, 'orient', 'orient', 1);
     addgene('_quz', 0, -1, 1, 0.1, 0.1, 'orient', 'orient', 1);
     addgene('_quw', 0, -1, 1, 0.1, 0.1, 'orient', 'orient', 1);
+    if (rotonly)
+        return;
     addgene('_panx', 0, -2000, 2000, 10, 10, 'orient', 'orient', 1);
     addgene('_pany', 0, -2000, 2000, 10, 10, 'orient', 'orient', 1);
     addgene('_panx', 0, -2000, 2000, 10, 10, 'orient', 'orient', 1);
     addgene('_uScale', 1, 0, 20, 0.01, 0.01, 'orient', 'orient', 1);
-    mutateOrientation = true;
     delete postmutFixgenes._uScale;
     // setAllLots('', {free:0}); setAllLots('orient', {free:1}); updateGuiGenes()
 }

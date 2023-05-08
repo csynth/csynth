@@ -428,36 +428,11 @@ function setlots(genes, pattern, value) {
     return res;
 }
 
-/** rrange all genes matching pattern, set genedefs min/max */
-function rerangeAllLots(ppattern, min, max) {
-    const pattern = resolveFilter(ppattern);
-    const ggs = allGeneSets();
-
-    for (var gn in pattern) {
-        var gd = genedefs[gn];
-        if (gd) {
-            const omin = gd.min, omax = gd.max;
-            gd.min = min;
-            gd.max = max;
-
-            const sc = (max - min) / (omax - omin)
-            for (const gg of ggs) {
-                if (typeof gg[gn] === 'number')
-                    gg[gn] = (gg[gn] - omin) * sc + min;
-                else
-                    log('cannot rerange', gn)
-            }
-        }
-    }
-    updateGuiGenes();
-    refall();
-}
-
 /** find all gene collections currently in use */
 function allGeneSets():Set<Genes> {
     var ggs = new Set();
     for (const dispobj of Object.values(currentObjects)) if (dispobj.genes) ggs.add(dispobj.genes);
-    if (slots) for (const slot of slots) if (slot && slot.dispobj && slot.dispobj.genes) ggs.add(slot.dispobj.genes);
+    if (slots) for (const slot of slots) if (slot?.dispobj?.genes) ggs.add(slot.dispobj.genes);
     ggs.add(currentGenes);
     return ggs;
 }

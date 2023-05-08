@@ -1257,7 +1257,7 @@ function SCBus(name, n = 1, busID) {
 //but many things would be likely to go wrong if that was attempted)
 let freeBusses;
 SCBus.prototype.busAllocator = freeBusses;
-SCBus.prototype.free = function (msg = 'bus') {
+SCBus.prototype.free = function (msg = 'bus', synthsAlreadyFreed = false) {
     //nb, at one stage I had a 'cascade' argument relating to re-using bus names...
     //I should perhaps delete some old comments...
     //Although it's reasonably simple, I suspect the logic of this freeing many busses of same name
@@ -1269,6 +1269,8 @@ SCBus.prototype.free = function (msg = 'bus') {
     //        if (!this.replacedBy)
     this.busAllocator.unclaim(this.ids);
     this.freed = true;
+    if (synthsAlreadyFreed)
+        this.synths.forEach(s => s.killed = msg);
     this.synths.forEach(s => s.free(`SCBus_${this.name}.free("${msg}")`));
     //for now I'm avoiding modifying bussesByName here, so that I can call this method while iterrating it.
     //UPDATE: that is easily avoided and might be causing me problems (clean FP style could be an ambition
@@ -2107,7 +2109,10 @@ function setAudioRecording(v) {
 class TSCGroup extends TSCNode {
     constructor(name, opt = naddHead(0)) {
         super();
+        this.name = name;
+        this.addOpts = opt;
         this.id = freeNodeIDs.claim();
+        // sclog(`creating group ${name} with opt ${JSON.stringify(opt)} id ${this.id}`);
         synths[this.id] = this;
         on('/n_go', msg => {
             if (msg.args[0] === this.id) {
@@ -2203,7 +2208,8 @@ class TSCGroup extends TSCNode {
         //or pay less attention to things being unexpectedly freed...
         //... or for now for the specific case of mutsynth parent node, just flag all of the synths in that context first...//
         childrenToFlag === null || childrenToFlag === void 0 ? void 0 : childrenToFlag.forEach(s => s.freed = `flagged as by free() of ${this.id}`);
-        writeOSC('/g_freeAll', this.id);
+        if (!this.killed)
+            writeOSC('/g_freeAll', this.id);
     }
 }
 NW_SC.queryControlNamesForAllSynthNames = async function (chunkLength) {
@@ -3342,7 +3348,7 @@ function processBadValue(msg) {
 function processFail(msg) {
     sclog("[scsynth] +++++++++++++++ /fail::  " + msg.args.join(', '));
     const failedCommand = msg.args[0];
-    if (failedCommand === '/s_new' || '/n_query') {
+    if (failedCommand === '/s_new' || failedCommand === '/n_query') {
         let notFound = msg.args[1].match(/Node ([0-9]+) not found/);
         if (notFound) {
             const id = parseInt(notFound[1]);

@@ -175,11 +175,6 @@ float str = 1.;
         uniforms.ynum.value = ynum;
         uniforms.znum.value = znum;
 
-        texture.generateMipmaps = false;
-        texture.needsUpdate = true;
-        CSynth.tiftex = texture;
-        uniforms.tiftex.value = CSynth.tiftex;
-
         me.newmat();
         me.createGUIVR(); // will be no-op after first time in
         setgraph();
@@ -202,7 +197,8 @@ float str = 1.;
 
         // for now, do not align data, and do not try to use interpolation
         // also limited to 2d textures
-        const cols = new Float32Array( xnum * ynum * znum * cpp);  // var as may be cleared after upload
+        const channels = cpp === 1 ? 1 : 4;
+        const cols = new Float32Array( xnum * ynum * znum * channels);  // var as may be cleared after upload
         // unwrap colour information from matrices
         let o = 0;  // output pos
         for (let z = 0; z < znum; z++) {
@@ -219,17 +215,22 @@ float str = 1.;
                     if (cpp ===3) {
                         cols[o++] = g[i]-min;
                         cols[o++] = b[i]-min;
+                        cols[o++] = 1;  // unused, needed as THREE.RGBFormat removed
                     }
                 }
             }
         }
 
+        grids(xnum, ynum, znum); // nb also sets split
+
         texture = newTHREE_DataTextureNamed('imagecols', cols, xnum * split, ynum * znum / split,
-        cpp === 3 ? THREE.RGBFormat : THREESingleChannelFormat,
+        cpp === 3 ? THREE.RGBAFormat : THREESingleChannelFormat,
            THREE.FloatType, undefined,
            THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping, THREE.NearestFilter, THREE.NearestFilter, 1);
-
-        grids(xnum, ynum, znum);
+        texture.generateMipmaps = false;
+        texture.needsUpdate = true;
+        CSynth.tiftex = texture;
+        uniforms.tiftex.value = CSynth.tiftex;
 
     };
 

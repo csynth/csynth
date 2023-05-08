@@ -4699,12 +4699,12 @@ function mirrorProperty(toobj, topropname, fromobj, frompropname = topropname) {
 function everyframe(fn) {return Maestro.on('preframe', ()=> {fn(); return 0;} )}
 
 /** exec a command async, whether in node or not */
-function execasync(str) {
+function execasync(str, opts) {
     if (isNode())
         return require('child_process').exec(str);
     else {
         const id = str.replace(/"/g,'').substring(0, 80) + ' Organic';
-        return runcommandphp('start "' + id + '" ' + str, true);
+        return runcommandphp('start "' + id + '" ' + opts + ' ' + str, true);
     }
 }
 var distxyz = (i,j) => Math.sqrt((i.x-j.x)**2 + (i.y-j.y)**2 + (i.z-j.z)**2); // really const

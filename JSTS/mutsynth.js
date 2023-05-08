@@ -406,13 +406,15 @@ function hornSynth() {
             //in particular, if it was relying on
             //I could try to opt in to this via some sort of flag???
             b.group = new TSCGroup(name, addOpt);
-            b.free = (msg = 'SynthBus.free()') => {
+            b.free = (msg = 'SynthBus.free()', synthsAlreadyFreed = false) => {
                 if (b.zombie) {
                     sclogE(`Bus '${name}' already freed because of '${b.zombie}'...`);
                     return;
                 }
-                free.apply(b, [msg]);
+                free.apply(b, [msg, synthsAlreadyFreed]);
                 b.zombie = msg;
+                if (synthsAlreadyFreed)
+                    b.group.killed = msg;
                 b.group.free(msg);
                 //TODO free parent. (?)
                 //delete bussesByName[name];
@@ -644,10 +646,10 @@ function hornSynth() {
             // so we split and resynthesize, under the assumption that all audio tranrules are the same ....
             const box = document.getElementById("tranrulebox");
             const atranrule = box.textContent;
-            const audiotr = currentHset.makeParts(atranrule)[1];
-            box.textContent = currentGenes.tranrule = currentHset.makeParts(currentGenes.tranrule)[0] + '\n\n' + audiotr;
+            const audiotr = HornSet.makeParts(atranrule)[1];
+            box.textContent = currentGenes.tranrule = HornSet.makeParts(currentGenes.tranrule)[0] + '\n\n' + audiotr;
             Object.values(currentObjects).forEach(o => { if (o.genes)
-                o.genes.tranrule = currentHset.makeParts(o.genes.tranrule)[0] + '\n\n' + audiotr; });
+                o.genes.tranrule = HornSet.makeParts(o.genes.tranrule)[0] + '\n\n' + audiotr; });
         }
         //"Preparing to ruin new Synth code..." Freudian typo?
         let d = new Date();
@@ -667,26 +669,21 @@ function hornSynth() {
         function cleanupSynthBus(reason) {
             sclog("Resetting SynthBus stuff...");
             try {
-                //clear synths etc.  .zombie set here so not needed in all class definitions
-                //hornSynths.forEach(s => { s.free(); s.zombie = true; }); //freed by bus.
-                //>>>> I should just have a group of which they're all children and deepFree it <<<<<<
-                // ^^ I think I am doing this, but I get lots of 'FAILURE IN SERVER /n_free Node not found'
-                //if there is a bundle scheduled, we'll get some failure messages when it tries to run
-                for (var i in hornBuffers) {
+                if (rootSCNode) {
+                    rootSCNode.free(reason); //this should be enough...need to make sure busses are freed.
+                }
+                // free busses, kbusses
+                for (const i in bussesByName) {
+                    bussesByName[i].free(reason, true);
+                }
+                for (const i in kbussesByName) {
+                    kbussesByName[i].free(reason, true);
+                }
+                /// XXX: not really using these... but not part of node hierarchy, so best make sure we free...
+                for (const i in hornBuffers) {
                     hornBuffers[i].free();
                     hornBuffers[i].zombie = true;
                 }
-                for (var k in bussesByName) {
-                    bussesByName[k].free(reason);
-                } //bussesByName[k].zombie = true; }
-                for (var b in kbussesByName) {
-                    kbussesByName[b].free(reason);
-                    kbussesByName[b].zombie = true;
-                }
-                //still doing all of the freeing above in case there's house-keeping missing from result of this
-                //(ie, reclaiming bus IDs)
-                if (rootSCNode)
-                    rootSCNode.free();
                 //TODO: clean up detatched GUIs properly. Also bug fix this...
                 //(at dat.GUIVR level, graphics that are still visible while controllers removed from system)...
                 guis.forEach(g => {

@@ -463,7 +463,7 @@ function centrescalenow(xxx, whichRange = 'now') {
 var defaultScale = 0.85;
 /** centre and scale object, return values used if available in case helpful */
 function centrescale(xxx = currentGenes, whichRange=undefined, damp=undefined, anduser=true) {
-    if (mutateOrientation) return;
+    if (mutateOrientation === 'all') return;
     if (deferRender) { onframe(() => centrescale(xxx, whichRange, damp, anduser) ); return; }
     const genes = xxxgenes(xxx);
     if (searchValues.nohorn) return;

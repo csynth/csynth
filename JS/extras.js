@@ -5,7 +5,7 @@ camera,camToGenes, renderVR, showview, logload, genestoRot4, cc, CSynth, startvr
 writetextremote, Blob, readbinaryasync, currentObjects, refall, pick, lastdocx, lastdocy, width, height, extrakeys, nop,
 slots, mainvp, distxyz, material, EX, setInput, onframe, setViewports, Director, tad, showControls, mutateVisibleGenes, setSize, fullscreen, exitfullscreen,
 cMap, _boxsize, basescale, searchValues, getdesksave, S, runcommandphp, nircmd, islocalhost, downloadImageGui, Buffer, vec3, SG, substituteExpressions,
-currentHset, gl, rerangeAllLots, showUniformsUsed, arraydiff, saveAs, everyframe, Maestro, msgfixerror, clearPostCache, runkeys, isCSynth, _R, GUIwallkeys,
+currentHset, gl, showUniformsUsed, arraydiff, saveAs, everyframe, Maestro, msgfixerror, clearPostCache, runkeys, isCSynth, _R, GUIwallkeys,
 shadows, usemask, inps, exportmyshaders, readtext, format, savesystem, centrescalenow
 
 
@@ -1637,4 +1637,36 @@ function shaderFromFiles(name = 'edge', genes = currentGenes) {
     material[name]['horn("main");'] = shader;       // so it can be seen by getMaterial
     material[name][genes.tranrule.split('SynthBus')[0]] = shader;               // so it can be seen by getMaterial
     return shader;
+}
+
+
+// ~~~~~~~~~~~~~~~~~ below may live in genes.ts, here for quicker edit/debuf
+
+var  resolveFilter, allGeneSets
+/** rerange all genes matching pattern, set genedefs min/max */
+function rerangeAllLots(ppattern, min, max, allg = []) {
+    const pattern = resolveFilter(ppattern);
+    const ggs = allGeneSets();
+
+    for (var gn in pattern) {
+        var gd = genedefs[gn];
+        if (gd) {
+            const omin = gd.min, omax = gd.max;
+            const sc = (max - min) / (omax - omin)
+            gd.min = min;
+            gd.max = max;
+            gd.delta *= sc;
+            gd.delta *= sc;
+            gd.def = (gd.def - omin) * sc + min;
+
+            for (const gg of ggs) {
+                if (typeof gg[gn] === 'number')
+                    gg[gn] = (gg[gn] - omin) * sc + min;
+                else
+                    log('cannot rerange', gn)
+            }
+        }
+    }
+    updateGuiGenes();
+    refall();
 }

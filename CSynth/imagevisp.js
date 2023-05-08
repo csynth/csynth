@@ -79,7 +79,7 @@ CSynth.Grad = function(f32data, xnum, ynum, znum, xsc=1, ysc=1, zsc=1) {
         me.step = step;
         const st2 = Math.floor(step/2);
         const f = f32data;
-        gf = me.gradData = new Float32Array(gxnum * gynum * gznum * 3);
+        gf = me.gradData = new Float32Array(gxnum * gynum * gznum * 4);   // 4 for wasted RGBAFormat
         let k = 0;
         for (let z = st2; z < znum; z+=step) {
             const zn = (z < step ? z : z-step) * xnum * ynum;
@@ -91,7 +91,7 @@ CSynth.Grad = function(f32data, xnum, ynum, znum, xsc=1, ysc=1, zsc=1) {
                 const y0 = y * xnum;
                 for (let x = st2; x < xnum; x+=step) {
                     if ((x-xnum/2)**2 + (y-ynum/2)**2 + (z-znum/2)**2 > gradrad*gradrad) {  // temp radius/roi code
-                        k += 3;
+                        k += 4;
                         continue;
                     }
 
@@ -100,6 +100,7 @@ CSynth.Grad = function(f32data, xnum, ynum, znum, xsc=1, ysc=1, zsc=1) {
                     gf[k++] = f[xp + y0 + z0] - f[xn + y0 + z0];
                     gf[k++] = f[x  + yp + z0] - f[x  + yn + z0];
                     gf[k++] = f[x  + y0 + zp] - f[x  + y0 + zn];
+                    k++;
                 }
             }
         }
@@ -119,7 +120,7 @@ CSynth.Grad = function(f32data, xnum, ynum, znum, xsc=1, ysc=1, zsc=1) {
             return;
         }
 
-        const tt = me.gradTextureData = newTHREE_DataTextureNamed('gradtexture', gf, gxnum*gynumx, gznum*gynumz, THREE.RGBFormat, THREE.FloatType);
+        const tt = me.gradTextureData = newTHREE_DataTextureNamed('gradtexture', gf, gxnum*gynumx, gznum*gynumz, THREE.RGBAFormat, THREE.FloatType);
             // , undefined, THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping, THREE.NearestFilter, THREE.NearestFilter, 1);
         tt.needsUpdate = true;
         return tt;
@@ -127,7 +128,7 @@ CSynth.Grad = function(f32data, xnum, ynum, znum, xsc=1, ysc=1, zsc=1) {
 
     /** set up the gradient for use, will only be effective if gradforce != 0 */
     me.gradUse = function gradUse(ynumx = 16, step = 1) {
-        // if (!G.gradOuterRad || W.mcrad >= 999) G.gradOuterRad = 100;
+        if (!G.gradOuterRad || W.mcrad >= 999) G.gradOuterRad = 100;
         const u = window.uniforms;
         u.gradField.value = me.gradTexture(ynumx, step);
         u.gradnum.value = VEC3(gxnum, gynum, gznum);

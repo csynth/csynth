@@ -37,6 +37,7 @@ CSynth.ImageVis4 = function() {
         const {min, max, range, tiffdata} = iv2;
         const d0 = data[0];
         xnum = iv2.xnum; ynum = iv2.ynum; znum = iv2.znum; cpp = iv2.cpp;  // can't deconstruct into values in upper scope
+        const channels = cpp === 3 ? 4 : cpp;
         Object.assign(this, {min, max, range, tiffdata, cpp, xnum, ynum, znum} );  // help poking
         myuniforms.tiftex.value = CSynth.tiftex;  // use in uniforms
 
@@ -47,19 +48,19 @@ CSynth.ImageVis4 = function() {
         const rgbfield = CSynth.tiftex.image.data;
         // we could modify marchingCube to use stepped data form single data array,
         // but this overhead in copy saves extra index computation on every newthresh/makePolygons
-        const rfield = fields[0] = new Float32Array(rgbfield.length/cpp);
+        const rfield = fields[0] = new Float32Array(rgbfield.length/channels);
         if (cpp === 1) {
             for (let i = 0; i < rfield.length; i++) {
                 rfield[i] = rgbfield[i];
             }
 
         } else if (cpp === 3) {
-            fields[1] = new Float32Array(rgbfield.length/cpp);
-            fields[2] = new Float32Array(rgbfield.length/cpp);
+            fields[1] = new Float32Array(rgbfield.length/4);
+            fields[2] = new Float32Array(rgbfield.length/4);
             for (let i = 0; i < rfield.length; i++) {
-                fields[0][i] = rgbfield[i*3];
-                fields[1][i] = rgbfield[i*3 + 1];
-                fields[2][i] = rgbfield[i*3 + 2];
+                fields[0][i] = rgbfield[i*4];
+                fields[1][i] = rgbfield[i*4 + 1];
+                fields[2][i] = rgbfield[i*4 + 2];
             }
         }
 

@@ -21,6 +21,7 @@ var searchReplace = {
     mutate1200: 'mutate & I.MAXHORNS_TO_RENDER=1200 & eval3=resoverride.skelnum=7,resoverride.skelends=0,GUIInit("mutwall test"),VH.positionGUI(),GUIwallkeys()',
     testobj: 'startobj=GalaxReflSept25 & I.fullvp=false',
     standard: 'testobj & eval3=setViewports([0,0]), centrescalenow()',
+    imfind: 'standard & eval3=imcompareInteract()',
 
     threek: 'startobj=startup',
     // csynth: 'startscript',

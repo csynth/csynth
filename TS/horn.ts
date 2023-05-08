@@ -2368,7 +2368,7 @@ export class HornSet {
 
 
     /** break the tranrule into graphics and audio parts */
-    makeParts(tranrule) {
+    static makeParts(tranrule) {
         //I may deprecate 'SynthBus' such that this method only gets used for old examples that use it.
         var pos = tranrule.indexOf('SynthBus');
         if (pos !== -1) {
@@ -2478,7 +2478,7 @@ export class HornSet {
                 Maestro.trigger('preParse');
                 //if (!W.SynthBus && tranrule !== 'horn("main");') {   // no synthesizer ready yet
 
-                tranrule = this.makeParts(tranrule)[0];
+                tranrule = HornSet.makeParts(tranrule)[0];
             }
 
             this.hornrule = tranrule;  // just the horn part of the full tranrule
@@ -2537,24 +2537,23 @@ export class HornSet {
 
     // check for changes to synthCode
     static monitorSynthdef() {
-        // msgfixlog('tad+', 'monitorSynthdef');    // do not show, happens every frame or so
-        if (!WA.hornSynth || noaudio) return;                          // synth code not present, probably CSynth
-        // test below redundant now we have test above??? 26/12/2021
-        //?? if (!('mutSynthPendingCode' in window)) return;     // mutSynthPendingCode not even defined, probably CSynth
-        const hset: HornSet = HornSet.current();
-        if (hset) {
-            hset.synthCode = hset.makeParts(hset.tranrule)[1];
-            // added TODO temporary hset.synthCode !== '' for structure mutation of form, which does not preserve synthCode
-            // keep synth going with original code
-            // TODO: preserve (unmutated) synth code
-            if (hset.synthCode === mutSynthPendingCode) return; // quiet, this is the normal case.
-            if (hset.synthCode !== '' && !noaudio) {
-                WA.mutSynthPendingCode = hset.synthCode;
-                msgfixlog('tad+', 'monitorSynthdef triggering newHornSynth');
-                Maestro.triggerCheck('newHornSynth');
-            } else {
-                // msgfixlog('tad+', 'monitorSynthdef NOT triggering');
-            }
+        if (!WA.hornSynth || noaudio) return;   // synth code not present, probably CSynth
+
+        // Issues with multiple hornSets in some cases.
+        // We assume that the audio always belongs to the main viewport here, using xxxgenes().tranrule
+        // and that whatever happens in other viewports is irrelevant.
+        // We had a bug when currentHset was being set inappropriately in tad.tadskel() which is now fixed,
+        // but simpler and easier just to use xxxgenes().tranrule and not bother with currentHset.tranrule (HornSet.current())
+
+        const tranrule = xxxgenes().tranrule;
+        const synthCode = HornSet.makeParts(tranrule)[1];
+        if (synthCode === mutSynthPendingCode) return; // quiet, this is the normal case.
+        if (synthCode !== '' && !noaudio) {
+            WA.mutSynthPendingCode = synthCode;
+            msgfixlog('tad+', 'monitorSynthdef triggering newHornSynth');
+            Maestro.triggerCheck('newHornSynth');
+        } else {
+            // msgfixlog('tad+', 'monitorSynthdef NOT triggering');
         }
     }
 
@@ -2603,7 +2602,7 @@ export class HornSet {
     };
 
     /** set up a horn given definition */
-    /*^^^async*/ setuphorn(tranrule: string, genes: Genes) {
+    /*^^^async*/ _setuphorn(tranrule: string, genes: Genes) {
         /** let answer:_parseret = **/ /*^^^await*/ this.parsehorn(tranrule, genes);   // parsehorn will set mainhorn etc
         if (!this.mainhorn) return undefined;
         setHornSet(tranrule, this)
@@ -2726,8 +2725,8 @@ export class HornSet {
 
         // this.bundle = this;  // work towards retiring this.bundle
     if (tranrule !== 'horn("main");') {
-
-        currentHset = this;
+        // if (genes === xxxgenes())   // <<<<< ??? TODO, how should currentHset be protected from non-main pane tranrules, this doesn't work
+            currentHset = this;
         genes.tranrule = tranrule;
         // currentGenes.tranrule = tranrule;
         // monitorX(currentGenes, 'tranrule', genes)
@@ -3188,7 +3187,7 @@ function hornTrancodeForTranrule(tranrulea:string, genes:Genes, recurse: boolean
         } else {
             var nhs: HornSet = new HornSet();
             nhs.tranrule = tranrule;
-            r = /*^^^await*/ nhs.setuphorn(tranrule, genes);
+            r = /*^^^await*/ nhs._setuphorn(tranrule, genes);
             setHornSet(tranrulea, nhs);
         }
         //setTimeout( function() { kinectJupDyn.setup(r._springMap); }, 0);
@@ -4680,9 +4679,11 @@ function slotstats() {
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // save current skeleton,in fid (unless fid = '!temp') and return; also save colours if no fid
 // always save in localStorage
-async function saveSkeleton(fid, dispobj = xxxdispobj()) {
+async function saveSkeleton(fid, dispobj = lastTouchedDispobj ?? xxxdispobj()) {
     if (!fid) {
-        const bfid = window.prompt('enter name for skeleton and colour files\nor empty/escape for just browser storage', '');
+        const vn = dispobj.vn;
+        const paneid = vn !== mainvp ? 'pane #' + vn : dualmode ? 'main pane PROBABLY INVALID' : 'main pane';
+        const bfid = window.prompt('enter name for skeleton and colour files\n' + paneid + '\nor empty/escape for just browser storage', '');
         canvas.focus();
         // const bfid = dateToFilename();
         let colfid;
