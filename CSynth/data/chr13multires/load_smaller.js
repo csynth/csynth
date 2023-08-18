@@ -6,7 +6,7 @@ springdemo( {
 	beds: [],
 	contacts: [
         {filename: 'chr13_50kb.contacts', shortname: 'c13 50kb', description: 'chr13_50kb'},
-        {filename: 'chr13_5kb.contacts', shortname: '5kbR10', description: 'chr13_5kb', reduce: 10},
+        // {filename: 'chr13_5kb.contacts', shortname: '5kbR10', description: 'chr13_5kb', reduce: 10},
         {filename: 'chr13_500kb.contacts', shortname: '500kb', description: 'chr13_500kb'},
         {filename: 'chr13_50kb.contacts', shortname: '50kbR10', description: 'chr13_50kbR4', reduce: 10},
         // {filename: 'chr13_5kb.contacts', shortname: '5kbR2', description: 'chr13_5kb', reduce: 2},
