@@ -37,6 +37,13 @@ var searchReplace = {
     fano: 'appToUse=Fano',
     julia: 'appToUse=Julia',
     texture: 'appToUse=Texture',
+    cexample1: 'startscript=CrickGitHub/loadcrick_chrII.js',
+    cexample2: 'startscript=C75X1200GitHub/loadnotiff.js',
+    cexample3: 'startscript=chr13multiresGitHub/load_50kb.js',
+    // cexample3_5: 'startscript=chr13multiresGitHub/load_5kb.js',
+    cexample3_50: 'startscript=chr13multiresGitHub/load_50kb.js',
+    cexample3_data: 'startscript=chr13multiresGitHub/load_data.js',
+    cexample3_smaller: 'startscript=chr13multiresGitHub/load_smaller.js',
 };
 
 var useForced;
