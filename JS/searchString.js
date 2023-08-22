@@ -27,6 +27,7 @@ var searchReplace = {
     // csynth: 'startscript',
     rsse: 'startscript=rsse/loadrsse.js',
     crick: 'startscript=CrickLots/lots.js',
+    ima: "startscript=CSynth/data/ima/ima.js",    
     lowry: 'startscript=ima/lowry.js',
     york: 'startscript=YorkStudents/newtest_v5.js',
     lorentz: 'startscript=Lorentz/lorentz.js',
