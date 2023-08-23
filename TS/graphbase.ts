@@ -25,7 +25,7 @@ type MSynthScope = {
 
 var THREEA = THREE as any;
 interface Mywin {
-    centrescale?: any; sliderate?: Input; resbaseUI?: Input; revscreen?: Input;
+    centrescale?: any; sliderate?: Input; revscreen?: Input;
     SHADOWS?: Input; BUMP?: Input; PERLIN?: Input; RAND?: Input; REFLECTION?: Input; doAutorot?: Input; doAnim?: Input; xzrot?: Input
     SIMPLESHADE?: Input; USESKELBUFFER?: Input; tranrulebox?: any; clearColor?: Input; CHECKGL?: Input;
     stats?: any; controls?: HTMLElement; controlscore?: HTMLElement; optionContainer?: HTMLElement; zoomgui?: Input;
@@ -59,6 +59,8 @@ var canv2d: HTMLCanvasElement;
 var THREESingleChannelFormat: THREE.PixelFormat;   // different for webgl and webgl2
 var ises300: boolean;
 var copyXflip = 1;  // -1 to flip x
+var feedbackPrepFrames = 50;
+var useoldbigfeedback = true;
 
 var rca:any = {};  // renderer attributes
 // defaults from https://www.khronos.org/registry/webgl/specs/latest/1.0/#WEBGLCONTEXTATTRIBUTES
@@ -228,10 +230,10 @@ function _mydisposeRenderTarget() {
 // OPMAKEGBUFF is used for 'standard' skelbuffer (removed), OPMAKEGBUFFX is used for stl generation (almost certainly dead)
 // define these as let for NetBeans
 var OPREGULAR:N, OPSHADOWS:N, OPPICK:N, OPMAKEGBUFFX:N, OPPOSITION:N, OPOPOS:N, OPOPOS2COL:N, OPSHAPEPOS:N,
-    OPTSHAPEPOS2COL:N, OPTEXTURE:N, OPBUMPNORMAL:N, OPMAKESKELBUFF:N, OPEDGE:N, OPTEST:N;
+    OPTSHAPEPOS2COL:N, OPTEXTURE:N, OPBUMPNORMAL:N, OPMAKESKELBUFF:N, OPEDGE:N, OPEDGE2:N;
 
 // var oplist = ['regular', 'shadows', 'pick', 'makegbuffx', 'position', 'opos', 'opos2col', 'shapepos', 'tshapepos2col', 'texture', 'bumpnormal', 'makeskelbuff', 'edge', 'test'];
-var oplist = 'regular shadows pick makegbuffx position opos opos2col shapepos tshapepos2col texture bumpnormal makeskelbuff edge test'.split(' ');
+var oplist = 'regular shadows pick makegbuffx position opos opos2col shapepos tshapepos2col texture bumpnormal makeskelbuff edge edge2 test'.split(' ');
 var OPDEFINE = "";
 (function () {
     for (let i = 0; i < oplist.length; i++) {
@@ -565,7 +567,7 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
         // BUT sjpt 26 Mar 2021
         // we can't optimize till we have generic handling of cumcount and ribs, getting colours and ribs wrong
         const needsRecompile = [1, 5, 6].includes(genes.NORMTYPE) ?
-            [OPMAKESKELBUFF, OPPOSITION, /**/ OPSHAPEPOS, OPPOSITION, OPPICK] :
+            [OPMAKESKELBUFF, OPOPOS, OPPOSITION, /**/ OPSHAPEPOS, OPPICK] :
             [OPMAKESKELBUFF, OPOPOS, OPSHAPEPOS, OPPOSITION, OPPICK];
         if (!needsRecompile.includes(opmode as any))
             matvariant = 'horn("main");';       // yes, safe to share code for this opmode between different matvariants (tranrules)
@@ -746,11 +748,10 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
         oppre += "uniform mat4 viewMatrix;\n uniform mat4 modelMatrix;\n";
         oppre += "precision " + precision + " float; uniform mat4 modelViewMatrix; uniform mat4 projectionMatrix; \n";
         oppre += "#define JAVASCRIPT(x)   \n";  // permit embedded javascript in shaders
-        let mattype = THREE.RawShaderMaterial;
 
         let vertpost = "";
         //if (inputs.SINGLEMULTI && currentHset && matvariant !== 'NOTR' && opmode === OPPOSITION)
-        //    vertpost = '\n void testtest() { \n' + currentHset.singlePassCode + '\n}';               // debug if singlePassCode will even compile
+        //    vertpost = '\n void test test() { \n' + currentHset.singlePassCode + '\n}';               // debug if singlePassCode will even compile
 
 
         //log("compile material", oplist[xopmode], matvariant.substring(0, 20));
@@ -796,7 +797,7 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
 
         try {
             // define the material using the matvariant
-            mat = new mattype({
+            mat = new THREE.RawShaderMaterial({
                 uniforms: uniforms as any,
                 vertexShader: vertexShader,
                 fragmentShader: fragmentShader,
@@ -1332,6 +1333,7 @@ function init1() {
                 startscript = dir +  startscript;
             }
 
+            if (!fileExists(startscript)) { const s = 'start file does not exist:<br>' + startscript; showbaderrornogl(s); throw new Error(s); }
             const r = processFile(startscript);
         }
         //currentMaterialChanged();
@@ -2452,7 +2454,7 @@ function newRenderRatio() {
     // reduce risk of running out of memory.
     // there may be more sets of renderTargets, and depth buffers etc not accounted for
     // and anyway we don't know storage available, so this is all a guess but better than nothing.
-    const maxsize = WA.maxsize || 2e9;                // arbitrary max size of render buffers; to do see if we can improve on this sensibly
+    const maxsize = WA.maxsize || 4e9;                // arbitrary max size of render buffers; to do see if we can improve on this sensibly
     if (ss * 16 * 4 > maxsize) {        // *16 for 16 bytes per pixel in 4 channel float buffer, *4 for 4 rendertargets for pipeline
         const orr = renderRatio;
         const nrr = renderRatio * Math.sqrt(ss*16*4/maxsize);
@@ -2597,15 +2599,18 @@ function setSize(wwidth?, hheight?, force?:boolean): boolean {      // nb typing
     // appears to correct window scaling issues, sjpt 31/01/2014
     // not sure how often it needs to be done.
     // It seems our explicit setting of renderer size etc overrides windows.devicePixelRatio
-    // I think three.js just sets renderer.devicePixelRatio once near start, but ...???
+    // I think three.js just sets renderer.pixelRatio once near start, but ...???
+
     // PJT 15/02/2019: having trouble related to this on Macbook...
-    ////renderer.devicePixelRatio = 1; //don't think this property is used now
+    ////renderer. device PixelRatio = 1; //don't think this property is used now agreed.
     const dpr = window.devicePixelRatio;
     if (renderer.getPixelRatio() !== dpr) renderer.setPixelRatio(dpr);
 
     let wwhh = force ? [wwidth, hheight] : imsize();
     // not sure why this was here - commented out to get tall animation, 22/6/19
     // if (inputs.layoutbox * 1 !== 0 && wwhh[0] < wwhh[1]) wwhh = wwhh.reverse();
+
+    // NO, sometimes needed ... if (width === wwidth && height === hheight) { msgfixlog('rendersize', 'already', wwidth, hheight); return; }
 
     width = wwidth || screens[0].width; height = hheight || screens[0].height;
     if (trygetele("previewAr", "checked", "") === 1) {
@@ -2650,6 +2655,13 @@ function setSize(wwidth?, hheight?, force?:boolean): boolean {      // nb typing
 
     return ok;
 }
+
+/** set size in pixels */
+function setSizePX(wwidth, hheight, force?:boolean): boolean {
+    const rr = devicePixelRatio;        // note: setSize will set renderer.pixelRatio
+    return setSize(wwidth/rr, hheight/rr, force);
+}
+
 
 function setRunning() {
     running = inputs.running;
@@ -2716,6 +2728,7 @@ function setObjUniforms(genes: Genes, u: Uniforms, quick = framenum > 100) {
     (u as any)._lastSetFrame = framenum;
     u.cameraAspect.value = camera.aspect;
     if (material.opos) Object.values(material.opos).map(mat =>(mat as any).side = camera.aspect < 0 ? 1 : 0)
+    S.trigger('setObjUniforms');  // give others a chance to 'distort' uniforms, eg based on viewfactor
 }
 
 var selectionElement;
@@ -2950,6 +2963,7 @@ var render_depth_shadows = function(genes) {
     if (!inputs.SHADOWS) return;  // no check box asking for shadows
     if (!Shadows) return;
     if (renderVR.eye2) return;
+    if (usemask === 4) return;
 
 
     if (inputs.SHADOWS) Shadows[0].RenderShadow(genes, camera, uniforms);  // to track main light
@@ -2979,8 +2993,7 @@ function render_depth(genes, drt) {
     let bigscene, dradnum, dlennum;
     if (inputs.resdyndeltaui === 0 && inputs.USESKELBUFFER) {
         let rb = inputs.resbaseui - resdelta;
-        rb = Math.ceil(rb);
-        if (rb < 0) rb = 0;
+        rb = clamp(Math.ceil(rb), 0, HW.radnums.length-1);
         dradnum = HW.radnums[rb];      // dynamic number round
         dlennum = dradnum * 5;      // dynamic number along, including sphere ends
         if (HW.resoverride.radnum) dradnum = HW.resoverride.radnum;
@@ -3108,18 +3121,19 @@ function checkglerror(msg) {
     const fmsg =  msg + '  opmode=' + opmode + ' ' + oplist[opmode];
     return Gldebug.checkglerr(fmsg);
 }
-var usemask = 2;  // set to -2 for nothing, -1 very old (no mask), 0 old render (mask), 1 to use opq rendering, 2 multistep opq with improved flu bands
+var usemask = usemask ?? 2;  // set to -2 for nothing, -1 very old (no mask), 0 old render (mask), 1 to use opq rendering, 2 multistep opq with improved flu bands
 var normloop = 0;  // set to 0 or undefined to skip normloop.  loops on normals to improve glossy highlights
 var rendertargets: { [id: string]: any } = {};   // to hold render targets for opq style render
 // let qscene;    // scene for opq style render
 var colneg = new THREE.Color(-1, -1, -1); // negative colour used to indicate transparent
 var clearrendertargets_exclusions = [];  // buffers that won't be cleared
 
-function clearrendertargets() {
+async function clearrendertargets() {
     log('before clearrendertargets, current totsize', newTHREE_DataTextureSize/1e6);
     const rr = {};
     for (let i in rendertargets) {
-        if (i == 'scaleInUnitTarget' || i.startsWith('spring') || i.startsWith('scaleDamp') || i.startsWith('scaleRender') || clearrendertargets_exclusions.includes(i))
+        if (i == 'scaleInUnitTarget' || i.startsWith('spring') || (i.startsWith('dispobj_') && !i.startsWith('dispobj_origvnno'))
+         || i.startsWith('scaleDamp') || i.startsWith('scaleRender') || clearrendertargets_exclusions.includes(i))
             rr[i] = rendertargets[i]
         else if (rendertargets[i] instanceof THREE.DepthTexture)    // todo tidy registration of depthTextures
             rendertargets[i].dispose();
@@ -3127,8 +3141,11 @@ function clearrendertargets() {
             rendertargets[i].dispose();
     }
     rendertargets = rr;
+
     log('1 after clearrendertargets, current totsize', newTHREE_DataTextureSize/1e6, 2)
-    onframe(()=>log('2 after clearrendertargets, current totsize', newTHREE_DataTextureSize/1e6), 2);
+    await S.frame(2);
+    log('2 after clearrendertargets, current totsize', newTHREE_DataTextureSize/1e6);
+    log(Object.keys(rendertargets));
 }
 
 function getrendertarget(purpose, p) {
@@ -3161,7 +3178,7 @@ function getrendertarget(purpose, p) {
     }
 
     uniforms[purpose].value = rrtq.texture;
-    uniforms.screen.value.x = 1 / widthi;
+    uniforms.screen.value.x = 1 / widthi;  // often (?always) also done in pipeop()
     uniforms.screen.value.y = 1 / heighti;
 
     renderer.setRenderTarget(rrtq);
@@ -3248,7 +3265,7 @@ function pipeop(p) { // genes, popmode, rendertarget, clearcol, scene, width, )
     // 'many' indicates whether this pass must be repeated for each horn in the hornset
     // or whether the pass involves just one render call
     let many = typeof OPMODE !== 'number' || OPMODE === OPOPOS2COL || OPMODE === OPREGULAR || OPMODE === OPMAKESKELBUFF || OPMODE === OPSHADOWS || OPMODE === OPSHAPEPOS || OPMODE === OPPOSITION || OPMODE === OPPICK;
-    many = many || OPMODE === OPOPOS || OPMODE === OPTEST;
+    many = many || OPMODE === OPOPOS;
     if (many || uniforms.hornid.value === WALLID) {
         p.renderPass(p.genes, uniforms, renderTarget, pscene);
     } else {
@@ -3312,7 +3329,12 @@ function renderObjPipe(pscene, prenderPass, genes, uniformsp, rendertarget, rdel
     function ipipeopEndup(p) {
         let temprt;
         if (WA.fxaa.use || specialPostrender) {
+            const dobj = xxxdispobj(p.genes);
+            assert(p.rendertarget === dobj.rt, 'check reuse of rt for fxaa');
+            // temprt = dobj.rtback;
             temprt = getrendertarget('prefxaa', {sizer});
+            //renderer.setRenderTarget(temprt); // breaks if temprt is feedback texture
+            //renderer.clearColor();
         }
         if (WA.fxaa.use) {
             const pp = Object.assign({}, p, {rendertarget: temprt}); // , clearcol: bigcol}); now just clear ar start of phase so CSynth matrix does not kill ribbon
@@ -3324,7 +3346,9 @@ function renderObjPipe(pscene, prenderPass, genes, uniformsp, rendertarget, rdel
             if (specialPostrender) specialPostrender(rendertarget, temprt);
         }
     }
+
     resdelta = rdelta || 0;
+    U.feedtexture = (_fixinfo.feedrt ?? xxxdispobj(genes).rtback).texture;  // was null
 
     gl.depthFunc(gl.LEQUAL); // unless overridden
     // prepare scene if not already prepared
@@ -3383,50 +3407,23 @@ function renderObjPipe(pscene, prenderPass, genes, uniformsp, rendertarget, rdel
 
         ipipeop({ genes, opmode: WA.forceop || OPOPOS, rendertarget, sizer, clearcol: colneg, scene: pscene });
         if (WA.camoffset) { camera.near *= 1 + WA.camoffset; camera.updateProjectionMatrix(); }
-        ipipeopEndup({ genes, opmode: OPREGULAR, rendertarget, clearcol: 5, scene: pscene });
+        ipipeopEndup({ genes, opmode: OPREGULAR, rendertarget, clearcol: bigcol, scene: pscene });
         if (WA.camoffset) { camera.near = snear; camera.updateProjectionMatrix(); }
-    } else if (usemaskp === -98 || usemaskp === -97) {  // special case for edge
-        WA.fxaa.use = false;
-        // inps.renderRatioUi = 1;
-        resoverride.showgrid = true;
-        //resoverride.lennum = nextpow2(U.lennum);  // this was trying to capture grid edges to assist edgefollow
-        //resoverride.radnum = nextpow2(U.radnum);
-        if (!WA._98set) {
-            WA._98set = true;
-            const g = xxxgenes();
-            g.edgewidth = 2;
-            g.edgestyle = 1;
-            g.occludewidth = 3;
-            g.colby = 0;
-            g.edgeDensitySearch = 0;
-            g.baseksize = 1;
-            g.profileksize = 4;
-            g.centrerefl = 0.5;
-            U.edgeBackFeedTint.elements = [-1,0,0,1,0,-1,0,1,0,0,-1,1,0,0,0,1];
-            U.edgeBackFeedMatrix.elements =  [0.97,-0.23,0,0.24,0.93,0,0.09,-0.004,0.5];
-        }
-        const s = U.OPOSZ;
-        if (usemaskp === -98) {
-            // shaderFromFiles('edge');  // ? automatic in getMaterial
-            U.OPOSZ = 1
-            U.feedtexture = null;
+    } else if (usemaskp === 4 || usemaskp === -97) {  // special case for edge
+        // WA.fxaa.use = false;
+        if (usemaskp === 4) {
             ipipeop({ genes, opmode: OPOPOS, rendertarget: 'rtopos', sizer, clearcol: colneg, scene: pscene });
-            U.feedtexture = xxxdispobj(genes).rtback.texture;
-            // U.feedtexture.wrapS = U.feedtexture.wrapT = THREE.MirroredRepeatWrapping // handled by smalltri
-            ipipeopEndup({ genes, opmode: OPEDGE, rendertarget, scene: qscene });
+            ipipeopEndup({ genes, opmode: OPEDGE2, rendertarget, scene: qscene });
         } else {
             // U.OPOSZ = 2
             ipipeopEndup({ genes, opmode: OPOPOS, rendertarget, sizer, clearcol: colneg, scene: pscene });
         }
-        U.OPOSZ = s
     } else if (usemaskp === -1 || usemaskp === -2) {
         ipipeopEndup({ genes, opmode: OPREGULAR, rendertarget, scene: pscene });
     } else if (usemaskp === 'pick') {
         ipipeop({ genes, opmode: OPPICK, rendertarget, scene: pscene });
-    } else if (usemaskp === 1) {
+    } else if (usemaskp === 1 || usemaskp === 5) {  // 5 for debug convenience
         ipipeop({ genes, opmode: OPOPOS, rendertarget: 'rtopos', sizer, clearcol: colneg, scene: pscene });
-        // perform second pass; work out horn details and shading
-        // using the result of OPOPOS pass as texture
         ipipeopEndup({ genes, opmode: OPOPOS2COL, rendertarget, scene: qscene });
     } else if (usemaskp === 1.5) {  // n.b. this gives better normals than usemask=1, but texture positioned wrong (27/2/2017)
         // perform separated Q3
@@ -3440,7 +3437,7 @@ function renderObjPipe(pscene, prenderPass, genes, uniformsp, rendertarget, rdel
         if (normloop)  // e.g. for 3x3 normal smooth
             ipipeop({ genes, opmode: OPBUMPNORMAL, rendertarget: 'rtnormal', sizer, scene: qscene });
         ipipeop({ genes, opmode: OPTEXTURE, rendertarget: 'rttexture', sizer, scene: qscene });
-        ipipeopEndup({ genes, opmode: OPTSHAPEPOS2COL, rendertarget, scene: qscene });
+        ipipeopEndup({ genes, opmode: OPTSHAPEPOS2COL, rendertarget, scene: qscene, clearcol: bigcol });
         // if (WA.fxaa.use) {
         //     ipipeop({ genes, opmode: OPTSHAPEPOS2COL, rendertarget: 'prefxaa', sizer, scene: qscene, clearcol: bigcol });
         //     WA.fxaa(getrendertarget('prefxaa', {sizer}).texture, rendertarget);
@@ -3463,8 +3460,6 @@ function renderObjPipe(pscene, prenderPass, genes, uniformsp, rendertarget, rdel
         // TODO does not work fully as many of the outputs are <0 and get trucated
         ipipeop({ genes, opmode: OPOPOS, rendertarget: 'rtopos', sizer, clearcol: colneg, scene: pscene });
         ipipeop({ genes, opmode: OPSHAPEPOS, rendertarget, sizer, scene: qscene, clearcol: colneg });
-    } else if (usemaskp === 113) {  // debug, performance
-        ipipeop({ genes, opmode: OPTEST, rendertarget, sizer, clearcol: colneg, scene: pscene });
     } else if (usemaskp === 124) {  // fft test
         ipipeop({ genes, opmode: OPOPOS, rendertarget: 'rtopos', sizer, clearcol: colneg, scene: pscene });
         ipipeop({ genes, opmode: OPOPOS2COL, rendertarget, scene: qscene, clearcol: colneg });
@@ -3569,8 +3564,8 @@ function _renderObjInner(dispobj, rt?, checkrtsize = true) {
     }
     **/
     renderer.clearTarget(rt, true, true, true);
-    if (WA.fxaa.use)
-        renderer.clearTarget(getrendertarget('prefxaa', {sizer:rt}), true, true, true); // clear once, not per phase (eg if matrix extra render phase)
+    // if (WA.fxaa.use)
+    //     renderer.clearTarget(getrendertarget('prefxaa', {sizer:rt}), true, true, true); // clear once, not per phase (eg if matrix extra render phase)
     Maestro.trigger("prerenderObj", { dispobj: dispobj, rendertarget: rt });
 
     if (renderMainObject && !searchValues.nohorn)
@@ -3656,7 +3651,7 @@ var _renderObjHorn: { (event): void, centreOnDisplay?} = function (event) {
     if (!renderVR.eye2) {
         renderskelbuff(genes);
 
-        if (usemask !== -98) {
+        if (usemask !== 4) {
             render_depth_shadows(genes);
             render_reflection(genes);
             cMap.renderFeedback(dispobj);
@@ -3745,589 +3740,6 @@ function renderskelbuff(genes) {
         uniforms.skelbuffer.value = skelbuffer.texture;
     }
 }
-
-// <editor-fold desc="saving functions">
-var savesize = 4096;
-var saveaspect = 1;
-var maxblob = 36000000; // 6000 * 6000;
-
-
-
-/** work out image size for saving */
-function imsize(ww?, hh?, ar?, forceUsear?, defresguiname = 'imageres') {
-    maxblob = nwfs ? 936000000 : 36000000; // 6000 * 6000;
-    maxblob = Infinity;             // now we are saving big ones with saveframttgabig
-    var lmaxTextureSize = Infinity;  // now we are saving big ones with saveframttgabig
-    let dww = eval(trygeteleval(defresguiname, savesize));
-    ww = Math.round(ww || dww);
-    let dhh;
-    if (ar) {
-        dhh = typeof ar === 'string' ? eval(ar) : ar;
-    } else if (forceUsear || trygetele('previewAr', 'checked', false)) {
-        dhh = eval(trygeteleval('imageasp', saveaspect));  // height or aspect from gui
-        if (dhh !== 1 * dhh) {
-            serious("Invalid value in 'height or aspect' field, 16/9 used.");
-            tryseteleval('imageasp', '16/9');
-            dhh = 16 / 9;
-        }
-    } else {
-        dhh = width / height;  // actual aspect from screen
-    }
-    if (dhh < 0) dhh = -dhh;
-    hh = hh || dhh;
-    hh = hh > 10 ? hh : Math.round(ww / hh);      // if hh <= 10 use it as aspect
-    // specific size requested, check it
-    if (arguments.length !== 0 && (ww * hh > maxblob || hh > lmaxTextureSize || ww > lmaxTextureSize)) {
-        let ratio = Math.sqrt(maxblob / (ww * hh));
-        ratio = Math.min(ratio, lmaxTextureSize / hh);
-        ratio = Math.min(ratio, lmaxTextureSize / ww);
-        ww = Math.floor(ww * ratio / 2) * 2;    // even
-        hh = Math.floor(hh * ratio);
-        //tryseteleval('imageres', maxsize);
-        let mm = "Size for saving limited to " + lmaxTextureSize + " each side by GL implementation\n";
-        mm += "and to area " + maxblob + " by Chrome blob implementation.\n";
-        mm += "Size set to " + ww + "x" + hh;
-        msgfix('texture info', mm);
-        console.log(mm);
-    }
-    return [ww, hh];
-}
-
-/** save a big image a given size setting */
-function saveframe1(ww, hh, fid, comp, type) {
-
-    let savefull = inputs.fullvp;
-    setInput(W.fullvp, false);
-    let viewports = vps;
-    setViewports([0, 0]);
-    saveframe2(ww, hh, fid, comp, type, review);
-    function review() {
-        setInput(W.fullvp, savefull);
-        setViewports(viewports);
-    }
-}
-
-
-/** save a frame with a given size setting */
-function saveframe2(ww, hh, fid, comp, type, endfun) {
-    let sww = width, shh = height;
-    log("saveframe2 size", ww, hh);
-    setSize(ww, hh);
-    newframe();
-    canvas.style.display = "none";
-
-    // setTimeout(dosave, 100);
-    Maestro.on("postframe", nextsave, undefined, true);
-    function nextsave() {
-        newframe();
-        Maestro.on("postframe", dosave, undefined, true);
-    }
-    function dosave() {
-        log("saveframe2 rsave size", width, height);
-        saveframe(fid, comp, type);
-        log("saveframe2 restore size", ww, hh, "to", sww, shh);
-        setSize(sww, shh);
-        canvas.style.display = "";
-        if (endfun) endfun();
-    }
-}
-
-var savebuff; // saved buffer to avoid unnecessary buffer realloc
-/** convert bgra to rgba (for reading/saving canvas)
-factored out because that sometimes optimizes better */
-function _conv(im) {
-    for (let i=0; i<im.length; i+=4) {
-        let t = im[i]; im[i] = im[i+2]; im[i+2]=t
-        if (i % 1000000 === 0) log('conv', i,im.length, Math.floor(i*100/im.length));
-    }
-}
-
-/** save current frame, readPixels, process and save.
-If fid is not defined we will do a readPixels,
-and then process and save on the next call with a fid
-===
-kkk === 3 uses gpu saveframetga.convert to ensure correct format
-kkk === 4 uses cpu _conv
-*/
-var saveframetga: ((fid, rt?, kkk?) => void) &
-    { convertDone?, convert?: (rt) => any, rt?: any, uniforms?, intex?, prepread?, material?, scene?} =
-function (fid, rt = null, kkk = 3) {
-    if (saveframetga.convertDone < framenum && kkk !== 4)
-        saveframetga.convert(rt);  // first time in
-    const usert = kkk === 4 ? rt : saveframetga.rt;
-    const width = (usert || canvas).width;
-    let widthi = width * 4 / kkk;
-    if (width%1) return msgfixerror('saveframetga width not multiple of four', width);
-    let heighti = (usert || canvas).height;
-
-    // read out of the converted canvas
-    // this is in correct format and has had all processing applied
-    // buffer has 18 bytes head + 4 bytes per pixel image data
-    renderer.setRenderTarget(usert);
-    if (!savebuff || savebuff.byteLength < kkk * widthi * heighti + 18) {
-        savebuff = new ArrayBuffer(kkk * widthi * heighti + 18);
-    }
-    let imageview = new Uint8Array(savebuff, 18);  // view of buffer offset to hold just image data
-    let xbpv3 = new Uint8Array(savebuff);
-
-    if (saveframetga.prepread) {
-        saveframetga.prepread = false;
-    } else {
-        renderer.setRenderTarget(usert);
-        gl.flush();  // I thought readPixels would do this, but ...???
-        gl.readPixels(0, 0, widthi * kkk / 4, heighti, gl.RGBA, gl.UNSIGNED_BYTE, imageview);  // read offset so we can safely move data inplace
-        gl.flush();  // I thought readPixels would do this, but ...???
-        if (saveframetga.convertDone < framenum) _conv(imageview);
-    }
-
-    // saveframetga.convertDone = false;                // no need, rely on framenum
-    if (kkk !== 4) saveframetga.convert(rt);             // ready for next frame
-
-    if (!fid) {  // this was a preread call
-        saveframetga.prepread = true;
-        return;
-    }
-
-    if (!fid.endsWith('.tga')) { log('saveframetga called with wrong type, no-op', fid); return; }
-
-    // note, saveframe1 and saveframe2 are wrappers for saveframe
-
-    // log("write sync", fid);  // around 1 sec 17MB
-    // older machine
-    //     with new Buffer around 300ms, 6.6MB (correct)
-    //     saveframe around 750ms, 4.2MB
-    //     saveimage with prealloc around 200ms
-    //     saveframetga around 250ms with prealloc
-    //     saveframetga with both prealloc, around 50ms
-
-
-    // stephen laptop
-    //      saveframe1 with reorder (and to 3 byte) around 123ms; reduced to 79ms with careful use of buffer types
-    //      saveframetga with both prealloc, no reorder around 24ms
-    //      it would be good to find an acceaptable rgba uncompressed image format
-    //      saveframe 290ms
-
-    // reorder pixels, works best where both sides are Uint8Array, various similar loops trivially more expensive
-    //for (let i=0, j=18; i<width*height*4; i+=4) { xbpv3[j++] = imageview[i+2]; xbpv3[j++] = imageview[i+1]; xbpv3[j++] = imageview[i]; }
-
-    // header 18
-    //  0   0 imageid length
-    //  1   0 color map type
-    //  2   2 image tyupe (uncomp0 color)
-    //  3   0,0,0,0,0 color map
-    //  8   0,0 left
-    // 10   0,0 top
-    // 12   w,w width  90 06
-    // 14   h,h height F2 03
-    // 16   32 pixel depth  (? x18=24 for rgb)
-    // 17   ? image descriptor 00 for rgb, ? 8 for rgba (8 bits alpha)
-    // imageid 0
-    // colour map spec 0
-
-    let bbb = xbpv3;
-    bbb[2] = 2;
-    bbb[12] = widthi & 255;
-    bbb[13] = widthi >> 8;
-    bbb[14] = heighti & 255;
-    bbb[15] = heighti >> 8;
-    bbb[16] = kkk * 8; // bits per pixel
-    if (kkk === 4) bbb[17] = 8;
-
-
-    let sync = true;
-    if (!nwfs) {
-        if (Files.dirhandle) {
-            Files.write(fid, savebuff)
-        } else if (WA.saveframetga_writetextremote) {
-            writetextremote(fid, savebuff);
-        } else {
-            WA.fileWriteWS(fid, savebuff);
-        }
-    } else if (sync) {
-        let xbpv3b = new Buffer(savebuff);  // fast, control length in write
-        let fd = nwfs.openSync(fid, 'w');
-        //nwfs.writeSync(fd, bbb, 0, bbb.length);
-        nwfs.writeSync(fd, xbpv3b, 0, 18 + widthi * heighti * kkk);
-        nwfs.closeSync(fd);
-        //writetextremote(fid, xbpv3);
-        //log("write sync", fid, 18 + width*height*kkk);
-    } else {
-        let xbpv3b = new Buffer(savebuff);  // fast, control length in write
-        // async in this form gloes slower (partly larger file), and might need synchronization, extra buffers to ensure right answer
-        nwfs.writeFile(fid, xbpv3b, nop);
-        log("write async", fid);
-    }
-}
-saveframetga.convertDone = 0;
-
-/** convert a frame so it is friendly to tga format
-* by default conversion is only valid for the frame in which it is done
-* late=1 allows the frame to be converted now (eg postframe_
-* but still valid in the next frame. (eg during preframe)
- */
-saveframetga.convert = function (rt, late = 0) {
-    let widthi, heighti;
-    if (!rt) {
-        saveframetga.intex = saveframetga.intex || new THREE.Texture(canvas, undefined,  // define just once
-            THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping,
-            THREE.NearestFilter, THREE.NearestFilter);
-
-        rt = saveframetga.intex;
-        widthi = rt.image.width; heighti = rt.image.height;
-        saveframetga.intex.needsUpdate = true;
-    } else {
-        let im = rt.image || rt;
-        widthi = im.width; heighti = im.height;
-        if (!widthi)
-            debugger;
-    }
-    rt.needsUpdate = true;
-
-    if (!saveframetga.rt || saveframetga.rt.width !== widthi * 3 / 4 || saveframetga.rt.height !== heighti) {
-        saveframetga.rt = WebGLRenderTarget(widthi * 3 / 4, heighti, {
-            format: THREE.RGBAFormat,
-            type: THREE.UnsignedByteType,
-            minFilter: THREE.NearestFilter,
-            magFilter: THREE.NearestFilter,
-            wrapS: THREE.ClampToEdgeWrapping,
-            wrapT: THREE.ClampToEdgeWrapping,
-            depthBuffer: false,
-            stencilBuffer: false
-        }, 'saveframetga.convert');
-        saveframetga.rt.texture.generateMipmaps = false;
-
-    }
-    if (!saveframetga.material) {
-        saveframetga.uniforms = {
-            intex: { type: 't' },
-            res: { type: 'v2', value: new THREE.Vector2(0, 0) }
-        };
-        saveframetga.material = new THREE.ShaderMaterial({
-            uniforms: saveframetga.uniforms,
-            vertexShader: getfiledata("shaders/copy43.vs?" + Date.now()),
-            fragmentShader: getfiledata("shaders/copy43.fs?" + Date.now()),
-            depthTest: false, depthWrite: false,
-            transparent: false,
-            side: THREE.FrontSide
-        });
-        saveframetga.material.name = 'saveframetga';
-        saveframetga.scene = newscene('saveframetga');
-        let xgeometry = new THREE.PlaneGeometry(2, 2);
-        let xmesh = new THREE.Mesh(xgeometry, saveframetga.material);
-        xmesh.frustumCulled = false;
-        saveframetga.scene.addX(xmesh);
-    }
-
-
-    //saveframetga.rt = undefined;
-    saveframetga.uniforms.res.value.x = widthi;
-    saveframetga.uniforms.res.value.y = heighti;
-    saveframetga.uniforms.intex.value = rt.texture || rt; // make sure relevant rt is used as input
-    // saveframetga.uniforms.intex.value = slots[0].dispobj.rt;
-
-    //let renderer = renderer2;
-    renderer.setClearColor(ColorKeywords.black, 0);
-    renderer.setRenderTarget(saveframetga.rt);
-    rendererSetViewportCanv(0, 0, widthi, heighti);
-    renderer.clear();
-    rrender('tgaconvert', saveframetga.scene, camera, saveframetga.rt);  // reason, scene, camera not used, target, flag
-
-    saveframetga.convertDone = framenum + late;
-};
-
-
-/** save current frame as image, at current size
-options o also allow specific region,
-or a slot number, or a dispobj
-*/
-function saveframe(fid?, comp?, type?, options?, callback?) {
-    let t = (new Date().toISOString() as Xstring).replace(/:/g, ".");
-    type = type || getFileExtension(fid || '').substring(1);
-    if (!fid) {
-        const ds = getdesksave(); //XXX hit "Cannot find module 'os'" - tiff2.js require() strikes again.
-        fid = (ds ? (ds + '/') : '') + currentGenes.name + '_' + t;
-    }
-    // if (!fid) fid = fid = getdesksave() + '/' + currentGenes.name + '_' + t;
-    if (type === 'tga' && !options) return saveframetga(fid);
-    let ctype = "image/" + (type === "jpg" ? "jpeg" : type);
-    comp = comp || 0.9;
-    // if (tt === undefined) fid += "." + (type === "jpeg" ? "jpg" : type);
-    let canvasn = canvas;
-    if (options) {
-        let o = options;
-        if (typeof o === 'number' || typeof o === 'string')
-            o = slots[o].dispobj;
-        canvasn = document.createElement('canvas');
-        canvasn.width = o.width;
-        canvasn.height = o.height;
-
-        canvasn.getContext('2d').drawImage(canvas, o.left, canvas.height - o.top, o.width, o.height, 0, 0, o.width, o.height);
-    }
-
-    let dataurl = canvasn.toDataURL(ctype, comp);
-    if (nwfs) {
-        let sdataurl = dataurl.substr(dataurl.indexOf(",") + 1);
-        if (callback) {
-            nwfs.writeFile(fid, sdataurl, 'base64', callback);
-        } else {
-            // should be {encoding: 'base64'} ?
-            nwfs . writeFileSync(fid, sdataurl, 'base64');
-        }
-    } else {
-		// ??? this failed for Guido, whey ???
-        writeUrlImageRemote(fid, dataurl, ctype);
-        // it would be better to make writeUrlImageRemote async
-        // we need async because of the way we are using events;
-        // we need to be sure the event is triggered after we are waiting for it.
-        // todo? don't use events
-        if (callback) setTimeout(callback, 1);
-    }
-    log("saveframe file written", fid, canvas.width, canvas.height, 'uScale', G._uScale);
-}
-
-/** save single image: size is taken from parameter ss, or if none from imageres, or if none from savesize
- * does NOT save nocamscene (typically menu)
- */
-async function saveimage1(ww?, hh?, bmp?) {
-    const s = V.nocamscene;
-    V.nocamscene = undefined;
-    try {
-        await saveimage(ww, hh, bmp, true);
-    } finally {
-        V.nocamscene = s;
-    }
-}
-
-/** save single image high quality: size is taken from parameter ss, or if none from imageres, or if none from savesize */
-function saveimage1high(ww?, hh?, bmp?) {
-    saveimagehigh(ww, hh, bmp, true);
-}
-
-/** save image: size is taken from parameter ss, or if none from imageres, or if none from savesize */
-function saveimagehigh(ww, hh, bmp, oneonly) {
-    let sres = inputs.resbaseui;
-    let srr = inputs.renderRatioUi;
-    let srres = inputs.imageres;
-    let sww = width, shh = height;
-    setSize(100,100);               // this may help having mutiple lots of big buffers around at once
-    clearrendertargets();
-
-    setInput(W.resbaseui, 12);
-//    setInput(W.renderRatioUi, 1);  // << tradeoff here, value such as 0.5 means imageres must be reduced
-    setInput(W.imageres, 6 * 1024);  // << would like 8*
-    saveimage(ww, hh, bmp, oneonly);
-
-    setInput(W.resbaseui, sres);
-    setInput(W.renderRatioUi, srr);
-    setInput(W.imageres, srres);
-    setSize(sww, shh);
-}
-
-
-var xpv4, xpv3;  // save realloc if done in advance
-/** save image: size is taken from parameter ss, or if none from imageres, or if none from savesize */
-async function saveimage(ww?, hh?, bmp?, oneonly?, ffid?) {
-    vpalleq = 'sides';
-    let fullww = (slots[-1]) ? slots[-1].x : width;  // don't include projvp
-    let asp = inputs.previewAr ? inputs.imageasp : fullww / height;
-    let wwhh = imsize(ww, hh, asp);
-    ww = wwhh[0]; hh = wwhh[1];
-
-    /*** decide on fid ***/
-    let t = (new Date().toISOString() as Xstring).replace(/:/g, ".");
-    let nmsg =
-        t + "_" +
-        "-w" + ww +
-        "-h" + hh +
-        "-" + inputs.resbaseui +
-        "-" + inputs.resdyndeltaui +
-        "-" + inputs.renderRatioUi +
-        "";
-
-    let iname = loadOao.lastfn.split('\\').pop().split('/').pop().replace('.oao',''); // trygeteleval('imagename', "organic");
-    let fid = ffid ?? (iname + nmsg + ".tga");
-    fid = getdesksave() + fid;
-
-    msgfixlog('saveimage', "starting ...", ww, hh, 'bmp', bmp, 'oneolny', oneonly, 'fid', fid);
-    if ((oneonly || vps[0]*vps[1] <= 1) && ww > 3*1024) return saveframetgabig(fid, ww, hh);
-
-    inputs.resbaseui += 1;
-    let vfast = false && ww === canvas.width && hh === canvas.height;   // todo, decide if/when this can be used
-    let rt, sww, shh, svp0, svp1, susebyte = Dispobj.usebyte;
-    // Even with Dispobj.usebyte this path is broken (lots gl context) for 4096x4096
-    Dispobj.usebyte = true; // not needed for tgabig, but useful here Stephen 17/11/2022
-    if (!vfast) {
-        sww = width, shh = height, svp0 = vps[0], svp1 = vps[1];
-    }
-    if (vfast) {
-        renderer.setRenderTarget(null);
-        /******* renderTarget method disabled 4 Sept 2016 ... for unknown reason the copy phase was just giving plain coloured images  *** /
-        } else if (/**inputs.renderRatioUi*1 === 1 &&** / (slots.length === 1 || oneonly)) {  // save using renderTarget. ??? higher quality, but does not allow for viewports (all laid on top of each other)
-
-            // this initial incantation seems to ensure that the gamma copy stage works correctly
-            // otherwise it works just sometimes, eg if two saveimage() are done with no 'standard' rendering in between
-            // TODO: find out why
-            setSize(width, height); renderFrame();  //todo
-            //setSize(ww,hh); renderFrame();  //todo
-
-            let bdispobj = slots[(inputs.projvp) ? -1 : mainvp].dispobj; // dispobj to establish aspect ration
-            let wwhh = imsize(ww, hh, bdispobj.width/bdispobj.height);
-
-            // We make this look like a standard Dispobj with vpx composition rendering
-            // Mayne overkill, and would be easier to make our own scene
-            // but for now we are sure to get details such as Dispobj.tune consistent this way.
-            let dr = new Dispobj();                       // dispobj for actual rendering
-            dr.genes = bdispobj.genes;
-            dr.vn = bdispobj.vn;  // not really true
-            dr.needssUpdate = true;
-            dr.needsRender = 1;
-
-            ww = wwhh[0]; hh=wwhh[1];
-            log("... save image starting ...", ww, hh, 'bmp', bmp, 'oneolny', oneonly);
-            let rr = inputs.renderRatioUi;
-            dr.width = ww; dr.height = hh;
-            dr.cx = ww/2; dr.cy = hh/2;
-            let scene = dr.scene;
-            scene.position.x = dr.cx; scene.position.y = dr.cy;
-            scene.position.z = 0;
-            scene.scale.x = dr.width; scene.scale.y = dr.height;
-
-
-            clearrendertargets();   // maxmize GPU space free
-            for (let i=0; i<25; i++) renderObj(dr);  // loop for feedback
-            if (checkglerror("gl after saveimage renderObj"))
-                debugger;
-
-            // extra step here for gamma, soft clipping, etc
-            while (vpx QuadScene.children.length > 0)
-                vpx QuadScene.remove(vpx QuadScene.children[0]);
-            let vpxSceneRenderCamera = new THREE.OrthographicCamera(0, ww, hh, 0, -100, 100);
-            //vpxSceneRenderCamera.matrixAutoUpdate = false;
-
-            dr.visible = true;  // add to vpx quadscene
-
-            let inrt = dr.rt;
-            let rt = getrendertarget( 'rtopos', {sizer: {width:ww, height: hh}} ); // reuse one to save memory
-            renderer.setRenderTarget(rt);
-            // renderer.setClearColor(selcol);   // not needed? for debug
-            renderer.clear();
-            // dr.uniforms.intex.value = inrt;  // already true
-
-            rrender("saveimage final copy", vpxQuadScene, vpxSceneRenderCamera, rt);
-            checkglerror("gl after savimage final copy");
-            renderer.setRenderTarget(rt);
-        /********************* end disabled section **************/
-    } else { // save by resizing the main window
-        //let fullww = (slots[-1]) ? slots[-1].x : width;  // don't include projvp
-        //let wwhh = imsize(ww, hh, fullww/height);
-        //ww = wwhh[0]; hh=wwhh[1];
-        if (oneonly) vps = [0, 0];
-
-        let sfull = inputs.fullvp;    // save special vp rules
-        let sproj = inputs.projvp;
-        inputs.fullvp = false;        // ignore for image save
-        inputs.projvp = false;
-        clearrendertargets();       // have as little extra memory in use as possible
-        let ok = setSize(ww, hh, true);                           // make sure all the slots dispobj etc set to correct size, maybe too big for canvas so use force
-        if (!ok) {
-            setSize(8,8);               // don't waste space on for now unused real canvas
-            rt = WebGLRenderTarget(ww, hh, {        // do all the preparation using rt, it may be bigger than could be used for canvas
-                format: THREE.RGBAFormat,
-                type: THREE.UnsignedByteType,
-                minFilter: THREE.NearestFilter,
-                magFilter: THREE.NearestFilter,
-                wrapS: THREE.ClampToEdgeWrapping,
-                wrapT: THREE.ClampToEdgeWrapping,
-                //depthBuffer: false,
-                stencilBuffer: false
-            }, 'saveimage_big_buffer');
-            rt.texture.generateMipmaps = false;
-            rt.depthBuffer = true;  // can avoid this if we don't render boundaries of vps ???
-            setViewports(vps, ww, hh);  // set viewports for rt (rather than for canvas)
-            log('test that we can render to big render target, current totsize', newTHREE_DataTextureSize/1e6);
-            renderObjsInner(rt);        // so if we run out of memory we do it asap
-            log('render to big render target ok, current totsize', newTHREE_DataTextureSize/1e6);
-        }
-
-
-        checkglerror("gl after setsize");
-        forcerefresh = true;
-        msgfixlog('saveimage', "start render");
-        const loop = cMap.renderState === 'color' ? 1 : 25;
-        const loopmax = 150;    // even with color we may not have repainted all neccessary
-        refall();
-        for (let i = 0; i < loop || (i < loopmax && slots.some(s => s.dispobj.needsRender)); i++) {   // make sure up to date, even including feedback
-            //renderFrame(rt);
-            //framenum++;         // update for
-            // await S.frame();
-            await sleep(40);   // S.frame does not finish if minimized, broken if minimized anyway
-            msgfixlog('saveimage', `${i} tot:${slots.reduce((c,s) => c += s ? s.dispobj.needsRender : 0, 0)} byslot:${slots.map(s => s.dispobj.needsRender)}`);
-        }
-        checkglerror("gl after renderFrame");
-        inputs.fullvp = sfull;        // restore
-        inputs.projvp = sproj;
-        if (rt) {
-            log('pre update big render target before saving, current totsize', newTHREE_DataTextureSize/1e6);
-            renderer.setRenderTarget(rt);
-            renderObjsInner(rt);        // so rt actually gets the latest data
-            log('post update big render target before saving, current totsize', newTHREE_DataTextureSize/1e6);
-        }
-    }
-    inputs.resbaseui -= 1;
-
-    // clean as much as possible before trying to convert
-    if (rt) {
-        clearrendertargets_exclusions = ['saveimage_big_buffer'];
-        clearrendertargets();
-        setSize();
-        log('resize before trying tga conversion, current totsize', newTHREE_DataTextureSize/1e6);
-    }
-
-    /***** save using tga code ******/
-    msgfixlog('saveimage', 'converting');
-    await S.frame();
-    if (rt) saveframetga.convert(rt);  // dont convert canvas
-    log('convert done, current totsize', newTHREE_DataTextureSize/1e6);
-    msgfixlog('saveimage', 'saving');
-    await S.frame();
-    saveframetga(fid, rt, rt ? 3 : 4);
-    clearrendertargets_exclusions = [];
-    log('image saved,  current totsize', newTHREE_DataTextureSize/1e6);
-
-
-
-    /**** convert saved image if possible */
-    if (nwfs) {
-        let tiffid = fid.replace(".ppm", ".tif").replace(".tga", ".tif");
-        // compress saved file to .tif with tifc=1, lzw
-        let iview = "C:\\Program Files (x86)\\IrfanView\\i_view32.exe";
-        if (!fileExists(iview)) iview = "C:\\Program Files\\IrfanView\\i_view64.exe"
-        if (fileExists(iview)) {
-            let spawn = require('child_process').spawn;
-            let args = [fid, "/convert=" + tiffid, "/tifc=1"];
-            let proc = spawn(iview, args);
-            proc.on("close", function (evt) {
-                log("iview close", evt, proc.exitCode, "converted to", tiffid);
-                if (evt === 0) nwfs.unlink(fid, nop);
-            });
-        } else {
-            //we should use ImageMagick to be more cross-platform compatible.
-            log("No irfanview found, cannot replace .ppm file with .tif");
-        }
-    }
-
-    // restore
-    clearrendertargets();  // clean up any huge buffers
-    if (sww) {  // restore the size if necessary ~~ view ports
-        vps[0] = svp0; vps[1] = svp1;
-        setSize(sww, shh);
-        refall();  // should redo things and lose our big rendertarget
-    }
-    Dispobj.usebyte = susebyte;
-    msgfixlog('saveimage', 'done');
-}
-// </editor-fold>
-
 
 
 /** change res old style */
@@ -4857,7 +4269,7 @@ function setViewports(nnn?, www: number = undefined, hhh: number = undefined) {
                 nwwin.resizeTo(w, h);
                 nwwin.moveTo(0, 0);
             } else {
-                windowset(w, h);
+                windowset(w, h, 0, false);  // false prevents awkward screen sizes
             }
             canvas.width = width = w;
             canvas.height = height = h;
@@ -5308,6 +4720,7 @@ var VEC4 = function (a?, b?, c?, d?): THREE.Vector4 {
         new THREE.Vector4(a || 0, b || 0, c || 0, d === undefined ? 1 : d);
 };
 var VEC = VEC4
+WA.vec4 = VEC4;
 
 var VEC3 = function (a?, b?, c?): THREE.Vector3 {
     return (Array.isArray(a)) ? VEC3(...a) :
@@ -5776,7 +5189,7 @@ function centreall() {
 function imageaspkeydown(evt) {
     if (getkey(evt) === 'Enter') {
         W.imageasp.style.color = "#fff";
-        onWindowResize();
+        onWindowResize(true);
     } else {
         W.imageasp.style.color = "#F80";
     }
@@ -5930,6 +5343,10 @@ var rrender: Rrender = function (reason, scenep, camerap, target = null, flag?) 
 
     /**/
     if (camerap) uniforms.cameraPositionModel.value.setFromMatrixPosition(camerap.matrixWorld);
+    if (target?.texture && target.texture === U.feedtexture) {
+        console.error('potential loop detected and cleared', reason, opmode, oplist[opmode]);
+        U.feedtexture = null;
+    }
     // experiment towards using real size world and model matrix to scale/position/orient
     if (xmatrix) {
         if ([OPREGULAR, OPSHADOWS, OPOPOS, OPSHAPEPOS, OPOPOS2COL, OPTSHAPEPOS2COL].indexOf(opmode as any) !== -1) {
@@ -5990,9 +5407,9 @@ var rrender: Rrender = function (reason, scenep, camerap, target = null, flag?) 
         //            reason = reason; // debugger;
         reason = reason + ""; // debugger;
     }
-    let many = typeof OPMODE !== 'number' || OPMODE === OPOPOS2COL || OPMODE === OPREGULAR || OPMODE === OPOPOS || OPMODE === OPTEST || OPMODE === OPMAKESKELBUFF || OPMODE === OPSHADOWS || OPMODE === OPSHAPEPOS || OPMODE === OPPOSITION || OPMODE === OPPICK || OPMODE === OPTSHAPEPOS2COL;
+    let many = typeof OPMODE !== 'number' || OPMODE === OPOPOS2COL || OPMODE === OPREGULAR || OPMODE === OPOPOS || OPMODE === OPMAKESKELBUFF || OPMODE === OPSHADOWS || OPMODE === OPSHAPEPOS || OPMODE === OPPOSITION || OPMODE === OPPICK || OPMODE === OPTSHAPEPOS2COL;
     // HW.captureUniforms(hornid);
-    if (logframenum >= framenum)
+    if (logframenum >= framenum && logframefull)
         framelog('rrender', 'reason=' + reason, 'opmode=' + oplist[opmode], 'gbuffoffset=' + uniforms.gbuffoffset.value,
             "res=" + uniforms.lennum.value + '/' + uniforms.radnum.value + '/' + uniforms.skelnum.value + '/' + uniforms.skelends.value, 'hornid=', hornid,
             "hornname=", currentHset && currentHset.hornrun[hornid] ? currentHset.hornrun[hornid].horn.name : "n/a",
@@ -6071,7 +5488,19 @@ var rrender: Rrender = function (reason, scenep, camerap, target = null, flag?) 
         uniforms.hornid.value = s;
     }
 
-}
+    if (logframenum >= framenum && !logframefull) {
+        let err:any = '?'
+        if (logframeflush) {gl.finish(); gl.flush(); err = gl.getError(); }
+        const nt = performance.now();
+        const dt = +((nt - logframetime).toFixed(2));
+        logframetime = nt
+
+        logframetable.push({dt, reason, opmode: oplist[opmode] ?? opmode,
+            scene: scenep.name,
+            material: ch0.material?.name?.post(' ')?.substring(0, 10), depth: ch0.material?.depthTest,
+            target: target?.name, err});
+    }
+} // rrender
 rrender.cores = {};
 rrender.preeach = nop;
 rrender.preall = nop;
@@ -6120,19 +5549,24 @@ function rrenderCore(rr, camerap, scenep, ch0, target, flag, reason) {
 let _rrenderwarn = 50;
 
 
-function remakeShaders(force = false) {
+async function remakeShaders(force = false, dolog = true) {
     // baseShaderChanged();  done in getShaders()
     msgfix('rebuilding shaders', '<span class="errmsg">rebuilding shaders</span>');
-    onframe(()=>msgfix('rebuilding shaders'),3);
     badshader = false;
     preloaded = {}; // force reload
-    onframe( ()=> { // defer main work so rebuilding shaders gets displayed
-        clearPostCache('remakeShaders');
-        forcerefresh = true;
-        HW.dotty = false;
-        if (slots) slots[mainvp].dispobj.renew();  // recompile the copy shader as well
-        onframe(function () { getShaders(undefined, undefined, force); });
-    });
+    await S.frame();
+
+    clearPostCache('remakeShaders');
+    forcerefresh = true;
+    HW.dotty = false;
+    if (slots) slots[mainvp].dispobj.renew();  // recompile the copy shader as well
+    await S.frame();
+
+    getShaders(undefined, undefined, force);
+    if (dolog) logframe();
+    await S.frame(2);
+
+    msgfix('rebuilding shaders');
 }
 
 /*** shaderhere
@@ -6159,24 +5593,23 @@ function showUniformsUsed(tranrule = currentGenes.tranrule) {
         for (let m in matops) {
             if (tranrule && m !== tranrule) continue;
             if (m === 'defines') continue;  // extra infor stored
-            const mshow = m.trim().substr(0, 18);
+            const mshow = m.trim().substring(0, 18);
             // if (m.indexOf('#') !== -1) continue;  // duplicate for specific and generic forms] unreliable test
             let mat = matops[m];
             if (!(mat instanceof THREE.ShaderMaterial)) continue;
 
             // We used to catch uniformsList be patch to three.js, but that is not necessary as below
-            // seq also includes projectionMatrix etc when used, so the preferred option
+            // ul route below also includes projectionMatrix etc when used, so the preferred option
             const matprop = renderer.properties.get(mat);
-
             let ulold = matprop.uniformsList.map(x => x.id);
-            let ul = matprop.program.getUniforms().seq;  // THREEA ... 5 July 2021 was (mm as any).program.getUniforms().seq;
-            ul = ul ? ul.map(x => x.id) : [];
+
+            const prog = matprop.programs.entries().next().value[1]
+            const ul = prog.getUniforms().seq.map(x => x.id);
             const r1 = arraydiff(ulold, ul); if (r1.length) log('old extra', opm, mshow, r1);
             const r2 = arraydiff(ul, ulold); if (r2.length) log('new extra', opm, mshow, r2);
             k.all = k.all.concat(ul);
-            let nn = ul.join(", ");
             log(opm, mshow, '       uniforms', olength(ulold),  olength(ul)); //
-            k[opm + '.' + m] = nn;
+            k[opm + '_' + m] = ul; // nn;
         }
     }
     k.all = k.all.sort().filter((x, i, a) => !i || x != a[i-1])
@@ -6184,8 +5617,9 @@ function showUniformsUsed(tranrule = currentGenes.tranrule) {
 }
 
 // clean up materials, get rid of the long strings ... but lots are still hidden somewhere else
-function cleanMaterials() {
+function cleanMaterials(ops) {
     for (let opm in material) {
+        if (!opm.match(ops)) continue;
         let matops = material[opm];
         for (let m in matops) {
             if (m === 'defines') continue;  // extra infor stored
@@ -7183,8 +6617,8 @@ function fitCanvasToWindow(sc = undefined) {
         let sc2 = window.innerHeight / canvas.height;
         sc = Math.min(sc1, sc2);
     }
-    canvas.style.left = inputs.fixcontrols ? '360px' : '0px';
-    canvas.style.top = '0px';
+    canvas.style.left = inputs.fixcontrols ? '360px' : (window.innerWidth - canvas.width * sc)/2 + 'px';
+    canvas.style.top = searchValues.canvtop ? '0' : (window.innerHeight - canvas.height * sc)/2 + 'px';
     canvas.style.width = Math.floor(canvas.width * sc) + 'px';
     canvas.style.height = Math.floor(canvas.height * sc) + 'px';
 }
@@ -7568,7 +7002,7 @@ function exportmyshaders(mat:any = 'ALL', code, extra = '') {
     }
     mat = mat || debugLastMat || material.regular[tranrule];
 
-    //let mm = mat.fragmentShader.split('float vv = lopos.z + 0.5;')[1];
+    //let mm = mat.fragmentShader.split('float vv = lopos .z + 0.5;')[1];
     //log('>>>> fragment of fragment shader', mm.substring(0, 400).replace(/$/g,"!"));
     let op = mat.opmode + extra;
 
@@ -7821,240 +7255,9 @@ async function tgaconv(fid, nfid?, q=100) {
     }
 }
 
-var tgaspread = {   // var for sharing
-    usetga: true,
-    feedback: {k: [1], thickness: 1, speccol: (2**-15), concentrateN: 1},
-    main: {k: [1], thickness: 1, speccol: (2**-16), concentrateN: 0},
-};
+var tgaspreadusetga = true;  // var for sharing
 
 var imageOpts, specialPostrender, setupImageEdge, clearImageEdge;  // from image.js
-/** save a high resolution image in tiles
- * inputs may be absolute size, or multiples of current size
- *
- * implementation notes:
- * some details may be too specific to tadpoles still
- * we show rt kind of feedback
- *    first phase is run at high res (8192) to get best possible feedback frame. Can't afford antialias at this res
- *    we then grab this high res feedback frame, and move to a pseudo fixed mode using it for feedback
- *    second phase records images in stripes, each image is fairly low res, but with high antialias
- */
-async function saveframetgabig(fid='big.tga', ww=width*4, hh=height*4, deletetga=true) {
-    save(undefined, fid); // save oao, and small jpg
-
-    // save some data, and set some high resolution details
-    let Vguivisible = V.gui && V.gui.visible;
-    if (!camera.view || camera.view.enabled === false) camera.setViewOffset(width, height, 0, 0, width,height);
-    let ocv = Object.assign({}, camera.view);
-    const savestate = [
-        inputs.resbaseui, cMap.fixres, tad.colorCyclePerMin, cMap.renderFeedback, width, height, Vguivisible, // cMap.wallType.slice(0),
-        tad.continuousActive, tad.isInteract, springs.isRunning, inputs.renderRatioUi, WA.maxsize, inputs.imageasp, vps.slice(0),
-        V.wallAspect, G.wallAspect, preventScale, render_depth_shadows, V.nocamscene.visible, clone(imageOpts), specialPostrender, clone(U.edgecol),
-        V.camscene.visible
-    ];
-    const restore = () => {             // restore called at end, on 'finally'
-        let vpsx, tedgecol
-        [
-            inps.resbaseui, cMap.fixres, tad.colorCyclePerMin, cMap.renderFeedback, width, height, Vguivisible, // cMap.wallType,
-            tad.continuousActive, tad.isInteract, springs.isRunning, inps.renderRatioUi, WA.maxsize, inps.imageasp, vpsx,
-            V.wallAspect, G.wallAspect, preventScale, render_depth_shadows, V.nocamscene.visible, imageOpts, specialPostrender, tedgecol,
-            V.camscene.visible
-        ] = savestate;
-        U.edgecol.copy(tedgecol);
-        setSize(width, height);
-        setViewports(vpsx);
-        onframe(()=>setSize()); // needed to make wall aspect appear correctly
-
-        if (V.gui) V.gui.visible = Vguivisible;
-        camera.setViewOffset(ocv.fullWidth, ocv.fullHeight, ocv.offsetX, ocv.offsetY, ocv.width, ocv.height);
-    }
-
-    const saveGenes = {} as Genes;
-    copyFrom(saveGenes, currentGenes);          // make sure genes (including camera genes) don't change during process
-    const save_fixtime = currentGenes._fixtime;
-    if (!save_fixtime) saveGenes._fixtime = uniforms.time.value;   // fix the time where it is now
-    const save_alwaysNewframe = alwaysNewframe; alwaysNewframe = 1e20;
-    const maestroGenesId = Maestro.on('preframe', () => { copyFrom(currentGenes, saveGenes); return 0; });
-
-    try {
-        V.nocamscene.visible = false;
-        V.camscene.visible = false;
-        preventScale = true;
-
-        const bigRenderRatio = 1/3;
-
-        // catch a few things before they get destroyed
-        const owidth = width, oheight = height;
-        if (ww < 20) ww = width*ww; // relative size
-        if (hh < 20) hh = height*hh;
-
-        // compute tiles, use existing size if possible, else aim for height/width 1024
-        let xx, yy;
-        xx = ww / width;    // tentative values, hoping for exact match
-        yy = hh / height;
-        if (xx%1 === 0 && (hh%1 === 0)) {
-            // ready to go
-        } else {
-            xx = Math.ceil(ww / 1024);
-            width = Math.ceil(ww / xx);
-            yy = Math.ceil(hh / 1024);
-            height = Math.ceil(hh / yy);
-        }
-        const twidth = width, theight = height;         // tile size
-        const widthi = width*xx, heighti = height*yy;   // widthi should be === ww, or a fraction bigger
-        const offX = ocv.offsetX * widthi / ocv.fullWidth;
-        const offY = ocv.offsetY * heighti / ocv.fullHeight;
-        msgfixlog('tiling', `${xx}x${yy} tiles, each tile ${twidth}x${theight}, total ${widthi}x${heighti}`);
-
-
-        // set up some high res details and prepare first phase ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        setInput('resbaseui', 10);
-        setInput(WA.shadr4096, true);
-        setViewports([0,0]);
-        // inputs.renderRatioUi = 1;       // so we can have highest resolution fixres for fixtex
-        tad.colorCyclePerMin = 0;
-        if (V.gui) V.gui.visible = false;
-        tad.continuousActive, tad.isInteract, springs.isRunning = false;
-        // !!! WA.maxsize = Infinity;
-
-        // cMap.wallType.fill('rt');
-        // clean as much as possible
-        setSize(8,8);   // too small and it gets used as ratio to available
-        clearrendertargets();
-        await S.maestro('postframe');
-        await S.maestro('postframe');
-        copyFrom(currentGenes, saveGenes);
-
-        clearrendertargets();
-
-        // run first phase --- render and save a big image for fixed map ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        setInput('imageasp', -owidth/oheight);
-        if (G.wallAspect !== -1) V.wallAspect = G.wallAspect = -owidth/oheight; // TODO ??? fix wallAspect and shadows
-
-        let fixres = 8*1024;
-        cMap.fixres = fixres;
-        if (cMap.wallType && cMap.wallType[5] === 'rt') {
-            setSize(fixres/4, fixres*9/16/4, true);
-            setInput('renderRatioUi', 1/4);
-        } else {
-            setSize(twidth, theight, true);
-        }
-        clearrendertargets();
-
-        if (tgaspread.usetga && (G.edgeprop !== 0 || G.fillprop !== 0)) {
-            setupImageEdge(tgaspread.feedback, fixres); U.edgecol.copy(imageOpts.speccol);
-        } else {
-            clearImageEdge();
-        }
-
-        for (let i = 0; i < 20; i++) {
-            if (gl.isContextLost()) return(console.error('web context lost feedback phase 1, i=', i));
-            await S.maestro('preframe');      // make sure image refreshed with new details and feedback established
-            copyFrom(currentGenes, saveGenes);
-            log('phase 1, i=', i);
-        }
-
-        // grab the result of first phase,  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        // and make sure it isn't prematurely cleaned by clearrendertargets()
-        // TODO, don't waste time above and here on feedback etc if not used
-        let fixtex = cMap.lastfix;
-        if (!fixtex || cMap.wallType[5] === 'rt') {
-            const dobj = slots[mainvp].dispobj, rt = dobj.rt;
-            fixtex = [rt.texture, '???'];                             // grab the bis rt as feedback texture
-            if (dobj._rts) {
-                const killrt = dobj._rts[dobj._rts[0] === rt ? 1 : 0];          // other rt to kill in usual way
-                killrt.dispose();
-                dobj._rts = dobj._renderTarget = undefined;
-            }
-            delete rendertargets[rt.name];                        // make sure rt isn't killed
-        }
-
-        setSize(8,8);
-        // set up for second phase ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        // cMap.wallType.fill('fixview');
-        if (!inputs.FLATMAP) msgfixerror('saveframetgabig does not support !FLATMAP');
-        cMap.renderFeedback = () => uniforms.flatMap.value = fixtex[0];  // use the frozen feedback now it is established
-
-        clearrendertargets();
-        await S.maestro('postframe');   // get shadows established, todo, high res shadows
-        if (gl.isContextLost()) return (console.error('web context lost rendering shadows'));
-        render_depth_shadows = nop;
-
-
-        // run second phase ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        setSize(twidth, theight, true);   // true forces exactly as asked
-        setInput('renderRatioUi', bigRenderRatio);       // high antialias for main render
-
-        await S.maestro('postframe');
-        await S.maestro('postframe');
-
-        // now start real work
-        let bbb = new Uint8Array(18);       // header
-        bbb[2] = 2;
-        bbb[12] = widthi & 255;
-        bbb[13] = widthi >> 8;
-        bbb[14] = heighti & 255;
-        bbb[15] = heighti >> 8;
-        bbb[16] = 24; // bits per pixel
-        writetextremote(fid, bbb);
-
-        let b = new Uint8Array(twidth*theight*4); // array read from gpu
-
-        let z = new Uint8Array(widthi*3 * theight);  // tga format data for one stripe of images
-        const res = ww / bigRenderRatio;            // so we can scale image edges
-        if (tgaspread.usetga && (G.edgeprop !== 0 || G.fillprop !== 0)) {
-            setupImageEdge(tgaspread.main, res); U.edgecol.copy(imageOpts.speccol);
-        } else {
-            clearImageEdge();
-        }
-
-        for (let y = 0; y < yy; y++) {
-            for (let x = 0; x < xx; x++) {
-                if (gl.isContextLost()) return (console.error('web context lost rendering tiles'));
-                // camera.setViewOffset(widthi/xx, heighti/yy, width*x/xx, height*(yy-y-1)/yy, width/xx, height/yy);
-                camera.setViewOffset(widthi, heighti, twidth*x + offX, theight*(yy-y-1) + offY, twidth, theight);
-                let nnnn = 2;
-                for (let i = 0; i < nnnn; i++) await S.frame();
-                await S.frame();
-                await S.maestro('postframe');
-                // await sleep(500);
-
-                renderer.setRenderTarget(null);
-                gl.flush();  // I thought readPixels would do this, but ...???
-                gl.finish();  // I thought readPixels would do this, but ...???
-                gl.readPixels(0, 0, twidth, theight, gl.RGBA, gl.UNSIGNED_BYTE, b);  // read offset so we can safely move data inplace
-                gl.flush();  // I thought readPixels would do this, but ...???
-                for (let j = 0; j < theight; j++) {
-                    let ip = 4 * (j * twidth);
-                    let op = 3 * (j * widthi + x * twidth);
-                    if (copyXflip < 0) op = 3 * (j * widthi + (xx - x -1) * twidth);
-                    for (let i = 0; i < twidth; i++) {
-                        z[op++] = b[ip+2]
-                        z[op++] = b[ip+1]
-                        z[op++] = b[ip]
-                        ip += 4;
-                    }
-                }
-            }
-            msgfixlog('tiling', `done row ${y+1} of ${yy}, ${xx}x${yy} tiles, each tile ${twidth}x${theight}, total ${widthi}x${heighti}`);
-            appendtextremote(fid, z);
-        }
-        log('saveframetgabig done')
-        msgfixlog('tiling', `done, converting, ${xx}x${yy} tiles, each tile ${twidth}x${theight}, total ${widthi}x${heighti}`);
-        const nfid = await tgaconv(fid);
-        if (deletetga && await fileExistsAsync(nfid)) fileDelete(fid);
-        // msgfixlog('tiling', `done, converted, ${xx}x${yy} tiles, each tile ${twidth}x${theight}, total ${widthi}x${heighti}`);
-    } finally {
-        alwaysNewframe = save_alwaysNewframe;
-        Maestro.remove('preframe', maestroGenesId);
-        if (save_fixtime === undefined)
-            delete currentGenes._fixtime;
-        else
-            currentGenes._fixtime = save_fixtime;
-        restore();
-    }
-
-}
-
 
 function saogui(pgui = V.gui) {
     if (!pgui) return;

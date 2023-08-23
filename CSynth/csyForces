@@ -1,0 +1,44 @@
+var G, geneOverrides;
+CSynth.forces = function(len = 10, contact = CSynth.current.representativeContact) {
+
+    const cc = CSynth.current;   
+    const {pow, sqrt, max} = Math;
+    const {representativeContact} = cc;
+    // const g = {}; copyFrom(g, G); copyFrom(g, geneOverrides);
+    const {pushapartforce, powBaseDist, pushapartpow, xyzforce, m_k, m_force, m_alpha, m_c, contactthreshold, contactforcesc} = G;
+    r = {}
+    const rc = cc.representativeContact;
+
+    const targlen = m_k * pow(contact/representativeContact, -m_alpha)
+
+    // lor forces
+    const rcontact = contact/representativeContact;
+    const d = m_k * pow(rcontact, -m_alpha);     // target distance
+    const dd = d - len;
+    const dem = m_c * m_c + dd*dd;
+    r.lorforce = m_force * rcontact * -2. * m_c * m_c * dd / (dem*dem);
+
+    // csynth forces
+    const ccontact = max(0., contact - contactthreshold);
+    const contactforce = contactforcesc * ccontact * len;
+
+    const globalpushapart = -pushapartforce * pow(len/powBaseDist, pushapartpow);
+    r.cyforce = contactforce + globalpushapart;
+    
+    let dlen = len - targlen;
+    // sqrt a bit arbitrary here, but helped ensure correct refolding of e.g. different lor examples
+    r.xyzforce = dlen * xyzforce / sqrt(targlen);
+
+    return r;
+}
+
+CSynth.forcetest = function() {
+    const len = G.m_k;  // representative length
+    log(CSynth.forces(len));
+    const r = CSynth.forces(len*1.1);
+    log(r);
+    return r;
+}
+
+
+ff = CSynth.forcetest();

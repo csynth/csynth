@@ -2893,7 +2893,7 @@ var startSC = function () {
     SCBus.prototype.busAllocator = freeBusses = new TIntPool(512 - 16, 16, "SCBus allocator.");
     //SCKbus.prototype
     freeBufs = new TIntPool(512, 0, "Buf id allocator");
-    freeSyncIDs = new TIntPool(128, 0, "Sync id allocator");
+    freeSyncIDs = new TIntPool(1280, 0, "Sync id allocator");
     soundFileCache = {}; //we'll make some assumptions for now that these won't be messed with behind our back...
     synths = {}; //new Map<number, Tid>();// {}; //even though I make this a Map, I'm using it as {} - no entries etc...
     synthsByType = {}; //new Map<string, [Tid]>();

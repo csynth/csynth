@@ -361,8 +361,8 @@ CSynth.Matrix = function() {
 
             addgeneperm('matrixTintStrength', 1, 0, 4,  1, 1, 'multipler for matrix tint', 'matrix', 0);
 
-            addgeneperm('test1', 1, 0, 100,  1, 1, 'test gene 1', 'matrix', 0); // for debug develop
-            addgeneperm('test2', 1, 0, 100,  1, 1, 'test gene 2', 'matrix', 0);
+            addgeneperm('mtest1', 1, 0, 100,  1, 1, 'test gene 1', 'matrix', 0); // for debug develop
+            addgeneperm('mtest2', 1, 0, 100,  1, 1, 'test gene 2', 'matrix', 0);
 
 
             //addgeneperm('matColCurve', 6.0, 1, 10, 0.01, 0.001, 'matrix colour transition curve', 'matrix', 0);
@@ -714,9 +714,9 @@ function heightMatrixMaterial() {
 
 
     CSynth.testHybridOverrides = `
-    override vec4 tr(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ribnum){
-        pickopos(lopos);
-        vec4 p = lopos;
+    override vec4 tr(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnum){
+        pickopos(loposuvw);
+        vec4 p = loposuvw;
         float numInstances = numSegs + 1.;
         vec3 p1 = histpos((p.x * numInstances + 0.5)/numInstancesP2).xyz;
         vec3 p2 = histpos((p.y * numInstances + 0.5)/numInstancesP2).xyz;
@@ -737,9 +737,10 @@ function heightMatrixMaterial() {
         p.x += matX;
         p.y += matY;
         p.z += matZ;
+        p.w = 1.;
         //p.z = min(0.1, 1./d);
         //p.xyz *= 8000.;
-        // texpos = lopos.xyz; ??? unused
+        // texpos = loposuvw.xyz; ??? unused
         return p;
     }
 

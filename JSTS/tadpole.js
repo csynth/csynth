@@ -50,7 +50,8 @@
 //  me.tadprop is populated as tadpoles are transferred to a new thing
 //  by applying the Thing.map to a Role.roleprops in thing.applyProp()
 //
-//  me.tadprop is exposed to the shaders as tadprop: 1 dimensional texture of channels entries each
+//  me.tadprop is exposed to the shaders as tadprop:
+//     2 dimensional texture [rib, tadnum] of RGBA: radius, colourid, targetRadius, ribs
 //
 // PRIORITIES
 //  Each spring in the role is assigned a priority (prio), typically 0..1,
@@ -145,7 +146,7 @@ function TadpoleSystem() {
     const COLNSAFE = me.COLNSAFE = COL.NUM - COLSAFE;
     // w.i.p. 21 Oct 2022, CONTROLS should be 0 for useKinect, but that isn't working right *** sjpt 27/04/23 add useKinect check in doReserved() to compensate
     let CONTROLS = me.CONTROLS = searchValues.tadmutnoiseimage ? 0 : me.docovid ? 8 : 2; // number of bait controls (eg vive controllers)
-    let FIXED = 2, RESERVED = CONTROLS + FIXED; // CONTROL for trackers etc, FIXED for origin etc
+    let FIXED = me.FIXED = 2, RESERVED = CONTROLS + FIXED; // CONTROL for trackers etc, FIXED for origin etc
     let LINEBAITS = CONTROLS; // number of line baits
     // [0, TADS)                        standard tadpoles (eg 1200)
     // [TADS, TADS+CONTROLS)            controls    (eg 8)
@@ -364,9 +365,15 @@ function TadpoleSystem() {
         }
         me.propTexture.needsUpdate = true;
     };
-    me.ribMult = 1;
+    me._ribMult = 1;
+    Object.defineProperty(me, 'ribMult', {
+        get: () => me._ribMult,
+        set: v => { if (v !== me._ribMult)
+            me.applyRibMult(v); return true; }
+    });
     /** dynamic override f rib density */
     me.applyRibMult = function (ribk = me.ribMult, t) {
+        me._ribMult = ribk;
         if (t) {
             const rats = 4 * RIBS; // # properties per tadpole
             const rmap = t.map.raw;
@@ -382,7 +389,8 @@ function TadpoleSystem() {
         else {
             T.forEach(t => me.applyRibMult(ribk, t));
         }
-        me.propTexture.needsUpdate = true;
+        if (me.propTexture)
+            me.propTexture.needsUpdate = true;
     };
     /** copy data for one tadpole from roleprops into tadprop:
     but copy radius into radius_target for later smooth transition */
@@ -702,7 +710,6 @@ function TadpoleSystem() {
         }
         const sr = (TADS + CONTROLS) * RIBS; // first special fixed, not rendered, point, e.i.p
         springs.setfix(sr, me.centre); // fixed origin, w.i.p beyond reserved
-        // G._tad_h_ribs = TADS+CONTROLS - 1;
     }
     function endTime(role) {
         console.timeEnd('[][]' + role.id);
@@ -1210,7 +1217,7 @@ function TadpoleSystem() {
         });
         setAllLots('wall_flu', { value: 1, free: 0 });
         G.wall_fluwidth = 0.001;
-        G.flatwallreflp = 0.975; // so a tiny bit of bumping shows on image 'reflection'
+        G.flatwallreflp = searchValues.tadbw ? 1 : 0.975; // so a tiny bit of bumping shows on image 'reflection'
         onframe(() => currentHset.wallgenes.flatwallreflp = true, 10);
         genedefs.flatwallreflp.free = 1;
         genedefs.flatwallreflp.min = 0.95;
@@ -1234,7 +1241,7 @@ function TadpoleSystem() {
         setInput(WA.NOCENTRE, true); // so spring space == model space
         baseShaderChanged(true); // prevent base shader initial frames optimization ... todo bettwe say
         onframe(async function tadonframe() {
-            G._tad_h_ribs = HEADS - 1;
+            G._tad_h_ribs = TADS + CONTROLS - 1; // there are actually ribs+1 subhorns
             // if (genedefs._tad_h_ribs === undefined) return;
             genedefs._tad_h_ribs.free = 0;
             COL.applyGui(); // me.randcols();  // so all colors populated
@@ -3550,30 +3557,36 @@ horn('_tad_s').ribs(8).radius(0.005)
 horn('_tad_h').ribs(1023).sub('_tad_s').code('y-=springCentre.y').scale({k:1}).code('y+=springCentre.y'); mainhorn ='_tad_h';
 posttranrule=pulsermult('a'); // + cut(3);
 overrides = \`//gl //vary star and ribdepth per tadpole
-override vec2 makestar(Parpos parpos, vec4 lopos) {
-    return vec2(mod(lopos.z, 3.) + 3., stardepth * max(0., fract(lopos.z * 13.43) - 0.6));  // 6 out of 10 no star, stars are 3,4,5
+override vec2 makestar(Parpos parpos, vec4 loposuvw) {
+    return vec2(mod(hhornnum, 3.) + 3., stardepth * max(0., fract(hhornnum * 13.43) - 0.6));  // 6 out of 10 no star, stars are 3,4,5
 }
-override float makeribdepth(Parpos parpos, vec4 lopos) {
-    return ribdepth * (0.3 + fract(lopos.z * 1.137));  // everything a bit ribby
+override float makeribdepth(Parpos parpos, vec4 loposuvw) {
+    return ribdepth * (0.3 + fract(hhornnum * 1.137));  // everything a bit ribby
 }
-override float makeribs(Parpos parpos, vec4 lopos) {
-    return texture2D(tadprop, vec2(lopos.x, lopos.z/HEADS)).w;
+override float makeribs(vec4 loposuvw) {
+    return texture2D(tadprop, vec2(loposuvw.x, hhornnum/HEADS)).w;  // loposuvw.x approximates to rib as 0..1
 }
 
 // this will set the hornid according to horn number.  TODO: update to look up in a tadpole properties texture
 override void getPosNormalColid(out vec3 xmnormal, out vec4 shapepos, out float thornid, out float fullkey) {
-  getPosNormalColid_base(xmnormal, shapepos, thornid, fullkey);
-  if (thornid != WALLID) {
+    //#if OPMODE == OPOPOS2COL
+    //    thornid = xhornid;
+    //#else
+        getPosNormalColid_base(xmnormal, shapepos, thornid, fullkey);
+    //#endif
+  if (thornid != WALLID && thornid != 0.) {
     // access individual particles
-    vec4 oopos = texture2D(rtopos, gl_FragCoord.xy/rtSize);  // oopos is {ox, oy, hornnum, hornid*}
-    oopos.z = (oopos.z + 0.5) / (_tad_h_ribs+1.);
-    vec4 props = texture2D(tadprop, oopos.xz);  // props are
+    //??vec4 oopos = texture2D(rtopos, gl_FragCoord.xy/rtSize);  // oopos is {ox, oy, hornnum, hornid*}
+    //??oopos.z = (oopos.z + 0.5) / (_tad_h_ribs+1.);
+    //??vec4 props = texture2D(tadprop, oopos.xz);  // props are
+    float zzz = (oposHornnum + 0.5) / (_tad_h_ribs+1.);
+    vec4 props = texture2D(tadprop, vec2(opos.x, zzz));
     #define COLSAFE float(${COLSAFE})
     thornid = props.y;
     if (thornid > COLNUM) thornid = mod((thornid), COLNUM-COLSAFE) + COLSAFE;  // use horn number: process to range 16..31 if it is big
-    colourid = thornid;
-    xhornid = thornid;
   }
+  colourid = thornid;
+  xhornid = thornid;
 }
 ///gl
 \`
@@ -3972,7 +3985,8 @@ forGp uses these from gp: raymatrix, baitPosition, axesbias, pad, trigger
             G.twistBase = 0.005;
             G.twistPow = -2;
             G.centrerefl = 0.9;
-            G.feedscale = 2.5;
+            //dead G.feed scale = 2.5;
+            feed.fp.scale = 1 / 2.5;
             G.pullspringforce = me.pullspringforce = 0.01;
             // G.springmaxvel = 0.2;  // prevents overfast transistions: maybe later limit forces instead, this is easier
             G.springmaxvel = 1; // 7 Dec 2021, increased after tuning of me._cf
@@ -5939,14 +5953,14 @@ tad.recordReady = function () {
     nomess();
     HW.resoverride.lennum = 0; // was set for alignment, not relevant right now
     setInput(W.renderRatioUi, 1 / 2);
-    setInput(W.resbaseui, 7.5);
+    setInput(W.resbaseui, 12);
     // ??? also cMap.fixres ???
     V.gui.visible = false;
 };
 tad.recordOff = function () {
     nomess('release');
     setInput(W.renderRatioUi, 1);
-    setInput(W.resbaseui, 5);
+    setInput(W.resbaseui, 10);
     V.gui.visible = true;
 };
 tad.oksave = 0;
@@ -6411,7 +6425,7 @@ function _animskel() {
         runkeys('K,H,4');
         runkeys('K,,'); // get some interesting lenghts and radii
         // get data
-        const fid = 'gallery/GalaxReflSept25.oao';
+        const fid = 'gallery/GalaxReflMay9.oao';
         const data = getfiledata(fid);
         ggg = tad.ggg = dstringGenes(data);
         genes = ggg.genes;

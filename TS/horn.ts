@@ -1064,7 +1064,7 @@ export class Horn {
             ["spiralp", {k: 1}, 0, 5, u, 0.1, "spiral spiral pattern", "geom", "frozen", "k"]
         ], {funname: "spiral"}, genes);
     };
-    $sweep(o: Horn, genes: Genes, s:Tran):Horn { return o.processTran("twr(x,y, MM0, 0.);", s, [["sweep", {k: 90}, 0, 180, u, 0.1, "sweep for horn", "geom", "free", "k"]], {}, genes); };
+    $sweep(o: Horn, genes: Genes, s:Tran):Horn { return o.processTran("twr(x,y, MM0, 0.);", s, [["sweep", {k: 90}, -180, 180, u, 0.1, "sweep for horn", "geom", "free", "k"]], {}, genes); };
     $flap(o: Horn, genes: Genes, s:Tran):Horn { return o.processTran("twr(x,z, MM0, 0.);", s, [["flap", {k: 0}, -90, 90, u, 0.1, "flap for horn", "geom", "free", "k"]], {}, genes); };
     $tilt(o: Horn, genes: Genes, s:Tran):Horn { return o.processTran("twr(y,z, MM0, 0.);", s, [["tilt", {k: 90}, -180, 180, u, 0.1, "tilt for horn", "geom", "free", "k"]], {}, genes); };
     $swap(o: Horn, genes: Genes, s:Tran):Horn { return o.processTran("swap(LL0,LL1)", s, [[],[]], {funname: "swap"}, genes); };
@@ -1615,8 +1615,6 @@ export class Horn {
             // debug information in preparation for more complete 'compilation' of horn runs
             if (logframenum >= framenum) {
                 var myvals = [];
-                //myvals.push(showvals('$parnumsa$parnumsb$'));
-                //myvals.push(showvals('$gbuffoffset'));
                 myvals.push(showvals('$lennum$radnum$skelnum'));  // << will change with resolution change only, BUT that may change with ribs
                 for (let hn in hset.horns) {
                     myvals.push(showvals('$' + hn + "_active" + '$' + hn + "_rpbase" + '$' + hn + "_para" + '$' + hn + "_parb"));
@@ -1822,12 +1820,6 @@ export class Horn {
         else if (lev===6) o = 'b.z';
         else if (lev===7) o = 'b.w';
 
-
-        //if (lev===0) { var o = 'pa.x = range; pnumsa.x = sribs;' }
-        //    var pa = uniforms[this.gn("para", medepth)].value;
-        //    var pb = uniforms[this.gn("parb", medepth)].value;
-        //    var pnumsa = uniforms.parnumsa.value;
-        //    var pnumsb = uniforms.parnumsb.value;
         var medepth = key.split(KLEFT + this.name + KRIGHT).length - 2;  // -2, -1 because split works that way, -2 because this level is already in the key
         var pn = this.gn("par", medepth);
         var reflxn = this.gn("reflx", medepth);
@@ -1839,7 +1831,7 @@ export class Horn {
             pn + o + ' = ' + range + ';\n' +
             this.gn('rpbase') + ' = ' + floatstring(start) + ';\n' +
             ((this.hascage) ? ( reflxn + ' = ' + (refl ? '-1.' : '1.') + ';\n') : "") +
-            'parnums' + o + ' = ' + sribs + ';\n';
+            'k' + o + ' = ' + sribs + ';\n'; // k was parnums
 
         var pcode = Horn.parentcode(key, hset);
         pcode.push(hset.parentcode[hornid]);
@@ -1910,7 +1902,7 @@ export class Horn {
         if (hoverSteerMode) rref = 0;
         if (rref === 0 && uniformsp[rrefgn] !== undefined)
             uniformsp[rrefgn].value = ribs;   // rref === 0
-        uniformsp.ribs.value = ribs;
+        uniformsp.dribs.value = ribs;
 
         this._compileh2b(genes, uniformsp, rendertarget, hset, key, num, ribs, hornid, parentHornid, subtype);
         this._compilesubs(genes, uniformsp, rendertarget, hset, key, num, ribs, hornid, parentHornid, subtype);
@@ -2656,7 +2648,8 @@ export class HornSet {
         this.hornid = 3;   // keep track, and don't use 0,1,2 as can be confused with background 0, opacity 1, cubemap 2
         this.hornrun = [];  // set of horns that will be called in a complete run
         this._saveposset = {};  // set of savepos done, with true if not yet resolved
-        if (!genes._basetranrule) genes._basetranrule = tranrule;
+        // sjpt 14 July 2023 _basetranrule was set but never read, so commented out (at least for now)
+        //???? if (!genes._basetranrule) genes._basetranrule = tranrule;
         // _basetranrule will be the pre structure mutation tranrule,
         // used to reconstruct non-horn details from the tranrule such as synth, bulges etc
 
@@ -2690,10 +2683,8 @@ export class HornSet {
 
         // this.uniforms = ""; // may be set earlier by ugenes
 
-        this._adduniformX("ribs", 1);  // #ribs in active
+        this._adduniformX("dribs", 1);  // #ribs in active; does not change with makeribs() eg for tadpoles, only used for texribs 2d texture
         this._adduniformX("radius", 0);  // radius for active
-        adduniformX("parnumsa", new THREE.Vector4( 1, 1, 1, 1 ), "v4", 'hornx');  // identify number of instan
-        adduniformX("parnumsb", new THREE.Vector4( 1, 1, 1, 1 ), "v4", 'hornx');  // identify number of instan
         adduniformX("hornid", 0, 'f', 'hornx');  // keep track of which horn being rendered
         //ces for sub/sub/sub
 
@@ -3113,7 +3104,8 @@ export class HornSet {
             }
             genes[`${horn.name}_ribdepth`] = genes[`${horn.name}_ribdepth`] * gd;
         }
-        genes._basetranrule =  genes.tranrule = nhs.tranrule = skelReplace(this.tranrule, nhs.horns);
+        // genes._basetranrule =  was set here but never used
+        genes.tranrule = nhs.tranrule = skelReplace(this.tranrule, nhs.horns);
         updateGuiGenes(genes);
         log('converted ', xxxvn(genes), 'done=', done);
         return nhs;
@@ -3229,10 +3221,6 @@ function setHornSet(key:string=undefined, val:HornSet=undefined) {
 
 /** render by rendering mainhorn object, NOT a memner of HornSet */
 function renderHornobj(genes:Genes, uniformsp, rendertarget, scenep, hset = getHornSet(genes)) {
-    var k = -99;
-    uniformsp.parnumsa.value.set(k,k,k,k);
-    uniformsp.parnumsb.value.set(k,k,k,k);
-
     if (badshader) return;
     if (!genes.tranrule) return;   // can happen in odd case where this is called with non-horn
     if (genes.tranrule.indexOf("main") === -1) return WA.oldrenderobj(genes, uniformsp, rendertarget);
@@ -3332,8 +3320,7 @@ function multiScene(genes: Genes, num: number, key: string, dummy, hset: HornSet
      // choose dynamic resolution factor based on number of ribs
     // dynamic resolution
     var rb: number | string = inputs.resbaseui - inputs.resdyndeltaui * (Math.log(num) / Math.LN10) - resdelta;
-    rb = Math.ceil(rb);
-    if (rb < 0) rb = 0;
+    rb = clamp(Math.ceil(rb), 0, HW.radnums.length-1);
     hset.hornrun[hornid].num = num;
     hset.hornrun[hornid].res = rb;
     var dradnum = HW.radnums[rb];      // dynamic number round
@@ -4492,10 +4479,8 @@ function captureUniforms(hornid) {
             // log("uniform in uniforms but not in hset.addedUniforms", n);
             continue;
         }
-        if (n.endsWith('active') || n.endsWith('rpbase') || n.endsWith('parnumsa') || n.endsWith('parnumsb') || n.endsWith('para') || n.endsWith('parb') || n.endsWith('reflx')) {
+        if (n.endsWith('active') || n.endsWith('rpbase') || n.endsWith('para') || n.endsWith('parb') || n.endsWith('reflx')) {
             let v = clone(uniforms[n].value);
-            //if (xuniforms[hornid][n] !== v) {
-            //    // if (uniforms[n].type !== 't' && n !== 'parnumsa' && n !== 'parnumsb') log("xuniforms", hornname, hornid, n, uniforms[n].type, xuniforms[hornid][n], '->', v, opmode);
             xuniforms[hornid][n] = v;
             //}
         }
@@ -4581,7 +4566,7 @@ function codeForUniforms(hset: HornSet, genes: Genes) {
         }
 
 
-        s.push(' colourid = ' + h + '.;');
+        // s.push(' colourid = ' + h + '.;');
         s.push(' xhornid = ' + h + '.;');
         s.push(' cutoffset = ' + horn.gn('cutoffset') + ';');
         sids.push(' xhornid = ' + (h) + '.;');
@@ -4602,24 +4587,27 @@ function codeForUniforms(hset: HornSet, genes: Genes) {
         //     s.push(' lribdepth = ' + hornname + '_ribdepth;');
 
 
-            // The old XXX_ribs genes and uniforms are still saved,
+        // The old XXX_ribs genes and uniforms are still saved,
         // but only used for some NORMTYPE values which use tr_i which is not SKEBUFFER aware
         // Could later optimize these too
 
         //s.push(' ribs = ' + hornname + '_ribs;\n\n\n');
         //sids.push(' ribs = ' + hornname + '_ribs;\n\n\n');
-        s.push(' ribs = ribsa[' + h + '];\n\n\n');
-        sids.push(' ribs = ribsa[' + h + '];\n\n\n');
+        // s.push(' ribs = ribsa[' + h + '];\n\n\n');
+        // sids.push(' ribs = ribsa[' + h + '];\n\n\n');
 
-        s.push(' lribdepth = lribdeptha[' + h + '];\n\n\n');
-        sids.push(' lribdepth = lribdeptha[' + h + '];\n\n\n');
+        // s.push(' lribdepth = lribdeptha[' + h + '];\n\n\n');
+        // sids.push(' lribdepth = lribdeptha[' + h + '];\n\n\n');
 
     }
     s.push('} else {\n');
-    sids.push('} else { xhornid = -1.; ribs = 77.; }\n');
+    sids.push('} else { xhornid = 0.; float dribs = 77.; }\n');
     s.push(' radius = max(0.2, vv - 20.) * fract(time*0.25);\n');   // <<< this case should never happen
+    s.push(' xhornid = 0.;\n');
     s.push('}\n');
-    s.push('ka = parnumsa; kb = parnumsb;');
+    const comm = '{int ihornid = int(xhornid); float dribs = ribsa[ihornid]; colourid = xhornid; lribdepth = lribdeptha[ihornid];}';
+    s.push(comm)
+    sids.push(comm)
     s.push('// <<<<<<<< end code generated by Codeforuniforms');
     opmode = saveopmode;
     return [s.join('\n'), sids.join('\n')];

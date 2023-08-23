@@ -811,19 +811,17 @@ CSynth.tiles = function(fid = 'sv40lines.wrl', pgroup = CSynth.rawgroup, pgui = 
         pgroup.add(ppmesh);
     }
 
-    var ppgeom = new THREE.BufferGeometry();
-
     let rr;
     if (fid.endsWith('.wrl')) {  // this is to use CSynth style cylinders sv40lines.wrl
-        // ppgeom = new THREE.BufferGeometry();
-        rr = CSynth._wrl(fid, ppgeom);
+        // pp geom = new THREE.BufferGeometry();
+        rr = CSynth._wrl(fid);
         ppmesh.material.vertexColors = 0;
     }
-    else if (fid.endsWith('.polys')) rr = CSynth._poly(fid, ppgeom);  //  GeodesicIcosahedron25.polys, GeodesicRT1.polys
-    else if (fid === 'sv40') rr = CSynth._pts(0.4, ppgeom);             // unused?
+    else if (fid.endsWith('.polys')) rr = CSynth._poly(fid);  //  GeodesicIcosahedron25.polys, GeodesicRT1.polys
+    else if (fid === 'sv40') rr = CSynth._pts(0.4); // , pp geom);             // unused?
     else return msgfixerror(fid, 'wrong filetype for CSynth.tiles', fid);
 
-    const {centre = VEC3(), scale = 1, pairs} = rr;
+    const {centre = VEC3(), scale = 1, pairs, ppgeom} = rr;
     ppmesh.pointPairs = pairs;
 
     if (ppmesh.geometry) ppmesh.geometry.dispose();
@@ -841,7 +839,7 @@ CSynth.tiles = function(fid = 'sv40lines.wrl', pgroup = CSynth.rawgroup, pgui = 
     return ppmesh;
 }
 
-CSynth._poly = function(fid = "icos14.polys", ppgeom=undefined) {
+CSynth._poly = function(fid = "icos14.polys") {
     var dd = posturi(CSynth.current.fullDir + fid);
 
     dd = dd.replace(/V(\d*)/g, 'v[$1]')
@@ -892,7 +890,13 @@ CSynth._poly = function(fid = "icos14.polys", ppgeom=undefined) {
     }
 
     // and make geometry ignoring 5folds and other kill items
+    // const aa = new Float32Array(0);
+    // pp geom.setAttribute('position', new THREE.BufferAttribute(aa, 3))
+    // pp geom.setAttribute('uv', new THREE.BufferAttribute(aa, 2))
+    // pp geom.setAttribute('normal', new THREE.BufferAttribute(aa, 3))
+    // pp geom.setIndex([])
     const pairs = [];
+    const geoms = [];
     for (let i=0; i<faces.length; i++) {
         const rad = 0.005;
         const f = faces[i];
@@ -902,14 +906,17 @@ CSynth._poly = function(fid = "icos14.polys", ppgeom=undefined) {
             const c = window.cylinderMesh(v[i1], v[i2], rad);
             pairs.push([v[i1], v[i2]]);
             c.updateMatrix();
-            ppgeom.merge(c.geometry, c.matrix);
+            // pp geom.merge(c.geometry, c.matrix);
+            c.geometry.applyMatrix4(c.matrix);
+            geoms.push(c.geometry);
         }
     }
-    return {scale: 100, pairs};
+    const ppgeom = THREE.BufferGeometryUtils.mergeBufferGeometries(geoms);
+    return {scale: 100, pairs, ppgeom};
 }
 
 
-CSynth._wrl = function(fid = 'sv40lines.wrl', ppgeom=undefined) {
+CSynth._wrl = function(fid = 'sv40lines.wrl') {
     var dd = posturi(CSynth.current.fullDir + fid);
     var lines = dd.split('\n')
     const rad = 1;
@@ -954,16 +961,14 @@ CSynth._wrl = function(fid = 'sv40lines.wrl', ppgeom=undefined) {
         CSynth.drawCyl(targ, e1, e2, -999,-999, rad, kcyl, kend);
     }
 
-    CSynth.finishGeom(targ, ppgeom);
+    const ppgeom = CSynth.finishGeom(targ); // , pp geom);
 
-
-
-    return {centre: sumv.multiplyScalar(0.5 / n), scale: 0.5, pairs};
+    return {centre: sumv.multiplyScalar(0.5 / n), scale: 0.5, pairs, ppgeom};
 }
 
-CSynth._pts = function(thresh = 0.3, ppgeom=undefined) {
+CSynth._pts = function(thresh = 0.3) { // }, pp geom=undefined) {
     const pts = CSynth._sv40pts;
-    const p=[];
+    const p=[], geoms = [];
     const rad = 0.1;
     let n=0;
     for(let i=0; i<pts.length; i++) {
@@ -971,12 +976,14 @@ CSynth._pts = function(thresh = 0.3, ppgeom=undefined) {
             if (pts[i].distanceTo(pts[j]) < thresh) {
                 const c = window.cylinderMesh(pts[i], pts[j], rad);
                 c.updateMatrix();
-                ppgeom.merge(c.geometry, c.matrix);
+                geoms.push(c);
                 n++;            }
         }
     }
+    const ppgeom = THREE.BufferGeometryUtils.mergeBufferGeometries(geoms);
+
     log('lines drawn', n);
-    return {scale: 50};
+    return {scale: 50, ppgeom};
 }
 
 CSynth._sv40pts = [

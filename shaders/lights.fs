@@ -10,6 +10,8 @@
 #if (defined(SHADOWS) || defined(SHADOWS1) || defined(SHADOWS2))
 	#include fourShadowMapping.fs;
 #endif
+#define NOEDGEMAIN
+#include edge2.fs;
 #include cubeReflection.fs;
 
 uniform vec3 cameraPositionModel;
@@ -27,11 +29,9 @@ gene(flurange, 1, 0, 3, 0.01, 0.001, gtex, frozen)  //  range of flu hue variety
 
 gene(opacity, 1, 0, 1, 0.01, 0.001, gtex, frozen)   //  opacity, not generally used
 gene(badnormals, 2, 0, 4, 1, 1, system, frozen)     // choice to take for backward facing normals<br>0=yellow, 1=ignore, 2=coerce, 3=flip, 4=coerce/flip
-gene(edgeprop, 1, 0,1, 0.1, 0.01, gtex, frozen)     // strength for edges vs shading, 1 for black, only used if EDGES set, edgeprop == 0 && fillprop == 0 gives no edges
+gene(edgeprop, 0, 0,1, 0.1, 0.01, gtex, frozen)     // strength for edges vs shading, 1 for black, only used if EDGES set, edgeprop == 0 && fillprop == 0 gives no edges
 gene(fillprop, 0, 0,1, 0.1, 0.01, gtex, frozen)     // whiteness for non-edges, 1 for white, only used if EDGES set
-uniform vec3 edgecol, fillcol;   					// 'target' colour for edges and fill
-gene(edgeidlow, 0, 0,32, 1, 1, gtex, frozen)        // low id for which edges apply
-gene(edgeidhigh, 31, -1,31, 1, 1, gtex, frozen)     // high id for which edges apply
+uniform vec3 edgecol, fillcol, occcol, unkcol, profcol, wallcol, backcol;   	// 'target' colour for edges, fill, occlusion and profile
 gene(edgethresh, 4, -1,5, 1, 1, gtex, frozen)       // threshold number of neighbours to count as 'fill'
 
 
@@ -559,11 +559,11 @@ result:     bumped normal               view space
 vec3 getBumpedNormal(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, out vec3 viewdir, out float viewdist) {
 	vec3 rotpos;
     vec3 xbnorm = bump(texpos, xmnormal); // compute bumping in object space
-
     rotpos = (/**!!! NO viewMatrix * **/ trpos).xyz;  // rotpos will allow for rotation and camera position, model space
-    if (! (ymin <= rotpos.y && rotpos.y <= ymax) ) discard; // do not show reflection above water
+//    if (! (ymin <= rotpos.y && rotpos.y <= ymax) ) discard; // do not show reflection above water ??? rotpos.y = NaN
+    if (rotpos.y < ymin || rotpos.y > ymax) discard; // do not show reflection above water
 
-    mat3 rotNormal = mat3(rot4wc);    // rotation for normals. not necessarily unit size, scaled by _uScale
+    mat3 rotNormal = mat3(rot4wx(colourid));    // rotation for normals. not necessarily unit size, scaled by _uScale
 // opposition values are stored inconsistently, they use pre-rotation values for form,
 //if (colourid == 2.) rotNormal = mat3(1.365967365967366,0,0, 0,1,0, 0,0,1);  // NOTR test uses different rot4
 //if (colourid == 2.) rotNormal = mat3(1,0,0, 0,1,0, 0,0,1);  // NOTR test uses different rot4
@@ -572,8 +572,7 @@ vec3 getBumpedNormal(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, o
     // todo: correct this code suspect for 4d objects
     // float dd = oposx.x < 0.5 ? 1. : -1.;  // + or - 1 to stop distortion at extreme ends
     vec3 mnormal = -xbnorm * rotNormal * reflnorm;  // bumped normal in world space
-    mnormal = normalize(mnormal);                   // allow for rot4wc not unit
-
+    mnormal = normalize(mnormal);                   // allow for rot4wx(colourid) not unit
 
     // normals may get backwards because of twisting in the tranrule application
     // or becuase of bump mapping
@@ -650,7 +649,8 @@ virtual vec4 cookie2(const in vec2 uv) {
 #endif
 
 /** perform the lighting and shadow computation */
-virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos) {
+virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, inout float feeddepth) {
+    feeddepth = 0.;
     #ifdef SIMPLESHADE
         return vec4(fract(texpos * 0.1), 1.); // p.s. red1 rtc may involve lookup in COL table
         return vec4(red1, green1, blue1, 1.);
@@ -658,13 +658,11 @@ virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos) 
 	vec3 viewdir; // set by getBumpedNormal
 	float viewdist;
 
-    vec3 mmnormal = getBumpedNormal(xmnormal, trpos, texpos, viewdir, viewdist);   /// texpos for bump
-
+    vec3 mmnormal = getBumpedNormal(xmnormal, trpos, texpos, OUT viewdir, OUT viewdist);   /// texpos for bump
 //    if (! (ymin <= rotpos.y && rotpos.y <= ymax) ) discard; // do not show reflection above water
     //if (xxopos.z < 0.) discard;
     Colsurf colsurf = iridescentTexcol(texpos, viewdir, mmnormal);//standardTexcol(texpos);  // contains colour and gloss etc
     //colsurf.col = vec4(0.7,0.7,1.,1.);
-
     // vertex proj from light's POV then nudged. into 0 - 1 space
     CookieVis visibilityL;// = vec3(1.,1.,1.);
     visibilityL.L0 = visibilityL.L1 = visibilityL.L2 = vec4(1.);
@@ -708,7 +706,7 @@ virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos) 
     // but even in general case should be based on some configurable fresnel term.
 		// note, GetReflection taked out of conditional
         // maybe should use NONU
-        vec4 rrr = GetReflection(viewdir, mmnormal, texpos) * vec4(reflred, reflgreen, reflblue, 1.);
+        vec4 rrr = GetReflection(viewdir, mmnormal, texpos, OUT feeddepth) * vec4(reflred, reflgreen, reflblue, 1.);
         vec4 refl = colsurf.col.w == 0. ? vec4(0.0,0.0,0.0,1.0) : rrr;
         // make feedback part of wall (and other objects) have shadows ... approx method
         refl.rgb *= (visibilityL.L0.a * light0s + visibilityL.L1.a * light1s + visibilityL.L2.a * light2s + ambient) / (light0s + light1s + light2s + ambient);
@@ -832,70 +830,76 @@ virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos) 
     //if (xxopos.y < 0.02) gl_FragColor.x = 1.;
     //if (0.49 < xxopos.y  && xxopos.y < 0.51) gl_FragColor.z = 1.;
 
-}
+}  // lighting(
+
+/**** tfetch and ttest from edge.fs, varied becuase edge.fs uses special format for rtopos ****/
+/* tfetchx reads the pixel and extracts txx (tadpole number) and dxx (z value) */
+// void tfetchx(sampler2D tex, ivec2 ij, int m, out float txx, out float dxx) {
+//     vec4 v = texelFetch(tex, clamp(ij, ivec2(0,0), textureSize(tex, 0)-1), m);
+//     txx = floor(v.w), dxx = v.z;
+// }
 
 /** extended lighting
 mainly used for edges
 also for debug: adds position and normal as possible colours
+NOTE output A channel used for feedback depth
+main (four.fs) => lightingX() => lighting() => GetReflection() => texcentre() => trifeed()
+                              => screenfeed() => trifeed
 */
-virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, const vec3 texpos) {
+virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, const vec3 texpos, inout float feeddepth) {
     #ifdef SETCOL
         colourid = xhornid;	// unless overwritten elsewhere
         //if (1.8 < colourid && colourid < 2.)
         //    colourid = 2.;
 	#endif
+    feeddepth = 0.;  // unless proven otherwise
         // NOTE: 15/1/20 line below involves 3 tex lookups into colbuff; based on colourid; colribs is gene
     NONU(if (texalong != 0. || texaround != 0. || texribs != 0. || colribs != 0.) {)
-		#if (OPMODE == OPREGULAR)
+		// #ifdef OPOSOK // (OPMODE == OPREGULAR)
 			colpos = opos;
-		#else
-			colpos = textureget(rtopos, gl_FragCoord.xy * screen);
-		#endif
-		if (colourid != WALLID) colourid += colribs * colpos.z;
+		//### #else
+		// 	£££££ colpos = textureget(rtopos, gl_FragCoord.xy * screen);
+		// #endif
+		if (colourid != WALLID && colourid != 0.) colourid += colribs * colpos.z;
 		colourid = (mod(colourid, 32.));    // <<< COL.NUM
         NONU(})
 
-    #ifdef EDGES
-        // extract number of non-edges neighbours and recreate real normal
-        // multiplexing a normal switching for -ve camera aspect interact really badly, TODO improve below
-        if (cameraAspect < 0.) xmnormal.z *= -1.;
-        // float nonedgenum = floor ((xmnormal.z + 2.) / 16.);
-        // xmnormal.z -= 16. * nonedgenum;
-		// >= gives single width eges, == gives double width (repeated for each side)
 
-        float nonedgenum = edgewidth == 1. ?
-            (float(haa >= h00) + float(hab >= h00) + float(hba >= h00) + float(hbb >= h00)) :
-            (float(haa == h00) + float(hab == h00) + float(hba == h00) + float(hbb == h00));
-        if (cameraAspect < 0.) xmnormal.z *= -1.;
-    #endif
+    bool dofulllights = edgeprop != 1. || fillprop != 1. || flatwallreflp != 1.;
+	vec3 r = vec3(0);
+    if (dofulllights) {
+        vec4 licol = lighting(xmnormal, trpos, texpos, OUT feeddepth);
+        float liprop = 1. - xxposprop - xxnormprop;
+        r = licol.xyz * liprop +
+            (xmnormal+1.)*0.5 * xxnormprop +
+            (texpos+300.)/600. * xxposprop;
+    }
 
-	vec4 licol = lighting(xmnormal, trpos, texpos);
-	float liprop = 1. - xxposprop - xxnormprop;
-	vec4 r = licol * liprop +
-		vec4(  (xmnormal+1.)*0.5,    1.) * xxnormprop +
-		vec4(  (texpos+300.)/600.,   1.) * xxposprop;
-
-    #ifdef EDGES
-        // nonedgenum == 4 indicates all neighbours same object as here, eg no edge
-        // nonedgenum is originally calculated in four.fs (getPosNormalColid()) before being multiplexed with xmnormal
-        #ifdef WHITE
-            // this part largely replaced by fillprop = 1 below, left for backwards compatability
-            vec4 ecol = (nonedgenum == 4.) ? vec4(1.,1.,1.,1.) : vec4(0.,0.,0.,1.);
-            r = mix(r, ecol, edgeprop);
-        #else
-        if (edgeidlow <= colourid && colourid <= edgeidhigh) {
-            if (nonedgenum < edgethresh)
-                r = mix(r, vec4(edgecol,1.), edgeprop);
-            else
-                r = mix(r, vec4(fillcol,1.), fillprop);
+    if (edgeprop != 0. || fillprop != 0.) {
+        bool alt;
+        // if (colourid <= WALLID) colourid = 0.;
+        int etype = edgeStatus(OUT alt);
+        //if (opos.w == 0.) etype = edgeback;  // whey here ????? TODO
+        switch (etype) {
+            case edgefill: r = mix(r, fillcol, fillprop); break;
+            case edgeedge: r = mix(r, edgecol, edgeprop); break;
+            case edgeprofile: r = profcol; break;
+            case edgeocclude: r = occcol; break;
+            case edgeunk: r = unkcol; break;
+            case edgewall: {
+                if (!dofulllights) {
+                    r = texcentre(texpos.xy, feedtexture, OUT feeddepth).xyz; // oversimplified wall
+                }
+            } break; // if we've got a wall the correct work, including wall based feedback, should already have been done
+            case edgeback: r = screenfeed(backcol, OUT feeddepth); break;
+            default: r = vec3(1,0,0);
         }
-        #endif
-        //r = mix(r, ecol, edgeprop);
-    #endif
+        if (alt) r = 1. - r;
+    }
 
-    if (lightoutpower != 1.) r = pow(r, vec4(vec3(lightoutpower), 1));
+    if (lightoutpower != 1.) r = pow(r, vec3(lightoutpower));
 
-    return r;
+    return vec4(r, 1.);
 }
 
 
@@ -916,4 +920,9 @@ colourid
  = xhornid+colribs        bumps          irid            uses texscale
 
 lightingx             -> lighting -> iridescentTexcol -> standardTexcol -> textvalmix
+
+reflection ...
+lightingx -> lighting -> GetReflection
+
+
 **/

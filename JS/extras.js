@@ -6,7 +6,7 @@ writetextremote, Blob, readbinaryasync, currentObjects, refall, pick, lastdocx, 
 slots, mainvp, distxyz, material, EX, setInput, onframe, setViewports, Director, tad, showControls, mutateVisibleGenes, setSize, fullscreen, exitfullscreen,
 cMap, _boxsize, basescale, searchValues, getdesksave, S, runcommandphp, nircmd, islocalhost, downloadImageGui, Buffer, vec3, SG, substituteExpressions,
 currentHset, gl, showUniformsUsed, arraydiff, saveAs, everyframe, Maestro, msgfixerror, clearPostCache, runkeys, isCSynth, _R, GUIwallkeys,
-shadows, usemask, inps, exportmyshaders, readtext, format, savesystem, centrescalenow
+shadows, usemask, inps, exportmyshaders, readtext, format, savesystem, centrescalenow, xxxvn, lastDownLayerX, lastDownLayerY, copyXflip, feed, fileExists
 
 
 /** convenient look at uniforms, n.b. uniforms must be mentioned in the proxy else ownKeys does not work */
@@ -683,26 +683,9 @@ window.addEventListener('vrdisplaydeactivate', () =>
 window.addEventListener('vrdisplaydisconnect', () =>
     { msgfix('vrdisplaydisconnect', framenum); return; });
 
-/** zoom camera in keeping shadows etc set */
-function zoomCam(n = 4) {
-    if (n === 0 && zoomCam.save) {
-        pick = zoomCam.save.pick;
-        const dispobj = slots[mainvp].dispobj;
-        camera.setViewOffset(dispobj.width, dispobj.height, 0,0, dispobj.width, dispobj.height);
-        G._fov = zoomCam.save.fov;
-        zoomCam.save = undefined;
-        return;
-    }
-    zoomCam.save = {pick, fov: G._fov};
-    pick = nop;
-    G._fov /= n;  // << todo improve
-    const v = camera.view;
-    v.offsetX = (lastdocx - width/2) * n;
-    v.offsetY = (lastdocy - height/2) * n;
-}
 /**
-extrakeys['Q,Y'] = zoomCam;
-extrakeys['Q,U'] = () => zoomCam(0);
+extrakeys['Q,Y'] = zoom Cam;
+extrakeys['Q,U'] = () => zoom Cam(0);
  */
 
 var XX = {};
@@ -1421,7 +1404,7 @@ async function findUniforms(fids = ['minicode/opos.opt.fs', 'minicode/opos.opt.v
 
 async function genmini({all = true, exclude = {modelViewMatrix: 1, projectionMatrix: 1}, shorten=false, shortenh=true} = {}) {
     shadows(0);
-    usemask = -98;
+    usemask = 4;
     inps.USESKELBUFFER = false;
     inps.GPUSCALE = false;
     await S.frame(5);
@@ -1630,9 +1613,11 @@ async function collectmini({exclude = {modelViewMatrix: 1, projectionMatrix: 1},
  * Note: this still requires uniforms to be available in the shared uniform object
  */
 function shaderFromFiles(name = 'edge', genes = currentGenes) {
-    const vertexShader = readtext(`/shaders/${name}.vs`);
-    const fragmentShader = readtext(`/shaders/${name}.fs`);
+    const vertexShader = readtext(`/shaders/${name}.vs`).replace('#version', '// # version');
+    const fragmentShader = readtext(`/shaders/${name}.fs`).replace('#version', '// # version');
+
     const shader = new THREE.RawShaderMaterial({vertexShader, fragmentShader, uniforms});
+    shader.glslVersion = THREE.GLSL3;
     if (!material.name) material.name = {};
     material[name]['horn("main");'] = shader;       // so it can be seen by getMaterial
     material[name][genes.tranrule.split('SynthBus')[0]] = shader;               // so it can be seen by getMaterial
@@ -1660,13 +1645,80 @@ function rerangeAllLots(ppattern, min, max, allg = []) {
             gd.def = (gd.def - omin) * sc + min;
 
             for (const gg of ggs) {
-                if (typeof gg[gn] === 'number')
-                    gg[gn] = (gg[gn] - omin) * sc + min;
-                else
+                if (typeof gg[gn] === 'number') {
+                    const v = (gg[gn] - omin) * sc + min
+                    if (gg[gn] !== v) log(xxxvn(gg), gn, gg[gn], v);
+                    gg[gn] = v;
+                } else {
                     log('cannot rerange', gn)
+                }
             }
         }
     }
     updateGuiGenes();
     refall();
+}
+
+Object.defineProperty(window, 'edgecolour', {
+    get: () => U.profcol.b === 0,
+    set: (b) => {
+        const c3 = col3;
+        if (b === undefined) b = U.profcol.b !== 0;
+        if (b) {
+            U.fillcol = c3(1,1,1)
+            U.edgecol = c3(0,0,0)
+            U.occcol = c3(1,1,0)
+            U.profcol = c3(1,0,0)
+            U.backcol = c3(0.2,0.2,0.2)
+            U.wallcol = c3(0,1,0.2)
+            U.unkcol = c3(0,1,1)
+        } else {
+            U.fillcol = c3(1,1,1)
+            U.edgecol = c3(0,0,0)
+            U.occcol = c3(1,1,1)
+            U.profcol = c3(1,1,1)
+            U.backcol = c3(0.3, 0.3, 0.3)
+            U.wallcol = c3(0,1,0.2)
+            U.unkcol = c3(0,1,1)
+        }
+    }
+});
+
+/** function to protect writing of some builtin features (silly spec???) */
+function protectWrite(name, o=window) {
+    Object.defineProperty(o, name, {
+        get: Object.getOwnPropertyDescriptor(o, name).get,
+        set: v => {console.error('abuse of set', name, v); return}
+    })
+}
+'innerWidth innerHeight devicePixelRatio'.split(' ').forEach(x => protectWrite(x));
+
+/** find files used but not available in github */
+function findnewfiles(src, done=[]) {
+    if (!src) {
+        const ff = readdir('networkruns')
+        for (const fff of Object.keys(ff)) findnewfiles(fff, done);
+        return done;
+    }
+    var data = readtext(`networkruns/${src}`)
+    var d2 = data.split('\n')
+    for (var l of d2) {
+        var p = l.post('"url": "http://localhost:8800/')
+        if (!p) continue;
+        p = p.pre('"').pre('?')
+        const targ = 'C:/gitProjects/csynth/' + p;
+        if (fileExists(targ)) continue
+        if (p.startsWith('fileexists/')) continue
+        if (p.startsWith('eval/')) continue
+        if (p.startsWith('runcmd.php')) continue
+        if (p.startsWith('dir.php')) continue
+        if (done.includes(p)) continue
+        done.push(p)
+        const from = p.replaceall('/', '\\')
+        const to = targ.replaceall('/', '\\')
+        const ccc = `copy ${from} ${to}`
+        log('++++++++', ccc)
+        runcommandphp(ccc);
+    }
+    return done
 }

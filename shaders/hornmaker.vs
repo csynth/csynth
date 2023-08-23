@@ -3,12 +3,16 @@
 
 /**
 note to me: 16 Mar 21.
-to remove need for too may horn dependent compiles
+to remove need for too many horn dependent compiles
 make NORMTYPE fixed to 1 (below)
 make ribs uniform array (?as well as named????)
 make cumcount uniform array
 
 **/
+
+#define hhornnum loposuvw.z
+#define hhornid loposuvw.w
+
 //#define MAXPATHS 30
 uniform float cumcount[MAXPATHS];
 //uniform float ribsa[MAXPATHS];
@@ -51,7 +55,7 @@ float lribdepth;
     #endif
 
 #endif
-void pickopos(vec4 lopos) {
+void pickopos(vec4 loposuvw) {
 	#if OPMODE == OPPICK && VERTEX == 1
 
 
@@ -60,18 +64,20 @@ void pickopos(vec4 lopos) {
 		pickVary1 = vec4(999,999,999,999);
 		pickVary2 = vec4(999,999,999,999);
 		pickVary3 = vec4(999,999,999,999);
-		slot(0, lopos.x);
-		slot(1, lopos.y);
+		slot(0, loposuvw.x);
+		slot(1, loposuvw.y);
 	#endif
 }
 
 
 #ifdef NOHORNMAKER
-// NOHORNMAKER so bulk of hornmaker.vs skipped
+// NOHORNMAKER so bulk of hornmaker.vs skipped, but some things get (probably unnecessarily) referenced, so some dummies for those
 uniform float NORMTYPE;
-virtual vec4 tr(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ribnum){  // 'real' tr () (not NO TR) passed from tr () to computeNormalsEtc
+virtual vec4 tr(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnum){  // 'real' tr () (not NO TR) passed from tr () to computeNormalsEtc
     return vec4(0);
 }
+uniform float horncount;
+virtual float makeribs(vec4 loposuvw) {return 10.; }
 #else
 
 // This file is highly interdependent with horn.js.
@@ -81,7 +87,7 @@ virtual vec4 tr(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float 
 // Even thought this is marked .vs, it is used by both vertex and fragment shaders.
 // code included here to make sure common between vertex and fragment
 // # i nclude quaternion.vs;
-#define PI 3.14159
+#define PI    3.1415926535897932384626433
 
 uniform float vn;
 //uniform float lennum; // now in common.vfs
@@ -94,7 +100,12 @@ uniform vec2 skelbufferRes, gbufferres;
 uniform sampler2D skelbuffer;
 uniform float gbuffoffset;
 uniform vec4 gcentre;
-uniform vec3 springCentre;    // tadpole specific? work out where to put correctly
+
+#ifdef NOTR //  OPMODE == OPOPOS || OPMODE == OPSHAPEPOS
+float radius;
+uniform float nstar, stardepth, ribdepth;
+#endif
+
 
 // uniform sampler2D tex1, tex2, tex3, tex4;
 
@@ -194,7 +205,7 @@ gene(isolatebp, 0, 0, 1,  1, 1, geom, frozen) // isolate all base pairs to point
     //??? varying vec4 xxopos;         // original position passed
     varying vec4 objpos;        // object position
 #elif (OPMODE == OPREGULAR || OPMODE == OPOPOS)
-    //??? varying vec4 opos;         // original position passed
+    //??? varying vec4 o pos;         // original position passed
     varying float vxrscale;      // to allow -ve radius to give sharp point, only used for SHARPPOINT
 #elif (OPMODE == OPPICK)
 #elif (OPMODE == OPPOSITION)
@@ -282,7 +293,9 @@ float ppp(const float n, const float nsub) {
 
 // split an integer v (possibly held in z of modelMat rix), k is range of numbers (parpos)
 // k may be fractional to allow for part subhorns
-Parpos splitk(vec4 ka, vec4 kb, float vv) {
+Parpos splitk(float vv) {
+    // ka = kb = vec4(9999999);
+    vec4 ka, kb;  // set from uniforms parnumsa/b for shorter names
     #ifdef SINGLEMULTI
 	    $$$singlePassCode$$
     #endif
@@ -616,7 +629,7 @@ prop: proportion of sweep to generate
 // s : proportion of surface, 1 for full surface
 // p : regularity control, 1 for regular
 // m : relative position: 0..1
-#define PI 3.14159
+// #define PI    3.1415926535897932384626433
 
 // capture the current transform position and use this for texturing
 // first one in wins
@@ -776,55 +789,60 @@ gene(wallkb, 1, -2,2,0.1,0.1, wallgeom, frozen)  // multiplier for second wall f
 gene(wallb, 1, -2,2,0.1,0.1, wallgeom, frozen)  // first second frequency(for walltype = 3)
 gene(wallk, -2, -4,2,0.1,0.1, wallgeom, frozen) // constant offset for wall(for walltype = 3)
 
-#ifdef NOTR     // simple tr () for NO TR
-	#define XNORMALDEFINED
-    varying vec3 xnormal;        // pass javascript defined normal for walls etc
-                                 // passed from js->vertex shader as normal, and vs to fs as xnormal
-    vec4 tr(in vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ribnum) {
-        // ribnum used as wallid for sharp wall edges with neighbour based normals
-        ribnum = 0.;
+#define XNORMALDEFINED
+varying vec3 xnormal;        // pass javascript defined normal for walls etc
+                                // passed from js->vertex shader as normal, and vs to fs as xnormal
+vec4 trwall(in vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnum) {
+    // ribnum used as wallid for sharp wall edges with neighbour based normals
+    ribnum = 0.;
 
-    //     // vec3 seed =  vec3(1.7,1.3,1.9);             // hope not parallel to normal
-        xmnormal = -xnormal;
-    // choose normal assuming cube, not sure why fudge needed for x but otherwise walls disappear
-    // only ribnum actually used now, normals computed later, but this ribnum calculation not helpful with flexible walls
-        if (abs(abs(lopos.x) - _boxsize) < 0.001) { xmnormal = vec3(-sign(lopos.x), 0.,0.001); ribnum = 1.;} // xmu = vec3(0.,1.,0.); xmv = vec3(0.,0.,1.); }
-        else if (abs(abs(lopos.y) - _boxsize) < 0.001) { xmnormal = vec3(0., -sign(lopos.y), 0.); ribnum = 2.; } // xmu = vec3(0.,0.,1.); xmv = vec3(1.,0.,0.); }
-        else /** if (abs(abs(lopos.z) - _boxsize) < 0.01) **/ { xmnormal = vec3(0., 0., -sign(lopos.z)); ribnum = 3.; } // xmu = vec3(1.,0.,0.); xmv = vec3(0.,1.,0.); }
-        // if (abs(lopos.x) < wallxpushwidth && lopos.z < -499.9) { lopos.z *= wallzpush; }     // experiment in wall shape
-    	xmnormal = (vec3(9999));  // check xmnormal not being used !!!
-        xhornid = WALLID;
+//     // vec3 seed =  vec3(1.7,1.3,1.9);             // hope not parallel to normal
+    xmnormal = -xnormal;
+// choose normal assuming cube, xy fudge probably needed because of interpolation issues even with all three triangle corner values same???
+// only ribnum actually used now, normals usually computed later (but used by OPOPOS2COL), but this ribnum calculation not helpful with flexible walls
+    if      (abs(loposuvw.z - walllow.z) < 0.001) { xmnormal = vec3(0,0,1); ribnum = 3.; }
+    else if (abs(loposuvw.x - walllow.x) < 0.001) { xmnormal = vec3(1,0,0); ribnum = 1.; }
+    else if (abs(loposuvw.y - walllow.y) < 0.001) { xmnormal = vec3(0,1,0); ribnum = 2.; }
+    else if (abs(loposuvw.z - wallhigh.z) < 0.001) { xmnormal = vec3(0,0,-1); ribnum = 6.; }
+    else if (abs(loposuvw.x - wallhigh.x) < 0.001) { xmnormal = vec3(-1,0,0); ribnum = 4.; }
+    else if (abs(loposuvw.y - wallhigh.y) < 0.001) { xmnormal = vec3(0,-1,0); ribnum = 5.; }
+    else { xmnormal = vec3(0,0,1); ribnum = 7.; }
 
-        if (walltype < 0.5) {  // as defined in mesh geometry
+//        else if (abs(abs(loposuvw.x) - walllow.x) < 0.001) { xmnormal = vec3(-sign(loposuvw.x), 0.,0.001); ribnum = 1.;} // xmu = vec3(0.,1.,0.); xmv = vec3(0.,0.,1.); }
+//        else if (abs(abs(loposuvw.y) - walllow.y) < 0.001) { xmnormal = vec3(0., -sign(loposuvw.y), 0.); ribnum = 2.; } // xmu = vec3(0.,0.,1.); xmv = vec3(1.,0.,0.); }
+//        else                                              { xmnormal = vec3(0,0,1); ribnum = 7.; }
+    // if (abs(loposuvw.x) < wallxpushwidth && loposuvw.z < -499.9) { loposuvw.z *= wallzpush; }     // experiment in wall shape
+    xhornid = WALLID;
 
-        } else if (walltype < 1.5) { // experiment with spherical wall
-            lopos.xyz = _boxsize * normalize(lopos.xyz);
+    if (walltype < 0.5) {  // as defined in mesh geometry
 
-        } else if (walltype < 2.5) { // experiment with superegg wall
-//float qq = lopos.x/_boxsize * 0.5 + 0.5;  // w.i.p. continous change superegg
-//float superwallq = superwall * qq;
-float superwallq = superwall;
-            vec3 xyzkp = xpow(vec3(lopos.xyz / _boxsize), vec3(1. / (superwallq + 0.0001)));
-            float xyzsump = xyzkp.x + xyzkp.y + xyzkp.z;
-            float r = xpow(1. / xyzsump, superwallq);
+    } else if (walltype < 1.5) { // experiment with spherical wall
+        loposuvw.xyz = _boxsize * normalize(loposuvw.xyz);
+
+    } else if (walltype < 2.5) { // experiment with superegg wall
+        //float qq = loposuvw.x/_boxsize * 0.5 + 0.5;  // w.i.p. continous change superegg
+        //float superwallq = superwall * qq;
+        float superwallq = superwall;
+        vec3 xyzkp = xpow(vec3(loposuvw.xyz / _boxsize), vec3(1. / (superwallq + 0.0001)));
+        float xyzsump = xyzkp.x + xyzkp.y + xyzkp.z;
+        float r = xpow(1. / xyzsump, superwallq);
 //r *= (1. + superwall * 0.7);  // w.i.p. to correct with keepinroom before uncommenting
-            lopos.xyz *= r;
+        loposuvw.xyz *= r;
 
-        } else if (walltype < 3.5) { // experiment with sine wave modulated wall
-            vec3 r;
-            if (lopos.z > -_boxsize + 0.01) return(vec4(sqrt(wallk-99999.),1,1,1)); // ignore most walls
-            vec2 aa = lopos.xy / _boxsize * 3.14159;
-            r.x = wallka * sin(walla * aa.x);// + wallkb * sin(wallb * aa.x);
-            r.z = wallk + wallka * cos(walla * aa.x) + wallkb * cos(wallb * aa.x);
-            r.y = aa.y/4.;
-            lopos.xyz = r * _boxsize;
+    } else if (walltype < 3.5) { // experiment with sine wave modulated wall
+        vec3 r;
+        if (loposuvw.z > -_boxsize + 0.01) return(vec4(sqrt(wallk-99999.),1,1,1)); // ignore most walls
+        vec2 aa = loposuvw.xy / _boxsize * 3.14159;
+        r.x = wallka * sin(walla * aa.x);// + wallkb * sin(wallb * aa.x);
+        r.z = wallk + wallka * cos(walla * aa.x) + wallkb * cos(wallb * aa.x);
+        r.y = aa.y/4.;
+        loposuvw.xyz = r * _boxsize;
 
-        } // else treat as standard
+    } // else treat as standard
 
-        settexpos(lopos.xyz);
-        return lopos;
-    }
-#else           // tr for NOT NO TR
+    texpos = loposuvw.xyz;
+    return loposuvw;
+} // trwall
 
 // xscale;           // for scale to work out overall radius passed up from tr_i() to tr ()
 // xrscale:         // modified and scaled radius, xscale*r
@@ -1048,11 +1066,11 @@ vec4 hermite(float mu, vec4 y0, vec4 y1, vec4 y2, vec4 y3) {
         return aa;
 }
 
-vec3 step;  // step along skeleton
+vec3 skelstep;  // step along skeleton
 vec4 aa;	// reference lookup
 vec3 skela3;
 
-/** choose a cubuic, output into step, aa, skela3 */
+/** choose a cubuic, output into skelstep, aa, skela3 */
 void cubicChoice(float x, vec4 p0, vec4 p1, vec4 p2, vec4 p3) {
     // for some reason, hermite works for csynth but not for any/many Organic models
     // specific catrom and cubic did not help much either, 12/10/18 sjpt, but left in just in case
@@ -1063,34 +1081,34 @@ void cubicChoice(float x, vec4 p0, vec4 p1, vec4 p2, vec4 p3) {
         vec4 c = -0.5 * p0            + 0.5 * p2           ;
         vec4 d =                   p1                      ;
         aa = a*x*x*x + b*x*x + c*x + d;
-        step = (3.0*a*x*x + 2.0*b*x + c).xyz;
+        skelstep = (3.0*a*x*x + 2.0*b*x + c).xyz;
     } else if (bias == 100.) {
         aa = catrom(x, p0,p1,p2,p3);
         vec4 aa1 = catrom(x + 0.001, p0,p1,p2,p3);  // todo, symbolic catrom differentiation
         skela3 = aa.xyz;
-        step = (aa1 - aa).xyz;
+        skelstep = (aa1 - aa).xyz;
     } else if (bias == 101.) {
         aa = cubic(x, p0,p1,p2,p3);
         vec4 aa1 = cubic(x + 0.001, p0,p1,p2,p3);  // todo, symbolic cubic differentiation
         skela3 = aa.xyz;
-        step = (aa1 - aa).xyz;
+        skelstep = (aa1 - aa).xyz;
     } else if (bias == 102.) {
         aa = cubicX(x, p0,p1,p2,p3);
         vec4 aa1 = cubicX(x + 0.001, p0,p1,p2,p3);  // todo, symbolic cubic differentiation
         skela3 = aa.xyz;
-        step = (aa1 - aa).xyz;
+        skelstep = (aa1 - aa).xyz;
     } else if (bias < 99.) {
         aa = hermite(x, p0,p1,p2,p3);
         vec4 aa1 = hermite(x + 0.001, p0,p1,p2,p3);  // todo, symbolic hermite differentiation
         skela3 = aa.xyz;
-        step = (aa1 - aa).xyz;
+        skelstep = (aa1 - aa).xyz;
     } else {  // bias >= 99 uses older more efficient less flexible version (?? === catrom)
         vec4 a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
         vec4 b =  1.0 * p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
         vec4 c = -0.5 * p0            + 0.5 * p2           ;
         vec4 d =                   p1                      ;
         aa = a*x*x*x + b*x*x + c*x + d;
-        step = (3.0*a*x*x + 2.0*b*x + c).xyz;
+        skelstep = (3.0*a*x*x + 2.0*b*x + c).xyz;
     }
 }
 
@@ -1107,7 +1125,7 @@ void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, o
     #define usingskelbuffer
 // todox regularize wide texture buffer with no wrapping for given horn, part done by using wide, short buffer
 // todox fix with scale (possibly totally new simplified scale that uses skelbuffer_ raw)
-    float oposz = parpos.aq.x;  // used to pass opos.z (eg which hornid?) by abuse of parpos
+    float oposz = parpos.aq.x;  // used to pass oposuvw.z (eg which hornid?) by abuse of parpos
 	float dd = 1./skelnum;
 	/**/  // close up the end comment for old linear
 	// we must have cubic where skeleton is low res tracking springs
@@ -1134,7 +1152,7 @@ void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, o
 		vec3 skela31 = textureget(skelbuffer, bp).xyz;
 
 		// compute direction
-		step = (skela31-skela3);
+		skelstep = (skela31-skela3);
 	} else /**/ { // cubic
 		float lowint = floor(ppx * skelnum);  	// integer position of low end of segment 0..skelnum-1
         float x = ppx * skelnum - lowint;       // x is fractional position within segment 0..1
@@ -1273,7 +1291,7 @@ void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, o
         bool docubic = true;
         // input to this section is px, dir, x in -0.5 .. 0.5
         // output can be p0, p1, p2, p3 to feed to cubic
-        // or do not call cubic code after this, prepare aa, step etc directly
+        // or do not call cubic code after this, prepare aa, skelstep etc directly
         if (split) {
             // this will be forced by r=0 below, but ??? cleaner to force it this way ???
             float nan = sqrt(-1.+0.01*x); //  nan = 0.;
@@ -1284,8 +1302,8 @@ void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, o
             x = 2. * x * ext;                   // expand so 'useful' x in range -1 .. 1,  +-|-+ in diagram above, + maps to -1 or 1
             float rr = px.w;                    // capture radius
             float r = rr * sqrt(max(0.0,  1. - x*x));     // shape to circle
-            step = normalize(dir.xyz);
-            vec3 rrr = px.w * step;
+            skelstep = normalize(dir.xyz);
+            vec3 rrr = px.w * skelstep;
 
             aa.xyz = px.xyz + x * rrr;
             aa.w = r;
@@ -1354,7 +1372,7 @@ void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, o
             // vec4 c = -0.5 * p0            + 0.5 * p2           ;
             // vec4 d =                   p1                      ;
             // aa = a*x*x*x + b*x*x + c*x + d;
-            // step = (3.0*a*x*x + 2.0*b*x + c).xyz;
+            // skelstep = (3.0*a*x*x + 2.0*b*x + c).xyz;
 	    }
         skela3 = aa.xyz;
     }  // usecubicskel
@@ -1379,8 +1397,8 @@ void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, o
 	xrscale = skelrad(aa.w / ggscale, ppx, oposz) * ggscale;
 
 	// xrscale = max(xrscale, 0.);
-	lll = length(step);
-	xmu = lll == 0. ? vec3(0.,1.,0.) : step/lll;          // direction, will use as mu
+	lll = length(skelstep);
+	xmu = lll == 0. ? vec3(0.,1.,0.) : skelstep/lll;          // direction, will use as mu
 	texxscale = 1.; // 1./(lll-lll);  // todo x consider role of texxscale
 
 	//texpos = vec4(9999., 0.,0., 1.);
@@ -1531,17 +1549,23 @@ void coretr(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, 
 }  // coretr
 
 // overridable function for tailoring star shape
-virtual vec2 makestar(Parpos parpos, vec4 lopos) {
+virtual vec2 makestar(Parpos parpos, vec4 loposuvw) {
     return vec2(nstar, stardepth);
 }
 
 // overridable function for tailoring ribdepth
-virtual float makeribdepth(Parpos parpos, vec4 lopos) {
+virtual float makeribdepth(Parpos parpos, vec4 loposuvw) {
     return ribdepth * lribdepth;
+    // return ribdepth * lribdeptha[clamp(int(xhornid), 0, MAXPATHS-1)];
 }
-// overridable function for tailoring ribds
-virtual float makeribs(Parpos parpos, vec4 lopos) {
-    return ribs;
+// overridable function for tailoring ribs
+virtual float makeribs(vec4 loposuvw) {
+    #ifdef NOTR
+        return 0.;
+    #else
+        return ribsa[clamp(int(xhornid), 0, MAXPATHS-1)];
+    #endif
+    // return ribsa[int(xhornid)];  // fails to compile with
 }
 
 
@@ -1549,7 +1573,7 @@ virtual float makeribs(Parpos parpos, vec4 lopos) {
 // It sets xmu,xmv,xmnormal and also the texture position (not correct/meaningful after optimizations, March 2015)
 // Creates cylinder effect, rounded ends, ribbing and star effects. Assumes fleshed skeleton model even when no skeleton buffer used
 
-vec4 trnoflat(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ribnum){  // 'real' tr () (not NO TR) passed from tr () to computeNormalsEtc
+vec4 trnoflat(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnum){  // 'real' tr () (not NO TR) passed from tr () to computeNormalsEtc
 
     // the index to choose which object instance may be held in modelMat rix[3][2], if we are using separate placed meshes
     // of may be held in p.z, if we are using some other layout arrangement (experimental as of 12/08/2013)
@@ -1559,9 +1583,9 @@ vec4 trnoflat(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ri
     // Experiments indicate a very slight performance improvement for recomputation.
     Parpos parpos;            // used to hold position in each active horn, computed once in tr (), and used in tr_i()
     #ifdef usingskelbuffer
-        parpos.aq.x = lopos.z;    // pass where in structure by abuse/reuse of parpos
+        parpos.aq.x = hhornnum;    // pass where in structure by abuse/reuse of parpos
     #else
-        parpos = splitk(parnumsa, parnumsb, /*modelMat rix[3][2]*/ + lopos.z);  // establish position in parents for multi-grid
+        parpos = splitk(/*modelMat rix[3][2]*/ + hhornnum);  // establish position in parents for multi-grid
     #endif
 /***/
 	#ifdef SHEET
@@ -1574,9 +1598,9 @@ vec4 trnoflat(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ri
 		xmnormal = vec3(0,0,1);
 
 		// void coretr(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, out vec3 rad1a, out float xrscale, out float texxscale, out vec3 texpos, out float lll)
-		// coretr(lopos.x, parpos, OUT skela, OUT xmnormal, OUT rad1a, OUT xrscale, OUT texxscale, OUT texpos, OUT lll);
+		// coretr(loposuvw.x, parpos, OUT skela, OUT xmnormal, OUT rad1a, OUT xrscale, OUT texxscale, OUT texpos, OUT lll);
 		// tr_i(const vec4 p, const float ppx, const Parpos parpos, out float xrscale, out float texxscale, out vec3 texpos)
-		vec4 r = tr_i(lopos, lopos.x, parpos, OUT xrscale, OUT texxscale, OUT texpos);
+		vec4 r = tr_i(loposuvw, loposuvw.x, parpos, OUT xrscale, OUT texxscale, OUT texpos);
 		return r;
 	}
 	#endif
@@ -1589,8 +1613,8 @@ vec4 trnoflat(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ri
     bodynum = lennum - 2.*spherenum;
     float lo = -spherenum;
     float hi = bodynum+spherenum;
-    vec4 ppp = rawp = lopos;   // raw input position; basically plane grid with z for id
-    float rp = lopos.x;    // relative position along 'active' horn
+    vec4 ppp = rawp = loposuvw;   // raw input position; basically plane grid with z for id
+    float rp = loposuvw.x;    // relative position along 'active' horn
     float rpx = lo + rp * (hi - lo);  // position extended beyond horn ends for rounding, range -r .. sbodynum+r
     float rpx1 = rpx/bodynum;
     float ppx = clamp(rpx1, 0., 1.);    // position along horn, range 0..1
@@ -1606,7 +1630,7 @@ vec4 trnoflat(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ri
     // define 'circle' to sweep, rrat gives the star shape
     // For now (Dec 2019) we have made makestar virtual to allow tailoring of nstar and stardepth
     // In future we may make the complete profile code virtual to allow more general profiles
-    vec2 star = makestar(parpos, lopos);
+    vec2 star = makestar(parpos, loposuvw);
     float unstar = star.x;
     float ustardepth = star.y;
     float star1 = ppp.y * unstar;
@@ -1634,22 +1658,22 @@ vec4 trnoflat(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ri
     float lk = 0., fac = 1.;
     ribnum = 0.;  // TODO correct for rib at each end
 	/**	sjpt temp, cost of ribs is around 2fps in 60 on VR test **/
-    float uribdepth = makeribdepth(parpos, lopos);
-    float uribs = makeribs(parpos, lopos);
+    float uribs = makeribs(loposuvw);
+    float uribdepth = makeribdepth(parpos, loposuvw);
     #ifdef HEADRIBS
-    	float xrp = min(rp, 1.-rp ); // extra ribs from centre so head and tail undisturbed
+    	float xrp = min(ppx, 1.-ppx ); // extra ribs from centre so head and tail undisturbed
     #else
     if (0. < rpx && rpx < bodynum) {
-    	float xrp = rp;         // old style
+    	float xrp = ppx;         // old style
     #endif
-        lk = (xrp * uribs + 0.5);
-        ribnum = floor(lk);
-        lk = fract(lk);             // 0..1, ramp
-        lk = abs(lk - 0.5);         // 0..0.5 sawtooth
-        fac = sqrt(1. - uribdepth*lk*lk);      // intersecting 'spheres'
-        xrscalea *= fac;
-        //r *= 1. - uribdepth*sin(pi2 * rpx * ribs / bodynum);
-        // should we adjust the normal here?
+    lk = (xrp * uribs + 0.5);
+    ribnum = floor(lk);
+    lk = fract(lk);             // 0..1, ramp
+    lk = abs(lk - 0.5);         // 0..0.5 sawtooth
+    fac = sqrt(1. - uribdepth*lk*lk);      // intersecting 'spheres'
+    xrscalea *= fac;
+    //r *= 1. - uribdepth*sin(pi2 * rpx * ribs / bodynum);
+    // should we adjust the normal here?
     #ifndef HEADRIBS
     }
     #endif
@@ -1736,8 +1760,8 @@ Also allows for flatten, usually show fully wrapped, but can show as original pl
 
 Output xmnormal usually ignored? and computed later by latenormals
 */
-virtual vec4 tr(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ribnum){  // 'real' tr () (not NO TR) passed from tr () to computeNormalsEtc
-	pickopos(lopos);
+virtual vec4 trhorn(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnum){  // 'real' tr () (not NO TR) passed from tr () to computeNormalsEtc
+	pickopos(loposuvw);
 
     // make sure TRIVIALTR defined
     #ifndef TRIVIALTR
@@ -1746,12 +1770,12 @@ virtual vec4 tr(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float 
 
     // chose what kind of transform
     #if TRIVIALTR == 0  // pure horn
-        vec4 r = trnoflat(lopos, xmnormal, texpos, ribnum);
+        vec4 r = trnoflat(loposuvw, xmnormal, texpos, ribnum);
     #else
-        vec4 f = (lopos - vec4(0.5, 0.5, 0.5*horncount, 0.)) * vec4(flatx, flaty, flatz/horncount, 0.);
-        f.x += flatxfrominst/horncount*lopos.z;
+        vec4 f = (loposuvw - vec4(0.5, 0.5, 0.5*horncount, 0.)) * vec4(flatx, flaty, flatz/horncount, 0.);
+        f.x += flatxfrominst/horncount*hhornnum;
         #if TRIVIALTR == 1 // mixture horn/flat
-            vec4 r = (makeflat > 1.) ? f : mix(trnoflat(lopos, xmnormal, texpos, ribnum), f, makeflat);
+            vec4 r = (makeflat > 1.) ? f : mix(trnoflat(loposuvw, xmnormal, texpos, ribnum), f, makeflat);
         #else   // pure flat
             vec4 r = f;
         #endif
@@ -1761,15 +1785,18 @@ virtual vec4 tr(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float 
 	return r;
 }
 
-
-#endif  // tr () for NO TR/not NO TR
+#ifdef NOTR
+vec4 tr(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnum){ return trwall(loposuvw, xmnormal, texpos, ribnum); }
+#else
+vec4 tr(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnum){ return trhorn(loposuvw, xmnormal, texpos, ribnum); }
+#endif
 
 #if (OPMODE == OPMAKESKELBUFF && VERTEX == 1)
 /** comupute xyz position in skeleton, and 4d w in w (usually 0 in 3d) NONONONO and scaled radius in w position */
 vec4 trskel(const vec4 p) {
     Parpos parpos;
 	// used to hold position in each active horn
-    parpos = splitk(parnumsa, parnumsb, /*modelMat rix[3][2]*/ + p.z);  // establish position in parents for multi-grid
+    parpos = splitk(/*modelMat rix[3][2]*/ + p.z);  // establish position in parents for multi-grid
 
     float xrscale, texxscale;  // set by tr_i and used to establish correct geometry
     vec3 texpos;                        // set by tr_i (and ignored for now? */
@@ -1821,8 +1848,8 @@ vec4 trskel(const vec4 p) {
 }
 #endif
 /**
-vec4 tr (const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ribnum){  // flatten option for no (or semi) tr
-  vec4 trnoflat(const vec4 lopos, out vec3 xmnormal, out vec3 texpos, out float ribnum){  // 'real' tr ()
+vec4 tr (const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnum){  // flatten option for no (or semi) tr
+  vec4 trnoflat(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnum){  // 'real' tr ()
 	void coretr(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, out vec3 rad1a, out float xrscale, out float texxscale, out vec3 texpos, out float lll)
 		void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, out float xrscale, out float texxscale, out vec3 texpos, out float lll)
 			vec4 tr_i(const vec4 p, const float ppx, const Parpos parpos, out float xrscale, out float texxscale, out vec3 texpos)
@@ -1836,8 +1863,8 @@ tr			applies flatenning if used
 
 
 transformation pipe
-                                                skelpos                                shapepos    trpos             mtrpos                ooo
-                                                    |                                      |          |                  |                   |
+                                                skelpos                               shapepos    trpos             mtrpos                ooo
+                                                    |                                     |          |                  |                   |
 | ------------------ tr_i -----------------------|  | trskel |  |--------- tr -----------| |-four.fs-|------ threek.vs--+-------------------+--------------|
   |tranrule autoscale gpuscale | xrscale=xscale*r    clearpos    cyl star ribs tail head     rot4     modelViewMatrix    projectionMatrix     distortpix
  pretranrule             posttranrule                  uses

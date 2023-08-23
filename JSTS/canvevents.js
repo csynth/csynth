@@ -6,7 +6,7 @@ var oldlayerX, oldlayerY, lastDispobj = NODO; // last offset for delta moves, la
 var lastDownLayerX, lastDownLayerY; // last down position
 var lastTouchedDispobj = NODO;
 var playingAudioEl;
-var downTime, interactDownTime, taptime = 300;
+var downTime, interactDownTime = 0, taptime = 300;
 var nomousetime = 1000; // time after touch to ignore mouse
 var canvTransEnabled = true;
 var debugsavedragObjDispobj; // debug
@@ -457,7 +457,8 @@ function canvmousemove(evt) {
             break;
         case matnop:
             break;
-        default: throwe("unimplemented matop " + op);
+        default: // throwe("unimplemented matop " + op);
+            op(dx, dy, sss);
     }
     interacttime = Date.now();
     return undefined;

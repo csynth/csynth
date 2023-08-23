@@ -25,6 +25,8 @@ if (searchValues.lowry) {
     searchValues.nosphere = true;
     searchValues.one = false;
 }
+searchValues.hsvab = true;
+
 
 // springdemo is the main configuration
 // see https://docs.google.com/document/d/13Z8-SL9d2mDIjpoA3T59vdrogJDKKVoXqFJBu15Mbn0/edit#heading=h.c4bhp1kgvfh2

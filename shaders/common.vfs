@@ -1,4 +1,3 @@
-
 #ifdef IMPLICIT
 float radius  = 1.;
 float gscale = 1.;
@@ -8,6 +7,9 @@ float ribdepth = 0.;
 float ribs = 8.;
 #endif
 
+const float MAX_HORNS_FOR_TYPE = 16384.0; // this allows 16384 = 2**14 horns of a single type
+// It leaves the possibilty of around 2**(24-14) = 2**10 = 1024 horn types, which should be plenty.
+// Added as name, and increased from 4096, 20/07/2019
 
 // the horn code must not contain references to pickrt for OPMODE == OPPICK
 // because that makes the pickrt both input and output texture
@@ -16,7 +18,7 @@ float ribs = 8.;
     vec3 getPickColor(int i) { return vec3(1.); }
 #else
     // pickrt has 4 points, with 4 values each
-    // the x,y position of the first point is the raw lopos position
+    // the x,y position of the first point is the raw opos position
     // the z position of first point is the useful value for single horn
     uniform float userPicks[16];  // <<<< PICKNUM-16
     float getPickC(int i) {
@@ -51,14 +53,49 @@ float ribs = 8.;
 uniform float _boxsize;   // #define _boxsize 1.25 // 500.
 
 uniform mat4 cMapRot4;
-#define rot4w (hornid == 2. ? cMapRot4 : rot4)  // to allow for rot4 on walls
-#define rot4wl (lhornid == 2. ? cMapRot4 : rot4)  // to allow for rot4 on walls
-#define rot4wc (colourid == 2. ? cMapRot4 : rot4)  // to allow for rot4 on walls
+// establish rot4 for either walls or object, based on relevant hornid
+#define rot4wx(qhornid) (qhornid == 2. ? cMapRot4 : rot4)  // to allow for rot4 on walls
 gene(capres, 0.1, 0,1, 0.001, 0.01, geom, frozen) // proportion of body to use for caps at ends
 
+gene(test1, 0, -100,100, 0.1, 0.1, test, frozen) // test gene
+gene(test2, 0, -100,100, 0.1, 0.1, test, frozen) // test gene
+gene(test3, 0, -100,100, 0.1, 0.1, test, frozen) // test gene
+
+gene(centrerefl, 0.5, 0,1, 0.01, 0.01, feedback, frozen)  // centre area of texture to use for feedback (mult by centrereflx/y)
+gene(centrereflx, 1, 0,1, 0.01, 0.01, feedback, frozen)  // centre x area of texture to use for feedback (mult by centrerefl)
+gene(centrerefly, 1, 0,1, 0.01, 0.01, feedback, frozen)  // centre y area of texture to use for feedback (mult by centrerefl)
+gene(useLanczos, 0, 0,4, 1,1, feedback, frozen)         // lancsoz width/harmonics to use, 0 for no Lanczos
+gene(flatwallreflp, 1, 0,1, 0.01, 0.01, feedback, frozen)  // 1 use wall position for feedback texture, 0 use 'reflection'
+uniform vec3 springCentre;    // tadpole specific? work out where to put correctly
+
+uniform vec2 screen;
+
+// look up texture from centre refl square in centre of 2d texture
+// r approx in range -1 .. 1
+vec4 texcentre(vec2 r, sampler2D map, inout float feeddepth);
+vec4 trifeed(vec3 feedpos, sampler2D map, inout float feeddepth);
+// look up texture from centre refl square in centre of 2d texture
+// r approx in range -1 .. 1
+#if VERTEX == 0 && (OPMODE == OPTEXTURE || OPMODE == OPTSHAPEPOS2COL || OPMODE == OPOPOS2COL || OPMODE == OPREGULAR)
+vec4 texcentre(vec2 r, sampler2D map, inout float feeddepth) {
+    vec3 feedpos;
+    if (test3 == 0.)
+        //vec3 feedpos = vec3(r.x, r.y - (wallhigh.y + walllow.y) * 0.5, 1);
+        feedpos = vec3(r.x, r.y - springCentre.y, 1);  // can't see what is wrong with this one ....
+        // feedpos = vec3(r.x, r.y - 1.52, 1); // this one is close
+    else
+        feedpos = vec3(gl_FragCoord.xy*screen * 2. - 1.,1);
+
+    return trifeed(feedpos, map, OUT feeddepth);
+}
+#endif
+
+gene(edgeidlow, 0, 0,32, 1, 1, gtex, frozen)        // low id for which edges apply
+gene(edgeidhigh, 31, -1,31, 1, 1, gtex, frozen)     // high id for which edges apply
+//dead ge ne(feed scale, 1, 0, 10, 0.1, 0.01, feedback, frozen)  // scaling for feedback
+uniform vec3 walllow, wallhigh;
+
 #define round(c) floor(c+0.5)
-vec4 parnumsa;
-vec4 parnumsb;
 
 uniform float numSegs;
 uniform float numInstances, numInstancesP2;
@@ -282,7 +319,6 @@ uniform sampler2D posNewvals;       // posNewvals is effectively a 1d texture gi
 
 uniform sampler2D tadprop;		// sampler used for tadpole properties
 
-uniform vec2 screen;
 
 /**
 // rotation about axis, from https://en.wikipedia.org/wiki/Rotation_matrix#In_three_dimensions

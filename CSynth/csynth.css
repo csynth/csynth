@@ -1,0 +1,143 @@
+body {
+	color: #ffffff;
+	background-color: #000000;
+	margin: 0px;
+	overflow: hidden;
+}
+
+/* dropinfo is the information displayed initially before files loaded */
+#dropinfo {
+	xposition: absolute;
+	xtop: 3em;
+	xpadding: 1em;
+	font-size: 16pt;
+	xwidth: 100%;
+	xtext-align: left;
+	z-index: 100;
+}
+
+/* running contains the information displayed after data loaded */
+#running {
+	display: none;
+	color: #fff;
+}
+
+#running.strong {
+	color: #000;
+}
+
+#feedback {
+	font-family: Monospace;
+	font-size: 16pt;
+	font-weight: bold;
+	position: absolute;
+	bottom: 2%;
+	right: 2%;
+	text-align: right;
+	z-index: 200;
+}
+.strong #feedback { font-size: 20pt; }
+
+#dragger {
+	position: absolute;
+	bottom: 2%;
+	right: 51%;
+	padding: 5px;
+	font-size: 12pt;
+	text-align: left;
+	z-index: 200;
+	color: #00f;
+	background-color: #fff;
+	width: 15em;
+}
+
+#sliders {
+	position: absolute;
+	top: 37%;
+	width: 25%;
+	right: 1%;
+	z-index: 200;
+}
+#sliders * {
+	width: 100%;
+	margin: 0%;
+}
+/* sliders seem to vary in height between browsers, this is robust way to separate */
+#slider1 { 	position: absolute; top: 2em; }
+#slider2 { 	position: absolute; top: 4em; }
+#slider2val {position: absolute;top: 48pt; text-align: right;font-size: 20pt;}
+
+::-webkit-slider-runnable-track { height: 5px; }
+::-webkit-slider-thumb { height: 13px; margin-top: -6px; }
+#slider1::-webkit-slider-runnable-track { background: linear-gradient(to right, black, white); }
+#slider2::-webkit-slider-runnable-track { background: linear-gradient(to right, blue, yellow);}
+
+::-moz-range-track { height: 5px; }
+::-moz-range-thumb { height: 13px; margin-top: -6px; }
+#slider1::-moz-range-track { background: linear-gradient(to right, black, white); }
+#slider2::-moz-range-track { background: linear-gradient(to right, blue, yellow);}
+
+::-ms-track { height: 5px; }
+::-ms-thumb { height: 13px; margin-top: -6px; }
+#slider1::-ms-track { background: linear-gradient(to right, black, white); }
+#slider2::-ms-track { background: linear-gradient(to right, blue, yellow);}
+::-ms-fill-lower { opacity: 0; }
+
+#slider2 { display: none; }
+.scene2 #slider2 { display: inherit; }
+
+a, p {
+	color: #fff;
+}
+.file, .file1, .file2 {color: #fff; margin: 0; }
+.file1 {color: #ff0;}
+.file2 {color: #88f;}
+
+/* x values display numbers 1,2,3,4 */
+#x1, #x2, #x3, #x4 {
+	position: absolute;
+	font-size: 20pt;
+	z-index: 100;
+	xdisplay: none;
+}
+#x1 {left:25%; top: 45%; }
+#x2 {left:75%; top: 45%; }
+#x3 {left:25%; top: 95%; }
+#x4 {left:75%; top: 95%; }
+
+
+#refsel {
+	position: absolute;
+	font-size: 12pt;
+	z-index: 100;
+	right: 51%;
+	bottom: 51%;
+	width: 25em
+}
+
+.back {
+	background-color: #fff;
+	color: #000;
+}
+
+.sdfgstrong .back {
+	background-color: #fff;
+	color: #000;
+}
+
+/* y is for feedback on positions for each view */
+.y {
+	position: absolute;
+	font-size: 16pt;
+	text-align: right;
+	z-index: 100;
+	width: auto;
+}
+#y11 { left: 14%; top: 39%; }
+#y12 { left: 39%; top: 14%; }
+#y21 { left: 64%; top: 39%; }
+#y22 { left: 89%; top: 14%; }
+#y31 { left: 14%; top: 89%; }
+#y32 { left: 39%; top: 64%; }
+#y41 { left: 64%; top: 89%; }
+#y42 { left: 89%; top: 64%; }

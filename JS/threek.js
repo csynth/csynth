@@ -1,6 +1,6 @@
 "use strict";
 // declarations to prevent 'undeclared global' and work towards namespace cleanup
-var W, THREE, badshader, inputs, Shadows, renderer, BLACK, WHITE,
+var W, THREE, badshader, inputs, Shadows, renderer, BLACK,
     OPPOSITION, OPREGULAR, OPSHADOWS, OPPICK, OPOPOS,
     scene, camera, gl, scalehalflife, mainvp, appToUse, debugframedelta, debugframedeltasize,
     oldlayerX, oldlayerY, height, init, slots, refall,
@@ -10,7 +10,7 @@ var W, THREE, badshader, inputs, Shadows, renderer, BLACK, WHITE,
     getfiledata, renderObjs, renderVR, xxxdispobj, xxxgenes, genesToCam, xcamera,  V, readWebGlFloat, currentpick, tryseteleval, currentHset, // hornhighlight,
     setInput, rot4toGenes, tand, springs, dodamprate, renderObjPipe, VH, material, usemask,
     col3, onpostframe, format, CSynth, lastDispobj, serious, renderMainObject,
-    G, log, newmain, renderObjsInner, skelbuffer, getstats, Director, searchValues, MAXPATHS,renderskelbuff,
+    G, log, newmain, renderObjsInner, skelbuffer, getstats, Director, searchValues, renderskelbuff,
     readWebGlFloatDirect, prerender, nop, Maestro, xxxhset, WALLID, rendertargets, isCSynth, readTextureAsVec4,
     readWebGlFloatAsync, S, clone, copyFrom, resolveFilter, onframe, deferRender, inps, msgfixerror, copyXflip,
     xxxvn, resetCamera, VEC3, mutateOrientation
@@ -40,7 +40,7 @@ function myinit() {
 }
 
 var dynUniforms = []; for (let i=0; i < 60; i++) dynUniforms.push(new THREE.Vector4());
-
+var MAXPATHS = 30;
 uniforms = {
         k: { type: "f", value: 1.0 },     // instance number
         vn : { type: "f", value: 1.0 },   // viewport number
@@ -67,18 +67,23 @@ uniforms = {
         gridExtra:      { type: "f", value: 1.0 },  // extra spread of grid so that some is wasted
         horncount:      { type: "f", value: 1.0 },  // total number of horns
         _boxsize:       { type: "f", value: 500 },  // reference size for box
-        cumcount:       { value: new Array(MAXPATHS)},    // for cumulative count of different horn types
-        ribsa:          { value: new Array(MAXPATHS)},    // ribs (for ribbing) of different horn types
-        lribdeptha:     { value: new Array(MAXPATHS)},    // ribdepth
+        cumcount:       { value: new Array(MAXPATHS).fill(0)},    // for cumulative count of different horn types
+        ribsa:          { value: new Array(MAXPATHS).fill(0)},    // ribs (for ribbing) of different horn types
+        lribdeptha:     { value: new Array(MAXPATHS).fill(0)},    // ribdepth
         dynUniforms:    { value: dynUniforms},          // for dynamic oprations
         pickrt:         { type: "t" },  // pickrendertarget
         pickxslot:      { type: "i", value: 0 },  // extra to add to slot for saving pick
         projectionImage:{type: 't'},               // projection image, used for Kinect
-        edgecol:        {value: new THREE.Vector3(0,0,0)},  // target colour for edges if using EDGE
-        fillcol:        {value: new THREE.Vector3(1,1,1)},  // target colour for fill (nonedges) if using EDGE
+        edgecol:        {value: col3(0,0,0)},  // target colour for edges if using EDGE
+        fillcol:        {value: col3(1,1,1)},  // target colour for fill (nonedges) if using EDGE
+        occcol:         {value: col3(0,1,1)},  // target colour for occlusion if using EDGE
+        unkcol:         {value: col3(1,0,1)},  // target colour for unknown if using EDGE
+        profcol:        {value: col3(1,1,1)},  // target colour for profile if using EDGE
+        wallcol:        {value: col3(0,1,1)},  // target colour for wall if using EDGE
+        backcol:        {value: col3(0,1,1)},  // target colour for wall if using EDGE
         cameraAspect:   {value: 1},                     // camera aspect
-        edgeBackFeedMatrix: {value: new THREE.Matrix3()},
-        edgeBackFeedTint:   {value: new THREE.Matrix4()},
+        feedbackMatrix: {value: new THREE.Matrix3()},
+        feedbackTintMatrix:   {value: new THREE.Matrix4()},
         feedtexture:    {value: undefined},
         numScalePositionActive: {value: 1e20}                //
         // scaleDampTarget:{type: 't'}                 // for gpu scaling

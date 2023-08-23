@@ -26,7 +26,8 @@ function serious(...e) {
         tolog.gpu = 'No gl renderer object yet created';
     }
 
-    const fullmsg =`Unexpected error: ${smsg}
+    const fullmsg =`opmode ${opmode} ${oplist[opmode]}
+Unexpected error: ${smsg}
 ~~~~~~~~~~~~~~~~~~~~~~~
 AsyncStack:
 ${astack}

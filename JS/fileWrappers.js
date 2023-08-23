@@ -1,5 +1,6 @@
 var nwfs, posturi, post, uriclean, msgfix, genbar, posturibin, startscript, frametime, S, Maestro, sleep,
-log, saveTextfile, location, msgfixlog, XMLHttpRequest, File, FormData, $, runcommandphp, WebSocket, throwe, HW, Buffer, islocalhost, getdesksave;
+log, saveTextfile, location, msgfixlog, XMLHttpRequest, File, FormData, $, runcommandphp, WebSocket, throwe, HW, Buffer, islocalhost, getdesksave,
+CSynth, showDirectoryPicker;
 function readtext(fid, quiet = false) {
     if (nwfs) {
         return nwfs.readFileSync(fid, 'ascii');
@@ -10,19 +11,19 @@ function readtext(fid, quiet = false) {
     }
 }
 
-function fileExists(fid) {
+function fileExists(fid, quiet=true) {
     let r
     if (nwfs)
         r = nwfs.existsSync(fid);
     else if (islocalhost)
-        r = posturi('/fileexists/'+fid) === 'true';
+        r = posturi('/fileexists/'+fid, undefined, quiet) === 'true';
     else {
          var http = new XMLHttpRequest();
           http.open('HEAD', fid, false);
           http.send();
           r = http.status != 404;
     }
-    if (!r) console.trace('file not found', fid)
+    if (!r && !quiet) console.trace('file not found', fid)
     return r
 }
 
@@ -127,15 +128,21 @@ function writetextremote(fid, text, append = false) {
 function _Files() {
     const me= this
     me.dirhandle;
-    me.setDirectory = async function(startIn = 'documents') {
-        me.dirhandle = await window.showDirectoryPicker({startIn, mode:'readwrite'});
-        // const ok = await me.dirhandle.queryPermission({mode:'readwrite'})
-        // log('[[[[ orgsaveHandle rw already granted', ok)
-        // if (ok !== 'granted') {
-        //     const oknow = await me.dirhandle.requestPermission({mode:'readwrite'});
-        //     log('[[[[ orgsaveHandle rw requested', oknow)
-        // }
-       return me.dirhandle; // not generally used, implicity in read/write
+    me.setDirectory = async function(sys) {
+        if (!sys) sys = location.href.toLowerCase().includes('csynth') ? 'CSynth' : 'Organic';
+        if (!me.dirhandle) {
+            try {
+                me.dirhandle = (await CSynth.getIdbCache('dirhandle' + sys)).data
+                log('[[[[ got orgsaveHandle from IDB')
+            } catch (e) {
+                // alert('Hit enter, then please choose root directory for all future saves. eg Desktop/' + sys);
+                me.dirhandle = await showDirectoryPicker({startIn: 'documents', mode:'readwrite'})
+                await CSynth.setIdbCache({key: 'dirhandle/' + sys, data: me.dirhandle});
+            }
+        }
+        const ok = await me.dirhandle.queryPermission({mode:'readwrite'})
+        if (!ok) me.dirhandle = await window.showDirectoryPicker({startIn: me.dirhandle, mode:'readwrite'});
+        return me.dirhandle; // not generally used, implicity in read/write
     }
 
     me.write = async function (fid, data, append) {

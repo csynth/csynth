@@ -7,7 +7,7 @@ startKeystone, onframe, dragObj, canvas, V, vrresetall, vrresting, inedit, curre
 saveundo, findMatop, trysetele, animStep, stepeleval, keysdown, killev, // handleF 11,
 Director, frameSaver, saven, restoreExtra, clearObjzoom, editgenex, editgeney,
 renderObjs, renderQuad, kinectJupDyn, lastdocx, lastdocy, resetMat, currentGenes, // hornhighlight,
-springs, HW, msgtrack, renderVR, renderObjsInner, snap, test2, usemask,
+springs, HW, msgtrack, renderVR, renderObjsInner, snap, showrts, usemask,
 refall, randobj, allunit, mousewhich, stopSC, running, isNode, xwin, nwwin, lastvps, exitfullscreen,
 
 mutate, mutateXX, smtest, randrule, scale, setSize, toggleFix, toggleShare, log, getserveroao, inputsanimsave,
@@ -22,7 +22,8 @@ S, rot, applyMatop, G, nomess, loadopen, Tracker, startscript, centrescalenow, p
 flatten, format, lastTouchedDispobj, debugKey, setHolo, Holo, GX, makevr, tadpoleSystem, cMap, renderer,
 OrganicSpeech, bigimprep, feedbacktests, mutateVisibleGenes, fxaa, shangbig, currentHset, xxxhset, HornSet, resolveFilter, clearSelected,
 xxxgenes, hoverDispobj, resetCamera, slots, mainvp, nop, isCSynth, fullscreen, transferView, mutateColour, mutateForm, BrightonStyle, GUIInit, GUIwallkeys,
-niractcmd, randmuts, genmini, setBackgroundColor, home, toggleFullscreen, enterFullscreen, exitFullscreen
+niractcmd, randmuts, genmini, setBackgroundColor, home, toggleFullscreen, enterFullscreen, exitFullscreen, showzoom, showzoomfix,
+saveLots
 
 var extrakeys = {}; // var for sharing
 var keysEmulateVR = false;     // set to true if we want to emulate some VT button experiences
@@ -162,9 +163,7 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
         case '7':  // show zoomed area of mainvp in top right5f
         case '8':  // show zoomed area of mainvp in top right
         case '9':  // show zoomed area of mainvp in top right
-            if (ml.capturingTime) break;  // do not allow this while capturing
-            DispobjC.zoom = Math.pow(2, +ff/2);
-            msgfix('zoom', DispobjC.zoom);
+            showzoom(+ff);
             break;
 
         case 'ctrl,0':  // show zoomed area of mainvp in top right, pixel mult
@@ -178,8 +177,9 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
         case 'ctrl,8':  // show zoomed area of mainvp in top right, pixel mult
         case 'ctrl,9':  // show zoomed area of mainvp in top right, pixel mult
             if (ml.capturingTime) break;  // do not allow this while capturing
-            DispobjC.zoom = +ff * 1/inps.renderRatioUi
-            msgfix('zoom', DispobjC.zoom);
+            //DispobjC.zoom = +ff * 1/inps.renderRatioUi
+            //msgfix('zoom', DispobjC.zoom);
+            showzoomfix(+ff)
             break;
 
         case 'ctrl,alt,0':  // # renderRatio 1
@@ -365,7 +365,7 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
                 //break;
         case 'U': snap(); break;  // capture current animation object and put in lru position, lru to dustbin
 
-        case '#': test2(); break;  // '#':
+        case '#': showrts(); break;  // '#':
 
         case 'ctrl,alt,ArrowUp': applyMatop(1,2, -Math.PI/2, rot); break; // rotate front up 90 <>
         case 'ctrl,alt,ArrowDown': applyMatop(1,2, Math.PI/2, rot); break; // rotate front down 90 <>
@@ -604,18 +604,12 @@ function runkeysup(evt) {
         case '7':  // restore main object pan/zoom
         case '8':  // restore main object pan/zoom
         case '9':  // restore main object pan/zoom
-            if (keysdown[0] === 'ctrl') {
-                DispobjC.olx = oldlayerX
-                DispobjC.oly = oldlayerY;
-                return;
-            }
-            if (keysdown.length !== 0) break;  // do not get confused, eg after alt-p
-            clearObjzoom();  // probably not needed as done immediately after zoom render33
-            if (lastDispobj !== NODO) lastDispobj.render(); newmain(); onframe(newmain);
-            DispobjC.zoom = 0;
-            DispobjC.olx = DispobjC.oly = undefined;
-            msgfix('zoom');
-            break;
+            { const k0 = keysdown[0]
+            if (k0 === 'ctrl') break;
+            if ('0' <= k0 && k0 <= '9') break;// so we can do eg 4 => 4,5 => 5
+            showzoom('clear');
+            if (ff === '0') showzoomfix('clear');
+            } break;
     }
     currentpick = "";
     editgenex = undefined;
@@ -782,6 +776,7 @@ function dockeydowninner(kkk, evt) {
             break;
         // case 'ctrl,V'  // LEAVE THIS TO ONPASTE
         case 'ctrl,S': save(); break;           // save
+        case 'ctrl,shift,S': saveLots(); break; // save lots
         case 'alt,.': springs.start(); break;   // start springs running
         case 'alt,,': springs.stop(); break;    // stop springs running
         case 'alt,F': trysetele("fixcontrols", 'checked', !W.fixcontrols.checked); showControls(W.fixcontrols.checked); onWindowResize(true); break; // toggle fixed controls (not over canvas)

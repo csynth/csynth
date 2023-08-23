@@ -10,8 +10,8 @@ function _rtData(rtin, options) {
 
     // image size
     const v = options || {};
-    const imw = v.width || rtin.width || rtin.image.width;
-    const imh = v.height || rtin.height || rtin.image.height;
+    const imw = v.w || v.width || rtin.width || rtin.image.width;
+    const imh = v.h || v.height || rtin.height || rtin.image.height;
 
     const w = v.width || imw;
     const h = v.height || imh;
@@ -44,13 +44,16 @@ function _rtData(rtin, options) {
 function readWebGlFloatDirect(rtin, options) {
     const {imw, imh, w, h, channels, format, l, t, size, buffer, gl} = _rtData(rtin, options);
     let rrt = rtin;
+    let texture = rtin instanceof THREE.Texture ? rtin : rtin.texture;
+    if (texture.type === THREE.UnsignedByteType) 
+        return readWebGlByteDirect(rtin, options)
     if (rtin instanceof THREE.Texture) {
         rrt = new THREE.WebGLRenderTarget(imw, imh);
         rrt.setTexture(rtin);
     }
 
-    //const rc1 = checkglerror('readWebGlFloatDirect');
-    //if (rc1) throwe('PRE readWebGlFloatDirect ' + rc1)
+    const rc1 = checkglerror('PRE readWebGlFloatDirect');
+    if (rc1) console.error('PRE readWebGlFloatDirect ' + rc1)
 
     
     renderer.setRenderTarget(rrt);

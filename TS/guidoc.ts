@@ -109,6 +109,7 @@ function setkeyscad(evt) {
 
 /** clear keys in case we have got out of sync */
 function clearkeys(evt) {
+    // console.info('clearkeys', keysdown.join(','))
     keysdown = [];
     setkeyscad(evt);
     HW.cancelcontext();
@@ -189,7 +190,7 @@ function dockeyup(evt) {
     var i = keysdown.indexOf(ff);
     if (i !== -1) keysdown.splice(i,1);
 
-    if (keysdown.length === 0 && lastkeydown === 'alt' && ff === 'ctrl') ctrlContextMenu();
+    if (keysdown.length === 0 && lastkeydown === 'shift' && ff === 'ctrl') ctrlContextMenu();
 
     newmain();
 }

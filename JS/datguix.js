@@ -2,7 +2,7 @@
 // we keep names and other details useful for save/restore
 var dat, log, V, location, THREE,msgfixlog, fileTypeHandlers, localStorage, updateMat, W, S,
 onframe, saveAs, writetextremote, CSynth, Blob, openfiles, posturi, sensible, Maestro, CLeap, killev, G, camToGenes, msgfix,
-makeLogval, refall, readtext, loadjs, currentGenes, xxxgenes, mainvp, tad, U, springs;  // for lint
+makeLogval, refall, readtext, loadjs, currentGenes, xxxgenes, mainvp, tad, U, springs, getdesksave, fileExists, feed, Viewedit;  // for lint
 
 dat.GUIVR.globalEvents.on('onPressed', e => {
     Maestro.trigger('datguiclick', e);
@@ -77,6 +77,8 @@ GX.datGUIVRadd = function(object, propertyName, min, max, step, guiname, tooltip
     if (min === undefined) min = 0;
     if (max === undefined) max = object[propertyName] * 2;
     if (step === undefined) step = (max-min)/100;
+//    if (!Viewedit.findobject(object))
+//        log('create gui for unkown object, prop = ', propertyName)
     const xx = this.oldadd(object, propertyName, min, max);
     xx.object = object;
     xx.propertyName = propertyName;
@@ -94,7 +96,7 @@ GX.datGUIVRadd = function(object, propertyName, min, max, step, guiname, tooltip
     }
     xx.folderParent = this; //already has folder property
     if (xx.setHeight) xx.setHeight(GX.defaultHeight);
-    xx.initialValue = object[propertyName];
+    xx.lastValue = xx.initialValue = object[propertyName];
 
     xx.oldname = xx.name;  // warning: must be after setHeight which redefines name
     xx.oldmin = xx.min;
@@ -295,20 +297,23 @@ dat.GUIVR.create = dat.GUIVR.createX;
 GX.getNewFilename = function(name, extension) {
     const _public = location.host === "csynth.molbiol.ox.ac.uk" && location.search.indexOf('?p=') === -1;
     if (!name) {
+        let unp;
+        if (_public)
+            unp = 'Undecorated will save in the browser, cannot save to server for public projects.';
+        else
+            unp = "Undecorated will save in user's desktop/organicsaves.";
         var prompt = `enter name for ${extension} file.
+        ${unp}
         Start with > for local save in browser.
         Start with ! for download as file.
+        Start with + for save in Organic code.
         `
-        if (_public)
-            prompt += 'Undecorated will save in the browser, cannot save to server for public projects.';
-        else
-            prompt += 'Undecorated will save in the project at server.';
         name = window.prompt(prompt, '');
     }
     return name;
 }
 
-GX.saveguiString = async function() {
+GX.saveguiString = function() {
     const r = {};
     const s = currentGenes; // in case called with currentGenes masked, temporarily unmask
     if (!currentGenes) currentGenes = xxxgenes(mainvp);
@@ -330,16 +335,17 @@ GX.savegui = async function(name, full = false) {
     if (!name) { log('no name, GX.savegui aborted'); return; }
     const _public = location.host === "csynth.molbiol.ox.ac.uk" && location.search.indexOf('?p=') === -1;
     if (_public && name[0] !== '>' && name[0] !== '!') name = '>' + name;
-    const r = await GX.saveguiString();
+    const r = GX.saveguiString();
 
     if (full) {
         if (tad?.TADS && tad?.T[0]) {
-            tad.captureOrientation({save: false});
+            // tad.captureOrientation({save: false});
             r._pullspringmat = U.pullspringmat;
         }
         // tad.captureOrientation should set _rot4_ele to identity anyway
         r._rot4_ele = G ? G._rot4_ele : [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-        await S.frame()
+        r._uScale = G._uScale;
+        // await S.frame()
         r._positions = springs.getpos()
         r._springlen = G.springlen
     }
@@ -347,6 +353,7 @@ GX.savegui = async function(name, full = false) {
 
     const fname = name + (name.endsWith(extension) ? '' : extension);
     GX.write(fname, vv);
+    return fname;
 }
 
 /** GX.restoregui may be given just a filename, or data + filename */
@@ -377,14 +384,23 @@ GX.restoregui = function(pname='default', name2=undefined, allowmissing = false)
         GX.restoreGuiFromObject(r);
     }
     S.jump();
+    lastset();
 
-    // apply these last, after jump() , .orient files may have been brought in when selecting the form
-    if (r._rot4_ele) {G._rot4_ele = r._rot4_ele; camToGenes(G); }
-    if (r._pullspringmat && tad?.TADS) U.pullspringmat.elements = r._pullspringmat.elements;
-    if (r._positions) springs.setpos(r._positions);
-    if (r._springlen) G.springlen = r._springlen;
+    // to repeat resotre of these over a few frames, they may get overridden async by side-effect of other parts of restore
+    async function lastset() {
+        for (let i = 0;i < 5; i++) {
+            // apply these last, after jump() , .orient files may have been brought in when selecting the form
+            if (r._rot4_ele) {G._rot4_ele.set(r._rot4_ele); camToGenes(G); }
+            if (r._uScale) G._uScale = r._uScale;
+            if (r._pullspringmat && tad?.TADS) U.pullspringmat.elements = r._pullspringmat.elements;
+            if (r._positions) springs.setpos(r._positions);
+            if (r._springlen) G.springlen = r._springlen;
 
-
+            // consider how to make this more restoreGeneral
+            feed.fixfeed = feed.corefixfeed = false;
+            await S.frame();
+        }
+    }
 }
 
 /** restore lots of values into existing object(recursive): generic code, should not be in GX */
@@ -471,7 +487,7 @@ GX.restoreGuiFromObject = function(ss) {
 fileTypeHandlers['.settings'] = GX.restoregui;
 
 GX.getValue = function(k) {
-    return GX.getgui(k).getValue();
+    return GX.getgui(k)?.getValue();
 }
 GX.setValue = function(k, v, logerr = true) {
     const dictk = GX.getgui(k);
@@ -612,13 +628,13 @@ GX.select = function(mouseEvent) {
     const s = GX.selected = GX.lasto;
     if (mouseEvent.button === 2) {
         if (!s) return;
-        if (s.lastValue === undefined) {
-            s.lastValue = s.getValue();
-            s.setValue(0);
+        const curval = s.getValue();
+        if (curval !== s.initialValue) {
+            s.lastValue = curval;
+            s.setValue(s.initialValue);
             s.children[0].material = GX._maskmat;
         } else {
             s.setValue(s.lastValue);
-            s.lastValue = undefined;
             s.children[0].material = GX._mat;
         }
         return;
@@ -644,31 +660,54 @@ GX._setselect();
 
 GX.localprefix = '>';
 GX.downloadprefix = '!';
+GX.codesettingsprefix = '+';
 GX.localprefixkey = 'savelocal';
 GX.localprefixfull = GX.localprefixkey + GX.localprefix;
 GX.write = function(name, vv) {
-    if (name[0] === GX.localprefix)
+    if (name[0] === GX.localprefix) {
         localStorage[GX.localprefixkey + name] = vv;
-    else if (name[0] === GX.downloadprefix)
+    } else if (name[0] === GX.downloadprefix) {
         saveAs(new Blob([vv]), name.substring(1));
-    else if (name.contains('/') || name.contains('\\'))
-        writetextremote(name, vv);
-    else
-        writetextremote((CSynth.current ? CSynth.current.fullDir : '') + name, vv);
+    } else if (name[0] === GX.codesettingsprefix) {
+        if (name.contains('/') || name.contains('\\'))
+            writetextremote(name, vv);
+        else
+            writetextremote((CSynth.current ? CSynth.current.fullDir : '') + name, vv);
+    } else {  // no prefix => organicsaves
+        const ds = getdesksave()
+        writetextremote(name.startsWith(ds) ? name : (ds + name), vv)
+    }
     if (CSynth.updateAvailableFiles) CSynth.updateAvailableFiles(undefined, name);
 }
 
 GX.read = function(name, allowmissing) {
     let sss;
-    if (name[0] === GX.localprefix)
+    if (name[0] === GX.localprefix) {
         sss = localStorage[GX.localprefixkey + name];
-    else if (name[0] === GX.downloadprefix)
+    } else if (name[0] === GX.downloadprefix) {
         sss = openfiles.dropped[name.substring(1)];
-    else if (name.contains('/') || name.contains('\\'))
-        sss = readtext('/!' + name);
-    else
-        sss = posturi((CSynth.current ? CSynth.current.fullDir : '') + name, undefined, allowmissing);
+    } else if (name[0] === GX.codesettingsprefix) {
+        sss = readcode(name.substring(1))
+    } else {  // no prefix => organicsaves
+        const fname = getdesksave() + name;
+        if (fileExists(fname)) {
+            sss = readtext(fname);
+        } else {
+            sss = readcode(name);  // for backward compatibility
+        }
+    }
     return sss;
+
+    // read from code/project directory, or anywhere if / or \ given
+    function readcode(cname) {
+        let ssss;
+        if (cname.contains('/') || cname.contains('\\')) {
+            ssss = readtext('/!' + cname);
+        } else {
+            ssss = posturi((CSynth.current ? CSynth.current.fullDir : '') + cname, undefined, allowmissing);
+        }
+        return ssss;
+    }
 }
 
 GX.locallist = function() {
@@ -888,6 +927,7 @@ GX.html = function(xx = GX.findSelected()[0]) {
                 case 'S/PageDown': GX.hscale(1/10, undefined, false); break;
                 case 'KeyD': GX.hinitval(); break;
                 case 'KeyX': GX.hide(); GX.html(); break;
+                // case 'KeyC': navigator.clipboard.writeText('!gkey:' + W._GXname.innerText); break;
                 default: done = false;
             }
             GX.lasthtmlkey = k;
@@ -906,7 +946,11 @@ GX.html = function(xx = GX.findSelected()[0]) {
     Shift~PageUp/Down: in/dec-crease range by 10
     <br>
     X: hide this gui item
+    <!--
     <br>
+    C: copy this gui item (eg for alt-C paste to new gui) PENDING
+    <br>
+    --->
     .
 `
     }

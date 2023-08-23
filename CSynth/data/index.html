@@ -1,0 +1,49 @@
+<!--
+
+https://csynth.molbiol.ox.ac.uk/csynthstatic/latest/csynth.html?startscript=/csynthstatic/data/trivtest/trivtest.js
+
+https://csynth.molbiol.ox.ac.uk/csynthstatic/latest/csynth.html?startscript=../data/trivtest/trivtest.js
+http://localhost:8800/csynthstatic/latest/csynth.html?startscript=../data/trivtest/trivtest.js
+http://localhost:8800/csynthstatic/latest/csynth.html?startscript=../data/trivtest/trivtest.js
+
+
+-->
+<head>
+    <title>Index of CSynth experiments</title>
+</head>
+<body>
+    <h1>Index of CSynth experiments</h1>
+    <ul id='list'></ul>
+    <p onclick="openall()" style="color: blue">Open all in tabs. (Will not always work, depending on browser and popup options.)</p>
+    <script>
+        const items = [];
+        function item(name, desc, loc) {
+            url = `../latest/csynth.html?startscript=../data/${loc}.js`;
+            items.push({name, desc, loc, url})
+            return `<ul>
+                <li>
+                    <a href="${url}">
+                        <b>${name}</b>: ${desc}
+                    </a>
+            </li>
+        </ul>`
+        }
+        const h = [
+            item('Yeast', 'Yeast ChromosomeI', 'Crick/loadcrick_chrIFull'),
+            item('YeastAll', '3 chromosomes of ', 'CrickLots/lots'),
+            item('LorDG', 'explore LorDG data and compare models', 'Lorentz/lorentz'),
+            item('Rsse', 'compare red and white blood cells, from external xyz data', 'rsse/loadrsse'),
+            item('Rsse', 'compare red and white blood cells, internal modelling plus external xyz data', 'C75X1200/loadexpand'),
+            item('trivtest', 'trivial test, mainly for debug', 'trivtest/trivtest'),
+        ].join('\n');
+        window.list.innerHTML = h;
+
+        function openall() {
+            items.forEach( (item, i) =>
+                window.open(item.url, '_blank')
+                // setTimeout(window.open(item.url, '_blank'), i*500)
+            );
+        }
+    </script>
+</body>
+

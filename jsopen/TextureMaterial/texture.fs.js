@@ -369,10 +369,14 @@ Colsurf standardTexcol(in vec3 texpos, float colourid, bool realLookup) {
 		#ifdef NOTR // relevant to texalong/texaround/texribs only
 			colpos /= 1000.; // so it works at a similar scale to the objects
 		#endif
+        #ifdef NOHORNMAKER
+        float dribs = 10.;
+        #endif
+
     // colpos *= 0.; // NOTR test
-        float xx =  floor(texalong * colpos.x + texaround * colpos.y + texribs * colpos.z / ribs);
-        xx +=  floor(texalong1 * colpos.x + texaround1 * colpos.y + texribs1 * colpos.z / ribs);
-        xx +=  floor(texalong2 * colpos.x + texaround2 * colpos.y + texribs2 * colpos.z / ribs);
+        float xx =  floor(texalong * colpos.x + texaround * colpos.y + texribs * colpos.z / dribs);
+        xx +=  floor(texalong1 * colpos.x + texaround1 * colpos.y + texribs1 * colpos.z / dribs);
+        xx +=  floor(texalong2 * colpos.x + texaround2 * colpos.y + texribs2 * colpos.z / dribs);
 		tpxx += fract(xx / texdiv);
         tpxx = fract(tpxx);
 		//tpxx -= 0.5;

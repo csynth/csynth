@@ -523,6 +523,7 @@ function animatee(now) {
     }
 
     // msgfix("docfocus", document.hasFocus(), document.activeElement.id, document.activeElement.toString());
+    if (logframetime === -1) logframetime = logframealltime = performance.now();
 
     newframePending = false;
     if (!running) return;
@@ -646,7 +647,9 @@ function animatee(now) {
     if (inputs.showstats) W.stats.update();
     debugframenum++;  // at end so 0 value set after reset
     if (tracketclate) tracketc();
-    framelog('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< ending animateee at frame', framenum);
+    if (logframenum >= framenum) console.table(logframetable);
+    framelog('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< ending animateee at frame', framenum, 'total time', +((performance.now()-logframealltime).toFixed(2)));
+    logframenum = -1; // don't restart logging in case of something resetting framenum
 
     if (animate.readafter) readpixtest();
     msgfix.force();  // get the message out at end of frame
@@ -754,7 +757,7 @@ function debugframehist(n) {
     return st;
 }
 
-var logframenum = 0;
+var logframenum = -1, logframetable, logframetime, logframealltime, logframeflush, logframefull;
 /** log a single frame */
 function framelog(...a) {
     if (logframenum < framenum) return;
@@ -764,6 +767,8 @@ function framelog(...a) {
 function logframe(n:N = 1) {
     newmain(n);
     logframenum = framenum + n;
+    logframetable = [];
+    logframetime = -1;
 }
 
 /** randomize gene speed */

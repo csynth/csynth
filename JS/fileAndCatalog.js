@@ -451,6 +451,7 @@ function dstringGenes(data) {
             if (obj.genes && obj.genes.tranrule === '->')
                 obj.genes.tranrule = r.genes.tranrule;
         }
+        if (r.extraDispobj?.genes?.tranrule === '->') r.extraDispobj.genes.tranrule = r.genes.tranrule;
     }
 
     for (let gn in r.genes) {
@@ -462,8 +463,8 @@ function dstringGenes(data) {
     }
 
     // ??? 30/10/2022, where had these extra genes come from
-    delete r.genes.genes;
-    if (r.currentObjects) for (const o of Object.values(r.currentObjects)) delete o.genes.genes
+    delete r.genes?.genes;
+    if (r.currentObjects) for (const o of Object.values(r.currentObjects)) delete o?.genes?.genes
 
     for (const k in searchValues) {
         const k1 = k.substring(0, 2), k2 = k.substring(2);
@@ -806,6 +807,7 @@ function yamlString(genes = currentGenes, extras = undefined) {
                     log(logStr);
                 }
             }
+            if (extraDispobj?.genes.tranrule === trsave) extraDispobj.genes.tranrule = '->';
         }
 
         // appears not to be an issue now, 6 March 2021; not using JSON and I think three has fixed things anyway???
@@ -826,6 +828,7 @@ function yamlString(genes = currentGenes, extras = undefined) {
             if (obj.genes && obj.genes.tranrule === '->')
                 obj.genes.tranrule = trsave;
         }
+        if (extraDispobj?.genes.tranrule === '->') extraDispobj.genes.tranrule = trsave;
     }
 }
 
@@ -1361,7 +1364,7 @@ FrameSaver.PreStep = function() {
 /** (optionally) save data on every frame, also control calling other frameSave functions */
 FrameSaver.PostStep = function() {
     if (frameSaver.defersave) {
-        saveframetga.convert(null, 1);      // start convertion of this frame's result asap, but mark it valid for next frame
+        saveframetga.convert(null, 1, 3);      // start convertion of this frame's result asap, but mark it valid for next frame
         saveframetga(frameSaver.defersave); // this will save the old one read at the start of this frame
         frameSaver.defersave = undefined;
     }

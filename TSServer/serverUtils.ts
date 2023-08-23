@@ -273,6 +273,7 @@ export function mainServer() {
                 // else writeresp(response, 200, stdout);
             });
             rr = 'process attempted async: ' + arg;
+            writeresp(response, 200, rr);
         } else {
             try {
                 //rr = cprocess.execSync(arg);

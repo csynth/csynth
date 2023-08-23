@@ -44,6 +44,11 @@ function xxxvn(xxx) {
     return dispobj.vn;
 }
 
+/** return rendertargetfor an xxx */
+function xxxrt(xxx) {
+    return xxxdispobj(xxx)?.rt;
+}
+
 /** return dispobj for an xxx */
 function xxxdispobj(xxx = mainvp) {
     const tt = typeof xxx;
@@ -236,12 +241,12 @@ function clampAllGeneRanges() {
 //function editobj() {}
 
 
-function regenHornShader() {
+function regenHornShader(ops) {
     const sss = W.mystats.style.display;
     clearPostCache('regenHornShader');
     HW.setHornSet();
     forcerefresh = true;
-    onframe(remakeShaders, 2); // >>> todo check why delay needed
+    onframe(() => remakeShaders(ops), 2); // >>> todo check why delay needed
     onframe(() => W.mystats.style.display = sss, 3);
 }
 

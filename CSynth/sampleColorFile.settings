@@ -1,0 +1,48 @@
+const CSynth = window.CSynth;                 // stop IDE warnings
+
+// Clear the schemes
+// If this line is used, the schemes defined below will replace all previous schemes.
+// If no, the schemes below will add to or replace existing schemes.
+CSynth.colorSchemes = {};
+
+// we now set as many named schemes as we wish
+// 'standard' scheme
+CSynth.colorSchemes.fromchains = [
+[127, 127, 127],    //
+[255,0,0],          // chr1
+[0,255,0],
+[0,0,255],
+[0,255,255],        // chr4
+[255,0,255],
+[255,255,0],
+[63, 63, 63],
+[255,127,0],        // chr8
+[0,255,127],
+[127,0,255],
+[0, 127,255],
+[255,0,127],        // chr12
+[255,127,60],
+[60,255,127],
+[127,60,255],
+[127,60,255],       // chr16
+[60, 127,255],
+[255,60,127]
+];
+
+// HTML color names can be used; they must be given in all lowercase
+// see https://www.w3schools.com/colors/colors_names.asp for color names
+CSynth.colorSchemes.rgb = ['red', 'green', 'blue'];
+
+CSynth.colorSchemes.yasu = [
+[50, 50, 50],
+[235,0,139],    // chr1
+[0,173,238],
+[101,45,144]
+];
+
+// CSynth.applySchemesToGroups will apply all colourSchemes using the groups (eg chr groups)
+// The scheme names will immediately be available from the BED color dropdowns in the GUI menu.
+// The complete set of schemes will also be saved in localStorage,
+// and loaded in future CSynth sessions.
+CSynth.applySchemesToGroups();
+

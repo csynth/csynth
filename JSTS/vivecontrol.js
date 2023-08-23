@@ -2001,4 +2001,12 @@ V.getXrGamepads = function () {
     return gps;
 };
 V.rotrate = 1;
+// it would be good to arrange a parent to hold V.gui plus the undocked gui items,
+// but that would disturb quite a bit of code, so below is hopefully safer.
+// eslint-disable-next-line object-curly-newline
+Object.defineProperty(V, 'showgui', {
+    set: v => { V.gui.parent.children.forEach(x => { if (x.guiName)
+        x.visible = v; }); return; },
+    get: () => { var _a; return !!((_a = V.gui) === null || _a === void 0 ? void 0 : _a.visible); }
+});
 //# sourceMappingURL=vivecontrol.js.map

@@ -359,7 +359,6 @@
                                         <span class="help">Click to use 360 degree rendering.</span>
                                         <span>EDGES<input id="EDGES" class="def objsave"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
                                         <span class="help">Click to add black edges.</span>
-                                        <span>WHITE<input id="WHITE" class="def objsave"  type="checkbox" onchange="FCall('baseShaderChanged');"/></span>
                                         <span class="help">Click for white objects, just edges. Requires edges. Alternativey use G.fillprop = 1</span>
                                         <br>
                                         <!-- not convinced this gui is how I want to expose cookies. when in Rome... -->
@@ -373,7 +372,7 @@
 
                                     <span class="group" style="border-color:red" title="resolution detail">
                                         <b>Res: </b>
-                                        <input  id="resbaseui" type="number" min="0" max="12" value="5" step="0.1" onchange="FCall('newres');" />
+                                        <input  id="resbaseui" type="number" min="0" max="12" value="10" step="0.1" onchange="FCall('newres');" />
                                         <span class="help">Base resolution for mesh used to generate horn.
                                             <br>0 low, 10 high.
                                             <br>old low/1/2/3/4/high -> 3/5/9/17/33/65 -> new 0/2/4/6/8/10
@@ -762,6 +761,7 @@
         <script src="jsopen/gldebug.js"></script>
 
         <script src="JSTS/graphbase.js"></script>
+        <script src="JSTS/imsave.js"></script>
         <script src="JSdeps/WebVR106SJPT.js"></script>
         <script src="JS/uiCom.js"></script>
         <script src="JS/Utilities.js"></script>
@@ -783,6 +783,9 @@
         <script src="JS/fileAndCatalog.js"></script>
         <script src="JS/datguix.js"></script>
         <script src="JS/guihelpers.js"></script>
+        <script src="JS/feed.js"></script>
+        <script src="JS/edge.js"></script>
+
         <script src="JSTS/anim.js"></script>
         <script src="JS/guicontrols.js"></script>
         <script src="JS/guimutate.js"></script>
@@ -847,9 +850,8 @@
         <script src="jsopen/metaballsWebgl/marching.js"></script>
 
         <script src="CSynth/metavis.js"></script>
-
-
-
+        <script src="JS/viewedit.js"></script>
+        <script src="JS/image.js"></script>
 
         <!--
         <script src="CSynth/old.js"></script>

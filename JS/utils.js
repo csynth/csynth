@@ -14,9 +14,11 @@ var screens, W = window, opmode, HTMLElement, HTMLDocument, HTMLTextAreaElement,
     searchValues, $, inworker, serious, loadTime, loadTimes, _insinit, isFirefox, keysdown, copyXflip,
     ErrorEvent, animateNum, dustbinvp, testopmode, S, sclogE, sclog, islocalhost, dataURItoBlob, saveAs, GX, lastToggleGuiAction,
     foldStates, restoreFoldStates, ises300, deferRender, startSC, isCSynth, WA, G, mutate, addGene, runkeys, regularizeColourGeneVisibility, maxInnerHeight,
-    resoverride, U, usemask, numInstances, tad, mutateTad, xxxdispobj, centrescalenow, resetCamera, target, Files
+    resoverride, U, usemask, numInstances, tad, mutateTad, xxxdispobj, centrescalenow, resetCamera, target, Files, sleep, interactDownTime,
+    readWebGlFloatDirect
     ;
 
+var MAX_HORNS_FOR_TYPE = 16384.0; // this allows 16384 = 2**14 horns of a single type; SHARE WITH common.vfs
 // convenience function to find dom element, W. sometimes failed at very start
 // really const, but var makes it easier to share
 var DE = new Proxy(window, { get: (w, name) => document.getElementById(name) } );
@@ -788,6 +790,7 @@ function getg(x) { var r = x; while (r.currentEle === undefined) r = r.parentNod
 */
 function copyFrom(obj1, obj2, filter) {
     if (obj1 === obj2) return;  // not just optimization, it was damaging for _rot4_ele
+    if (!obj2) return;
     for (var gn of Object.keys(obj2)) {         // gn in gets absurd amounts for eg new THREE.Vector4()
         if (filter !== undefined && !(gn in filter) ) continue;
         const v2 = obj2[gn];
@@ -1920,6 +1923,11 @@ function showbaderror(msgi, e) {
     W.baderror.style.display = "block";
 }
 
+function showbaderrornogl(msgi, e) {
+    W.baderror.innerHTML = "<h1>Bad error</h1><div>" + msgi + "</div>";
+    W.baderror.style.display = "block";
+}
+
 /** return the first argument that is not null or undefined */
 function FIRSTG(s) {
     for (var i in arguments) {
@@ -2007,7 +2015,12 @@ function getBody(fun) {
 
 
 /** format number with max n decimal places, remove trailing 0 . */
-function format(k, n, trim=false) {
+function format(k, n, opts) {
+    let trim = opts?.trim ?? false;
+    let totlen = opts?.totlen ?? 100000;
+    if (opts && typeof opts !== 'object') trim = opts;  // support old use of trim as third parm
+
+    if (totlen <= 0) return '!!!';
     if (k === undefined) return 'U';
     if (k === null) return '#null#';
     if (k === window) return '#window#';
@@ -2032,18 +2045,27 @@ ${k.stack}`;
                 if (k.length === 0) {
                     r = '[]';
                 } else {    // for short items show in row, else in column
-                    const f0 = format(k[0], n, trim);
+                    const f0 = format(k[0], n, opts);
                     const join = f0.length > 15 ? ',\n' : ', ';
                     // don't use map, won't work for typedArrays
                     const s = [];
-                    for (let i = 0; i < k.length; i++) s[i] = format(k[i], n, trim);
+                    for (let i = 0; i < k.length; i++) {
+                        s[i] = format(k[i], n, {trim, totlen});
+                        totlen -= s[i].length;
+                        if (totlen <= 0) { s.push('!!!'); break; }
+                    }
                     r = typename.replace('Array', '') + '[' + s.join(join) + ']';
                 }
             } else {
                 r = [];
-                for (var ff in k)
-                    if (typeof k[ff] !== 'function')
-                        r.push(ff + ': ' + format(k[ff], n, trim));
+                for (var ff in k) {
+                    if (typeof k[ff] !== 'function') {
+                        const rr = ff + ': ' + format(k[ff], n, {trim, totlen});
+                        r.push(rr);
+                        totlen -= rr.length
+                        if (totlen <= 0) {r.push('!!!'); break; }
+                    }
+                }
                 r = '{' + r.join(', ') + '}';
             }
         } finally {
@@ -3425,7 +3447,7 @@ var _onbeforeunloaddone
  * if w <= 4 it sets up w screens across of the size of the current screen
  *
 */
-async function windowset(w = 0, h, swapoff=0) {
+async function windowset(w = 0, h, swapoff=0, forcebig=true) {
     if (!_onbeforeunloaddone) {addEventListener('beforeunload', () => windowset(0)); _onbeforeunloaddone=true;}
 
     // make sure Organic in normal mode (not min/max), so the setsize etc work
@@ -3439,7 +3461,7 @@ async function windowset(w = 0, h, swapoff=0) {
             nircmd(`win setsize stitle "${document.title}" 100 100 ${screen.width-200}, ${screen.height-200}`);
         nircmd(`win settopmost stitle "${document.title}" 0`);
         EX.stopToFront();
-        EX.toFront();    // just once
+        if (!windowset.done) { EX.toFront(); windowset.done = true; }    // just once
         inps.fullvp = false;
         return;
     }
@@ -3452,9 +3474,10 @@ async function windowset(w = 0, h, swapoff=0) {
     // await S.frame(10);
 
     // establish border size so we can compensate
-    const b = (outerWidth - innerWidth) / 2;    // border left,right, bot (assume all the same)
-    const bt = outerHeight - innerHeight - b;   // border top
-    log('windowset borders', b, bt);
+    let b = (outerWidth - innerWidth) / 2;    // border left,right, bot (assume all the same)
+    let bt = outerHeight - innerHeight - b;   // border top
+    if (!forcebig) b = bt = 0;
+    log('windowset borders', b, bt), 'forcebig', forcebig;
 
     // now make widow required size and properly positioned
     // ..\nircmd\nircmd.exe win setsize stitle "fred"  -8 -80 3840 1080
@@ -3464,8 +3487,8 @@ async function windowset(w = 0, h, swapoff=0) {
     await S.frame(1);
     log('window size requested', width, height);
 
-    nircmd(`win settopmost stitle "${document.title}" 1`);
-    EX.toFront();
+    nircmd(`win settopmost stitle "${document.title}" ${+forcebig}`);
+    if (!windowset.done) { EX.toFront(); windowset.done = true; }    // just once
 
     await S.frame();
     if (innerHeight < h) {
@@ -3498,49 +3521,63 @@ function test1(a = W.msgbox, b=undefined, c=undefined, d=undefined, e=undefined)
 
 var MAXMPXRIBS = 512; // var for sharing
 
-function test2(a, b, c, d, e) {
+function showrts(a, b, c, d, e) {
     nomess(false); msgfix.all = true;
     msgboxVisible(true);
     // pixel sampling, to move to sensible place later
     var s = slots[mainvp];
     var ww = s.width / inputs.renderRatioUi, hh = s.height / inputs.renderRatioUi;
-    var t = readone('rtopos') + (usemask == -98 ? '' : readone('rtshapepos')) + '<b>slots[' + mainvp + ']<b>' + readrt(s.dispobj.rt);
-    msgfix('pixel', '<b>click the pixel: key to remove</b>', t);
+    var t = '';
+    if (usemask >= 1) t += readone('rtopos');
+    if (usemask >= 1.5 && usemask !== 4) t += readone('rtshapepos');
+    t += '<b>slots[' + mainvp + ']<b>' + readrt(s.dispobj.rt, false);
+    msgfix('pixel', '<b>click the pixel: key to remove</b><br>', t);
 
     function readone(rtname) {
         var rtn = rtname + Math.ceil(ww) + 'x' + Math.ceil(hh);
         var rt = rendertargets[rtn];
-        if (!rt) return 'rendertarget not found' + rtn;
-        return rtn + '<br>' + readrt(rt);
+        if (!rt) return 'rendertarget not found: ' + rtn + '<br>';
+        return '~~~<br>' + rtn + '<br>' + readrt(rt);
     }
 
     function sqf(v) {
         return format(Math.sqrt(v) * 255, 0);
     }
-    function readrt(rt) {
+    function readrt(rt, showhhh = true) {
         var k = 3; var k2 = k * 2 + 1;
         var ll = Math.floor((copyXflip>0 ? oldlayerX : width - oldlayerX)/ inputs.renderRatioUi);
         var tt = Math.floor((height - oldlayerY) / inputs.renderRatioUi);
         msgfix('lltt', ll, tt);
-        var rr = readWebGlFloat(rt, { left: ll - k, top: tt - k, width: k2, height: k2 });
+        // var rr = readWebGlFloat(rt, { left: ll - k, top: tt - k, width: k2, height: k2 });
+        const rrr = readWebGlFloatDirect(rt, { left: ll - k, top: tt - k, width: k2, height: k2 });
+        const rx = (p, q) => rrr[p + q*4];
+
         var h = [];  // html
         var ap = 0;
         const grid = rt.name.startsWith('rtopos') && resoverride.showgrid;
         let lennum = U.lennum, radnum = U.radnum, xx = 'g';
-        const edge = rt.name.startsWith('dispobj') && resoverride.showgrid && usemask ===-98;
-        if (usemask === -98 && U.revealribs > 1) {lennum = U.revealribs; xx = 'r'; }
+        const edge = rt.name.startsWith('dispobj') && resoverride.showgrid && usemask ===4;
+        if (usemask === 4 && U.revealribs > 1) {lennum = U.revealribs; xx = 'r'; }
         for (var x = 0; x < k2; x++) {
             var row = [];
             for (var y = 0; y < k2; y++) {
                 var pix = [];
+                let hhh = '';
+                if (showhhh) {
+                    const hh3 = rx(3, ap);
+                    const hornid = Math.floor(hh3/MAX_HORNS_FOR_TYPE);
+                    const hornnum = Math.floor(hh3 - hornid*MAX_HORNS_FOR_TYPE);
+                    const ribnum2 = hh3 % 1 ? '~~~' : '.';
+                    hhh = ' id' + hornid + '#' + hornnum + '~' + ribnum2;
+                }
                 if (grid) {
-                    const back = rr[2][ap] === -1;
-                    pix.push(back ? 'x' : format(Math.floor(rr[0][ap] * lennum)) + xx);
-                    pix.push(back ? 'x' : format(Math.floor(rr[1][ap] * radnum)));
-                    pix.push(format(rr[2][ap]));
-                    pix.push(format(rr[3][ap]));
+                    const back = rx(2, ap) === -1;
+                    pix.push(back ? 'x' : format(Math.floor(rx(0, ap) * lennum)) + xx);
+                    pix.push(back ? 'x' : format(Math.floor(rx(1, ap) * radnum)));
+                    pix.push(format(rx(2, ap)));
+                    pix.push(format(rx(3, ap)) + hhh);
                 } else if (edge) {
-                    const xr = rr[0][ap] * MAXMPXRIBS * numInstances / tad.RIBS;
+                    const xr = rx(0, ap) * MAXMPXRIBS * numInstances / tad.RIBS;
                     if (xr >= 0) {
                         const v = Math.ceil(xr);
                         pix.push(`${Math.floor(v/MAXMPXRIBS)}/${v%MAXMPXRIBS}`);
@@ -3549,10 +3586,11 @@ function test2(a, b, c, d, e) {
                     }
                 } else {
                     for (var i = 0; i < 4; i++) {
-                        pix.push(format(rr[i][ap] - 0 * rr[k][k], 3));
+                        pix.push(format(rx(i, ap) /*??- 0 * rx(k, k) */, 3) + (i === 3 ? hhh : ''));
                     }
                 }
-                var col = (rr[3][ap] === 1) ? 'border-width: 3px; border-color: rgb(' + sqf(rr[0][ap]) + ',' + + sqf(rr[1][ap]) + ',' + sqf(rr[2][ap]) + ');' : '';
+                pix[2] = '<br>' + pix[2] + '<br>'
+                var col = (rx(3, ap) === 1) ? 'border-width: 3px; border-color: rgb(' + sqf(rx(0, ap)) + ',' + + sqf(rx(1, ap)) + ',' + sqf(rx(2, ap)) + ');' : '';
                 if (x === k && y === k) col += 'background-color: #600;';
                 row.push('<td style="' + col + '">' + pix.join(' ') + '</td>');
                 ap++;
@@ -3803,7 +3841,8 @@ function beep() {
  * needed after upgrade to three86, where matrix elements are array and not float array
  */
 Object.defineProperty(Array.prototype, 'set', {
-    value: function(from) {
+    value: function(...from) {
+        if (from.length === 1 && Array.isArray(from[0])) from = from[0];
         for(let i = 0; i < from.length; i++) this[i] = from[i];
     },
     enumerable: false,
@@ -3878,10 +3917,11 @@ function monitorX(object, field, option = 'debugchange') {
     if (desc.get || desc.set) { log('cannot monitor property', field); return; }
     const v = object[field];
     log(`monitorX initial ${field} = ${v}`);
-    Object.defineProperty(object, '..'+field, {
+    Object.defineProperty(object, '..'+field, { // use property so we can prevent enumeration
         value: v,
         writable: true,
-        enumerable: false
+        enumerable: false,
+        configurable: true    // configurable so we can remove it in unmonitorX
     });
 
     delete object[field];
@@ -3898,11 +3938,13 @@ function monitorX(object, field, option = 'debugchange') {
 
 /** turn off monitoring, replace the property with a field */
 function unmonitorX(object, field) {
-    const v = object[field];
+    const v = object['..' + field];
     log(`unmonitorX initial ${field} = ${v}`);
     const ok = delete object[field]
     if (!ok) console.error('failed to unmonitor', object, field);
     object[field] = v;
+    const ok2 = delete object['..'+field]
+    if (!ok2) console.log('failed to remove temp from object', object, '..' + field);
 }
 
 function _monitor_fun(object, field, value, option) {
@@ -4550,6 +4592,8 @@ function makeDraggable(ptodrag, usesize=true, button = 2, callback) {
         document.addEventListener('mousemove', dragmousemove);
         document.addEventListener('mouseup', dragmouseup);
         canvas.style.pointerEvents = 'none';
+        // enable context on the individual parts, but not on dragging the fieldbody
+        ptodrag.oncontextmenu = (evt.target.className.contains('fieldbody')) ? _=>false : null
     }
     function dragmousemove(evt) {
         if (evt.buttons !== button) return;
@@ -4558,7 +4602,10 @@ function makeDraggable(ptodrag, usesize=true, button = 2, callback) {
         //     && offy(evt) > todrag.clientHeight - 50)
         //     return killev(evt);
         s.left = (evt.clientX - todrag.ox) + 'px';
-        s.top = (evt.clientY - todrag.oy) + 'px';
+        const top = evt.clientY - todrag.oy;
+        s.top = top + 'px';
+        const e = ptodrag.getElementsByClassName('fieldbody')[0]
+        if (e) e.style.maxHeight = (innerHeight - top - 50) + 'px';
         if (callback) callback(evt, s)
         return killev(evt);
     }
@@ -4566,7 +4613,7 @@ function makeDraggable(ptodrag, usesize=true, button = 2, callback) {
         document.removeEventListener('mousemove', dragmousemove);
         document.removeEventListener('mouseup', dragmouseup);
         canvas.style.pointerEvents = '';
-
+        // if (evt.target.className.contains('fieldbody')) return killev(evt);
     }
 }
 
@@ -4596,11 +4643,10 @@ function toKey(x) {
 }
 
 // helpful details to see matrices more easily
-window.devtoolsFormatters = [{
-    header: function(obj) {
-        return (obj && 'isMatrix4' in obj) ? ['div', {}, obj.toString()] : null  },
-    hasBody: ()=>false
-    }]
+window.devtoolsFormatters = [
+    { header: (obj) => (obj && ('isMatrix3' in obj || 'isMatrix4' in obj)) ? ['div', {}, obj.toString()] : null,
+    hasBody: ()=>false }
+]
 
 if (THREE) THREE.Matrix4.prototype.toString = function(m) {
      return 'mat4: [' +
@@ -4610,6 +4656,14 @@ if (THREE) THREE.Matrix4.prototype.toString = function(m) {
         this.elements.slice(12,16)].map(mm=>format(mm)).join('   ')
         + ']'
  }
+
+ if (THREE) THREE.Matrix3.prototype.toString = function(m) {
+    return 'mat3: [' +
+       [this.elements.slice(0,3),
+       this.elements.slice(3,6),
+       this.elements.slice(6,9)].map(mm=>format(mm)).join('   ')
+       + ']'
+}
 
 // from https://stackoverflow.com/questions/14519267/algorithm-for-generating-a-3d-hilbert-space-filling-curve-in-python
 function hilbertC(s = 8, x=0, y=0, z=0, dx=1, dy=0, dz=0, dx2=0, dy2=1, dz2=0, dx3=0, dy3=0, dz3=1, r = []) {
@@ -5513,4 +5567,20 @@ function compareStruct(a,b, opts = {}) {
         }
     }
     return r;
+}
+
+function signpow(v, p) { return Math.sign(v) * Math.abs(v) ** p; }
+
+async function reviewmask() {
+    for (usemask of [0, 1, 1.5, 2]) {
+        log('usemask = ', usemask);
+        await S.frame(20)
+        log('usemask = ', usemask);
+        await sleep(2000)
+    }
+}
+
+function fieldsFrom(o, list) {
+    if (typeof list === 'string') list = list.split(' ')
+    return list.reduce((c, v) => {c[v] = o[v]; return c;}, {});
 }

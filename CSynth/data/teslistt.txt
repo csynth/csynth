@@ -1,0 +1,39 @@
+https://csynth.molbiol.ox.ac.uk/csynth/csynth?startscript=/csynth/serve?p=20&t=1551207046.2952962&file=load_data.js&settings=test.settings
+
+https://csynth.molbiol.ox.ac.uk/csynthstatic/latest/csynth.html?startscript=/csynthstatic/data/CrickMany/many.js
+
+https://csynth.molbiol.ox.ac.uk/csynthstatic/latest/csynth.html?startscript=../data/CrickMany/many.js
+http://localhost:8800/csynthstatic/latestox/CSynth.html?startscript=../data/Lorentz/lorentz.js
+
+http://localhost:8800/organicart/csynth.html?startscript=CSynth/data/crickMany/many.js
+
+# Lorentz\videoLorDG.js
+
+chr13multires\load_data.js  // lots of input slow to load
+CrickBig\bigSSS.js // invalid, too big in some way
+CrickBig\big.js  // ??? doew not work
+
+
+
+C75X1200\loadexpand.js
+C75X1200\loadlong.js
+C75X1200\loadlots.js
+C75X1200\loadmulti.js
+C75X1200\load_data.js
+Crick\loadcrick.js
+Crick\loadcrick_chrIFull.js
+CrickLots\lots.js
+CrickMany\many.js
+Lorentz\lorentz.js
+polymer\loadpolymer.js
+polymer\loadpolymerlots.js
+polymer\loadtiff.js
+rsse\loadrsse.js
+rsse\loadrsseNew.js
+rsse\loadrsseshort.js
+SteveJan19\test.js
+trivtest\trivtest.js
+trivtest\trivtest5.js
+trivtest\trivtest6.js
+trivtest\trivtesterr.js
+YorkStudents\newtest_v3.js

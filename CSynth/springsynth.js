@@ -884,7 +884,7 @@ CSynth.startdemo = function() {
 
     if (startscript) { //
     } else {
-        startscript = 'CSynth/data/noConfig.js';
+        startscript = 'CSynth/data/rsse/loadrsse.js'; //'CSynth/data/noConfig.js';
         try {
             startWsListener();
         } catch (e) {

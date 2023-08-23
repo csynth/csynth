@@ -1,5 +1,6 @@
-// ~~~~~~~~ almost always take the not OPTEST route
-#if OPMODE != OPTEST
+#if OPMODE == OPEDGE || OPMODE == OPEDGE2
+#error DO NOT USE threek.vs for OPEDGE OPEDGE2
+#endif
 
 gene(distortpixk, 0, 0,0.5,0.01,0.1,gtex,frozen)  // k for pixel distortion
 
@@ -8,6 +9,7 @@ uniform mat4 rot4;  // rotation part of viewing transform
 uniform mat4 rot44d;  // 4d viewing transform
 
 uniform float pointSize;
+uniform float OPOSZ;
 
 //attribute vec3 position;
 //#if OPMODE == OPMAKESKELBUFF
@@ -20,6 +22,7 @@ int versionvv = __VERSION__;
 
 #if (OPMODE == OPREGULAR || OPMODE == OPOPOS || OPMODE == OPTEXTURE || OPMODE == OPMAKEGBUFFX)
 	varying vec4 opos;         // original position passed, ????? // ??? todox should not need to pass this always, but ... temp to help USESKELBUFF
+    #define OPOSOK 0
 #else
 	vec4 opos;  // some time remove this and references to it, but optimizer should do that anyway ???
 #endif
@@ -92,6 +95,10 @@ vec4 logdepth (in vec4 ooo) {
 
 void main()	{
 
+    #ifdef NOTR
+    xhornid = WALLID;
+    #endif
+
 	// option only to use first numScalePositionActive horns for scaling
     {
     #if OPMODE == OPPOSITION
@@ -152,16 +159,16 @@ void main()	{
     //    scaleVary = ll;     // pass the log to help turn to integer and scale for transfer to CPU
     //#endif
     return;
-    #endif
+    #endif   // OPPOSITION
     }
 
 
-    float id = instanceID;              // used for instancing version
+    float hornnum = instanceID;              // used for instancing version
     vec4 p;
     #if 1==2
     #elif defined(NOTR)
         p = vec4(position, 1.);
-        p.z += id;
+        p.z += hornnum;
     #elif defined(GPUGRIDN) && ( OPMODE == OPOPOS || OPMODE == OPPOSITION || OPMODE == OPSHADOWS ) // || OPMODE == OPMAKESKELBUFF )
         #ifdef ISES300  // vertexid not supported on webgl 1.0
             float vid = float(gl_VertexID);
@@ -178,12 +185,12 @@ void main()	{
 			float i = floor (vid / (lennum+1.) ) / (radnum) - 0.5;
 			float j = fract (vid / (lennum+1.) ) - 0.5;
 		#endif
-		p = vec4(j, i, id, 1.);
+		p = vec4(j, i, hornnum, 1.);
 		}
     #else
-		p = vec4(position.xy, id, 1.);    // input range for x,y  -0.5 .. 0.5, usually mapped to 0..1 below
+		p = vec4(position.xy, hornnum, 1.);    // input range for x,y  -0.5 .. 0.5, usually mapped to 0..1 below
         //p = vec4(position, 1.);
-		//p.z = id;
+		//p.z = hornnum;
 	#endif
 
     #ifdef XNORMALDEFINED
@@ -196,7 +203,7 @@ void main()	{
 // (10ms for horns for perfmirror)
 	#if (defined(QUICK) && OPMODE == OPOPOS)
 		gl_Position = vec4(1e20, 1e20, 1e20, 1.);
-		opos = p;
+	    opos = p;
 		return;
 
     #elif (OPMODE == OPOPOS2COL || OPMODE == OPSHAPEPOS || OPMODE == OPTSHAPEPOS2COL || OPMODE == OPTEXTURE || OPMODE == OPBUMPNORMAL || OPMODE == OPEDGE)
@@ -217,30 +224,33 @@ void main()	{
         #endif
 
         vec4 shapepos;
+
+        #ifdef SINGLEMULTI
+            float vv = hornnum;
+            #ifdef NOTR
+                // <<<< skip chooseHornCode etc for COMMON TODO check
+                // dribs = 99.;
+            #else
+                // <<<< chooseHornCode
+                $$$chooseHornCode$$
+                if (xhornid == 0.) xhornid = 7.;
+                p.w = xhornid;
+            #endif
+        #endif
         opos = p; // ??? should not need to pass this always, but ... temp to help USESKELBUFF
+
         #if (OPMODE == OPMAKESKELBUFF)
             objpos = trskel(p);
             opos = vec4(999.,999.,999.,999.);  // not used
             gl_PointSize = 1.;
-            gl_Position =  vec4(skbuffpointscreen(p.xyz, skelnum), 0., 1.);
+            gl_Position = vec4(skbuffpointscreen(p.xyz, skelnum), 0., 1.);
             return;
-        #endif
+        #else  // not OPMAKESKELBUFF
 
         vec3 xmu, xmv, xmnormal;    // normals computed by tr and used by computeNormalsEtc
         vec3 unusedtexpos;
-        float unusedribnum;
-        #ifdef SINGLEMULTI
-            float vv = opos.z;
-            #ifdef COMMON
-                // <<<< skip chooseHornCode for COMMON
-                ribs = 99.;
-            #else
-                // <<<< chooseHornCode
-                $$$chooseHornCode$$
-            #endif
-
-        #endif
-        shapepos = tr(p, xmnormal, unusedtexpos, unusedribnum);
+        float zzribnum;         // ribnum can't be transferred from vertex to fragment as triangle may cross several ribs
+        shapepos = tr(p, xmnormal, unusedtexpos, zzribnum);
 
 
         gl_PointSize = pointSize;
@@ -293,7 +303,7 @@ void main()	{
             return;
         #endif
 
-        vec4 trpos = shapepos * rot4;           // do our 4d rotation NOT OPTEST
+        vec4 trpos = shapepos * rot4wx(xhornid);           // do our 4d rotation
         trpos /= trpos.w;                       // flatten to 3d
         // trpos = vec4(trpos.xyz, 1.);            // for gl, flatten to 3d
         vec4 ooo;
@@ -356,51 +366,24 @@ void main()	{
             gl_Position.xy = xy;
         #endif
 
-        #if (OPMODE == OPREGULAR)
+        #if (OPMODE == OPREGULAR || OPMODE == OPOPOS)
             opos = p;
-            opos.w = xhornid;
+            #ifdef USESKELBUFFER
+                { float vv = float(instanceID);
+                $$$chooseHornCode$$ }						// make sure xhornid correct in SINGLEMULTI, noop if not SINGLEMULTI
+            #endif
+            if (OPOSZ == 1.) {
+                opos.w = MAX_HORNS_FOR_TYPE*xhornid + instanceID;  // ribnum or ribnum2 NOT passed
+                opos.z = trpos.z;                                   // whether wall or not for OPOSZ == 1.
+            } else {
+                opos.w = xhornid;
+                if (xhornid == WALLID) opos.z = trpos.z;       // depth
+            }
         #endif
-        #if (OPMODE == OPOPOS)
-            opos = p;
-            opos.w = xhornid;
-        #endif
+    #endif // NOT SKELBUFF
     //### ~~~ above here, operations that work on triangle geometry ~~~
     #endif
     }  // end main()
-
-// ~~~~~~~~ almost always take the not OPTEST route, below here just for debug
-#else  // OPTEST
-
-// used for various tests, currently simple opopos
-varying vec4 opos;         // original position passed, ????? // ??? todox should not need to pass this always, but ... temp to help USESKELBUFF
-uniform mat4 rot4;  // rotation part of viewing transform
-uniform mat4 rot44d;  // 4d viewing transform
-uniform float flatx, flaty, flatz, horncount, flatxfrominst;
-
-
-//attribute vec3 position;
-attribute float instanceID;
-// todo vertex ID changes
-
-
-void main()	{ // <<<<<<<<<<<<<<<<< OPTEST VERSION, performance tests only, not in regular use
-    vec4 p = vec4(position, 1.);    // input range for x,y  -0.5 .. 0.5, usually mapped to 0..1 below
-    p.z += instanceID;              // used for instancing version
-    p.x += 0.5; p.y += 0.5;     // to range 0 .. 1  including both ends
-    opos = p;
-	vec4 f = (opos - vec4(0.5, 0.5, 0.5*horncount, 0.)) * vec4(flatx, flaty, flatz/horncount, 1.);
-	f.x += flatxfrominst/horncount*opos.z;
-
-	vec4 shapepos = f;
-
-	vec4 trpos = shapepos * rot4w;           // do our 4d rotation OPTEST
-    trpos = vec4(trpos.xyz, 1.);            // for gl, flatten to 3d
-	vec4 mtrpos = modelViewMatrix * trpos;
-	vec4 ooo = projectionMatrix * mtrpos;
-	gl_Position = ooo;
-}
-
-#endif  // OPTEST
 
 // end overrides here, needed for overrides that access methods and uniforms, etc
 $$$endoverrides$$

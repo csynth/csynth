@@ -1,5 +1,5 @@
 'use strict';
-var THREE, posturi, throwe, rrender, renderer, log, clearrendertargets;
+var THREE, posturi, throwe, rrender, renderer, log, clearrendertargets, opmode;
 
 /** perform fxaa, nb outrt is undefined/null for output to canvas */
 function fxaa(intex, outrt) {
@@ -21,6 +21,7 @@ function fxaa(intex, outrt) {
     // clearing main buffer should be irelevant as fxaa should set every pixel
     // clearing stancil buffer should be irrelevant as not generally used
     // renderer.clear(true, true, true);
+    opmode = 'fxaa';
     rrender('fxaa', fxaa.scene, fxaa.camera, outrt);
 }
 

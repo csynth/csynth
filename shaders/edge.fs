@@ -11,16 +11,33 @@ uniform int occludewidth, edgeDensitySearch;
 uniform sampler2D rtopos, feedtexture;
 uniform float revealstripes, capres, numInstances, RIBS, centrerefl;
 uniform int edgestyle, edgewidth, colby, baseksize, profileksize;
-uniform mat3 edgeBackFeedMatrix;
-uniform mat4 edgeBackFeedTint;
+uniform mat3 feedbackMatrix;
+uniform mat4 feedbackTintMatrix;
 uniform vec2 screen;
 #define MAXPATHS 20
 uniform float ribsa[MAXPATHS];
 #define MXR 512. // fix 512 rather than ribs for multiplier, as different horns have different #ribs, so keys could get confused
 
+uniform vec3 edgecol;
+
 float ribkey(vec4 h, float ribs, float stripes) { // >>>>>
     float hx = clamp((h.x - capres*0.5) / (1.-capres), 0., 1.); // no ribs on caps
-    // fix 512 rather than ribs for multiplier, as different horns have different #ribs, so keys could get confused
+
+    // // towards consistent placement of ribs
+    // float rp = h.x;
+    // float spherenum = floor(lennum * capres * 0.5);
+    // bodynum = lennum - 2.*spherenum;
+    // float lo = -spherenum;
+    // float hi = bodynum+spherenum;
+    // rpx = lo + rp * (hi - lo);  // position extended beyond horn ends for rounding, range -r .. sbodynum+r
+    // if (0. < rpx && rpx < bodynum) {
+    //     float xrp = rp;         // old style
+    //     lk = (xrp * uribs + 0.5);
+    //     ribnum = floor(lk);
+
+
+
+    // fix 512/MXR rather than ribs for multiplier, as different horns have different #ribs, so keys could get confused
     return h.z == -1. ? 1.e20 : floor(stripes * h.y) + stripes * (floor(ribs * hx) + MXR * h.z);
 }
 
@@ -29,6 +46,9 @@ vec4 tfetch(sampler2D tex, ivec2 ij, int m) {
     return texelFetch(tex, clamp(ij, ivec2(0,0), textureSize(tex, 0)-1), m);
 }
 
+/** look up value at point bi, offset by i,j;
+t values are from rtopos z input, horn id, horn number, horn rib parity
+chekif edge based on difference from t and d values  */
 bool ttest(ivec2 bi, int i, int j, float t00, float txx, float d00) {
     vec4 v = tfetch(rtopos, bi + ivec2( i, j), 0);
     float tij = v.z, dij = v.w;
@@ -40,7 +60,7 @@ void main()
     vec3 texpos; // position to use to compute texture
     vec3 xmnormal; /* normals etc in object space */
     // nb similar to code at getPosNormalColid above, and use of h00 etc in lights.fs
-    vec2 b = vec2(gl_FragCoord.xy);
+    vec2 b = gl_FragCoord.xy;
     ivec2 bi = ivec2(b);
 
     vec4 opos00 = tfetch(rtopos, bi, 0); // get horn source from OPSHAPEPOS buffer
@@ -54,8 +74,10 @@ void main()
     bool isback = opos00.w == 0.;
     if (isback) { //  background
     // old quick out for background and feedback removed
+        if (edgestyle == 6) {glFragColor = vec4(-1,-1,-1,-1); return;} // quick out added back ??? 26 June 2023
         k = profileksize; // ?? k = 3. etc for thicker lines at boundary
     }
+
 
     // collect basic neighbour information, larger k will give thicker edges with minor errors
     vec4 oposaa = tfetch(rtopos,(bi + ivec2( k, 0)), 0);
@@ -96,15 +118,18 @@ void main()
         (edgestyle == 3) ? (colidi % 2 == 1 ? vec4(1,1,1,1) : vec4(0,0,0,1) ): // alt bw
         (edgestyle == 4) ? vec4(colidi % 2, (colidi/2)%2, (colidi/4)%2, 1): // alt primary
         (edgestyle == 5) ? vec4(sqr(fract(colid*colk)),1) : // alt varied
+        // (edgestyle == 6) ? vec4(h,-1,-1,-1) : // edge for linefollow
         clamp(vec4(h, 1.-h, 0.24 * mod(opos00.z, 4.), 1), 0., 0.999);  // 0, odd debug colouring
-    vec4 edge =  vec4((1. - fill.rgb),1);
+    //vec4 edge =  vec4((1. - fill.rgb),1);
+    vec4 edge = vec4(edgecol, 1);
     vec4 occ = fill; // occluded colour
 
     if (isback) { //  background
-        if (edgeBackFeedMatrix[0][0] == 0.) {   // plain background, mainly for
+        if (feedbackMatrix[0][0] == 0.) {   // plain background, mainly for
             // fill = glFragColor = vec4(0.8,0.8,1,1);
             // edge = vec4(1,0,0,1);       // debug colours
             // occ = vec4(0,1,0,1);        // debug colours
+            if (edgestyle == 6) { glFragColor = vec4(-1,-1,-1,-1); return; }
             fill = glFragColor = vec4(1,1,1,1);
             edge = vec4(1,1,1,1);           // ??? should adapt with edgestyle?
             occ = vec4(1,1,1,1);
@@ -112,13 +137,14 @@ void main()
             occ = edge = fill;    // before fill overwritten
             //edge = vec4(1,0,0,1);       // debug colours
             //occ = vec4(0,1,0,1);        // debug colours
-            vec3 feedpos = vec3(b*screen * 2. - 1.,1) * edgeBackFeedMatrix; // feedback background
+			// matrix use NOTE copied in cubeReflection.fs
+            vec3 feedpos = vec3(b*screen * 2. - 1.,1) * feedbackMatrix; // feedback background
             vec2 feedpos2 = feedpos.xy/feedpos.z;                           // feedback perspective, eg -1..1
             vec2 smalltri = abs(mod(feedpos2*0.5 -0.5, 2.) - 1.);           // feedback mirrored repeat, eg 0..1
             smalltri = (smalltri-0.5) * centrerefl + 0.5;                   // extract from central subset, eg 0.25..0.75
             fill = texture(feedtexture,smalltri);
-            fill *= edgeBackFeedTint; // ? will gl_FragColor.a = 1 ?
-            fill /= fill.a; // not sure what this will do if color 'perspective' is used on edgeBackFeedTint mat3 may be enough
+            fill *= feedbackTintMatrix; // ? will gl_FragColor.a = 1 ? NOTE copied in cubeReflection.fs
+            fill /= fill.a; // not sure what this will do if color 'perspective' is used on feedbackTintMatrix mat3 may be enough
         }
     }
 
@@ -147,7 +173,8 @@ void main()
 
     #define xreturn return;  // or empty to fall through
 
-    if (occludewidth != 0) {
+    if (occludewidth != 0) {            // ??? use isedge &&  to save occluding something already white (but ??? fill ==? background)
+        // occ = vec4(1,0,0,1);         // for test
         #define tttest(i, j) if (ttest(bi, i, j, t00, txx, d00)) {glFragColor = occ; xreturn}
 
         if (edgewidth == 1) txx = t00;

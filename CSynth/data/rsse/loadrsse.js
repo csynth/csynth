@@ -3,7 +3,7 @@
 // We do not have contact data at the resolution corresponding to the xyz data.
 // Therefore we generate dummy data for the range, and the contacts buttons become irrelevant.
 // This version uses the full data without averaging to give 1200 particles.
-const {G, GX, springdemo, DNASprings, CSynth, V, customLoadDone, nomess, setAllLots, W} = window;
+const {G, GX, springdemo, DNASprings, CSynth, V, customLoadDone, nomess, setAllLots, W, S} = window;
 springdemo( {
     minid: 32001350,
     res: 250,
@@ -19,13 +19,13 @@ W.customSettings = () => {
 	//G.maxBackboneDist = 0.7;  // ignore the unreliable long distance contacts
     G.nonBackboneLen = 3;   // estimated aspect ratio, diam to length of cylindrical particle.
     G.springforce = 1;      // was default, but now
-	G.scaleFactor = 7;
+	G.scaleFactor = 50;
     //G.textScale = 0.1;  // smaller annotation text than usual
     // ... add more lines here
     G.selWidth = 1;  // width of selection relative to complete ribbon
     G.minTextScale = 1;  // relative size of text at edge of selection
     //if (CSynth.matrot) CSynth.matrot.rotation = 0.1;
-    G.matZ = 0.3;
+    G.matZ = 0.03;
 	DNASprings.stretch = true;
 	G.springspreaddist = 120;
     CSynth.parseBioMart.setVisibility(true);  // << checking details: we have a code inconsistency here
@@ -38,7 +38,7 @@ W.customSettings = () => {
 }
 
 // this will be called once when everything set up, so can add to the gui
-W.customLoadDone = () => {
+W.customLoadDone = async () => {
     V.modesgui.addImageButtonPanel(4,
     {func: ()=>CSynth.bothBed(0) , tip: 'Regions', text: 'Regions'},
     {func: ()=>CSynth.bothBed(1) , tip: 'Genes', text: 'Genes'},
@@ -63,4 +63,10 @@ W.customLoadDone = () => {
     CSynth.applyXyzs(1);  // make sure springs for 1 are already loaded at start, save hiccup later
     CSynth.xyzsExact(0);    // start at given xyz, helps prevent knots
     CSynth.applyXyzs(0);   // and open to xyz springs
+
+    GX.getgui('ribbon/diameter').setValue(3);
+    await S.frame(30);
+    CSynth.autoscale();
+    await S.frame(30);
+    CSynth.autoscale();
 }

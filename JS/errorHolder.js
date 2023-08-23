@@ -34,8 +34,8 @@ function exeIfPoss(f) {
         let r = Function(f)();
         return r;
     } catch(e) {
-        log('failed execution', e, f);
-        return e;
+        // log('failed execution', e, f);
+        return e.message;
     }
 }
 

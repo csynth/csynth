@@ -27,7 +27,8 @@ var W, renderer, THREE, uniforms, genedefs, currentGenes, target, gl, permgenes,
     frametime, renderVR, framenum, serious, cdispose, rtt1, rtt2, alert, location, selcol, slots, alwaysNewframe,
     Maestro, _boxsize, mix, G, S, oneside, setAllLots, vrresting, V, viveAnim, nop, onframe, filterDOMEv,
     WebGLRenderTarget, camera, renderPipe, camToGenes, blackcol, copyFrom, olength, debugCurrentObjectsSize, fitCanvasToWindow,
-    extraSlots, currentObjects, setViewports, DispobjC, oxcsynth, HW, deferRender, objeq, usemask;
+    extraSlots, currentObjects, setViewports, DispobjC, oxcsynth, HW, deferRender, objeq, usemask,
+    adduniform, vec3, U, _fixinfo;
 var WALLID = 2;
 // singleton
 var CubeMap = new function () {
@@ -99,6 +100,8 @@ var CubeMap = new function () {
                 cMap.textures[i].minFilter = THREE.LinearFilter;
             }
         }
+        adduniform('walllow', vec3(), 'v3', 'wall');
+        adduniform('wallhigh', vec3(), 'v3', 'wall');
 
         // cMap.newmesh(undefined, genes);
         var w = 2 * _boxsize;       // width/height/depth of box
@@ -142,6 +145,8 @@ var CubeMap = new function () {
         cMap.wallMesh.frustumCulled = false;
         //cMap.wallMesh.geometry.computeFaceNormals();
         //cMap.wallMesh.geometry.computeVertexNormals();
+        U.walllow.set(-w*tsize.x/2, -w*tsize.y/2, -dd*tsize.z/2);
+        U.wallhigh.set(w*tsize.x/2, w*tsize.y/2, dd*tsize.z/2);
 
         // push the front vertices out of the way
         cMap.wfx = genes.wallFrontExtra, cMap.wbx = genes.wallBackExtra;
@@ -149,9 +154,11 @@ var CubeMap = new function () {
         const vv = cMap.wallMesh.geometry.getAttribute('position').array;
         if (cMap.wfx) {
             for (let i=2; i<vv.length; i+=3) if (vv[i] >= dd2) vv[i] *= cMap.wfx;  // move over the z's, 2 is the z's
+            U.wallhigh.z *= cMap.wfx;
         }
         if (cMap.wbx) {
             for (let i=2; i<vv.length; i+=3) if (vv[i] <= -dd2) vv[i] *= cMap.wbx;  // move over the z's, 2 is the z's
+            U.walllow.z *= cMap.wfx;
         }
         const ff = tsize.fixFloor;
         if (ff !== undefined) {
@@ -188,7 +195,7 @@ var CubeMap = new function () {
         }
 
         // make sure genes added early so they are included in display
-        // agp('feedscale', 1.1,  0.5, 2, 0.1, 0.01, "scale used for feedback", "feedback", 0);
+        // agp('feed scale', 1.1,  0.5, 2, 0.1, 0.01, "scale used for feedback", "feedback", 0);
         agp('feedxrot', 0, -90, 90, 0.1, 0.01, "xrot for feedold (degrees)", "feedoldenv", 0);
         agp('feedyrot', 0, -90, 90, 0.1, 0.01, "yrot for feedold (degrees)", "feedoldenv", 0);
         agp('feedzrot', 0, -360, 360, 5, 0.5, "zrot for feedold (degrees)", "feedoldenv", 0);
@@ -209,7 +216,7 @@ var CubeMap = new function () {
     // simple rendering function. Takes the current renderer and camera from mutbase.js
     // permit an override scene, eg for mask phases
     function renderwall(main_camera, render_texture, oscene, genes) {
-        if (usemask === -98) return;
+        if (usemask === 4) return;
         if (uniforms._boxsize.value !== _boxsize) cMap.Init(false, genes);   // variant of new mesh()?
         if (oxcsynth) return;
         if (!permgenes.wall_red1) cMap.Colours(genes);  // sometimes Init called so soon that the genes are not registered, TODO clean
@@ -264,7 +271,7 @@ var CubeMap = new function () {
         // don't create a brand new uniform unless really necessary
         // three.js will get confused because of its caching
         // do this early even if no CubeMap, w.i.p 16/10/17 towards removing CubeMap for feedback
-        log('cMap.SetRenderState', cMap.renderState, '=>', value);
+        // log('cMap.SetRenderState', cMap.renderState, '=>', value);
         if (!uniforms.cubeMap) uniforms.cubeMap = { type: "t" };
         if (!uniforms.flatMap) uniforms.flatMap = { type: "t" };
         cMap.wallType = ['none', 'none', 'none', 'none', 'none', 'none'];
@@ -477,7 +484,8 @@ var CubeMap = new function () {
      * major side-effect is to set uniforms.flatMap.value or uniforms.cubeMap.value
      */
     cMap.renderFeedback = function (dispobj) {
-        if (cMap.renderState === 'color' || cMap.renderState === 'walls' || usemask === -98) return;
+        if (_fixinfo.feedrt) uniforms.feedtexture.value = uniforms.flatMap.value = _fixinfo.feedrt.texture;
+        if (cMap.renderState === 'color' || cMap.renderState === 'walls' || usemask === 4) return;
         if (inputs.FLATMAP && cMap.wallType) {  // very temp while sorting out
             const mat = {};  // << temporary silly interface, sjpt 1 Dec 2017
             const wt =  cMap.wallType[5];  // << temporary silly interface
@@ -1025,7 +1033,7 @@ cMap.setegg = function(genes = currentGenes) {
     setAllLots('wall_refl', {free:0});  // freeze all the wall refl genes
     G.superwall = 1 / 2.5;
     G.centrerefl = 1;
-    G.feedscale = 1;
+    //dead G.feed scale = 1;
     updateGuiGenes();
 }
 
@@ -1170,7 +1178,7 @@ function extraSlot(s = 200, genes = currentGenes) {
  * G.wall_bumpstrength
  * G.wall_reflr/g/b
  * G.wall_refl1/2/3 (for bands, sometimes only 1 band)
- * G.feedscale
+ * G.feeds cale
  * G.centrerefl only use central part of feedback; for oval window in VR ?????
  * cMap.fixcamera: (not if setting up, do lookAt(0,0,0) again)
  *     fixcam.fov = 30; fixcam.up.set(0,1,0); fixcam.lookAt(0,0,0); fixcam.updateMatrix(); fixcam.matrix

@@ -18,7 +18,7 @@ frametime, random, seed, GX, zip, loadTime, startscript, readdir, location, kill
 springdemo, yaml, readTextureAsVec3, col3, VEC3, lastdocx, lastdocy, mousewhich, SG, FFG, distxyz, setNovrlights,
 GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, runkeys, renderer, viveAnim, S, setExtraKey,
 badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt,
-HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files
+HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files, feed
 ;
 //, msgbox, serious, slider1, slider2, uniforms, currentGenes, dat; // keep linter happy
 
@@ -118,6 +118,8 @@ CSynth.init = function CSynth_init(quickout) {
     t.addEventListener('triggerdown', CSynth.startGrabRotate);
     t.addEventListener('triggerup', CSynth.stopGrabRotate);
     });
+
+    feed.dofeed = false;
 
     if (inmutator) return;  // in mutator
 
@@ -2308,7 +2310,11 @@ CSynth.savepdb = function(fid) {
     const formatp = CSynth.formatp;
     const odata = getVal('CSynth.current.xyzs.0.pdbdata');
     const cc = CSynth.current;
-    if (!fid) fid = cc.shortname + '.pdb';
+    if (!fid) {
+        fid = prompt('name for pdb file', cc.shortname + '.pdb');
+        if (!fid) return;
+        fid += '.pdb';
+    }
     const ga = CSynth.groupArr();
     const pos = springs.getpos();
     const res = [];
@@ -4885,6 +4891,7 @@ CSynth.rotPosGui = function(pgui) {
 CSynth.help = function() {
     CSynth.interrupt('help');
     CSynth.msgtag('help');
+    if (!CLeap?.buttons?.help?.selected) return;
     CLeap.buttons.help.selected(true);
     setTimeout(() => CLeap.buttons.help.selected(false), 1000);
 }

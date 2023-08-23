@@ -90,7 +90,7 @@ declare let
     FrameSaver, frameSaver, geneGridColumns:VOID, geneids, // hornTrancodeForTranrule:(tr:string, genes?: any, norecurse?: boolean)=>any,
     Maestro, MaestroConstructor, ipad:boolean,
     findvalm, newframe, findval, makeName,
-    showbaderror, NODO, nwwin, Shadows,Utils, CubeMap, oxcsynth,
+    showbaderror, showbaderrornogl, NODO, nwwin, Shadows,Utils, CubeMap, oxcsynth,
     CSynth, fileTypeHandlers, GX,
     oMaestro,
     G, readWebGlFloat, readWebGlFloatDirect, readbinaryasync, readWebGlFloatAsync,
@@ -149,13 +149,13 @@ declare let
     _, vrclick, vrnewpress, cMap, consoleTime, consoleTimeEnd,
     loadOao,
     gpuScaleNow, centrescalenow, VH,
-    vrpresshold,
+    vrpresshold, feed, zoomCam,
     //NW_SC, master, toggleSCLog, reloadAllSynths, startSC, setMasterVolume
     destroyObjInArr, randrules, autofillfun, geneBaseBounds,
     loadOag, pick, preloaded,
     CSynthFast, pickGPU,
     Background, Water, substituteShadercode, scale,
-    lasttouchtime, touchlog, interacted, hoverMutate, stepeleval, isNode, test2,
+    lasttouchtime, touchlog, interacted, hoverMutate, stepeleval, isNode, showrts,
     kinectJupDyn, restoreExtra, showScaleVariants, healthTarget, updateMat,
     basescale:number, nomess, geneOverrides, getstats, loadTime, savedMaterials, makeDraggable, toggleDraggable,
     isFirefox, Holo, CLeap,
@@ -175,7 +175,8 @@ declare let
     randvec3:(p?:N) => THREE.Vector3, randrange: (v:(N | [N] | [N,N]), v2?:N) => N,
     shaderFromFiles,
     randfrom: <T>(x: (Dictionary<T> | T[])) => T,
-    Files
+    Files,
+    xxxrt:()=>THREE.WebGLRenderTarget
 
     //OM /** OM contains lots of variables in an out-of-the-way namespace */
 ;

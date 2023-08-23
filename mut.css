@@ -544,7 +544,7 @@ button.tranname {
 /* <editor-fold> */
 
 
-#baderror { display:none; background-color:rgba(255,200,200,1);}
+#baderror { display:none; color: black; background-color:rgba(255,230,230,1); font-size: 150%; width:50vw; height: 50vh; }
 
 #tranrulebox, #directorrulebox, #_tranrule {
 	white-space: nowrap;
@@ -1007,6 +1007,90 @@ html-gl { display: inline-block; transform: translateZ(0);}
 	background-color: rgba(0,0,0,0.8);
 	color: white;
 }
+
+.vieweditholder {
+	/* width: 40em; */
+	/* resize: both; */
+	background-color: white;
+	margin: 0;
+	padding: 0;
+	max-width: 60em;
+}
+
+.vieweditholder legend {
+	left: -30px;
+	font-size: 150%;
+	background-color: white;
+	top: -0.6em;
+}
+
+.viewedit {
+	/* width: 40em; */
+	background: white;
+	display: grid;
+	grid-template-columns: auto auto;
+	gap: 0.2em;
+	padding: 0.5em;
+	/* position: absolute; */
+	top:0;
+	right:0;
+	color: black;
+	/* font-size: 120%; */
+	overflow: auto;
+	max-height: 80vh;
+	resize: both;
+	left: 0;
+	/* height: 60em; */
+	min-width: 20em;
+	max-width: 2;
+	padding: 0;
+	margin: 0;
+	border: 0;
+}
+
+.viewedit input {
+	max-width: 80%;
+	height: 1em;
+}
+.viewedit input[type=checkbox], .viewedit input[type=radio]  {
+	font-size: 150%;
+	height: 1em;
+	width: 1em;
+}
+.viewedit input[type=button] {
+	font-size: 120%;
+	height: 1.2em;
+}
+.viewedit input[type=color] {
+	font-size: 120%;
+	height: 2em;
+}
+
+.viewedit textarea {
+	height: fit-content;
+	/* xborder: 0; */
+	/* xpadding: 0; */
+	/* rows: 1; */
+}
+
+.vieweditfilter {
+    resize: vertical;
+    width:  90%;
+}
+
+.viewedit .key:hover {background: white; color:darkblue}
+.viewedit .function {background: lightcyan}
+.viewedit .number {background: AliceBlue}
+.viewedit .boolean {background: Aquamarine}
+.viewedit .myoneof {background: ivory}
+.viewedit .string {background: lightskyblue}
+.viewedit .error  {background: lightsalmon}
+/* .viewedit .myoneofsummary { background: white; } */
+.viewedit .myoneofsummary {background: darkblue; color: white}
+.viewedit .pending {background: yellow}
+.viewedit .myfolder {background: BlanchedAlmond}
+.viewedit .selected {background: lightgreen}
+
 
 .simple {background: lightgray;color: black;font-size: 200%;z-index: 200;opacity: revert;}
 .cornerimage * {position: absolute;width: 4%;pointer-events: none;z-index: 98;}

@@ -257,6 +257,12 @@ S.sleep = async function sleepP(ms = 5) {
 }
 S.W = async function (secs) {return await S.sleep(secs*1000);}
 
+/** like S.sleep, but keep frames moving */
+S.nap = async function(ms) {
+    const et = Date.now() + ms;
+    while (Date.now() < et) await S.frame();
+}
+
 
 S.log = msgfix;
 

@@ -1,8 +1,12 @@
 /** various utilities to help create guis; many taken from tadpole.ts which was too local */
+
 'use strict';
 var GX, V, dat, runcommandphp, CSynth, nop, setExtraKeyS, extrakeys,searchValues, log, currentGenes, genedefs, setval,
 GUIwallgui, G, cMap, RGXX, useKinect, RGG, setInput, WA, runkeys, updateGuiGenes, march2021, U, Rtad, Rtadkin, setBackgroundColor, bigcol, tadkin, inps, GGG,
-mainvp, NODO, lastDispobj, saveimage1high, onframe, evalq, S, home
+mainvp, NODO, lastDispobj, saveimage1high, onframe, evalq, S, home, keysdown, imageOpts, ml, msgfix, DispobjC, clearObjzoom,
+lastdocx, lastdocy, oldlayerX, oldlayerY, newmain, framenum, springs, xxxgenes, camera, xxxrt, copyXflip, width, height, fitCanvasToWindow,
+usemask, ops, ctrl, alt, shift, right, left, middle, renderer, xxxdispobj, setExtraKey, getdesksave,
+fixfeed, unfixfeed, canvas, everyframe, fixfeedcoreprep, fixfeedcoreend, shadows, sethighres, Viewedit, guinewbw, feed
 
 var tad
 
@@ -125,6 +129,7 @@ function guiFromGene(gui, gn, xgn) {
 	var gd = genedefs[gn];
     if (!gd) return log('cannot create gui for gene as no genedef', gn);
     if (currentGenes[gn] === undefined) currentGenes[gn] = gd.def;
+    if (currentGenes[gn] === Infinity) currentGenes[gn] = gd.max; // ?? to fix lower in datagui
     let gg;
 
     if (gd.togui || gd.fromgui) {
@@ -174,7 +179,8 @@ async function GUIwallkeys() {
         tad.greywall(false);
         cMap.SetRenderState(useKinect ? 'feedback' : 'fixpeekfeedbackbase');
         setInput(WA.FLATMAP, true);
-        RGG.feedscale = 0.7
+        // RGG.feed scale = 0.7
+        feed.fp.scale = 1/0.7;
         RGG.centrerefl = 0.5;
         RGG.superwall = 0;
         RGG.wall_refl1 = RGG.wall_refl2 = RGG.wall_refl3 = 0.99;
@@ -202,12 +208,13 @@ async function GUIwallkeys() {
         tad.greywall(G.wall_fluwidth = 0);
     });
     GUIKey('K,J,9', 'single back white wall', 'white back wall', () => {march2021(); });
-    GUISpacer(6);
+    GUISpacer(7);
 
 
-    GUIKey('K,J,0', 'square wall', 'square wall', () => {  if (cMap.renderState === 'color') runkeys('K,J,3'); tad.covidSetScene({w:3, h:3, aspect: 1}) });
+    GUIKey('K,J,0', 'square wall', 'sqr wall', () => {  if (cMap.renderState === 'color') runkeys('K,J,3'); tad.covidSetScene({w:3, h:3, aspect: 1}) });
     GUIKey('K,J,AA', 'Ax ratio wall', 'Ax ratio wall', () => {  if (cMap.renderState === 'color') runkeys('K,J,3'); tad.covidSetScene({aspect: Math.sqrt(2)}) });
-    GUIKey('K,J,-', 'standard aspect wall', 'standard wall', () => {  if (cMap.renderState === 'color') runkeys('K,J,3'); tad.covidSetScene({aspect: 1920/1080}) });
+    GUIKey('K,J,W', 'wide wall', 'wide wall', () => {  if (cMap.renderState === 'color') runkeys('K,J,3'); tad.covidSetScene({aspect: tadbwSetup.aspect}) });
+    GUIKey('K,J,-', 'standard aspect wall', 'std wall', () => {  if (cMap.renderState === 'color') runkeys('K,J,3'); tad.covidSetScene({aspect: 1920/1080}) });
     GUIKey('K,J,A-', 'custom aspect wall', 'custom wall', async () => {
         const asps = prompt('enter aspect for wall, can be expressions such as "2911 / 2326" ', "2911 / 2326")
         const aspect = evalq(asps);
@@ -217,7 +224,7 @@ async function GUIwallkeys() {
     if (tad.docovid) {
         // bb.push({})
         GUIKey('Home', 'home to tad.covidSetScene()', 'home', () => {
-            home(lastDispobj); 
+            home(lastDispobj);
             if (lastDispobj.vn === mainvp || lastDispobj === NODO) tad.covidSetScene()
             });
         GUIKey('shift,Home', 'home to default tad.covidSetScene()', 'default home', () => {
@@ -317,11 +324,11 @@ async function GUIwallkeys() {
         const xx = {
             get back() { return bigcol.r ** (1/(currentGenes.gamma || 2.2)); },
             set back(v) { setBackgroundColor(v); },
-            //get invert() { return U.edgecol.x; },
-            //set invert(v) { U.edgecol.set(v,v,v); U.fillcol.set(1-v, 1-v, 1-v) ;},
-            get edgewhite() { return U.edgecol.x ** 0.5; },
+            //get invert() { return U.edgecol.r; },
+            //set invert(v) { U.edgecol.setRGB(v,v,v); U.fillcol.setRGB(1-v, 1-v, 1-v) ;},
+            get edgewhite() { return U.edgecol.r ** 0.5; },
             set edgewhite(v) { U.edgecol.setScalar(v*v);},
-            get fillwhite() { return U.fillcol.x ** 0.5; },
+            get fillwhite() { return U.fillcol.r ** 0.5; },
             set fillwhite(v) { U.fillcol.setScalar(v*v);},
 
         }
@@ -341,62 +348,131 @@ async function GUIwallkeys() {
         // await S.waitVal(() => tad.ribMult);
         const dd = sgui.addFolder('final save image details')
         const tga = WA.tgaspread;
-        dd.add(tad, 'ribMult', 0, 5, 0.01, 'rib mult', 'rib mult').listen().onChange(() => tad.applyRibMult());
-        dd.add(tga.feedback, 'thickness', 0, 3, 0.1, 'feedback thickness', 'feedback thickness').listen();
-        dd.add(tga.feedback, 'concentrateN', 0, 3, 1, 'feedback concentrate', 'feedback concentrate').listen();
-        dd.add(tga.main, 'thickness', 0, 3, 0.1, 'main thickness', 'main thickness').listen();
-        dd.add(tga.main, 'concentrateN', 0, 3, 1, 'main concentrate', 'main concentrate').listen();
-        dd.add(tga, 'usetga', 'use special', 'use special').listen();
+        dd.add(tad, 'ribMult', 0, 5, 0.01, 'rib mult', 'rib mult').listen(); // ribMult now a property   .onChange(() => tad.applyRibMult());
+        //dd.add(tga.feedback, 'thickness', 0, 3, 0.1, 'feedback thickness', 'feedback thickness').listen();
+        //dd.add(tga.feedback, 'concentrateN', 0, 3, 1, 'feedback concentrate', 'feedback concentrate').listen();
+        //dd.add(tga.main, 'thickness', 0, 3, 0.1, 'main thickness', 'main thickness').listen();
+        //dd.add(tga.main, 'concentrateN', 0, 3, 1, 'main concentrate', 'main concentrate').listen();
+        //dd.add(tga, 'usetga', 'use special', 'use special').listen();
 
-        GUISpacer(5);
+        GUISpacer(7);
         GUIKey('K,save6k', 'save6k', 'save6k', async () => { await saveimage1high(1024*6); });
-        GUIKey('K,save8k', 'save8k', 'save8k', async () => { await saveimage1high(1024*8); });
-        GUIKey('K,save12k', 'save12k', 'save12k', async () => { await saveimage1high(1024*12); });
-        GUIKey('K,save16k', 'save16k', 'save16k', async () => { await saveimage1high(1024*16); });
-        GUIKey('K,save20k', 'save20k', 'save20k', async () => { await saveimage1high(1024*20); });
+        GUIKey('K,8k', 'save8k', 'save8k', async () => { await saveimage1high(1024*8); });
+        GUIKey('K,12k', 'save12k', 'save12k', async () => { await saveimage1high(1024*12); });
+        GUIKey('K,16k', 'save16k', 'save16k', async () => { await saveimage1high(1024*16); });
+        GUIKey('K,20k', 'save20k', 'save20k', async () => { await saveimage1high(1024*20); });
+        GUIKey('K,30k', 'save30k', 'save30k', async () => { await saveimage1high(1024*30); });
+        GUIKey('K,40k', 'save40k', 'save40k', async () => { await saveimage1high(1024*40); });
         GUIFinishPanel()._nosave = true;
     }
     guinewbw();
 }
 
-async function guinewbw() {
-    const bwg = GUINewsub('bwrender', 'black/white render settings');   // get place in top level list now
-    await S.waitVal(_=>'edgewidth' in G);
+/** zoom camera in keeping shadows etc set */
+function zoomCam(k = 4) {
+    if (k < 0) return;  // work already done, rg by savegrametga tiling
+    if (k <= 1) {camera.clearViewOffset(); return; }
+    const C = new Proxy(canvas.style, {get: (o,n) => +(o[n].pre('px'))})
+    // const x = feed.viewposx ?? lastdocx, y = (feed.viewposy ?? lastdocy);
+    const ww = canvas.width; // C.width
+    const hh = canvas.height; // C.height
+    const x = oldlayerX, y = oldlayerY
+    const xxx = copyXflip < 0 ? ww-x : x;
+    camera.setViewOffset(ww*k, hh*k, xxx*k - 0.5*ww, (y*k) - 0.5*hh, ww, hh)
 
-    Object.defineProperty(tad, 'newbw', {set: v => {WA.usemask = v ? -98 : 2; return}, get: () => WA.usemask === -98})
-    // eslint-disable-next-line object-curly-newline
-    Object.defineProperty(tad, 'alternate', {
-        set: v => {if (v) U.edgeBackFeedTint.set(-1,0,0,0, 0,-1,0,0, 0,0,-1,0, 1,1,1,1); else U.edgeBackFeedTint.identity()},
-        get: () => U.edgeBackFeedTint.elements[0] < 0})
-    bwg.add(tad, 'newbw', 'new style b/w', 'new style b/w').listen();
-    bwg.add(tad, 'alternate', 'alternate bw/wb', 'alternate bw/wb').listen();
-    cycle(U, 'edgewidth', 1, 1,2); // toggle edgewidth, 1,2
-    cycle(U, 'edgestyle', 1, 0, 5); // cycle front
-    cycle(U, 'occludewidth', 1, 0, 6);
-    cycle(U, 'edgeDensitySearch', 1, -2, 10);
-    cycle(U, 'colby', 1, 0, 3); // cycle colour by
-    // ow, 'canvasScale', d, 0, 3);
-    // (canvasScale-1)
-    // idth = k*canvas.width+'px'; canvas.style.height = k*canvas.height+'px';
-    cycle(U, 'baseksize', 1, 1, 3); // cycle base kernel size
-    cycle(U, 'profileksize', 1, 0, 16); // cycle profile kernel size
-    cycle(U, 'centrerefl', 0.1, 0.2, 2); // cycle centre refl
+    //fitCanvasToWindow(1/k)
+}
 
-    //rot = 0.215, perspx = 0.09, perspy = -0.004, panx = 0, pany = 0, scale = 1, scalex = 1, scaley = 1, feed = true, animate = true;
-    const fp = {rot: 0.215, perspx: 0.09, perspy: -0.004, panx: 0, pany: 0, scale: 1, scalex: 1, scaley: 1, feed: true}; //, feed: true, animate: true;}
-    for (const n in fp) bwg.add(fp, n, -2, 2, 0.001).listen().onChange(_ => {
-        const c = Math.cos(fp.rot), s = Math.sin(fp.rot);
-        U.edgeBackFeedMatrix.set(fp.feed ? fp.scalex*c : 0, fp.scalex*s, fp.perspx,
-            -fp.scaley*s, fp.scaley*c, fp.perspy,
-            fp.panx, fp.pany, fp.scale*0.5);
-    });
 
-    function cycle(o,n, d, min, max) {
-        if (o === U && n in G) o = G;
-        if (n in o) {
-            return bwg.add(o, n, min, max, d, n,n).listen();
+/** set up zooming preview; for edgezoom that is setting feed.viewfactor; which in turn causes camera.setViewOffset */
+function showzoom(ff) {
+    if (ff === 'clear') {
+        if (feed.edgezoom) {
+            feed.viewfactor = 0;
+            fitCanvasToWindow();
         } else {
-            console.error('guinewbw: cannot find property', n);
+            if (keysdown[0] === 'ctrl') {
+                DispobjC.olx = oldlayerX
+                DispobjC.oly = oldlayerY;
+                return;
+            }
+            if (keysdown.length !== 0) return;  // do not get confused, eg after alt-p
+            clearObjzoom();  // probably not needed as done immediately after zoom render33
+            if (lastDispobj !== NODO) lastDispobj.render(); newmain(); onframe(newmain);
+            DispobjC.zoom = 0;
+            DispobjC.olx = DispobjC.oly = undefined;
         }
+        msgfix('zoom');
+        return;
+    }  // clear
+
+    if (ml.capturingTime) return;  // do not allow this while capturing
+    if (feed?.edgezoom) {
+        feed.viewfactor = 4*ff || 10
+        msgfix('zoom', `${feed.viewfactor} for ${feed.viewfactor*2}k image`);
+    } else {
+        DispobjC.zoom = Math.pow(2, ff/2);
+        msgfix('zoom', DispobjC.zoom);
     }
+}
+
+function showzoomfix(ff) {
+    if (ml.capturingTime) return;  // do not allow this while capturing
+    if (ff == 'clear') {
+        feed.viewfactor = 0;
+        DispobjC.zoom = 0;
+        feed.viewposx = feed.viewposy = undefined;
+        return;
+    }
+    if (feed.edgezoom) {
+        // showzoom('clear');
+        feed.viewfactor = 4*ff;
+        feed.viewposx = lastdocx;
+        feed.viewposy = lastdocy;
+        if (ff === 0) feed.viewposx = feed.viewposy = undefined;
+    } else {
+        DispobjC.zoom = (+ff || 10) * 1/inps.renderRatioUi
+        msgfix('zoom', DispobjC.zoom);
+    }
+
+}
+
+tadbwSetup.width = 10.7;  // 10.6 + 5cm left and right
+tadbwSetup.height = 2.21;
+tadbwSetup.aspect = tadbwSetup.width / tadbwSetup.height;
+
+/** setup for bw rendering, espcially wall */
+async function tadbwSetup() {
+    feed.test();
+    G.OPOSZ=1;
+    G.renderBackground=1;
+    shadows(0);
+    runkeys('K,J,3');
+    // tad.covidSetScene({aspect: tadbwSetup.aspect});
+    // sethighres(5e9);
+    // new Viewedit({name: 'test'})
+    new Viewedit({name: 'feed', top: "380px", left:"100px"})
+    new Viewedit({name: 'edge', top: "380px", left:"450px"})
+    new Viewedit({name: 'sys', top: "380px", left:"800px"})
+    G._tad_h_ribs = tad.TADS;
+    await S.frame(20);
+    // sethighres(5e9);
+    G._tad_h_ribs = tad.TADS;
+    feed.showfeed = true;
+}
+
+function genfname(base = '', ext) {
+    let f = getdesksave() + base +  (new Date().toISOString()).replace(/:/g, ".")
+    if (ext) f += '.' + ext
+    return f;
+}
+
+/** save lots of details */
+async function saveLots(fid) {
+    //const s = feed.corefixfeed
+    //feed.corefixfeed = false
+    //await S.frame();  // needed ?
+    const nname = await GX.savegui(fid, true);    // save under user chosen name
+    //feed.corefixfeed = s
+    return nname;
 }
