@@ -10,8 +10,8 @@ function res2uniforms() {
     // let k = vk || 1;
     zoomCam(feed.viewfactor);
 
-    // const ww = camera.view?.enabled ? camera.view.fullWidth : xxxrt().width;
-    const ww = (camera.view?.enabled ? camera.view.fullWidth/camera.view.width : 1) * xxxrt().width;
+    // no xxxrt() during startup, but let it create some values
+    const ww = (camera.view?.enabled ? camera.view.fullWidth/camera.view.width : 1) * (xxxrt()?.width ?? 1);
 
     let k = ww / imageOpts.baseres;
     const g = xxxgenes(); // g.xxx is gene value, should be the same as initial U.xxx
@@ -56,3 +56,43 @@ function res2uniforms() {
 
 }
 window.addEventListener('setObjUniforms', res2uniforms);
+
+var edge = {}
+var copyXflip, oldlayerX, width, oldlayerY, height, inps, readWebGlFloatDirect, getrendertarget, msgfixerror, tad, G, log,
+    floor, MAX_HORNS_FOR_TYPE, msgfixerrorlog
+/*** choose a colour based on picked point */
+edge.chooseColour = function(evt, rt = getrendertarget('rtopos')) {
+    killev(evt);
+    if (tad.TADS === undefined || tad.TADS < 0) return msgfixerrorlog('edge', 'chooseColour for tadpoles only, not direct horns');
+    if (G.OPOSZ !== 1) return msgfixerrorlog('edge', 'chooseColour for OPOSZ == 1 only');
+    const sleft = copyXflip>0 ? oldlayerX : width - oldlayerX;
+    const stop = height - oldlayerY;
+    const left = sleft / inps.renderRatioUi;
+    const top = stop / inps.renderRatioUi;
+    const rrr = readWebGlFloatDirect(rt, { left, top, width: 1, height: 1 });
+    const w = rrr[3];
+    const thornid = floor(w / MAX_HORNS_FOR_TYPE)
+    if (thornid !== 4) return msgfixerrorlog('edge', 'chooseColour not hitting expected tadpole');
+    const hornnum = Math.floor(w % MAX_HORNS_FOR_TYPE)
+    const tadnum = Math.floor(rrr[0] * tad.RIBS);  // << todo allow for capres
+    const colid = tad.getCols(hornnum * tad.RIBS + tadnum);
+
+    if (!edge.picker) {
+        edge.picker = document.createElement('input');
+        edge.picker.type = 'color';
+        document.body.appendChild(edge.picker);
+    }
+    edge.picker.style.display = '';
+    edge.picker.style.top = oldlayerY + 'px'
+    edge.picker.style.left = oldlayerX + 'px'
+    edge.picker.style.position = 'fixed';
+    edge.picker.value = '#' + U.custcol[colid % 8].getHexString();
+    edge.picker.focus()
+    edge.picker.click()
+    edge.picker.onchange = edge.picker.oninput = evt => {
+        U.custcol[colid % 8].setHex(parseInt(edge.picker.value.substring(1), 16))
+    }
+    edge.picker.onclose = edge.picker.onblur = evt => edge.picker.style.display = 'none';
+
+    msgfixlog ('edge', 'read point ', {w, rrr, thornid, hornnum, tadnum, colid})
+}

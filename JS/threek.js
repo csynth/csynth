@@ -81,6 +81,7 @@ uniforms = {
         profcol:        {value: col3(1,1,1)},  // target colour for profile if using EDGE
         wallcol:        {value: col3(0,1,1)},  // target colour for wall if using EDGE
         backcol:        {value: col3(0,1,1)},  // target colour for wall if using EDGE
+        custcol:        {value: new Array(8)}, // custom colours
         cameraAspect:   {value: 1},                     // camera aspect
         feedbackMatrix: {value: new THREE.Matrix3()},
         feedbackTintMatrix:   {value: new THREE.Matrix4()},
@@ -89,6 +90,8 @@ uniforms = {
         // scaleDampTarget:{type: 't'}                 // for gpu scaling
     };
 for (let u in uniforms) uniforms[u].framenum = -1;
+const ucc = uniforms.custcol.value;
+for (let i = 0; i < ucc.length; i++) ucc[i] = col3(i & 1, i>>1 & 1, i>>2 & 1);
 var baseuniforms = clone(uniforms);
 
 function setGenesAndUniforms() {

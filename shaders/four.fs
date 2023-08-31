@@ -63,7 +63,7 @@ gene(cutr, 0, 0, 1, 0.1, 0.1, gtex, frozen ) // red for cut section
 
 gene(reveallow, 0, 0, 1, 0.001,0.0001, gtex, frozen) // gradually reveal
 gene(revealhigh, 1, 0, 1, 0.001,0.0001, gtex, frozen) // gradually reveal
-gene(revealstyle, -2, -2, 10, 1,1, gtex, frozen) // reveal style, -2 discard, -1 black, other, use horn number (DOESN'T WORK)
+gene(revealstyle, -2, -2, 10, 1,1, gtex, frozen) // reveal style, -2 dis card, -1 black, other, use horn number (DOESN'T WORK)
 gene(revealribs, 1, 1, 40, 1,1, gtex, frozen) // reveal # ribs
 gene(revealstripes, 1, 1, 40, 1,1, gtex, frozen) // reveal # stripes
 // some genes below only apply to edge. They don't really belong in four.fs, but here for convenience
@@ -73,10 +73,11 @@ gene(edgestyle, 0, 0, 7, 1,1, gtex, frozen)   // style of edges, 1 alternate rib
 gene(occludewidth, 0, 0, 20, 1,1, gtex, frozen)   // size of occlusion zone
 gene(occludedelta, 0.005, 0, 0.1, 0.001, 0.001, gtex, frozen)   // occlusion tolerance to stop 'V' occlusion
 gene(edgeDensitySearch, -1, 0, 8, 1,1, gtex, frozen)   // fill overpopulated areas, -1 different neighbour count, 0 any neighour masks, >0 in front neighbour threshold
-gene(baseksize, 1, 1, 6, 1,1, gtex, frozen)   // size for base edge detection kernel
+gene(baseksize, 1, 1, 6, 0.1,0.1, gtex, frozen)   // size for base edge detection kernel
+gene(radkmult, 0, 0, 20, 0.1,0.1, gtex, frozen)   // multiplier for radius (where available) for basek
 gene(profileksize, 1, 1, 16, 1,1, gtex, frozen)   // size for profile edge detection kernel
 gene(colby, 0, 0, 3, 1,1, gtex, frozen)   // colouring (if used) for bw rendering
-gene(renderBackground, 0, 0, 1, 0.01, 0.01, gtex, frozen)  // proportion of background to render; 0 falls through to discard/backcol
+gene(renderBackground, 0, 0, 1, 0.01, 0.01, gtex, frozen)  // proportion of background to render; 0 falls through to dis card/backcol
 uniform mat3 feedbackMatrix;        // rot, scale etc of feedback
 uniform mat4 feedbackTintMatrix;          // rgb tint for edge feedback
 
@@ -415,7 +416,7 @@ void main() {
     #endif
 /*****************
 	#if (OPMODE == OPREGULAR || OPMODE == OPOPOS || OPMODE == OPTEXTURE)
-		if (o pos.x > 3.) discard;
+		if (o pos.x > 3.) dis card;
 	#endif
 ***********/
 
@@ -450,7 +451,7 @@ void main() {
                 // rather than the cost of the screenDoor/rand itself
 
                 // better but too expensive screen door, ?prepare single lookup texture for screenDoor
-                // if (fract(o.x*screenDoorX + o.y*screenDoorY + o.z*screenDoorZ) < screenDoor) discard;
+                // if (fract(o.x*screenDoorX + o.y*screenDoorY + o.z*screenDoorZ) < screenDoor) dis card;
                 vec3 o = vec3(gl_FragCoord.xy, round(oposHornid));  // so that each object fades out
 
                 // simple geometric, looks better to me than then rand one

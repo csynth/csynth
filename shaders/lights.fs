@@ -11,6 +11,8 @@
 	#include fourShadowMapping.fs;
 #endif
 #define NOEDGEMAIN
+uniform vec3 edgecol, fillcol, occcol, unkcol, profcol, wallcol, backcol;   	// 'target' colour for edges, fill, occlusion and profile
+uniform vec3[8] custcol;
 #include edge2.fs;
 #include cubeReflection.fs;
 
@@ -31,7 +33,6 @@ gene(opacity, 1, 0, 1, 0.01, 0.001, gtex, frozen)   //  opacity, not generally u
 gene(badnormals, 2, 0, 4, 1, 1, system, frozen)     // choice to take for backward facing normals<br>0=yellow, 1=ignore, 2=coerce, 3=flip, 4=coerce/flip
 gene(edgeprop, 0, 0,1, 0.1, 0.01, gtex, frozen)     // strength for edges vs shading, 1 for black, only used if EDGES set, edgeprop == 0 && fillprop == 0 gives no edges
 gene(fillprop, 0, 0,1, 0.1, 0.01, gtex, frozen)     // whiteness for non-edges, 1 for white, only used if EDGES set
-uniform vec3 edgecol, fillcol, occcol, unkcol, profcol, wallcol, backcol;   	// 'target' colour for edges, fill, occlusion and profile
 gene(edgethresh, 4, -1,5, 1, 1, gtex, frozen)       // threshold number of neighbours to count as 'fill'
 
 
@@ -560,7 +561,7 @@ vec3 getBumpedNormal(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, o
 	vec3 rotpos;
     vec3 xbnorm = bump(texpos, xmnormal); // compute bumping in object space
     rotpos = (/**!!! NO viewMatrix * **/ trpos).xyz;  // rotpos will allow for rotation and camera position, model space
-//    if (! (ymin <= rotpos.y && rotpos.y <= ymax) ) discard; // do not show reflection above water ??? rotpos.y = NaN
+//    if (! (ymin <= rotpos.y && rotpos.y <= ymax) ) dis card; // do not show reflection above water ??? rotpos.y = NaN
     if (rotpos.y < ymin || rotpos.y > ymax) discard; // do not show reflection above water
 
     mat3 rotNormal = mat3(rot4wx(colourid));    // rotation for normals. not necessarily unit size, scaled by _uScale
@@ -659,8 +660,8 @@ virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, 
 	float viewdist;
 
     vec3 mmnormal = getBumpedNormal(xmnormal, trpos, texpos, OUT viewdir, OUT viewdist);   /// texpos for bump
-//    if (! (ymin <= rotpos.y && rotpos.y <= ymax) ) discard; // do not show reflection above water
-    //if (xxopos.z < 0.) discard;
+//    if (! (ymin <= rotpos.y && rotpos.y <= ymax) ) dis card; // do not show reflection above water
+    //if (xxopos.z < 0.) dis card;
     Colsurf colsurf = iridescentTexcol(texpos, viewdir, mmnormal);//standardTexcol(texpos);  // contains colour and gloss etc
     //colsurf.col = vec4(0.7,0.7,1.,1.);
     // vertex proj from light's POV then nudged. into 0 - 1 space
@@ -876,25 +877,25 @@ virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, 
     }
 
     if (edgeprop != 0. || fillprop != 0.) {
-        bool alt;
-        // if (colourid <= WALLID) colourid = 0.;
-        int etype = edgeStatus(OUT alt);
-        //if (opos.w == 0.) etype = edgeback;  // whey here ????? TODO
+        bool alt; int etype;
+        vec4 edger4 = edgeColour(OUT alt, OUT etype);        // edger is 'suggested' colour from edge code
+        vec3 edger = edger4.xyz;
+        // todo, check feeddepth
         switch (etype) {
-            case edgefill: r = mix(r, fillcol, fillprop); break;
-            case edgeedge: r = mix(r, edgecol, edgeprop); break;
-            case edgeprofile: r = profcol; break;
-            case edgeocclude: r = occcol; break;
-            case edgeunk: r = unkcol; break;
+            case edgefill: r = mix(r, edger, fillprop); break;
+            case edgeedge: r = mix(r, edger, edgeprop); break;
+            // case edgeprofile: r = profcol; break;
+            // case edgeocclude: r = occcol; break;
+            // case edgeunk: r = unkcol; break;
             case edgewall: {
                 if (!dofulllights) {
                     r = texcentre(texpos.xy, feedtexture, OUT feeddepth).xyz; // oversimplified wall
                 }
             } break; // if we've got a wall the correct work, including wall based feedback, should already have been done
-            case edgeback: r = screenfeed(backcol, OUT feeddepth); break;
-            default: r = vec3(1,0,0);
+            // case edgeback: r = screenfeed(backcol, OUT feeddepth); break;
+            default: r = edger;
         }
-        if (alt) r = 1. - r;
+       if (alt) r = 1. - r;
     }
 
     if (lightoutpower != 1.) r = pow(r, vec3(lightoutpower));

@@ -992,7 +992,7 @@ async function renderTiles(pfid, ww, hh, { bigRenderRatio = 1 / 3, deletetga = t
         log('saveframetgabig done');
         if (convert) {
             msgfixlog('tiling', `done, converting, ${info}`);
-            const nfid = await tga2tif(fid, undefined, { dpi });
+            const nfid = await tga2tif(fid, undefined, { dpi, dogray: bw });
             if (deletetga && await fileExistsAsync(nfid))
                 fileDelete(fid);
         }

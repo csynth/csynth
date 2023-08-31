@@ -1,31 +1,33 @@
 #ifndef NOEDGEMAIN
-#line 2
-#define EDGEMAIN
-precision highp float;
-out vec4 glFragColor;
-precision highp sampler2D;
-#define OPOSZ 1.
-#define edgeidlow 0.
-#define edgeidhigh 9999.
-#define OUT
+    #line 2
+    #define EDGEMAIN
+    precision highp float;
+    out vec4 glFragColor;
+    precision highp sampler2D;
+    #define OPOSZ 1.
+    #define edgeidlow 0.
+    #define edgeidhigh 9999.
+    #define OUT
 
-uniform sampler2D rtopos;
-uniform sampler2D rtshapepos;  // not really  used
-mat4 rot4;  // <<< not really used
-uniform float edgewidth, edgeDensitySearch, baseksize, occludedelta, profileksize, edgestyle, occludewidth;
-uniform float test1, test2, test3;
-uniform vec3 edgecol, occcol, profcol, fillcol, unkcol, backcol, wallcol;
-const float WALLID = 2.;
-float colourid;
-const float MAX_HORNS_FOR_TYPE = 16384.0; // this allows 16384 = 2**14 horns of a single type
+    uniform sampler2D rtopos;
+    uniform sampler2D rtshapepos;  // not really  used
+    uniform sampler2D tadprop;		// to get radius for varying pen width
+    mat4 rot4;  // <<< not really used
+    uniform float edgewidth, edgeDensitySearch, baseksize, radkmult, occludedelta, profileksize, edgestyle, occludewidth;
+    uniform float test1, test2, test3;
+    uniform vec3 edgecol, occcol, profcol, fillcol, unkcol, backcol, wallcol;
+    uniform vec3[8] custcol;
+    const float WALLID = 2.;
+    float colourid;
+    uniform float colby;
+    const float MAX_HORNS_FOR_TYPE = 16384.0; // this allows 16384 = 2**14 horns of a single type
 
-uniform mat3 feedbackMatrix;
-uniform mat4 feedbackTintMatrix;
-uniform sampler2D feedtexture, flatMap;
-uniform vec2 screen;
-uniform float centrerefl, centrereflx, centrerefly, renderBackground, useLanczos; //dead feed scale
-uniform vec3 springCentre;
-
+    uniform mat3 feedbackMatrix;
+    uniform mat4 feedbackTintMatrix;
+    uniform sampler2D feedtexture, flatMap;
+    uniform vec2 screen;
+    uniform float centrerefl, centrereflx, centrerefly, renderBackground, useLanczos; //dead feed scale
+    uniform vec3 springCentre;
 #endif
 /**** tfetch and ttest from edge.fs, varied because edge.fs uses special format for rtopos ****/
 /* tfetchx reads the pixel and extracts txx (tadpole number) and dxx (z value) */
@@ -171,15 +173,25 @@ int edgeStatus(out bool alt) {
     alt = false;
     // float h00, haa, hab, hba, hbb;
 
-    //if ( OPOSZ == 1.) {
-        ivec2 bi = ivec2(gl_FragCoord.xy);
-        int k = int(baseksize);
-        tfetchmr(bi,   h00, dxxx); //h00 = t00;
-        tfetchmr((bi + ivec2( k, 0)), haa, dxxxaa); //haa = taa;
-        tfetchmr((bi + ivec2(-k, 0)), hab, dxxxab); //hab = tab;
-        tfetchmr((bi + ivec2( 0, k)), hba, dxxxba); //hba = tba;
-        tfetchmr((bi + ivec2( 0,-k)), hbb, dxxxbb); //hbb = tbb;
-    //}
+    ivec2 bi = ivec2(gl_FragCoord.xy);
+    int k = int(baseksize);
+    // for now, radius based width is only supported for tadpoles in non-main mode
+    #if !defined(EDGEMAIN) && defined(RIBS)
+        if (radkmult != 0.) {
+            vec4 v = texelFetch(rtopos, clamp(bi, ivec2(0,0), textureSize(rtopos, 0)-1), 0);
+            float rad = 1.;
+            if (oposHornnum != 0.) {
+                vec4 tprop = texture(tadprop, vec2(v.x, oposHornnum/_tad_h_ribs));
+                rad = tprop.x;
+            }
+            k = int(baseksize + rad * radkmult);
+        }
+    #endif
+    tfetchmr(bi,   h00, dxxx); //h00 = t00;
+    tfetchmr((bi + ivec2( k, 0)), haa, dxxxaa); //haa = taa;
+    tfetchmr((bi + ivec2(-k, 0)), hab, dxxxab); //hab = tab;
+    tfetchmr((bi + ivec2( 0, k)), hba, dxxxba); //hba = tba;
+    tfetchmr((bi + ivec2( 0,-k)), hbb, dxxxbb); //hbb = tbb;
     // edgewidth 2, != gives double width (repeated for each side)
     // edgewidth 1, < gives single width edges,
     // edgewidth other (eg 1.5), gives double width edges with single width rib edges
@@ -193,7 +205,7 @@ int edgeStatus(out bool alt) {
     int r;
     bool isback = false;
     #ifdef EDGEMAIN
-        colourid = floor(h00 / MAX_HORNS_FOR_TYPE);
+        colourid = floor(h00 / MAX_HORNS_FOR_TYPE);  // should work for real horns, but with tadpoles will always give 4?
     #endif
     if (colourid == WALLID) {isback = true; r = edgewall; }
     if (colourid == 0.)  {isback = true; r = edgeback; }
@@ -264,15 +276,19 @@ vec3 screenfeed(vec3 r, inout float feeddepth) {
     return trifeed(feedpos, feedtexture, OUT feeddepth).rgb;
 }
 
-
-#ifdef EDGEMAIN
-void main() {
-    bool alt;
-    int etype = edgeStatus(OUT alt);
+vec4 edgeColour(out bool alt, out int etype) {
+    etype = edgeStatus(OUT alt);
 // glFragColor = vec4(etype,colourid,3,4); return;
     vec3 r; float feeddepth = 0.;
     switch (etype) {
-        case edgefill: r = fillcol; break;
+        case edgefill: {
+            if (colby == 1.) r = vec3(fract(colourid * 9.78), fract(colourid * 11.34), fract(colourid * 17.917));
+            #ifndef EDGEMAIN
+                else if (colby == 2.) r = stdcolY(colourid);
+            #endif
+            else if (colby == 3.) r = custcol[int(colourid) % 8];
+            else r = fillcol;
+        } break;
         case edgeedge: r = edgecol; break;
         case edgeprofile: r = profcol; break;
         case edgeocclude: r = occcol; break;
@@ -282,8 +298,17 @@ void main() {
         default: r = vec3(1,0,0);
     }
     if (alt) r = 1. - r;
+    return vec4(r, feeddepth);
+}
+
+
+#ifdef EDGEMAIN
+void main() {
+    bool alt; int etype;
+    glFragColor = edgeColour(alt, etype);
+
     // if (alt) r = pow(1. - sqrt(r), vec3(2.2));
-    glFragColor = vec4(r, feeddepth);
+    // glFragColor = vec4(r, feeddepth);
     //glFragColor.r = float(etype);
     //glFragColor.g = colourid;
 

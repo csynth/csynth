@@ -20,7 +20,7 @@ var W, genedefs, mainvp, savedef, keysdown, inputs, fileOpenReadWS, fileReadWS, 
         consoleTime, consoleTimeEnd, _insinit, CSynth, File, FormData, $, fileExistsAsync,
         loadStartTime, genbar, uriclean, S, isNode, mkdir, readdir, readtext, runcommandphp,
         writetextremote, fileExists, remotesave, fileStat, currentLoadingData, target, defaultObj, filterDOMEv, checkoao, msgflash, canvdroppaste,
-        searchValues, inps, COL, cMap, setBackgroundColor, addscript, GX, islocalhost
+        searchValues, inps, COL, cMap, setBackgroundColor, addscript, GX, islocalhost, readbinaryasync
 , HW;
 
 var _binfiles = ['.tif', '.bintri', '.zip', '.map'];
@@ -91,13 +91,19 @@ function openfile(file) {
     if (handler && handler.rawhandler) {
         handler(file);
     } else if (handler) {
-        if (file.size > chromeMaxString && navigator.userAgent.contains('Chrome'))
-            return serious(`file ${file.name} length ${file.size} exceeds Chrome maximum ${chromeMaxString}\nWe are fixing this but for now\ntry Firefox.`)
+        // if (file.size > chromeMaxString && navigator.userAgent.contains('Chrome')) {
+        //     log(`file ${file.name} length ${file.size} exceeds Chrome maximum ${chromeMaxString}\nWe are fixing this but for now\ntry Firefox.`)
+        //     log(`try handler direct`);
+        //     const data =
+        //     return;
+        // }
+        var tolines = false; // will be true if we want text but it would be too long
         var reader = new FileReader();
         // ??? reader.fff = f;
         // Closure to capture the file information.
         reader.onload = async function(e) {
             var data = e.target.result;
+            if (tolines) data = buff2StringArray(data);
             openfiles.dropped[file.name] = data;
             if (CSynth && CSynth.updateAvailableFiles) CSynth.updateAvailableFiles();
             const hh = handler(data, canonpath);
@@ -118,10 +124,16 @@ function openfile(file) {
                 t = tt;
             }
         }
-        if (_binfiles.includes(ext) )
+        if (_binfiles.includes(ext) ) {
             reader.readAsArrayBuffer(file);        // start read in the data file
-        else
+        } else if (file.size > chromeMaxString && navigator.userAgent.contains('Chrome')) {
+            log(`file ${file.name} length ${file.size} exceeds Chrome maximum ${chromeMaxString}`)
+            log('Data too large to load into Chrome as string, will try to read as binary and convert to string array')
+            tolines = true;
+            reader.readAsArrayBuffer(file);
+        } else {
             reader.readAsText(file);        // start read in the data file
+        }
     } else {
         msgfixlog("baddrop", "attempt to open file of wrong filetype " + file.name);
     }
@@ -2237,3 +2249,35 @@ async function tadRenderLoop(tdir, frames = [0, Infinity], showonly = false) {
     //frameSaver.stopNext = true;
     S.trigger('loopdone');
 } // end loop
+
+/** convert uint8array buffer to string array */
+function buff2StringArray(pb, l = 100e6) {
+    const b = new Uint8Array(pb);
+    const td = new TextDecoder();
+    let r = []
+    for (let i = 0; i < b.length; i += l) {
+        const s = td.decode(b.subarray(i, i+l));
+        const sp = s.split('\n');
+        if (i !== 0) r[r.length-1] += sp.shift();
+        r = r.concat(sp);
+    }
+    return r;
+}
+
+/** read file as array of lines, so files can be read that are too long as single strings
+ * nb, faster to read in one and convert (as here) than to read the fetch filereader and convert as we go
+ */
+async function readAsLines(fid) {
+    console.time('read')
+    const zz = await readbinaryasync(fid)
+    const zzu = new Uint8Array(zz);
+    console.timeEnd('read')
+
+    console.time('conv')
+    const r = buff2StringArray(zzu);
+    console.timeEnd('conv')
+    return r
+}
+
+
+

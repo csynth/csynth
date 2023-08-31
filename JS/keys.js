@@ -23,7 +23,7 @@ flatten, format, lastTouchedDispobj, debugKey, setHolo, Holo, GX, makevr, tadpol
 OrganicSpeech, bigimprep, feedbacktests, mutateVisibleGenes, fxaa, shangbig, currentHset, xxxhset, HornSet, resolveFilter, clearSelected,
 xxxgenes, hoverDispobj, resetCamera, slots, mainvp, nop, isCSynth, fullscreen, transferView, mutateColour, mutateForm, BrightonStyle, GUIInit, GUIwallkeys,
 niractcmd, randmuts, genmini, setBackgroundColor, home, toggleFullscreen, enterFullscreen, exitFullscreen, showzoom, showzoomfix,
-saveLots
+saveLots, edge
 
 var extrakeys = {}; // var for sharing
 var keysEmulateVR = false;     // set to true if we want to emulate some VT button experiences
@@ -349,6 +349,7 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
             for (const o in currentObjects) centrescalenow(currentObjects[o]);
             break;
         case 'PageUp': transferView(); break;   // copy view from main view to all others
+        case 'Backspace': edge.chooseColour(evt); break;   // colour picker for selected point
         case 'End': GX.normalizeRange(); break; // normalize the range of hovered GUI item
         case 'cmd,Q': case 'alt,F4':    // quit Organic/CSymth program
                 if (stopSC) stopSC(); //TODO: work out why we still sometimes get zombie.

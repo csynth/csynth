@@ -25,8 +25,8 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
             <div class="fieldbody viewedit" tabIndex="1"></div>
         </div>`
     me.calcloop = everyframe(() => me.calc())
-    makeDraggable(hh, false)
     hh.style.top = top ?? (innerHeight * 0.1)+'px';
+    makeDraggable(hh, false)
     if (left) hh.style.left = left;
     // not yet window.addEventListener('beforeunload', () => me.remove())
 
@@ -217,12 +217,18 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
         let ss = s ? 'return (' + s + ')' : ''
         if (s && s[0] === '#') {
             const sk = s.substring(1);
-            if (GX.getgui(sk).press)
+            if (!GX.getgui(sk))
+                ss = `return 'no gui for ${sk}'`
+            else if (GX.getgui(sk).press)
                 ss = `return VEF(\`${sk}\`)`
             else
                 ss = `return VEV[\`${sk}\`]`
         }
-        return new Function(ss);
+        try {
+            return new Function(ss);
+        } catch (e) {
+            return () => 'bad function:' + e;
+        }
     }
 
     ee.onchange = function(evt) {

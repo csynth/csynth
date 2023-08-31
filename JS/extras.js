@@ -468,6 +468,10 @@ function loadMatrix(fid = dfid, idata = undefined, nosave=false ) {
         }
 
         async function finish(d) {
+            // Aug 2023, d may already be parsed into lines, so rejoin.
+            // TODO change header and process() code to use thje arrray more efficiently
+            // and to allow for larger data that won't fit a Chrome string(>512MB)
+            if (Array.isArray(d)) d = d.join('\n');
             await process(d, d.length);  // make sure processing finished
 
             // // check for bad data, assume separators \n, \t.  Seems OK

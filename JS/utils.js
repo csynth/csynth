@@ -4575,12 +4575,21 @@ function makeDraggable(ptodrag, usesize=true, button = 2, callback) {
     todrag.save = [s.position, s.left, s.top, s.bottom, s.width, s.height, dragmousedown, dragmousemove, dragmouseup, todrag.parentNode];
     s.position = 'fixed';
     s.left = Math.min(screen.width-300, Math.max(0, rr.x + 100)) + 'px';
-    s.top = Math.min(screen.height-300, Math.max(0, rr.y)) + 'px';
+    let top;
+    if (s.top) {
+        top = s.top.pre('px');
+    } else {
+        top = Math.min(screen.height-300, Math.max(0, rr.y));
+    }
+    s.top = top + 'px';
     s.bottom = 'auto';
     if (usesize && rr.width && rr.height) {
         s.width = rr.width + 'px';
         if (usesize === 'both') s.height = rr.height + 'px';
     }
+    const e = ptodrag.getElementsByClassName('fieldbody')[0]
+    if (e) e.style.maxHeight = (innerHeight - top - 70) + 'px';
+
     document.body.appendChild(todrag);
 
     todrag.addEventListener('mousedown', dragmousedown);
@@ -4602,10 +4611,10 @@ function makeDraggable(ptodrag, usesize=true, button = 2, callback) {
         //     && offy(evt) > todrag.clientHeight - 50)
         //     return killev(evt);
         s.left = (evt.clientX - todrag.ox) + 'px';
-        const top = evt.clientY - todrag.oy;
-        s.top = top + 'px';
-        const e = ptodrag.getElementsByClassName('fieldbody')[0]
-        if (e) e.style.maxHeight = (innerHeight - top - 50) + 'px';
+        const dtop = evt.clientY - todrag.oy;
+        s.top = dtop + 'px';
+        const de = ptodrag.getElementsByClassName('fieldbody')[0]
+        if (de) de.style.maxHeight = (innerHeight - dtop - 70) + 'px';
         if (callback) callback(evt, s)
         return killev(evt);
     }
@@ -4615,7 +4624,7 @@ function makeDraggable(ptodrag, usesize=true, button = 2, callback) {
         canvas.style.pointerEvents = '';
         // if (evt.target.className.contains('fieldbody')) return killev(evt);
     }
-}
+}   // makeDraggable
 
 // varied from https://stackoverflow.com/questions/15316127/three-js-line-vector-to-cylinder
 function cylinderMesh(pointX, pointY, rad, mat) {
@@ -4773,7 +4782,8 @@ function mtraverse(node, action) {
  *
  */
 EX.toFront = async function() {
-    if (!islocalhost) return; // does  not work unless local
+    if (!islocalhost) return;       // does  not work unless local
+    if (searchValues.test) return;  // let tests go on in background without disrupting other apps on the machine
     // // wasmax gets over win activate issue with maximized (not fullscreen) window, but gives jumps
     // const wasmax = W.outerWidth === W.innerWidth*W.devicePixelRatio && W.outerHeight !== W.innerHeight*W.devicePixelRatio;
     // nircmd(`win activate stitle "${document.title}"`);

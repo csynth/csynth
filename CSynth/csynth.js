@@ -18,7 +18,7 @@ frametime, random, seed, GX, zip, loadTime, startscript, readdir, location, kill
 springdemo, yaml, readTextureAsVec3, col3, VEC3, lastdocx, lastdocy, mousewhich, SG, FFG, distxyz, setNovrlights,
 GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, runkeys, renderer, viveAnim, S, setExtraKey,
 badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt,
-HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files, feed
+HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files, feed, readAsLines
 ;
 //, msgbox, serious, slider1, slider2, uniforms, currentGenes, dat; // keep linter happy
 
@@ -163,7 +163,7 @@ contactsReader = async function contactsReaderF(dataStr, fid, contact = {}, isSu
     }
     let parsefun = CSynth.txtParser;
     if (fid.endsWith('.csv')) parsefun = CSynth.csvParser;
-    const s = dataStr.substring(0, 1000).split('\n')[4];
+    const s = Array.isArray(dataStr) ? dataStr[4] : dataStr.substring(0, 1000).split('\n')[4];
     if (s && s.match(/.*:.*-.*\t.*:.*-.*\t/)) parsefun = CSynth.csvParser;
     if (fid.endsWith('allvalidPairs.txt')) parsefun = CSynth.contactsWithBP;
 
@@ -197,7 +197,7 @@ function contactsReader2(fid, contact, isSubfile, stats, usedcsvparser) {
 CSynth.txtParser = async function(dataStr, fid, contact) {
     let k = 0;
     log("splitting file " + fid);
-    const lines = dataStr.split('\n').filter(v => v ? 1 : 0); //filter out empty lines
+    const lines = (Array.isArray(dataStr) ? dataStr : dataStr.split('\n')).filter(v => v ? 1 : 0); //filter out empty lines
 
     // first experiment towards automatic file format detection
     const len1 = lines[0].split(/[ \r\t,]/).length;
@@ -609,6 +609,8 @@ CSynth.csvParser = async function(file, fid, contact = {}) {
     let lines;
     if (typeof file === 'string') {
         lines = file.split('\n');
+    } else if (Array.isArray(file)) {
+        lines = file;
     } else {
         fid = file.name;
         const urikr = 'reading file ' + uriclean(fid);
@@ -674,49 +676,54 @@ CSynth.csvParser = async function(file, fid, contact = {}) {
         }
     }
 
-    openfiles.groups.push(groups);
-    let promises = Object.values(openfiles.promises);
-    if (openfiles.groups[0] === groups) {   // I'll be the mediator
-        promises = promises.filter(p => p !== openfiles.promises[fid]);   // wait for everyone else
-        await Promise.all(promises);
-        console.log('~~~~~~~~~~~~~~~~~~~~~');
-        for (let i=0; i<openfiles.groups.length; i++)
-            console.oldLog(Object.keys(openfiles.promises)[i], '\n', JSON.stringify(openfiles.groups[i]).replaceall('"',''))
+    // sync up all groups if irrelevant
+    let promises;
+    if (openfiles.groups) {
+        openfiles.groups.push(groups);
+        promises = Object.values(openfiles.promises);
+        if (openfiles.groups[0] === groups) {   // I'll be the mediator
+            promises = promises.filter(p => p !== openfiles.promises[fid]);   // wait for everyone else
+            await Promise.all(promises);
+            console.log('~~~~~~~~~~~~~~~~~~~~~');
+            for (let i=0; i<openfiles.groups.length; i++)
+                console.oldLog(Object.keys(openfiles.promises)[i], '\n', JSON.stringify(openfiles.groups[i]).replaceall('"',''))
 
-        for (const gid in groups) {
-            const gg = groups[gid];
-            for (const cgroup of openfiles.groups) {
-                const cgg = cgroup[gid];
-                // ? no need to SET cgroup, about to be dereferenced
-                gg.startbp = cgroup[gid].startbp = Math.min(gg.startbp, cgg.startbp);
-                gg.endbp = cgroup[gid].endbp = Math.max(gg.endbp, cgg.endbp);
-                // cgroup[gid].startbp = cgroup[gid].endbp = 'DO NOT USE'
+            for (const gid in groups) {
+                const gg = groups[gid];
+                for (const cgroup of openfiles.groups) {
+                    const cgg = cgroup[gid];
+                    // ? no need to SET cgroup, about to be dereferenced
+                    gg.startbp = cgroup[gid].startbp = Math.min(gg.startbp, cgg.startbp);
+                    gg.endbp = cgroup[gid].endbp = Math.max(gg.endbp, cgg.endbp);
+                    // cgroup[gid].startbp = cgroup[gid].endbp = 'DO NOT USE'
+                }
+                console.log('>>>', gg.startbp, gg.endbp)
             }
-            console.log('>>>', gg.startbp, gg.endbp)
+            CSynth.current.groups = groups; // my group now becomes global
         }
-        CSynth.current.groups = groups; // my group now becomes global
-
-        // pass2, fill out chain info
-        let pn = 0;  // particle number
-        for (const gid in groups) {
-            const ch = groups[gid];
-            ch.startid = pn;
-            ch.num = (ch.endbp - ch.startbp) / res + 1;
-            ch.endid = ch.startid + ch.num - 1;
-            ch.offset = ch.startid - ch.startbp/res;
-            ch.res = res;
-            log ('chain', ch);
-            pn += ch.num;
-        }
-        log('total number of particles', pn);
-        CSynth.current.numInstances = pn;
     }
 
-    // everyone waits till the mediation done
-    openfiles.resolvers[fid]();
-    await Promise.all(promises);
+    // pass2, fill out chain info
+    let pn = 0;  // particle number
+    for (const gid in groups) {
+        const ch = groups[gid];
+        ch.startid = pn;
+        ch.num = (ch.endbp - ch.startbp) / res + 1;
+        ch.endid = ch.startid + ch.num - 1;
+        ch.offset = ch.startid - ch.startbp/res;
+        ch.res = res;
+        log ('chain', ch);
+        pn += ch.num;
+    }
+    log('total number of particles', pn);
+    CSynth.current.numInstances = pn;
 
-    groups = contact.groups = CSynth.current.groups;    // all share common groups
+    // everyone waits till the mediation done
+    if (promises) {
+        openfiles.resolvers[fid]();
+        await Promise.all(promises);
+        groups = contact.groups = CSynth.current.groups;    // all share common groups
+    }
 
     // pass3, fill in particle data
     let data = new Float32Array(ii * 3);
@@ -1969,7 +1976,7 @@ async function getContacts(contact, dir, isSubfile = false) {
         } else if (ext === '.contacts' || ext === '.txt'  || ext === '.zip' || ext === '.csv'
             || ext === '.rawobserved') {
             // const _rawdata = posturierror(fidd);  // must read data
-            const _rawdata = await (ext === '.zip' ? readbinaryasync(fidd) : posturimsgasync(fidd));  // must read data
+            const _rawdata = await (ext === '.zip' ? readbinaryasync(fidd) : readAsLines(fidd));  // must read data
             if (!_rawdata) throwe('cannot load file ' + fidd);
             if (!isSubfile)
                 CSynth.checkRangePair(contact, CSynth.current);
@@ -4619,7 +4626,7 @@ CSynth.startLMV = function() {
 
 /** read sparse contacts file with chr values */
 CSynth.contactsWithBP = function(data, fid, contact, [chr1C, bp1C, chr2C, bp2C, vC] = [1,2,4,5,7]) {
-    const lines = data.split('\n');
+    const lines = Array.isArray(data) ? data : data.split('\n');
     let badlines = 0;
     let good = contact.data = [];      // set of contacts, 5-tuple
     const groups = contact.groups = {};

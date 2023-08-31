@@ -3567,7 +3567,7 @@ override float makeribs(vec4 loposuvw) {
     return texture2D(tadprop, vec2(loposuvw.x, hhornnum/HEADS)).w;  // loposuvw.x approximates to rib as 0..1
 }
 
-// this will set the hornid according to horn number.  TODO: update to look up in a tadpole properties texture
+// this will set the hornid according to horn number.
 override void getPosNormalColid(out vec3 xmnormal, out vec4 shapepos, out float thornid, out float fullkey) {
     //#if OPMODE == OPOPOS2COL
     //    thornid = xhornid;
@@ -5405,7 +5405,8 @@ forGp uses these from gp: raymatrix, baitPosition, axesbias, pad, trigger
             U.springCentre.copy(me.centre); // use centre for springs
         if (tadkin)
             tadkin.sendCamMat();
-        onWindowResize(); // for central placement
+        // onWindowResize();    // for central placement
+        fitCanvasToWindow(); // for central placement
     };
     me.prio.randCore = 1;
     /** make a role for randomly placed tadpoles */

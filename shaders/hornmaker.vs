@@ -77,7 +77,7 @@ virtual vec4 tr(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out flo
     return vec4(0);
 }
 uniform float horncount;
-virtual float makeribs(vec4 loposuvw) {return 10.; }
+virtual float makeribs(vec4 loposuvwzz) {return 10.; } // << if this one is being used we don't want to override it.
 #else
 
 // This file is highly interdependent with horn.js.
@@ -99,11 +99,11 @@ uniform float horncount;
 uniform vec2 skelbufferRes, gbufferres;
 uniform sampler2D skelbuffer;
 uniform float gbuffoffset;
-uniform vec4 gcentre;
+uniform vec4 gcentre; // uni form float gscale;
 
 #ifdef NOTR //  OPMODE == OPOPOS || OPMODE == OPSHAPEPOS
 float radius;
-uniform float nstar, stardepth, ribdepth;
+uniform float nstar, stardepth, ribdepth, gscale;
 #endif
 
 

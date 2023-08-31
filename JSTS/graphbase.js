@@ -6433,7 +6433,8 @@ function extraRender(options) {
     if (badshader)
         return;
     let genes = options.genes || currentGenes;
-    let save = [genes.tranrule, currentHset, genes._rot4_ele, inputs.USESKELBUFFER, HW.resoverride, trancodeForTranrule, extradefines, HW.dotty, uniforms.NORMTYPE.value];
+    let save = [genes.tranrule, currentHset, genes._rot4_ele, inputs.USESKELBUFFER, HW.resoverride, trancodeForTranrule, extradefines,
+        HW.dotty, uniforms.NORMTYPE.value, U.renderBackground];
     let changed;
     try {
         const WW = window;
@@ -6446,6 +6447,7 @@ function extraRender(options) {
         // these are global
         HW.resoverride = options.resoverride || HW.resoverride;
         genes.tranrule = options.tranrule;
+        U.renderBackground = 0; // don't let 'feedback' overwrite the real render with this extra one
         if (options.rot4)
             genes._rot4_ele = options.rot4;
         if (options.trancodeForTranrule)
@@ -6472,7 +6474,8 @@ function extraRender(options) {
             m.side = THREE.DoubleSide; // set once material established
     }
     finally {
-        [genes.tranrule, currentHset, genes._rot4_ele, inputs.USESKELBUFFER, HW.resoverride, trancodeForTranrule, extradefines, HW.dotty, uniforms.NORMTYPE.value] = save;
+        [genes.tranrule, currentHset, genes._rot4_ele, inputs.USESKELBUFFER, HW.resoverride, trancodeForTranrule, extradefines,
+            HW.dotty, uniforms.NORMTYPE.value, U.renderBackground] = save;
         //copyFromN(W, gsave);  // restore the options, unflattening the keys if needed
         if (changed) {
             setInput(W.tranrulebox, genes.tranrule);

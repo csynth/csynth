@@ -6720,7 +6720,8 @@ function extraRender(options) {
     //copyFromN(W, options);       // and apply them
     if (badshader) return;
     let genes:Genes = options.genes || currentGenes;
-    let save = [genes.tranrule, currentHset, genes._rot4_ele, inputs.USESKELBUFFER, HW.resoverride, trancodeForTranrule, extradefines, HW.dotty, uniforms.NORMTYPE.value];
+    let save = [genes.tranrule, currentHset, genes._rot4_ele, inputs.USESKELBUFFER, HW.resoverride, trancodeForTranrule, extradefines,
+        HW.dotty, uniforms.NORMTYPE.value, U.renderBackground];
     let changed;
     try {
         const WW: any = window;
@@ -6735,6 +6736,7 @@ function extraRender(options) {
         // these are global
         HW.resoverride = options.resoverride || HW.resoverride;
         genes.tranrule = options.tranrule;
+        U.renderBackground = 0;         // don't let 'feedback' overwrite the real render with this extra one
         if (options.rot4) genes._rot4_ele = options.rot4;
         if (options.trancodeForTranrule) trancodeForTranrule = options.trancodeForTranrule;
         if (options.extradefines) extradefines = options.extradefines;
@@ -6754,7 +6756,8 @@ function extraRender(options) {
         //this happened when adding mouse picking code within vivecontrol method for csynth...
         if (m) m.side = THREE.DoubleSide;  // set once material established
     } finally {
-        [genes.tranrule, currentHset, genes._rot4_ele, inputs.USESKELBUFFER, HW.resoverride, trancodeForTranrule, extradefines, HW.dotty, uniforms.NORMTYPE.value] = save;
+        [genes.tranrule, currentHset, genes._rot4_ele, inputs.USESKELBUFFER, HW.resoverride, trancodeForTranrule, extradefines,
+            HW.dotty, uniforms.NORMTYPE.value, U.renderBackground] = save;
 
         //copyFromN(W, gsave);  // restore the options, unflattening the keys if needed
 
