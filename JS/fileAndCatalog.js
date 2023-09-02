@@ -103,7 +103,12 @@ function openfile(file) {
         // Closure to capture the file information.
         reader.onload = async function(e) {
             var data = e.target.result;
-            if (tolines) data = buff2StringArray(data);
+            // if (tolines) data = buff2String Array(data);
+            if (tolines) {
+                // use the gen function
+                // do a short prepass to populate the first few lines for format checking later
+                data = buff2GenStruct(data);
+            }
             openfiles.dropped[file.name] = data;
             if (CSynth && CSynth.updateAvailableFiles) CSynth.updateAvailableFiles();
             const hh = handler(data, canonpath);
@@ -111,7 +116,7 @@ function openfile(file) {
             delete openfiles.pending[canonpath];
         };
         let t = Date.now();
-        const urik = 'reading file ' + uriclean(file.name);
+        const urik = 'reading file: ' + uriclean(file.name);
         msgfix(urik, '<br>pending<br>' + genbar(0));  // get in early/synchronous so they appear in correct order
         reader.onprogress = function(e) {
             const tt = Date.now();
@@ -2250,19 +2255,6 @@ async function tadRenderLoop(tdir, frames = [0, Infinity], showonly = false) {
     S.trigger('loopdone');
 } // end loop
 
-/** convert uint8array buffer to string array */
-function buff2StringArray(pb, l = 100e6) {
-    const b = new Uint8Array(pb);
-    const td = new TextDecoder();
-    let r = []
-    for (let i = 0; i < b.length; i += l) {
-        const s = td.decode(b.subarray(i, i+l));
-        const sp = s.split('\n');
-        if (i !== 0) r[r.length-1] += sp.shift();
-        r = r.concat(sp);
-    }
-    return r;
-}
 
 /** read file as array of lines, so files can be read that are too long as single strings
  * nb, faster to read in one and convert (as here) than to read the fetch filereader and convert as we go
@@ -2279,5 +2271,55 @@ async function readAsLines(fid) {
     return r
 }
 
+/** pass lines as generator */
+function *buff2StringGen (b, l = 10e6, info = {}) {
+    if (!(b instanceof Uint8Array)) b = new Uint8Array(b);
+    const td = new TextDecoder();
+    info.i = 0; info.len = b.length;
+    while(true) {
+        let e = b.indexOf(10, info.i + l)
+        if (e === -1) e = undefined;
+        const s = td.decode(b.subarray(info.i, e));
+        const sp = s.split('\n');
+        for (const line of sp) {
+            if (line.length !== 0) yield line;
+        }
+        if (e === undefined) break;
+        info.i = e + 1;
+    }
+    log('gen complete', info.i)
+}
 
+/** convert uint8array buffer to string array */
+function buff2StringArray(pb, l = 100e6) {
+    const b = new Uint8Array(pb);
+    const td = new TextDecoder();
+    let r = []
+    let i = 0;
+    while(true) {
+        let e = b.indexOf(10, i + l)
+        if (e === -1) e = undefined;
+        const s = td.decode(b.subarray(i, e));
+        const sp = s.split('\n');
+        for (const line of sp) {
+            if (line.length !== 0) r.push(line);
+        }
+        if (e === undefined) break;
+        i = e + 1;
+        log(`${i} of ${b.length}, ${i/b.length*100}%`)
+    }
+    const rr = r.flat();
+    return rr;
+}
+
+/** prepare generator structure, with generator gen, position i, length len, first few lines line5  */
+function buff2GenStruct(data, block = 10e6) {
+    const info = {i: 0, len: data.length};
+    let g1 = buff2StringGen(data, 10e3);
+    info.lines5 = []; let i = 0; for (const line of g1) { if (i++ > 5) break; info.lines5.push(line); }
+    g1.return({done: true, value: 0});
+    g1 = undefined;  // clean up, probably not important
+    info.gen = buff2StringGen(data, block, info);
+    return info;
+}
 

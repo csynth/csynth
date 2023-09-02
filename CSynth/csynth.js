@@ -18,7 +18,7 @@ frametime, random, seed, GX, zip, loadTime, startscript, readdir, location, kill
 springdemo, yaml, readTextureAsVec3, col3, VEC3, lastdocx, lastdocy, mousewhich, SG, FFG, distxyz, setNovrlights,
 GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, runkeys, renderer, viveAnim, S, setExtraKey,
 badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt,
-HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files, feed, readAsLines
+HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files, feed, readAsLines, buff2GenStruct
 ;
 //, msgbox, serious, slider1, slider2, uniforms, currentGenes, dat; // keep linter happy
 
@@ -143,6 +143,7 @@ CSynth.init = function CSynth_init(quickout) {
  * (? .mat was for finance only ?)
 */
 contactsReader = async function contactsReaderF(dataStr, fid, contact = {}, isSubfile = false) {
+    const usegen = dataStr.gen
     if (!dataStr && typeof fid === 'object') {
         const r = await CSynth.setRange(fid);
         return r;
@@ -162,10 +163,13 @@ contactsReader = async function contactsReaderF(dataStr, fid, contact = {}, isSu
         }
     }
     let parsefun = CSynth.txtParser;
-    if (fid.endsWith('.csv')) parsefun = CSynth.csvParser;
-    const s = Array.isArray(dataStr) ? dataStr[4] : dataStr.substring(0, 1000).split('\n')[4];
-    if (s && s.match(/.*:.*-.*\t.*:.*-.*\t/)) parsefun = CSynth.csvParser;
-    if (fid.endsWith('allvalidPairs.txt')) parsefun = CSynth.contactsWithBP;
+    const lines5 = usegen ? dataStr.lines5 : Array.isArray(dataStr) ? dataStr : dataStr.substring(0, 1000).split('\n');
+    //if (!usegen) {
+        if (fid.endsWith('.csv')) parsefun = CSynth.csvParser;
+        const s = lines5[4];
+        if (s && s.match(/.*:.*-.*\t.*:.*-.*\t/)) parsefun = CSynth.csvParser;
+        if (fid.endsWith('allvalidPairs.txt')) parsefun = CSynth.contactsWithBP;
+    //}
 
     contact.expand = FIRST(contact.expand, CSynth.defaultExpand);
     const stats = await parsefun(dataStr, fid, contact);
@@ -194,21 +198,29 @@ function contactsReader2(fid, contact, isSubfile, stats, usedcsvparser) {
     return contact;
 }  // contactsReader
 
+/** dataStr may be
+ * string,  to split
+ * array of strings, ready split
+ * info structure: gen is generator function, i is bytes processed so far, l is total bytes, lines5 is first 5 lines
+ */
 CSynth.txtParser = async function(dataStr, fid, contact) {
     let k = 0;
-    log("splitting file " + fid);
-    const lines = (Array.isArray(dataStr) ? dataStr : dataStr.split('\n')).filter(v => v ? 1 : 0); //filter out empty lines
+    const usegen = dataStr.gen;
+    const lines = usegen ? dataStr.gen : (Array.isArray(dataStr) ? dataStr : dataStr.split('\n')).filter(v => v ? 1 : 0); //filter out empty lines
+    const lines5 = usegen ? dataStr.lines5 : lines;
 
     // first experiment towards automatic file format detection
-    const len1 = lines[0].split(/[ \r\t,]/).length;
-    const len2 = lines.length;
-    if (len1 > 5 && len2 > len1 - 1 && len2 < len1 + 1) {
+    const len1 = lines5[0].split(/[ \r\t,]/).length;
+    let lineslength = usegen ? 1e6 : lines.length;
+    if (len1 > 5 && lineslength > len1 - 1 && lineslength < len1 + 1) {
         return bintriReader(dataStr, fid, contact);
     }
 
-    log("file " + fid + " lines=" + lines.length);
-    while (lines[0].trim()[0] === '#') log('contact comment', fid, lines.shift());
-    log('lines split ' + lines.length);
+    log("file " + fid + " lines=" + lineslength);
+    if (!usegen) while (lines[0].trim()[0] === '#') log('contact comment', fid, lines.shift());
+    lineslength = lines.length;
+    log('lines split ' + lineslength);
+
     const stparse = performance.now();
 
     //"positions" often contains lines*[index, index, value]
@@ -221,27 +233,33 @@ CSynth.txtParser = async function(dataStr, fid, contact) {
     const enddiff = tres === undefined ? 0 : tres * (contact.expand-1)/2;  // difference in end particle for data and expanded
     let miniduse = FIRST(contact.minid, -1e20) + enddiff;
     let maxiduse = FIRST(contact.maxid, 1e20) - enddiff;
-    let data = new Array(lines.length * 3);  // was Float32Array, could not manage some large bp numbers
+    // let data = new Array(lineslength * 3);  // was Float32Array, could not manage some large bp numbers
+    let data = new Float32Array(lineslength * 3);  // was Float32Array, could not manage some large bp numbers
     let maxid = miniduse, minid = maxiduse, minv = 1e50, maxv = 0, sumv = 0, sumv2 = 0, nonz = 0, setz = 0, badlines = 0, diagset = 0;
     let rmaxv = 0;  // non-diagonal max v
     let la = -1e20, lb = -1e20;
     let res = 1e20;
     let st = Date.now();
-    const fidk = "processing file " + uriclean(fid);
-    for (let i = 0; i < lines.length; i++) {
+    const fidk = "parsing file: " + uriclean(fid);
+    let i = 0;
+    for (const linei of lines) {
         if (i % 10000 === 0) {
             let et = Date.now();
             if (et > st + 100) {
                 st = et;
-                const bar = '<br>' + genbar(i/lines.length);
-                const m = msgfix(fidk,'<br>' + i + " of " + lines.length
-                //  + "  " + Math.floor(i * 100 / lines.length) + "%");
+                const ii = usegen ? dataStr.i : i;
+                const ll = usegen ? dataStr.len : lineslength;
+                const bar = '<br>' + genbar(ii/ll);
+                const m = msgfix(fidk,'<br>' + ii + " of " + ll
+                //  + "  " + Math.floor(i * 100 / lineslength) + "%");
                 + bar);
-                if (et > st + 1000) log(fidk + i + " of " + lines.length)
+                if (et > st + 10000) log(fidk + ii + " of " + ll, performance.memory)
                 var zzzz = await sleep(0);
             }
         }
-        const ff = lines[i].split("\t");
+        const ff = linei.split("\t");
+        if (!usegen) lines[i] = undefined;  // save space while loading
+        i++;
         const na = +ff[0];
         const nb = +ff[1];
         const v = +ff[2];
@@ -266,6 +284,11 @@ CSynth.txtParser = async function(dataStr, fid, contact) {
         if (v === 0) {
             setz++;
         } else {
+            if (k > data.length-3) {
+                const ndata = new Float32Array(data.length * 2);
+                ndata.set(data);
+                data = ndata;
+            }
             data[k++] = na;
             data[k++] = nb;
             data[k++] = v;
@@ -286,8 +309,9 @@ CSynth.txtParser = async function(dataStr, fid, contact) {
     if (badlines)
         msgfix('badlines', `File ${fid} parsed and ${badlines} bad lines found`);
 
-    log('lines parsed', fid, 'time', ((endparse-stparse)/1000).toLocaleString());
-    msgfixlog(fidk,'<br>Complete<br>' + genbar(1));
+    const tt = ((endparse-stparse)/1000).toLocaleString();
+    log('lines parsed', fid, 'time', tt);
+    msgfixlog(fidk,`<br>Complete in time ${tt}<br>` + genbar(1));
     // setTimeout(()=>msgfixlog(fidk), 2000);
     data = data.slice(0, k);
     if (contact.res && contact.res !== res / contact.expand)
@@ -315,7 +339,7 @@ if (fileTypeHandlers) fileTypeHandlers['.zip'] = contactsReader;
 // of can be structure of {headerLine, data}
 async function bintriReader(bintri, fidd, details = {}) {
     details.fid = details.filename = fidd;
-    const urikr = 'reading file ' + uriclean(fidd);
+    const urikr = 'reading file: ' + uriclean(fidd);
     if (!bintri && usecache) {
         const cval = await CSynth.getIdbCacheOK(fidd);
         if (cval) {
@@ -444,7 +468,7 @@ async function bintriReader(bintri, fidd, details = {}) {
     }
     const o = stats();
     copyFrom(details, o);
-    const urik = 'processing file ' + uriclean(fidd);
+    const urik = 'parsing file: ' + uriclean(fidd);
     msgfix(urik, '<br>complete<br>' + genbar(1));
     CSynth.files[fidd] = details;
     details.expand = FIRST(details.expand, CSynth.defaultExpand);
@@ -606,36 +630,39 @@ but these should be (largely?) resolved with the multipass approach, 5 June 2021
 */
 CSynth.csvParser = async function(file, fid, contact = {}) {
     contact.fid = contact.filename = fid;
-    let lines;
+    let lines, lines5;
     if (typeof file === 'string') {
-        lines = file.split('\n');
+        lines = lines5 = file.split('\n');
     } else if (Array.isArray(file)) {
-        lines = file;
+        lines = lines5 = file;
+    } else if (file.gen) {
+        lines = file.gen;
+        lines5 = file.lines5;
     } else {
         fid = file.name;
-        const urikr = 'reading file ' + uriclean(fid);
-        lines = [];
+        const urikread = 'reading csv file: ' + uriclean(fid);
+        lines = lines5 = [];
         let lastff = 0;
         await asyncFileReader(file, lineSplitter((line, numLines, bytesProcessedSoFar, bytesReadSoFar, length) => {
             const ff = bytesReadSoFar/file.size;
             if (ff > lastff + 0.001) {
                 const m = `progress ${bytesReadSoFar} of ${file.size}`;
-                msgfix(urikr, '<br>' + m + '<br>' + genbar(bytesReadSoFar/file.size));
+                msgfix(urikread, '<br>' + m + '<br>' + genbar(bytesReadSoFar/file.size));
                 lastff = ff;
             }
             lines.push(line);
         }));
-        msgfix(urikr, '<br>' + 'complete'+ '<br>' + genbar(1));
+        msgfix(urikread, '<br>' + 'complete'+ '<br>' + genbar(1));
     }
     let groups = contact.groups = {};
 
     let ssa = '_', ssb = '_', res = 1;  // York style
-    if (lines[6].contains(':')) {ssa = ':'; ssb = '-'; res = -1;}   // Crick style
+    if (lines5[5].contains(':')) {ssa = ':'; ssb = '-'; res = -1;}   // Crick style
 
     //?? let keys = {}; prep for new Crick files 20 Feb 2019
     let errs = 0;
 
-    function check(p, i) {
+    function check(p) {
         const a = p.split(ssa);
         const cn = a[0];
         const as = a[1].split(ssb);
@@ -655,26 +682,31 @@ CSynth.csvParser = async function(file, fid, contact = {}) {
         return [cn, ind];
     }
 
-    msgfix('processing file pass2' + fid, genbar(0));
+    const p2keyparse = 'parsing file: ' + uriclean(fid)
+    msgfix(p2keyparse, genbar(0));
 
     // pass 1, parse and find chain info
-    let ii = 0; // count lines with correct data
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+    let ii = 0, ri = 0; // count lines with correct data
+    for (const line of lines) {
+        ri++;
         if (!line) continue;  // allow for empty lines
         if (!line.contains(ssa)) continue;
         const s = line.split('\t');
         //?? keys[s[0]] = true; keys[s[1]] = true; // continue;
-        const a = check(s[0], i);
-        const b = check(s[1], i);
+        const a = check(s[0]);
+        const b = check(s[1]);
         const v = +s[2];
         lines[ii++] = [a, b, v]; // reuse lines to save total memory
-        if (i%100000 === 0) log('csvParser pass1', i, 'of', lines.length);
-        if (i%10000 === 0) {
-            msgfix('processing file ' + fid, genbar(i/lines.length));
+
+        if (ii%10000 === 0) {
+            const [iii, lll] = file.gen ? [file.i, file.len] : [ri, lines.length]
+            if (ii%100000 === 0) log('csvParser pass1', iii, 'of', iii);
+            msgfix(p2keyparse, genbar(iii/lll));
             await sleep(1);
         }
     }
+    msgfix(p2keyparse, genbar(1));
+
 
     // sync up all groups if irrelevant
     let promises;
@@ -725,6 +757,9 @@ CSynth.csvParser = async function(file, fid, contact = {}) {
         groups = contact.groups = CSynth.current.groups;    // all share common groups
     }
 
+    const p2keyfinish = 'finalizing ids for csv file: ' + uriclean(fid)
+    msgfix(p2keyfinish, genbar(0));
+
     // pass3, fill in particle data
     let data = new Float32Array(ii * 3);
     let k = 0; // pos in data
@@ -749,9 +784,10 @@ CSynth.csvParser = async function(file, fid, contact = {}) {
         data[k++] = v;
         if (i%100000 === 0) {
             log('csvParser pass3', i, 'of', ii);
-            msgfix('processing file pass2' + fid, genbar(i/ii));
+            msgfix(p2keyfinish, genbar(i/ii));
             await sleep(1);
         }
+        msgfix(p2keyfinish, 'complete', genbar(1));
 
         //if (a[0] !== b[0] || +a[1] !== +b[1]-1)  // check for backbone
         //    log(i, line);
@@ -1640,8 +1676,9 @@ async function loadData (cc, fid=cc.key) {
         if (typeof fn === 'string') fn = [fn];
         fn.forEach(bfn => {
             const k = uriclean(dir + bfn);
-            msgfix('reading file ' + k, '<br>pending ...<br>' + genbar(0));
-            msgfix('processing file ' + k, '<br>pending ...<br>' + genbar(0));
+            msgfix('reading file: ' + k, '<br>pending ...<br>' + genbar(0));
+            msgfix('parsing file: ' + k, '<br>pending ...<br>' + genbar(0));
+            // msgfix('processing file pass2: ' + k, '<br>pending ...<br>' + genbar(0));
         });
     });
 
@@ -1976,7 +2013,8 @@ async function getContacts(contact, dir, isSubfile = false) {
         } else if (ext === '.contacts' || ext === '.txt'  || ext === '.zip' || ext === '.csv'
             || ext === '.rawobserved') {
             // const _rawdata = posturierror(fidd);  // must read data
-            const _rawdata = await (ext === '.zip' ? readbinaryasync(fidd) : readAsLines(fidd));  // must read data
+            const bindata = await readbinaryasync(fidd);
+            const _rawdata = ext === '.zip' ? bindata : buff2GenStruct(bindata);  // must read data
             if (!_rawdata) throwe('cannot load file ' + fidd);
             if (!isSubfile)
                 CSynth.checkRangePair(contact, CSynth.current);

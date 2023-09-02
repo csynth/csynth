@@ -914,11 +914,13 @@ html-gl { display: inline-block; transform: translateZ(0);}
 #seriousbox h3 {
 	font-size: 200%;
 	color: red;
+	margin-bottom: 0;
 }
 #seriousbox + .help {
 	font-size: 150%;
 	color: white;
 }
+#seriousMessage {font-size: 200%;margin-bottom: 1em;}
 #seriousbody {
 	background: black;
 	color: white;
@@ -1097,3 +1099,6 @@ html-gl { display: inline-block; transform: translateZ(0);}
 .gridimage * {background: white;object-fit: contain;position: absolute; pointer-events:initial}
 .gridimage, .cornerimage, #showMTImagebox {height:100%;width: 100%;position: absolute;top: 0;left: 0;}
 .simple * {background: lightgray}
+
+.barback {background:lightblue;width:40em;height: 10px;border: 0px;padding: 0px;margin: 0px;}
+.barbar {background: blue;top: 2px;height: 6px;border: 0px;margin: 0px;padding: 0px;display:  block;}

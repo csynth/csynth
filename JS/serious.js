@@ -1,13 +1,15 @@
 var showvals, copyFrom, confirm, nwwin, W, location, saveTextfile, gl, gpuinfo, gpuparms, writeerroxford,
-    CSynth, GX, clone, yaml, jsyaml, badshader, sleep, userlog, searchValues;
+    CSynth, GX, clone, yaml, jsyaml, badshader, sleep, userlog, searchValues, opmode, oplist;
 /** serious error */
 function serious(...e) {
     yaml = yaml || jsyaml;      // make sure defined early enought in case of caught error during load
     var smsg = showvals.apply(undefined, arguments);
     console.error('SERIOUS+++', smsg);
+    W.seriousMessage.innerHTML = smsg.split('\n', 8).filter(x => x).slice(0,5).join('<br>');
+
     if (location.href.contains('molbiol')) return smsg;
-    if (location.href.contains('csynth.github.io')) return smsg;
-        const eee = e.filter(ee=>ee?.error?.stack); // any error arguments
+    // if (location.href.contains('csynth.github.io')) return smsg;
+    const eee = e.filter(ee=>ee?.error?.stack); // any error arguments
     var astack = eee.reduce((cc,ee) => cc + ee.error.stack, '');
     eee.forEach(ee => console.error(ee.error));
 

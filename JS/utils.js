@@ -1480,7 +1480,7 @@ async function posturimsg(uri) {
         r = undefined;
     }
     log('got r, it is', r ? r.substr(0,20) : 'NOR');
-    const urik = 'reading file ' + uri;
+    const urik = 'reading file: ' + uriclean(uri);
     const et = Date.now() - st;
     msgfix(urik, 'read complete, time', et, r === undefined ? 'ERROR' : '' );
     return r;
@@ -1490,10 +1490,8 @@ async function posturimsg(uri) {
 function genbar(i) {
     // todo: style bar, and make part of msg so html WWW edited rather than regenerated
     const bar = `
-        <div style="background:lightblue; width:40em">
-        <div style="height:24px;width:WWW%; background:blue;"></div>
-        </div>`
-    return bar.split('WWW').join(Math.round(i*100));
+        <div class="barback"><span class="barbar" style="width:${i*100}%"></span></div>`
+    return bar; // .split('WWW').join(Math.round(i*100));
 }
 
 function uriclean(puri) {
@@ -1512,7 +1510,7 @@ function posturimsgasync(puri) {
     if (d !== undefined)  // return d as promise, but delayed in case caller assuming it will be async
         return new Promise( (resolve, reject) => setTimeout(()=>resolve(d), 0) );
 
-    const urik = 'reading file ' + uri;
+    const urik = 'reading file: ' + uriclean(uri);
     if (nwfs) {
         const data = nwfs.readFileSync(uri, 'ascii');
         msgfix(urik, '<br>complete (nwfs sync)<br>' + genbar(1));
@@ -1730,8 +1728,8 @@ function posturibin(puri, callback, responseType = 'arraybuffer') { // was 'blob
     oReq.open("GET", uri, true);
     oReq.responseType = responseType;
     oReq.send(null);
-    const urik = 'reading file ' + uri;
-    const urip = 'deblobbing file ' + uri;
+    const urik = ' reading file: ' + uriclean(uri);
+    const urip = 'deblobbing file: ' + uri;
 
     return new Promise( (resolve, reject) => {
 

@@ -6,7 +6,7 @@ writetextremote, Blob, readbinaryasync, currentObjects, refall, pick, lastdocx, 
 slots, mainvp, distxyz, material, EX, setInput, onframe, setViewports, Director, tad, showControls, mutateVisibleGenes, setSize, fullscreen, exitfullscreen,
 cMap, _boxsize, basescale, searchValues, getdesksave, S, runcommandphp, nircmd, islocalhost, downloadImageGui, Buffer, vec3, SG, substituteExpressions,
 currentHset, gl, showUniformsUsed, arraydiff, saveAs, everyframe, Maestro, msgfixerror, clearPostCache, runkeys, isCSynth, _R, GUIwallkeys,
-shadows, usemask, inps, exportmyshaders, readtext, format, savesystem, centrescalenow, xxxvn, lastDownLayerX, lastDownLayerY, copyXflip, feed, fileExists
+shadows, usemask, inps, exportmyshaders, readtext, format, savesystem, centrescalenow, xxxvn, lastDownLayerX, lastDownLayerY, copyXflip, feed, fileExists, niractcmd
 
 
 /** convenient look at uniforms, n.b. uniforms must be mentioned in the proxy else ownKeys does not work */
@@ -1077,7 +1077,7 @@ async function endtest(n = searchValues.test) {
             await sleep(200);
             await S.frame(2);
             runcommandphp('mkdir ' + ds + 'tests');
-            nircmd('savescreenshotwin ' + ds + 'tests/' + tests[n][0] + '.jpg');
+            niractcmd('savescreenshotwin ' + ds + 'tests/' + tests[n][0] + '.jpg');
         } else {
             await downloadImageGui(tests[n][0], 'jpg')
         }

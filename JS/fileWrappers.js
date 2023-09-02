@@ -61,7 +61,7 @@ async function readbinaryasync(fid) {
         //        resolve(data);
         //    });
         //} );
-        const urik = 'reading file ' + uriclean(fid);
+        const urik = 'reading file: ' + uriclean(fid);
         msgfix(urik, '<br>complete (nwfs sync)<br>' + genbar(1));
 
         return new Promise( (resolve, reject) => {
@@ -105,7 +105,10 @@ function writetextremote(fid, text, append = false) {
         nwfs.writeFileSync(fid, text);
         return;
     }
-    if (location.href.contains('csynth.github.io')) {msgfixlog('No upload to github'); return; }
+    if (location.href.contains('csynth.github.io')) {
+        msgfixlog('No upload to github, saved as download:', fid);
+        return saveTextfile(text, fid);  // for save as download
+    }
     if (location.host === "csynth.molbiol.ox.ac.uk") {
         const mm = location.search.match(/.*\?p=(.*?)&.*/);
         if (!mm) {
@@ -286,9 +289,13 @@ function readdir(dir) {
             const name = lll.pre('"');
             result[name] = {name, isDir: name.endsWith('/')};
         });
+    } else if ( location.href.contains('csynth.github.io')) {
+        result = {};
+        //const response = await fetch('https://api.github.com/repos/csynth/CSynth/contents/');
+        //const rr = await r.json();
+        //// https://api.github.com/repos/csynth/CSynth/contents/CSynth/data
     } else if (location.href.indexOf('https://csynth.molbiol.ox.ac.uk') !== -1
-            || location.href.indexOf('https://programbits.co.uk/Mutspace') !== -1
-            || location.href.contains('csynth.github.io')) {
+            || location.href.indexOf('https://programbits.co.uk/Mutspace') !== -1) {
                     // this version for Oxford public project or one of our csynthstatic/data directories
         const r = {};
         const odir = posturi(dir);
