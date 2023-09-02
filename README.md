@@ -6,14 +6,11 @@ It incldues realtime modelling and visualization.
 For more information see [https://csynth.org/](https://csynth.org/), which also has more information about examples.
 To go straight to the examples:
 
-[Example 1. Comparison of the alpha-globin locus in different cell types:]
-(https://csynth.github.io/csynth/csynth.html?cexample1)
+[Example 1. Comparison of the alpha-globin locus in different cell types:](https://csynth.github.io/csynth/csynth.html?cexample1)
 
-[Example 2. Yeast, demonstration dataset (Crick model):]
-(https://csynth.github.io/csynth/csynth.html?cexample2)
+[Example 2. Yeast, demonstration dataset (Crick model):](https://csynth.github.io/csynth/csynth.html?cexample2)
 
-[Example 3. Human structural variant on chromosome 13 in K562 cells compared with GM12878:]
-(https://csynth.github.io/csynth/csynth.html?cexample3)
+[Example 3. Human structural variant on chromosome 13 in K562 cells compared with GM12878:](https://csynth.github.io/csynth/csynth.html?cexample3)
 
 ### about
 The 3D structure of chromatin in the nucleus is important for gene expression and regulation.  Chromosome conformation capture techniques, such as Hi-C, generate large amounts of data showing interaction points on the genome but these are hard to interpret using standard tools.
@@ -24,14 +21,13 @@ Csynth is published: CSynth: an interactive modelling and visualization tool for
 
 CSynth has been exhibited at the Royal Society, schools and various public festivals and is fantastic tool for getting across concepts about the complexities of genome structure.
 
-[There is a user guide for CSynth.]
-(https://docs.google.com/document/d/13Z8-SL9d2mDIjpoA3T59vdrogJDKKVoXqFJBu15Mbn0)
+[There is a user guide for CSynth.](https://docs.google.com/document/d/13Z8-SL9d2mDIjpoA3T59vdrogJDKKVoXqFJBu15Mbn0)
 This is sadly not complete but should give some more ideas on the user of CSynth.
 
 ## using your own data
 To use your own data with CSynth:
 
-Launch CSynth: https://csynth.github.io/csynth/csynth.html
+[Launch CSynth:](https://csynth.github.io/csynth/csynth.html)
 
 Drag-drop or copy/paste files from Explorer onto the running CSynth.
 
