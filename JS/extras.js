@@ -468,6 +468,8 @@ function loadMatrix(fid = dfid, idata = undefined, nosave=false ) {
         }
 
         async function finish(d) {
+            if (d.blob) d = await d.blob.text();
+
             // Aug 2023, d may already be parsed into lines, so rejoin.
             // TODO change header and process() code to use thje arrray more efficiently
             // and to allow for larger data that won't fit a Chrome string(>512MB)
@@ -561,11 +563,11 @@ async function loadMatrixBin(fid = dfid + '.binnmatrix') {
     return data;
 }
 
-function normMatrixReader(data, fid) {
-    log('in normMatrixReader', fid, data.length );
-    loadMatrix(fid, data);
-}
-var normmatrixReader = normMatrixReader;
+// function normMatrixReader(data, fid) {
+//     log('in normMatrixReader', fid, data.length );
+//     loadMatrix(fid, data);
+// }
+// var normmatrixReader = normMatrixReader;
 
 /** write a bintri from current data, by default all current data, however that data was derived */
 function writeBintri(contact, num) {

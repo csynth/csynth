@@ -20,8 +20,8 @@ var W, genedefs, mainvp, savedef, keysdown, inputs, fileOpenReadWS, fileReadWS, 
         consoleTime, consoleTimeEnd, _insinit, CSynth, File, FormData, $, fileExistsAsync,
         loadStartTime, genbar, uriclean, S, isNode, mkdir, readdir, readtext, runcommandphp,
         writetextremote, fileExists, remotesave, fileStat, currentLoadingData, target, defaultObj, filterDOMEv, checkoao, msgflash, canvdroppaste,
-        searchValues, inps, COL, cMap, setBackgroundColor, addscript, GX, islocalhost, readbinaryasync
-, HW;
+        searchValues, inps, COL, cMap, setBackgroundColor, addscript, GX, islocalhost, readbinaryasync, HW,
+        msgboxVisible;
 
 var _binfiles = ['.tif', '.bintri', '.zip', '.map'];
 var FrameSaver = {};  // psuedo-class
@@ -57,7 +57,10 @@ function openfileevt(evt) {
 
 var lastopenfiles;
 /** handle the input file selection, also dragdrop */
-function openfiles(files) {
+async function openfiles(files) {
+    msgfix();  // clear non-urgent messages
+    msgboxVisible(true);  // and show
+
     if (!files) files = lastopenfiles;
     lastopenfiles = files;
     openfiles.promises = {} // todo, consider best synchronization method
@@ -74,7 +77,7 @@ function openfiles(files) {
         openfiles.resolvers[files[f].canonpath] = xx;
     }
     Maestro.trigger('preopenfiles', files);  // escape may want to change, e.g. sort files? Used by CSynth.handlefileset for drag/dropped set of files
-    for (let f=0; f<files.length; f++) openfile(files[f]);
+    for (let f=0; f<files.length; f++) openfile(files[f]);  // note do NOT await, it was always async, previously by callback, now by async keyword
     Maestro.trigger('postopenfiles', files);
 }
 openfiles.pending = {};
@@ -82,14 +85,15 @@ openfiles.dropped = {};  // contents of dropped and other opened files
 
 const chromeMaxString = 536870888;
 /** read and process a single file, given a File object */
-function openfile(file) {
+async function openfile(file) {
     var ext = getFileExtension(file.name);
     var handler = fileTypeHandlers[ext];
     const canonpath = file.canonpath;
     if (!handler) handler = window[ext.substring(1) + 'Reader'];
 
     if (handler && handler.rawhandler) {
-        handler(file);
+        await handler(file);
+        delete openfiles.pending[file.canonpath];
     } else if (handler) {
         // if (file.size > chromeMaxString && navigator.userAgent.contains('Chrome')) {
         //     log(`file ${file.name} length ${file.size} exceeds Chrome maximum ${chromeMaxString}\nWe are fixing this but for now\ntry Firefox.`)
@@ -117,13 +121,12 @@ function openfile(file) {
         };
         let t = Date.now();
         const urik = 'reading file: ' + uriclean(file.name);
-        msgfix(urik, '<br>pending<br>' + genbar(0));  // get in early/synchronous so they appear in correct order
         reader.onprogress = function(e) {
             const tt = Date.now();
             const m = `progress ${e.loaded} of ${e.total}`;
             const n = 100;
             const p = Math.round(n * e.loaded/e.total);
-            msgfix(urik, '<br>' + m + '<br>' + genbar(e.loaded/e.total));
+            msgfix(urik, '<br>' + m + genbar(e.loaded/e.total));
             if (tt > t+1000) {
                 console.log(file.name, m);
                 t = tt;
@@ -131,13 +134,17 @@ function openfile(file) {
         }
         if (_binfiles.includes(ext) ) {
             reader.readAsArrayBuffer(file);        // start read in the data file
-        } else if (file.size > chromeMaxString && navigator.userAgent.contains('Chrome')) {
-            log(`file ${file.name} length ${file.size} exceeds Chrome maximum ${chromeMaxString}`)
-            log('Data too large to load into Chrome as string, will try to read as binary and convert to string array')
-            tolines = true;
-            reader.readAsArrayBuffer(file);
+            msgfix(urik, '<br>pending<br>' + genbar(0));  // get in early/synchronous so they appear in correct order
+        } else if (file.size > chromeMaxString && navigator.userAgent.contains('Chrome') ) {
+            serious(`file ${file.name} length ${file.size} exceeds Chrome maximum ${chromeMaxString}`)
+            // log('Data too large to load into Chrome as string, will try to read as binary and convert to string array')
+            // tolines = true;
+            // // reader.readAsArrayBuffer(file);
+            // await handler(await blob2forEach(file, canonpath), canonpath)
+            // delete openfiles.pending[canonpath];
         } else {
             reader.readAsText(file);        // start read in the data file
+            msgfix(urik, '<br>pending<br>' + genbar(0));  // get in early/synchronous so they appear in correct order
         }
     } else {
         msgfixlog("baddrop", "attempt to open file of wrong filetype " + file.name);
@@ -2256,20 +2263,20 @@ async function tadRenderLoop(tdir, frames = [0, Infinity], showonly = false) {
 } // end loop
 
 
-/** read file as array of lines, so files can be read that are too long as single strings
- * nb, faster to read in one and convert (as here) than to read the fetch filereader and convert as we go
- */
-async function readAsLines(fid) {
-    console.time('read')
-    const zz = await readbinaryasync(fid)
-    const zzu = new Uint8Array(zz);
-    console.timeEnd('read')
+// /** read file as array of lines, so files can be read that are too long as single strings
+//  * nb, faster to read in one and convert (as here) than to read the fetch filereader and convert as we go
+//  */
+// async function readAsLines(fid) {
+//     console.time('read')
+//     const zz = await readbinaryasync(fid)
+//     const zzu = new Uint8Array(zz);
+//     console.timeEnd('read')
 
-    console.time('conv')
-    const r = buff2StringArray(zzu);
-    console.timeEnd('conv')
-    return r
-}
+//     console.time('conv')
+//     const r = buff2 StringArray(zzu);
+//     console.timeEnd('conv')
+//     return r
+// }
 
 /** pass lines as generator */
 function *buff2StringGen (b, l = 10e6, info = {}) {
@@ -2291,35 +2298,95 @@ function *buff2StringGen (b, l = 10e6, info = {}) {
 }
 
 /** convert uint8array buffer to string array */
-function buff2StringArray(pb, l = 100e6) {
-    const b = new Uint8Array(pb);
-    const td = new TextDecoder();
-    let r = []
-    let i = 0;
-    while(true) {
-        let e = b.indexOf(10, i + l)
-        if (e === -1) e = undefined;
-        const s = td.decode(b.subarray(i, e));
-        const sp = s.split('\n');
-        for (const line of sp) {
-            if (line.length !== 0) r.push(line);
-        }
-        if (e === undefined) break;
-        i = e + 1;
-        log(`${i} of ${b.length}, ${i/b.length*100}%`)
-    }
-    const rr = r.flat();
-    return rr;
+// function buff2StringArray(pb, l = 100e6) {
+//     const b = new Uint8Array(pb);
+//     const td = new TextDecoder();
+//     let r = []
+//     let i = 0;
+//     while(true) {
+//         let e = b.indexOf(10, i + l)
+//         if (e === -1) e = undefined;
+//         const s = td.decode(b.subarray(i, e));
+//         const sp = s.split('\n');
+//         for (const line of sp) {
+//             if (line.length !== 0) r.push(line);
+//         }
+//         if (e === undefined) break;
+//         i = e + 1;
+//         log(`${i} of ${b.length}, ${i/b.length*100}%`)
+//     }
+//     const rr = r.flat();
+//     return rr;
+// }
+
+/** check dataStr and decide how to read it */
+function inputType(dataStr) {
+    const usegen = dataStr.gen;
+    const lines = dataStr.isBlobForEach ? dataStr :
+        dataStr.gen ? dataStr.gen :
+        (Array.isArray(dataStr) ? dataStr :
+        dataStr.split('\n')).filter(v => v ? 1 : 0); //filter out empty lines
+    const lines5 = dataStr.lines5 ? dataStr.lines5 : lines;
+    return {usegen, lines, lines5};
 }
 
 /** prepare generator structure, with generator gen, position i, length len, first few lines line5  */
 function buff2GenStruct(data, block = 10e6) {
-    const info = {i: 0, len: data.length};
+    const info = {i: 0, len: data.length, isGenStruct: true};
     let g1 = buff2StringGen(data, 10e3);
     info.lines5 = []; let i = 0; for (const line of g1) { if (i++ > 5) break; info.lines5.push(line); }
     g1.return({done: true, value: 0});
     g1 = undefined;  // clean up, probably not important
     info.gen = buff2StringGen(data, block, info);
+    return info;
+}
+
+/** pass lines as generator, reading file/blob in chunks */
+async function *blob2StringGen (b, l = 10e6, info = {}) {
+    info.i = 0; info.len = b.size;
+    while(true) {
+        const ff = b.slice(info.i, info.i + l);
+        const s = await ff.text();
+        let e = s.lastIndexOf('\n');
+        if (e === -1) { yield(s); break; }
+        const sp = s.split('\n'); sp.pop();
+        for (const line of sp) {
+            if (line.length !== 0) yield line;
+        }
+        info.i = e + 1;
+        msgfix('test', genbar(info.i / info.len))
+    }
+    log('gen complete', info.i)
+}
+// zz = blob2StringGen(bbb); while ((x = await zz.next()).value) log(x)
+// zz = blob2StringGen(ffile); i=0; for (i = 0; ; i++) { x = await zz.next(); if (i%1000 === 0) log(i, x) }
+// zz = blob2StringGen(ffile, 1e5); i=0; for (i = 0; ; i++) { x = await zz.next(); if (i%10000 === 0) log(i, x) }
+// zz = blob2StringGen(ffile, 1e6); i=0; for (i = 0; ; i++) { x = await zz.next(); if (i%1e6 === 0) log(i, x) }
+
+/** pass lines as with callback, reading file/blob in chunks */
+async function blob2StringCB(b, callback, info = {}, chunksize = 1e6) {
+    info.i = 0; info.len = b.size;
+    while(true) {
+        const ff = b.slice(info.i, info.i + chunksize);
+        const s = await ff.text();
+        let e = s.lastIndexOf('\n');
+        // log('blob2StringCB', info.i, info.i + l, e)
+        if (e === -1) { callback(s); break; }
+        const sp = s.split('\n'); sp.pop();
+        for (const line of sp) {
+            if (line.length !== 0) callback(line);
+        }
+        info.i += e + 1;
+        msgfix('read parse: ' + info.fid, genbar(info.i / info.len))
+    }
+    log('gen complete', info.i)
+}
+
+/** prepare a blob/file for reading lines using forEach */
+async function blob2forEach(blob, fid) {
+    const info = {i: 0, len: blob.size, isBlobForEach: true, fid, blob};
+    info.forEach = async callback => await blob2StringCB(blob, callback, info)
+    info.lines5 = (await blob.slice(0, 10000).text()).split('\n');
     return info;
 }
 

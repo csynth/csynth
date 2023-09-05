@@ -1100,5 +1100,5 @@ html-gl { display: inline-block; transform: translateZ(0);}
 .gridimage, .cornerimage, #showMTImagebox {height:100%;width: 100%;position: absolute;top: 0;left: 0;}
 .simple * {background: lightgray}
 
-.barback {background:lightblue;width:40em;height: 10px;border: 0px;padding: 0px;margin: 0px;}
+.barback {background:lightblue;width:40em;height: 10px;border: 0px;padding: 0px;margin: 0px;margin-bottom: 0.7em;}
 .barbar {background: blue;top: 2px;height: 6px;border: 0px;margin: 0px;padding: 0px;display:  block;}

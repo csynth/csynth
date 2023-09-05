@@ -111,7 +111,7 @@ onmessage = async function(e) {
         }
     } else if (data[0] === 'readzipfile') {   // takes file, filename and does read and unzip test
         clog('requested');
-        CSynth.unzip('test', 'both');
+        CSynth.unzip('test', 'testfid', 'both');
     } else {
         postmsg(['invalid', data[0]]);
     }
