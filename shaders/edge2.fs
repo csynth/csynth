@@ -8,6 +8,7 @@
     #define edgeidlow 0.
     #define edgeidhigh 9999.
     #define OUT
+    #define INOUT
 
     uniform sampler2D rtopos;
     uniform sampler2D rtshapepos;  // not really  used
@@ -26,7 +27,7 @@
     uniform mat4 feedbackTintMatrix;
     uniform sampler2D feedtexture, flatMap;
     uniform vec2 screen;
-    uniform float centrerefl, centrereflx, centrerefly, renderBackground, useLanczos; //dead feed scale
+    uniform float maxfeeddepth, centrerefl, centrereflx, centrerefly, renderBackground, useLanczos; //dead feed scale
     uniform vec3 springCentre;
 #endif
 /**** tfetch and ttest from edge.fs, varied because edge.fs uses special format for rtopos ****/
@@ -261,6 +262,7 @@ vec4 trifeed(vec3 feedpos, sampler2D map, inout float feeddepth) {
     if (useLanczos != 0.) {
         fill = vec4(lanczos(map, smalltri, int(useLanczos)), texture(map, smalltri).a);
     }
+    if (feeddepth * 256. > maxfeeddepth) return vec4(backcol, 99.);
     fill.a = 1.;
     fill *= feedbackTintMatrix; // ? will gl_FragColor.a = 1 ? NOTE copied in edge.fs
     fill /= fill.a; // not sure what this will do if color 'perspective' is used on feedbackTintMatrix mat3 may be enough
@@ -273,7 +275,7 @@ vec3 screenfeed(vec3 r, inout float feeddepth) {
     // pending pos.x *= screen.y / screen.x;                     // x to range -ar..ar
     vec3 feedpos = vec3(pos, 1);
     // feedpos.x *= -1.;
-    return trifeed(feedpos, feedtexture, OUT feeddepth).rgb;
+    return trifeed(feedpos, feedtexture, INOUT feeddepth).rgb;
 }
 
 vec4 edgeColour(out bool alt, out int etype) {
@@ -293,8 +295,8 @@ vec4 edgeColour(out bool alt, out int etype) {
         case edgeprofile: r = profcol; break;
         case edgeocclude: r = occcol; break;
         case edgeunk: r = unkcol; break;
-        case edgewall: r = vec3(1,1,0); break; // should never happen in standalone mode
-        case edgeback: r = renderBackground == 0. ? backcol : screenfeed(backcol, OUT feeddepth); break;
+        case edgewall: r = wallcol; break; // should never happen in standalone mode
+        case edgeback: r = renderBackground == 0. ? backcol : screenfeed(backcol, INOUT feeddepth); break;
         default: r = vec3(1,0,0);
     }
     if (alt) r = 1. - r;

@@ -9,7 +9,9 @@ var searchValues = {};
 var searchReplace = {
     tadopt: 'startobj = tad-fubu & docovid & useKinect & fastinit & noguigenes & notadgui & deferRender & splashuri=images/UI/startcovid.jpg',
     tadkin: 'startobj=tad-factory & docovid & useKinect & fastinit & noVR & splashuri=images/UI/startcovid.jpg',
+    tadkinscript: 'tadkin & eval3=setTimeout(() => {fullscreen(); runkeys("Insert,S")}, 2000)',
     tadnoaudio: 'tadkin & noaudio',
+    tadbw: 'tadnoaudio & eval1=usemask=1 & eval1=usemask=1 & eval3=tadbwSetup() & canvtop',
     tadsmall: 'tadkin & ribs=4 & tadnum = 600 & initrolename = tree15 & MAX_DEFS_PER_PARTICLE = 16 & startcam & startobj = tad-cammus',
     tadcam: 'tadkin & startcam',
     kintadmut: 'tadkin & notaddetails & noaudio & eval3=setTimeout(() => mutatetad = new mutateTad(),10000)',
@@ -19,7 +21,7 @@ var searchReplace = {
     lima: 'mutate & fullscreen & onebutton & simpledrag & eval3=limainitend() & splashzindex=999999999',
     mutate: 'testobj & noVR & inmutate & eval1=_isNode=false & eval2=setTimeout(mutlimasetup,1000) & noaudio',
     mutate1200: 'mutate & I.MAXHORNS_TO_RENDER=1200 & eval3=resoverride.skelnum=7,resoverride.skelends=0,GUIInit("mutwall test"),VH.positionGUI(),GUIwallkeys()',
-    testobj: 'startobj=GalaxReflSept25 & I.fullvp=false',
+    testobj: 'startobj=GalaxReflMay9 & I.fullvp=false',
     standard: 'testobj & eval3=setViewports([0,0]), centrescalenow()',
     imfind: 'standard & eval3=imcompareInteract()',
 
@@ -27,7 +29,8 @@ var searchReplace = {
     // csynth: 'startscript',
     rsse: 'startscript=rsse/loadrsse.js',
     crick: 'startscript=CrickLots/lots.js',
-    ima: "startscript=CSynth/data/ima/ima.js",    
+    newsc2023: "startscript=CSynth/data/ima/newsc2023.js",
+    ima: "startscript=CSynth/data/ima/ima.js",
     lowry: 'startscript=ima/lowry.js',
     york: 'startscript=YorkStudents/newtest_v5.js',
     lorentz: 'startscript=Lorentz/lorentz.js',
@@ -38,6 +41,7 @@ var searchReplace = {
     fano: 'appToUse=Fano',
     julia: 'appToUse=Julia',
     texture: 'appToUse=Texture',
+
     cexample1: 'startscript=C75X1200GitHub/loadnotiff.js',
     cexample2: 'startscript=CrickGithub/loadcrick_chrII.js',
     cexample3: 'startscript=chr13multiresGitHub/load_50kb.js',
@@ -45,6 +49,7 @@ var searchReplace = {
     cexample3_50: 'startscript=chr13multiresGitHub/load_50kb.js',
     // cexample3_data: 'startscript=chr13multiresGitHub/load_data.js',
     cexample3_smaller: 'startscript=chr13multiresGitHub/load_smaller.js',
+
 };
 
 var useForced;
@@ -55,6 +60,11 @@ function interpretSearchString(error = serious || alert) {
         istring = localStorage.interpretSearchString_last || '';
     else
         localStorage.interpretSearchString_last = istring;
+
+    if (istring === 'last')
+        istring = localStorage.istring
+    else
+        localStorage.istring = istring;
 
     if (istring.search(/['";]/) !== -1) {  // use the search string as javascript
         try {

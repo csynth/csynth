@@ -243,6 +243,7 @@ var OPDEFINE = "";
     }
     OPDEFINE += '#define virtual\n';
     OPDEFINE += '#define OUT\n';
+    OPDEFINE += '#define INOUT\n';
     OPDEFINE += '$$$uniforms$$\n';
     OPDEFINE += '$$$varyings$$\n';
     OPDEFINE += '$$$header$$\n';
@@ -3330,7 +3331,7 @@ function renderObjPipe(pscene, prenderPass, genes, uniformsp, rendertarget, rdel
         let temprt;
         if (WA.fxaa.use || specialPostrender) {
             const dobj = xxxdispobj(p.genes);
-            assert(p.rendertarget === dobj.rt, 'check reuse of rt for fxaa');
+            assert(p.rendertarget === dobj.rt || renderer.xr.isPresenting, 'check reuse of rt for fxaa');
             // temprt = dobj.rtback;
             temprt = getrendertarget('prefxaa', {sizer});
             //renderer.setRenderTarget(temprt); // breaks if temprt is feedback texture

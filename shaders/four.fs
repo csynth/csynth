@@ -594,7 +594,7 @@ void main() {
         #endif
         colourid = xhornid;
 	    vec4 trpos = shapepos * rot4wx(hornid);         // do our 4d rotation, note lhornid is not available here
-        gl_FragColor = lightingx(xmnormal, trpos, texpos, OUT feeddepth);
+        gl_FragColor = lightingx(xmnormal, trpos, texpos, INOUT feeddepth);
         gl_FragColor.w = feeddepth;
         } // OPREGULAR
         } // return;;
@@ -647,7 +647,7 @@ void main() {
             //     xmnormal = vec3(0,0,1); /*trpos = vec4(gl_FragCoord.xy*test3, -1e10, 1);*/
         }
 
-        gl_FragColor = lightingx(xmnormal, trpos, texpos, OUT feeddepth);
+        gl_FragColor = lightingx(xmnormal, trpos, texpos, INOUT feeddepth);
         // if (colourid == WALLID) {gl_FragColor = vec4(0,1,1,1); return;}
         // mix in opo s information, for debug
         if (xxoposprop != 0.) {
@@ -668,7 +668,7 @@ void main() {
         //xmnormal = normalize(vec3(1));
         texpos = shapepos.xyz;
         vec4 trpos = shapepos * rot4wx(colourid);
-        gl_FragColor = lightingx(xmnormal, trpos, texpos, OUT feeddepth);
+        gl_FragColor = lightingx(xmnormal, trpos, texpos, INOUT feeddepth);
         if (cutrad > 1.0) {
             float k = (cutfall - cutrad) /(cutfall - 0.99999);
             gl_FragColor.xyz *= k*k*(3. - 2.*k);

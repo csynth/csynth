@@ -370,6 +370,7 @@ async function GUIwallkeys() {
 
 /** zoom camera in keeping shadows etc set */
 function zoomCam(k = 4) {
+    if (renderVR.invr()) return;  // cannot zoom camera in XR
     if (k < 0) return;  // work already done, rg by savegrametga tiling
     if (k <= 1) {camera.clearViewOffset(); return; }
     const C = new Proxy(canvas.style, {get: (o,n) => +(o[n].pre('px'))})

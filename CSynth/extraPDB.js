@@ -1562,7 +1562,7 @@ CSynth.construction1 = async function CSynth_construction1({sweep = true, prepar
     CSynth.interrupt('construction1');              // signal anyone interseted
     if (CSynth.running === 'construction1') return; // kill myself, this will go through finally
 
-    CLeap.buttons.construct.selected(true);     // early so user knows button registered
+    if (searchValues.leap) CLeap.buttons.construct.selected(true);     // early so user knows button registered
 
     while(CSynth.running) await sleep(100);
 
@@ -1585,7 +1585,7 @@ CSynth.construction1 = async function CSynth_construction1({sweep = true, prepar
     } finally {
         CSynth.restoreShow(glmol);
         CSynth.chainMorphSet(glmol.allgroup, false);
-        CLeap.buttons.construct.selected(false);
+        if (searchValues.leap) CLeap.buttons.construct.selected(false);
         CSynth.running = undefined;
         Maestro.remove('preframe', forcetile);
     }
@@ -1879,7 +1879,7 @@ CSynth.intersweep = function(s) {
         return CSynth.intersweep.stop('framenum interrupt found');
     var x = 0, y = 0, z = 0, use = 0;
     const r = v => Math.min(1, Math.max(0, v*2));  // move 1/2 metre for full range
-    if (CLeap.lastFrame && CSynth.intersweep.mode !== 'mouse') {
+    if (searchValues.leap && CLeap.lastFrame && CSynth.intersweep.mode !== 'mouse') {
         const hands = CLeap.lastFrame.hands;
         if (hands.length === 2) {
             const dist = distarr3(hands[0].palmPosition, hands[1].palmPosition);
@@ -1912,7 +1912,7 @@ CSynth.intersweep = function(s) {
 
 CSynth.isweeptime = 60000;
 CSynth.intersweep.start = async function(mode) {
-    CLeap.buttons.isweep.selected(true);  // early to confirm it has been pressed
+    if (searchValues.leap) CLeap.buttons.isweep.selected(true);  // early to confirm it has been pressed
 
     CSynth.interrupt('intersweep');         // signal interrupt to anyone else
     if (CSynth.running === 'intersweep')    // reclick stops myself

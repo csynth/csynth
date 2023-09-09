@@ -61,6 +61,7 @@ gene(test1, 0, -100,100, 0.1, 0.1, test, frozen) // test gene
 gene(test2, 0, -100,100, 0.1, 0.1, test, frozen) // test gene
 gene(test3, 0, -100,100, 0.1, 0.1, test, frozen) // test gene
 
+gene(maxfeeddepth, 999, 0,6, 1, 1, feedback, frozen)  // maximum feedback depth
 gene(centrerefl, 0.5, 0,1, 0.01, 0.01, feedback, frozen)  // centre area of texture to use for feedback (mult by centrereflx/y)
 gene(centrereflx, 1, 0,1, 0.01, 0.01, feedback, frozen)  // centre x area of texture to use for feedback (mult by centrerefl)
 gene(centrerefly, 1, 0,1, 0.01, 0.01, feedback, frozen)  // centre y area of texture to use for feedback (mult by centrerefl)
@@ -86,7 +87,7 @@ vec4 texcentre(vec2 r, sampler2D map, inout float feeddepth) {
     else
         feedpos = vec3(gl_FragCoord.xy*screen * 2. - 1.,1);
 
-    return trifeed(feedpos, map, OUT feeddepth);
+    return trifeed(feedpos, map, INOUT feeddepth);
 }
 #endif
 

@@ -193,7 +193,7 @@ feed.clear = function() {
     // U.feedbackMatrix.elements[8] = s;
     const dobj = xxxdispobj();
 
-    renderer.setClearColor('yellow', 0);
+    renderer.setClearColor(U.backcol, 0);
     renderer.setRenderTarget(dobj.rt);
     renderer.clear(true, true, true);
     if (dobj._rts) {

@@ -707,7 +707,7 @@ virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, 
     // but even in general case should be based on some configurable fresnel term.
 		// note, GetReflection taked out of conditional
         // maybe should use NONU
-        vec4 rrr = GetReflection(viewdir, mmnormal, texpos, OUT feeddepth) * vec4(reflred, reflgreen, reflblue, 1.);
+        vec4 rrr = GetReflection(viewdir, mmnormal, texpos, INOUT feeddepth) * vec4(reflred, reflgreen, reflblue, 1.);
         vec4 refl = colsurf.col.w == 0. ? vec4(0.0,0.0,0.0,1.0) : rrr;
         // make feedback part of wall (and other objects) have shadows ... approx method
         refl.rgb *= (visibilityL.L0.a * light0s + visibilityL.L1.a * light1s + visibilityL.L2.a * light2s + ambient) / (light0s + light1s + light2s + ambient);
@@ -869,7 +869,7 @@ virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, 
     bool dofulllights = edgeprop != 1. || fillprop != 1. || flatwallreflp != 1.;
 	vec3 r = vec3(0);
     if (dofulllights) {
-        vec4 licol = lighting(xmnormal, trpos, texpos, OUT feeddepth);
+        vec4 licol = lighting(xmnormal, trpos, texpos, INOUT feeddepth);
         float liprop = 1. - xxposprop - xxnormprop;
         r = licol.xyz * liprop +
             (xmnormal+1.)*0.5 * xxnormprop +
@@ -889,13 +889,13 @@ virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, 
             // case edgeunk: r = unkcol; break;
             case edgewall: {
                 if (!dofulllights) {
-                    r = texcentre(texpos.xy, feedtexture, OUT feeddepth).xyz; // oversimplified wall
+                    r = texcentre(texpos.xy, feedtexture, INOUT feeddepth).xyz; // oversimplified wall
                 }
             } break; // if we've got a wall the correct work, including wall based feedback, should already have been done
-            // case edgeback: r = screenfeed(backcol, OUT feeddepth); break;
+            // case edgeback: r = screenfeed(backcol, INOUT feeddepth); break;
             default: r = edger;
         }
-       if (alt) r = 1. - r;
+        if (alt) r = 1. - r;
     }
 
     if (lightoutpower != 1.) r = pow(r, vec3(lightoutpower));

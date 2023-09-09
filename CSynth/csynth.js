@@ -14,7 +14,7 @@ msgfixerror, getstats, posturierror, ml, fileTypeHandlers, startvr, getFileName,
 performance, getFileExtension, posturiasync, serious, customSettings,
 indexedDB, posturimsgasync, genbar, searchValues, readtext, readbinaryasync,
 array2Table, format, TextDecoder, consoleTime, consoleTimeEnd, uriclean, quietReject, setPickRenderTarget,
-frametime, random, seed, GX, zip, loadTime, startscript, readdir, location, killev, JSZip,
+frametime, random, seed, GX, zip, loadTime, startscript, readdir, killev, JSZip,
 springdemo, yaml, readTextureAsVec3, col3, VEC3, lastdocx, lastdocy, mousewhich, SG, FFG, distxyz, setNovrlights,
 GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, runkeys, renderer, viveAnim, S, setExtraKey,
 badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt,
@@ -293,6 +293,14 @@ CSynth.txtParser = async function(dataStr, fid, contact) {
         const v = +ff[2];
         if (na < miniduse || nb < miniduse) return;
         if (na > maxiduse || nb > maxiduse) return;
+        const maxf32int = 16777216;
+        if (dataformat !== Float64Array && (na > maxf32int || nb > maxf32int)) {
+            log('base pair number too big for float32, use Float64Array', fid, na, nb, 'line', i);
+            dataformat = Float64Array;
+            const ndata = new dataformat(data.length);
+            ndata.set(data);
+            data = ndata;
+        }
 
         // has usually been 3
         // was 5 for NoY_All_interIntraContact_1M_nml.txt
@@ -4726,7 +4734,7 @@ CSynth.contactsWithBP = async function(data, fid, contact, [chr1C, bp1C, chr2C, 
     // collect raw data in chrs
     // for (let i=0; i < lines.length; i++) {
     llog('parsing', fid)
-    await lines.forEach(line => {
+    await lines.forEach(function contactsWithBPParse(line) {
         line = line.trim();
         if (line[0] === '#') return;
         const cols = line.split(/[ \r\t,]/);
@@ -4973,8 +4981,10 @@ CSynth.rotPosGui = function(pgui) {
 
         // removed as not that helpful, Stephen 25/10/19
         //CSynth.SizeSlider = pgui.add(CSynth, 'objsize', -1, 1).name('size').setHeight(0.07).step(0.01).listen();
+    }
 
-        CSynth.ActionButtons = pgui.addImageButtonPanel(3,
+    if (searchValues.lowry || searchValues.newsc2023) {
+        CSynth.ActionButtons = pgui.addImageButtonPanel(2,
             // eslint-disable-next-line no-return-await
             {text: 'construction',     func: async () => await CSynth.construction1(),
                 tip: "script showing contsruction of capsid\nw.i.p. how to interrupt it"},
@@ -5129,6 +5139,7 @@ CSynth.randcols = function({h = 0.1, hr = 0.1, s = 1, sr = 0, v = 1, vr = 0, col
  */
 CSynth.msgfix = function CSynth_msgfix(...m) {
     if (!CSynth.msgfix.show) return;
+    if (m[0]) m[0] = m[0].replace('\n', '\n~~~~~~~~~~~~~~~~~~~~~~~\n');  // force wider message
     W.infobox.style.display = 'inherit';
     let p = CSynth.msgfix.xcam;         // holder fixed to camera at time of message
     let o = CSynth.msgfix.threeobj;     // message itself
@@ -5152,6 +5163,7 @@ CSynth.msgfix = function CSynth_msgfix(...m) {
 
 /** display a fixed message from lookup of tag */
 CSynth.msgtag = function CSynth_msgtag(tag) {
+    tag = tag.replaceall('\n', ' ');
     CSynth.currentTag = tag;
     const m = CSynth._msgs;
     let mm = m[tag];
@@ -5556,5 +5568,8 @@ cexample1               .zip
 Yasu2023/littletest.js  .txt
 Yasu2023/big.js         .txt (big)
 CrickBig/big.js         .csv
+
+fromHICcombined_10Kb.txt  .txt large bp numbers
+
 
   */

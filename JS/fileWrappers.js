@@ -1,5 +1,5 @@
 var nwfs, posturi, post, uriclean, msgfix, genbar, posturibin, startscript, frametime, S, Maestro, sleep,
-log, saveTextfile, location, msgfixlog, XMLHttpRequest, File, FormData, $, runcommandphp, WebSocket, throwe, HW, Buffer, islocalhost, getdesksave,
+log, saveTextfile, msgfixlog, XMLHttpRequest, File, FormData, $, runcommandphp, WebSocket, throwe, HW, Buffer, islocalhost, getdesksave,
 CSynth, showDirectoryPicker;
 function readtext(fid, quiet = false) {
     if (nwfs) {

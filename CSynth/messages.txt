@@ -103,8 +103,8 @@ Interactive sweep ended.
 Emergent Human Pathogen Simian Virus
 
 60 white kites
-60 green diamonds
-30 red diamonds
+60 green rhombs
+30 red rhombs
 
 *HSV1_hover
 Herpes Simplex Virus
@@ -124,11 +124,17 @@ PaV: Pariacoto Virus
 
 60 white triangles
 
+*PAV affine extension_hover
+PaV: Pariacoto Virus
+showing affine extensions
+
+60 white triangles
+
 *MS2_hover
 Bacteriophage MS2
 
-60 white diamonds
-30 red diamonds
+60 white rhombs
+30 red rhombs
 
 *TRSV_hover
 Tobacco Ringspot Virus

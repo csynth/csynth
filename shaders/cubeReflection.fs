@@ -56,7 +56,7 @@ vec4 GetReflection(in vec3 viewdir    /* direction from point to eye, pointing t
         // if (m == -rdx.y) r = -r;  // bottom wall
 
         //### r *= 3.;  // try a wall reflection repeat here
-        fragColor = texcentre(r, flatMap, OUT feeddepth);   // texcentre allows for mirrored texture and extraction of central region
+        fragColor = texcentre(r, flatMap, INOUT feeddepth);   // texcentre allows for mirrored texture and extraction of central region
     #else
         if (flatwallrefl) {
             vec4 rd;    // 10/1/20

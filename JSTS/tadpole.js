@@ -1413,7 +1413,7 @@ function TadpoleSystem() {
                 //     ff.near = 0.01; ff.far = 40; ff.fov=25; ff.updateProjectionMatrix();
                 //     cMap.fixres = 512;    // too low, but right for performance, need filtering
                 // }, 4);
-                G.a_pulsescale = 1;
+                G.a_pulsescale = 0;
             }
             // tentative: TR will be used in experiences (such as mixThings, swapThing)
             // or maybe T will.    Both should only have displayable Things not manipulation things
@@ -6534,11 +6534,11 @@ tadfree: 14..huge (in tadshape())
 covid: 13..22
 new horns: 3..16
 old horns: 3..31
-SV40: 16..18 (60 kit    es, 60 diamonds, 30 diamonds)
+SV40: 16..18 (60 kit    es, 60 rhombs, 30 rhombs)
 HSV1: 16..25 (12 pentagons, 150 hexagons (3 lots), 320 triangles (6 lots))
 PAV: 16..75 (60 trianlges)
 TRSV: 16..75 (60 kites)
-MS2: 16..17 (60 diamonds, 30 diamonds)
+MS2: 16..17 (60 rhombs, 30 rhombs)
 
 tree: 23..33 (less for some trees)
 
