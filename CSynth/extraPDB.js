@@ -1896,18 +1896,29 @@ CSynth.intersweep = function(s) {
         y = 1 - lastdocy / document.body.clientHeight;
         use = x;
     }
-    use *= 4;
+    use *= 9;
+    const  fuse = Math.floor(use);
     var f = use%1;
     var sw;
-    switch(Math.floor(use)) {
-        case 0: sw = {m5: f * 4/5, m2: 0, m3: 0, m2x: 0}; break;
-        case 1: sw = {m5: 1, m2: f * 1/2, m3: 0, m2x: 0}; break;
-        case 2: sw = {m5: 1, m2: 1, m3: f * 2/3, m2x: 0}; break;
-        case 3: sw = {m5: 1, m2: 1, m3: 1, m2x: f * 1/2}; break;
-        case 4: sw = {m5: 1, m2: 1, m3: 1, m2x: 1}; break;
+    switch(fuse) {
+        case 0: sw = {m5: 0, m2: 0, m3: 0, m2x: 0}; break;
+        case 1: sw = {m5: f * 4/5, m2: 0, m3: 0, m2x: 0}; break;
+            
+        case 2: sw = {m5: 1, m2: 0, m3: 0, m2x: 0}; break;
+        case 3: sw = {m5: 1, m2: f * 1/2, m3: 0, m2x: 0}; break;
+            
+        case 4: sw = {m5: 1, m2: 1, m3: 0, m2x: 0}; break;
+        case 5: sw = {m5: 1, m2: 1, m3: f * 2/3, m2x: 0}; break;
+            
+        case 6: sw = {m5: 1, m2: 1, m3: 1, m2x: 0}; break;
+        case 7: sw = {m5: 1, m2: 1, m3: 1, m2x: f * 1/2}; break;
+            
+        case 8: sw = {m5: 1, m2: 1, m3: 1, m2x: 1}; break;
+        // case 9: sw = {m5: 1, m2: 1, m3: 1, m2x: 1}; break;
     }
     CSynth.fsweep(sw);
     msgfix('sweep', sw);
+    CSynth.msgtag('isweep' + fuse)
 }
 
 CSynth.isweeptime = 60000;
@@ -1943,7 +1954,8 @@ CSynth.intersweep.stop = function(reason) {
     CSynth.fsweep();
     CSynth.intersweep.mode = undefined;
     CSynth.intersweep.gpRdir = undefined;
-    CLeap.buttons.isweep.selected(false);
+    if (searchValues.leap)
+        CLeap.buttons.isweep.selected(false);
     CSynth.running = undefined;
     CSynth.msgtag('endisweep');
 }

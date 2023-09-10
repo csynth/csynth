@@ -1,0 +1,189 @@
+
+*startup
+Welcome to CSynth: Viral Geometry Explorer
+
+*warmup
+Welcome to CSynth: Viral Geometry Explorer
+Preparing exhibit ...
+
+*warmupdone
+Welcome to CSynth: Viral Geometry Explorer
+
+*help
+Hold menu in one controller, point and click with the other.
+- Top two rows: choose a virus
+- Third row: choose a view style
+- Fourth row: centre virus to show symmetry.
+- Fifth row: choose a viewing positions
+
+*interrupted
+interrupted
+
+*atoms
+The capsid or shell is made up of lots of atoms.
+*-
+Here we see the atoms in fairly random positions.
+
+*residues
+Atoms group in amino acids.
+*
+There are only 20 different ways atoms form amino acids.
+these different amino acid types are coloured.
+
+*chains1
+Amino acids join to form protein chains.
+*
+We colour the amino acids to show the protein chains they belong to.
+
+*chains2
+The amino acids connect to line up in their protein chains.
+
+*secstruct
+Protein chains fold into 'secondary structures'.
+*
+green sheets and red helices.
+
+*chaingroup
+Protein chains come together into a compact group.
+
+*ggdone
+We have seen
+atoms => amino acids => protein chains =>
+        secondary structures => group
+*-
+The atoms have made amino acids which collected in protein chains,
+the protein chains have been structured and collected in a group.
+
+*constrend
+...
+
+*single
+The capsid has 60 groups arranged by symmetric rotation.
+Here is a single group.
+we will see it rotate itself to the full 60.
+
+*pre5
+First, 5-fold rotation: 1 group => 5
+
+*pre2
+2-fold rotation: 5 groups => 10
+
+*pre3
+3-fold rotation  10 groups => 30
+
+*pre2x
+final 2-fold rotation: 30 groups => 60
+
+*symend
+The full symmetric capsid shell structure has 60 parts,
+made by multiple rotations about different axes;
+5-fold, 2-fold, 3-fold and another 2-fold for a total of 60.
+
+*isweep
+Sweep the mouse left and right
+to see the buldup of symmetry.
+
+TBD VR interface with controller.
+
+Select a virus from the menu to end.
+
+*isweep0
+interactive symmetry
+Single instance of protein group
+
+*isweep1
+interactive symmetry
+Single instance swept through 5-fold symmetry
+to create 5 instances
+
+*isweep2
+interactive symmetry
+5 instances
+
+*isweep3
+interactive symmetry
+5 instances swepth through 2-fold symmetry
+to create 10 instances
+
+*isweep4
+interactive symmetry
+10 instances
+
+*isweep5
+interactive symmetry
+10 instances swepth through 3-fold symmetry
+to create 30 instances
+
+*isweep6
+interactive symmetry
+30 instances
+
+*isweep7
+interactive symmetry
+30 instances swepth through 2-fold symmetry
+to create 60 instances
+
+*isweep8
+interactive symmetry
+full 60 instances
+
+
+
+*endisweep
+Interactive sweep ended.
+
+*SV40_hover
+Emergent Human Pathogen Simian Virus
+
+60 white kites
+60 green rhombs
+30 red rhombs
+
+*HSV1_hover
+Herpes Simplex Virus
+
+12 white pentagons
+150 red, green and blue hexagons
+320 triangles of various colours
+
+*****
+The colouring on the hexagons depends on
+their relationship to the pentagons,
+and the colouring on the triangles
+to their relationship to all the larger polygons.
+
+*PAV_hover
+PaV: Pariacoto Virus
+
+60 white triangles
+
+*PAV affine extension_hover
+PaV: Pariacoto Virus
+showing affine extensions
+Use the coloured menu to choose which extensions are displayed.
+
+60 white triangles
+
+*MS2_hover
+Bacteriophage MS2
+
+60 white rhombs
+30 red rhombs
+
+This also shows the RNA polyhedron
+and the chosen Hamiltonian path.
+
+*TRSV_hover
+Tobacco Ringspot Virus
+
+60 white kites
+
+*both_hover
+Display both capsid and tiling
+
+*capsid_hover
+Display just the capsid
+
+*tiling_hover
+Display just the tiling.
+The tiling will be shown as coloured planes.

@@ -5185,7 +5185,8 @@ CSynth.msgtagadd = function CSynth_msgtagadd(text) {
 
 CSynth.populateMessages = function() {
     const m =  {};
-    const data = posturi('CSynth/messages.txt');
+    const msource = searchValues.newsc2023 ? 'CSynth/newsc2023messages.txt' : 'CSynth/messages.txt'
+    const data = posturi(msource);
     const xx = data.replace(/\r/g,'').split('\n*');
     xx.forEach(k => {
         m[k.pre('\n')] = k.trim().post('\n');
