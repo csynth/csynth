@@ -928,43 +928,9 @@ function init1() {
     //if (hostname.startsWith("William")) FractEVO.exhibitionStart();
     myinit();
     clog('myinit done');
-    //if (tryWebGL2 === undefined) tryWebGL2 = startvr; /// webgl2 suddenly broken 3/3/2017 ???? why. corrected Oct 2020
-    //setGenesAndUniforms();
-    //geneCallbacks();
-    // <editor-fold desc="set up renderer, camera etc">
-    // set up basic graphics >>>> pjt todo verify speed/quality of this antialias
-    // logarithmicDepthBuffer improves rendering, eg of sheets, but can break text in dat.guivr
-    // if (searchValues.nohorn) rca.logarithmicDepthBuffer = true;
-    // isWebGL2 = false;
-    // if (searchValues.tryWebGL2 || searchValues.trywebgl2) {
-    //     canvas = document.createElement('canvas');
-    //     // Try creating a WebGL 2 context first
-    //     gl = canvas.getContext('webgl2', rca);
-    //     if (!gl) {
-    //         gl = canvas.getContext('experimental-webgl2', rca);
-    //     }
-    //     isWebGL2 = !!gl;
-    // }
-    // try {
-    //     if (isWebGL2) {
-    //         renderer = new THREE.WebGLRenderer({ canvas: canvas, context: gl }) as any;
-    //         // patches until THREE does this
-    //         gl.drawArraysInstancedANGLE = gl.drawArraysInstanced;
-    //         gl.drawElementsInstancedANGLE = gl.drawElementsInstanced;
-    //         gl.vertexAttribDivisorANGLE = gl.vertexAttribDivisor;
-    //         if (gldebug === undefined) gldebug = 1; // bug somewhere where I use a texture too impatiently, which this seems to resolve
-    //     } else {
-    //         // renderer = new THREE.WebGLRenderer(rca);
-    //         renderer = new (THREE.WebGL1Renderer || THREE.WebGLRenderer)(rca) as any;
-    //         // should not happen, but may be useful in later migration
-    //         if (renderer.capabilities.isWebGL2) {
-    //             isWebGL2 = true;
-    //             msgfixlog('!webgl2', 'three.js forced use of webgl2');
-    //         }
-    //         gl = renderer.getContext();
-    //         canvas = renderer.domElement;
-    //     }
-    // if (!THREE.BufferGeometry.prototype.add Attribute) THREE.BufferGeometry.prototype.add Attribute = THREE.BufferGeometry.prototype.set Attribute
+    clog('THREE.REVISION AS SPECIFIED: ' + THREE.REVISION);
+    THREE.REVISION = THREE.REVISION.substring(0, 3);
+    clog('THREE.REVISION AS USED: ' + THREE.REVISION);
     try {
         renderer = new (searchValues.forcewebgl1 ? THREE.WebGL1Renderer : THREE.WebGLRenderer)(rca);
         canvas = renderer.domElement;
@@ -997,7 +963,20 @@ function init1() {
     if (THREEA.VertexColors === undefined)
         THREEA.VertexColors = true; // for three 142 and later
     THREESingleChannelFormat = (isWebGL2) ? THREE.RedFormat : THREE.LuminanceFormat;
-    renderer.outputEncoding = THREE.sRGBEncoding; // not used by Organic render, but used by camscene/nocamscene etc
+    if (+THREE.REVISION <= 151) {
+        renderer.outputEncoding = THREE.sRGBEncoding; // not used by Organic render, but used by camscene/nocamscene etc
+    }
+    else {
+        // this gives backwards compatible lighting etc for 157 etc with 150 and before
+        // we may tine lights later to take advantage of the later three.js features, but as of 10 Sept 2023 just play it safe with old tuned values
+        renderer.useLegacyLights = true;
+        // below seems sensible,
+        //   BUT seems to make no difference either way to horn or semi-standard (eg extrapdb molecules for ima etc)
+        //   AND the datagui menu behaves properly with this left to default SRGBColorSpace
+        //       datgui menu much too dark if LinearSRGBColorSpace used
+        //       ... it would be good if ColourSpace could be set as a material property ???
+        // (renderer as any).outputColorSpace  = (THREE as any).LinearSRGBColorSpace; // final copy applies gamma
+    }
     // three.js default (at 106) is 'local-floor', which should be supported but is not on Chrome 79.0.3942.0 and 81.0.4006.0
     if (renderer.xr.setReferenceSpaceType)
         renderer.xr.setReferenceSpaceType('local'); // ('bounded-floor');
@@ -1018,6 +997,10 @@ function init1() {
     // add back for convenience, this has been deprecated in three.js for some reason
     renderer.clearTarget = function (renderTarget, color, depth, stencil) {
         // console.warn( 'THREE.WebGLRenderer: .clearTarget() has been deprecated. Use .setRenderTarget(null) and .clear() instead.' );
+        if (renderTarget === undefined) {
+            console.warn('undefined renderTarget in clearTarget');
+            return;
+        }
         this.setRenderTarget(renderTarget);
         this.clear(color, depth, stencil);
     };
@@ -1474,7 +1457,7 @@ var renderFrame = function (rt) {
         msgfixlog('tad+', 'real render, framenum=', framenum, _firstRealRender);
     if (_firstRealRender === 1)
         Maestro.trigger('firstRealRender');
-    renderFrameInner(rt);
+    renderFrameInner(rt !== null && rt !== void 0 ? rt : null);
     if (_firstRealRender <= 3)
         msgfixlog('tad+', 'real render done, framenum=', framenum, _firstRealRender);
     if (_firstRealRender === 2) {
@@ -1536,7 +1519,7 @@ var renderFrameInner = function (rt) {
     rt = rt || (WA.Holo && Holo.source); // if using Holo/Looking Glass we render to that buffer
     if (cheatxr)
         renderObjs = renderObjsInner;
-    renderObjs(rt);
+    renderObjs(rt !== null && rt !== void 0 ? rt : null);
     Maestro.trigger("postframe", { rendertarget: bigrt });
 }; // renderFrame
 renderFrame.mmm = new THREE.Matrix4();
@@ -1554,7 +1537,7 @@ var renderObjsInner = function fRenderObjsInner(rt, novr) {
         // dummyrt.depthTexture = renderTargetDepth(canvas);    // experiment to clear depthBuffer without unneccarily creating big renderTarget
         // renderer.setRenderTarget(dummyrt);
         // renderer.clearDepth();
-        renderer.setRenderTarget(rt);
+        renderer.setRenderTarget(rt !== null && rt !== void 0 ? rt : null);
         renderer.clear(true, true, true);
         renderObj(slots[0].dispobj, "canvas");
         rrender('camscene_rawscene', V.camscene, camera, rt);

@@ -452,8 +452,8 @@ function msgfixerror() {
     const k = arguments[0];
     arguments[0] = '>' + k; //msgfix.all = true;
     const r = msgfix.apply(undefined, arguments);
-    msgfix.force();                     // make sure messages 'registered'
-    msgfix.promote(k);                  // promote error message
+    msgfix.force();                      // make sure messages 'registered'
+    if (arguments[1]) msgfix.promote(k);  // promote error message, unless it's just been cleared
     return r;
     // log.apply(undefined, arguments);
 }
@@ -630,7 +630,7 @@ msg with no arguments called from animatee to force out messages for frame
 **/
 msgfix.force = function(ss) {
     if (!nomess.msgvisible) return;
-    if (W.msgbox.style.overflow === 'hidden') return;
+    //??? if (W.msgbox.style.overflow === 'hidden') return;
     // if (msgfix.updatebits) return;
     if (ss) serious('msg should not be called with argments, use msgfix');
 
@@ -4782,6 +4782,7 @@ function mtraverse(node, action) {
 EX.toFront = async function() {
     if (!islocalhost) return;       // does  not work unless local
     if (searchValues.test) return;  // let tests go on in background without disrupting other apps on the machine
+    if (searchValues.nofront) return;
     // // wasmax gets over win activate issue with maximized (not fullscreen) window, but gives jumps
     // const wasmax = W.outerWidth === W.innerWidth*W.devicePixelRatio && W.outerHeight !== W.innerHeight*W.devicePixelRatio;
     // nircmd(`win activate stitle "${document.title}"`);

@@ -6,7 +6,7 @@
 
 var V, CSynth, posturimsg, xyzReader, THREE, random, seed, log, col3, dat, GLmolX,
 distxyz, onframe, VEC3, msgfixlog, msgfixerror, performance, msgfix, GX, copyFrom, G, sleep,
-searchValues, ima, remotesave, S, Maestro, Plane, renderVR, lastdocx, lastdocy, CLeap, W, framenum, distarr3;
+searchValues, ima, remotesave, S, Maestro, Plane, renderVR, lastdocx, lastdocy, CLeap, W, framenum, distarr3, fileExists;
 
 CSynth.loadExtraPDB = async function CSynth_loadExtraPDB(sstruct = CSynth.current.extraPDB,
     pgui = V.gui, pgroup = CSynth.rawgroup, filedata=undefined) {
@@ -1266,7 +1266,8 @@ CSynth.spheres = async function(fid, pgroup = CSynth.rawgroup, col = col3()) {
         let i = 1;
         while (true) {
             let color = CSynth.sphereCol(i);
-            let r = await CSynth.spheres(fid.replace('*', i), group, color);
+            const ffid = fid.replace('*', i)
+            let r = await CSynth.spheres(ffid, group, color);
             if (!r) break;
             i++;
         }
@@ -1275,7 +1276,9 @@ CSynth.spheres = async function(fid, pgroup = CSynth.rawgroup, col = col3()) {
         return i-1;
     }
     let xyzd;
-    await posturimsg(CSynth.current.fullDir + fid).then(r => xyzd = r, e => {})
+    const fffid = CSynth.current.fullDir + fid;
+    if (!fileExists(fffid)) return;
+    await posturimsg(fffid).then(r => xyzd = r, e => {})
     if (xyzd === undefined) return false;
     const xyzv = xyzReader(xyzd, fid, true, true);  // n.b. true for parse only, true for all points
     const c = xyzv.coords;
@@ -1903,16 +1906,16 @@ CSynth.intersweep = function(s) {
     switch(fuse) {
         case 0: sw = {m5: 0, m2: 0, m3: 0, m2x: 0}; break;
         case 1: sw = {m5: f * 4/5, m2: 0, m3: 0, m2x: 0}; break;
-            
+
         case 2: sw = {m5: 1, m2: 0, m3: 0, m2x: 0}; break;
         case 3: sw = {m5: 1, m2: f * 1/2, m3: 0, m2x: 0}; break;
-            
+
         case 4: sw = {m5: 1, m2: 1, m3: 0, m2x: 0}; break;
         case 5: sw = {m5: 1, m2: 1, m3: f * 2/3, m2x: 0}; break;
-            
+
         case 6: sw = {m5: 1, m2: 1, m3: 1, m2x: 0}; break;
         case 7: sw = {m5: 1, m2: 1, m3: 1, m2x: f * 1/2}; break;
-            
+
         case 8: sw = {m5: 1, m2: 1, m3: 1, m2x: 1}; break;
         // case 9: sw = {m5: 1, m2: 1, m3: 1, m2x: 1}; break;
     }

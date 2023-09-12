@@ -22,7 +22,8 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
     //CSynth.CommonFragmentShaderCode() --------------
     precision highp float;
 // in case we're embedded in a THREE shader, avoid re-defining these properties
-#ifndef SHADER_NAME
+// this seems to work with either revision 150 or 157, SHADER_NAME fails ith 157
+#ifndef SHADER_NAMEXXX
     uniform mat4 modelViewMatrix;
     uniform mat4 modelMatrix;
     uniform mat4 viewMatrix;
@@ -299,7 +300,7 @@ CSynth.CommonShaderCode = () => /*glsl*/`
     //CSynth.CommonShaderCode() --------------
     ${CSynth.CommonFragmentShaderCode()}
 // in case we're embedded in a THREE shader, avoid re-defining these properties
-#ifndef SHADER_NAME
+#ifndef SHADER_NAMEXXX
     attribute vec3 position;
     attribute vec2 uv;
 #endif

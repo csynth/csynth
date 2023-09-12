@@ -1955,6 +1955,8 @@ V.getXrGamepads = function () {
         const gp = {};
         for (let k in igp)
             gp[k] = igp[k]; // nb, copyFrom and Object.assign failed ...!!! sjpt 13 Apr 2021
+        // above failed with emulator, 11 Sept 2023, so copy explicitly
+        'axes buttons connected id index'.split(' ').forEach(k => gp[k] = igp[k]);
         // https://www.w3.org/TR/webxr-gamepads-module-1/#xr-standard-heading
         if (gp.axes.length === 4)
             gp.axes = igp.axes.slice(2, 4); // Oculus reports axes as [0,0,x,y], thumbstick not gamepad

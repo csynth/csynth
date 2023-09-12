@@ -50,6 +50,8 @@ var WEBVR = {
 			if (pending) return;
 			if (currentSession !== null ) return(msgfixerrorlog('WEBVR', 'attempt to reenter xr when already in xr'));
 			renderer.xr.setFramebufferScaleFactor(renderVR.ratio);
+			log('pre-create controllers if necessary, otherwise threee.js does not always see them correctly')
+			renderer.xr.getController(0); renderer.xr.getController(1);
 			log('requestSession immersive-vr, ratio', renderVR.ratio);
 			navigator.xr.requestSession( 'immersive-vr' ).then( onSessionStarted ).catch(onRequestError);
 			pending = true;

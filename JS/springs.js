@@ -429,8 +429,8 @@ var Springs = function(id = '') {
     me.clearall = function() {
         renderer.setClearColor(ColorKeywords.black);     //< use main viewport color for clearing the canvas
         if (posHist) renderer.clearTarget(posHist, true, true, true);
-        renderer.clearTarget(posWorkhist, true, true, true);
-        renderer.clearTarget(posNewvals, true, true, true);
+        if (posWorkhist) renderer.clearTarget(posWorkhist, true, true, true);
+        if (posNewvals) renderer.clearTarget(posNewvals, true, true, true);
     };
 
     // get workhist, in integers 0..3
@@ -525,7 +525,7 @@ var Springs = function(id = '') {
         rrender("springsavehist", histCopyScene, camera, posHist, false);
         let s = new THREE.Vector2();
         s = renderer.getSize(s);
-        renderer.setRenderTarget(undefined);  // possibly avoid pollution, should be reset elsewhere as needed
+        renderer.setRenderTarget(null);  // possibly avoid pollution, should be reset elsewhere as needed
         me.saved[Math.floor(histtime*HISTLEN)] = springUniforms.stepsSoFar.value;
         return false;
     }

@@ -609,7 +609,7 @@ GX.hovscale = 1.02;
 GX.selectscale = 1.05;
 
 GX.update = function() {
-    if (!V.gui?.parent?.visible) {GX.interactions = []; return;}
+    if (V.gui?.parent && !V.gui.parent.visible) {GX.interactions = []; return;} // nv in VR, no gui.parent
     const interactions = GX.interactions = dat.GUIVR.update();
     if (GX.lasto && GX.lasto !== GX.selected)
         GX.lasto.children[0].material = GX.lasto.lastValue === undefined ? GX._mat : GX._maskmat; // GX.lasto.scale.set(1, 1, 1);

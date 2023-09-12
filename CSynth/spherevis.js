@@ -137,7 +137,7 @@ CSynth.SphereParticles = function() {
     var mesh = new THREE.Mesh(geometry, material);
     this.setres = function(a, b = a) {
         res = [a, b];
-        var sphere = new THREE.SphereBufferGeometry(1, a, b);
+        var sphere = new THREE.SphereGeometry(1, a, b);
         geometry = new THREE.InstancedBufferGeometry();
         geometry.copy(sphere);
         delete geometry.attributes.uv;

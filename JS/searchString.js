@@ -29,7 +29,7 @@ var searchReplace = {
     // csynth: 'startscript',
     rsse: 'startscript=rsse/loadrsse.js',
     crick: 'startscript=CrickLots/lots.js',
-    newsc2023: "startscript=CSynth/data/ima/newsc2023.js",
+    newsc2023: "startscript=CSynth/data/ima/newsc2023.js&nofront",   // remove nofront for exhibition?
     ima: "startscript=CSynth/data/ima/ima.js",
     lowry: 'startscript=ima/lowry.js',
     york: 'startscript=YorkStudents/newtest_v5.js',
