@@ -19,7 +19,7 @@ springdemo, yaml, readTextureAsVec3, col3, VEC3, lastdocx, lastdocy, mousewhich,
 GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, runkeys, renderer, viveAnim, S, setExtraKey,
 badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt,
 HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files, feed, buff2GenStruct, inputType,
-blob2forEach, _binfiles, olength
+blob2forEach, _binfiles, olength, blob2StringCB
 ;
 //, msgbox, serious, slider1, slider2, uniforms, currentGenes, dat; // keep linter happy
 
@@ -174,6 +174,7 @@ contactsReader = async function contactsReaderF(dataStr, fid, contact = {}, isSu
         return bintriReader(dataStr, fid, contact, true);
     if (ext === '.zip') {
         dataStr = await CSynth.unzip(dataStr, fid);
+        dataStr = blob2forEach(dataStr, fid);
     }
     if (dataStr instanceof Promise) {
         try {
@@ -5392,6 +5393,7 @@ CSynth.separate = function(psep=20) {
     // CSynth.xyzsExact(1);
 }
 
+/** unzip and return blob */
 CSynth.unzip = async function(dataStr, fid, use='') {
     // eslint-disable-next-line no-shadow
     const log = console.log;
@@ -5409,26 +5411,26 @@ CSynth.unzip = async function(dataStr, fid, use='') {
     // 'patched' jszip from outside by out own shim (copied) for setImmediate in utils.js
     // n.b. code below copied into webworker test readzipfile in CSynthWorker.js without comments for full test
     //
-    let text;
+    let blob;
     const kk = 'unzip ' + fid + ': ';
     msgfix(kk, 'starting ' + genbar(0))
 
-    if (use == 'both') {        // generally only use JSZip in tests
-        console.time('././JSZip');
-        const jszip = new JSZip();
-        await jszip.loadAsync(new Uint8Array(dataStr));
-        const ff = Object.keys(jszip.files)[0];
-        let lastp = 0;
-        text = await jszip.file(ff).async('string', m => {
-            const p = m.percent;
-            if (p > lastp + 10) {
-                log(`././JSZip ${p.toFixed(2)}%`);
-                lastp = p;
-                msgfix('unzip')
-            }
-        });
-        console.timeEnd('././JSZip');
-    }
+    // if (use == 'both') {        // generally only use JSZip in tests
+    //     console.time('././JSZip');
+    //     const jszip = new JSZip();
+    //     await jszip.loadAsync(new Uint8Array(dataStr));
+    //     const ff = Object.keys(jszip.files)[0];
+    //     let lastp = 0;
+    //     text = await jszip.file(ff).async('string', m => {
+    //         const p = m.percent;
+    //         if (p > lastp + 10) {
+    //             log(`././JSZip ${p.toFixed(2)}%`);
+    //             lastp = p;
+    //             msgfix('unzip')
+    //         }
+    //     });
+    //     console.timeEnd('././JSZip');
+    // }
     if (use === '' || use == 'both') {  // use zip by default
         console.time('././zip');
         // const tr = new zip.HttpReader(fid)
@@ -5436,7 +5438,7 @@ CSynth.unzip = async function(dataStr, fid, use='') {
         const reader = new zip.ZipReader(tr)
         const entries = await reader.getEntries()
         let lastlog = 0;
-        text = await entries[0].getData( new zip.TextWriter(), {
+        blob = await entries[0].getData( new zip.BlobWriter(), {
             onprogress: (index, max) => {
                 const p = index/max * 100;
                 if (p > lastlog + 10) {
@@ -5452,7 +5454,7 @@ CSynth.unzip = async function(dataStr, fid, use='') {
 
     // if (text !== textz) debugger
 
-    return text;
+    return blob;
 }
 
 CSynth.addTooltips = function() {
