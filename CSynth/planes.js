@@ -38,6 +38,7 @@ function Plane(_dir, _p = _dir, icolor = col3().setHSV( Math.random(), 1, 0.5)) 
     let me = this;
     me.isPlane = true;
     me.color = icolor;
+    me.enabled = true;
     let dir = me.dir = _dir.clone().normalize();
     let dist, point, poly;
     if (typeof _p === 'number') {
@@ -295,7 +296,7 @@ Plane.drawProcessedSet = function Plane_drawProcessedSet(pset, id, pgroup, pgui)
         mat.side = THREE.DoubleSide;
         mat.vertexColors = 2;
         const mesh = Plane.drawnMeshes[id] = new THREE.Mesh(geom, mat); mesh.name = 'planemesh';
-        mesh.visible = false;
+        mesh.visible = true;
         pgroup.add(mesh);
         const vgui = dat.GUIVR.createX('faces');
         pgui.add(vgui);
@@ -596,9 +597,9 @@ Plane.planesetSymset = function Plane_planesetSymset(planes, symmat = CSynth.sym
     if (!Array.isArray(planes)) planes = [planes];
     let rr = [];            // result planeset
     let keyPlanes = [];     // key planes actually used, in plane format
-    for (let i=0; i<planes.length; i++) {
+    for (let i=0; i < planes.length; i++) {
         const p = Plane.xxxPlane(planes[i]);
-        if (!p) continue;
+        if (!p?.enabled) continue;
         p.tileid = i;
         keyPlanes.push(p);
         // let pset = symmat.map((m,j) => p.transform(m, CSynth.symCol[j], j));

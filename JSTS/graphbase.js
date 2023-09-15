@@ -3606,8 +3606,8 @@ function cchangeMat(evt) {
 /** change the material using tranrulebox, optionally set and optionally force genes
 always perform while in gl context */
 var changeMat = function (trule, force) {
-    changeMat.oldgenes = currentGenes;
-    changeMat.oldgenedefs = genedefs;
+    changeMat.oldgenes = clone(currentGenes);
+    changeMat.oldgenedefs = clone(genedefs);
     //pending, for all genes taken from tranrule
     //currentGenes = {};
     //genedefs = {};
@@ -3632,10 +3632,11 @@ var changeMat = function (trule, force) {
         return false;
     currentMaterialChanged();
     // below needed if genedefs/genes cleared at beginning, effectively nop if they were not cleared
+    // Should be unnecessary if cleangenes etc properly allow for permgenes, but ...
     for (let gn in permgenes) {
         if (!genedefs[gn])
             genedefs[gn] = changeMat.oldgenedefs[gn];
-        if (!currentGenes[gn])
+        if (currentGenes[gn] === undefined)
             currentGenes[gn] = changeMat.oldgenes[gn];
     }
     // scale();  // leave this till render time

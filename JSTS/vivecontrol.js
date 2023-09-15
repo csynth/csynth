@@ -1105,6 +1105,7 @@ V.mendamp = 0.99; // to help measure menu time
 /** keep audio animating always at own speed */
 V.audioMutateSpeed = 1;
 V.vraudioframe = function vraudioframe() {
+    var _a, _b;
     if (oxcsynth || noaudio)
         return;
     if (!setsynths.done)
@@ -1112,7 +1113,7 @@ V.vraudioframe = function vraudioframe() {
     if (setsynths.done && !currentHset.audiogenes) {
         currentHset.audiogenes = {};
         for (let gn in usedgenes())
-            if (genedefs[gn].tag.indexOf('audio') !== -1 && genedefs[gn].free)
+            if (((_a = genedefs[gn]) === null || _a === void 0 ? void 0 : _a.tag.indexOf('audio')) !== -1 && ((_b = genedefs[gn]) === null || _b === void 0 ? void 0 : _b.free))
                 currentHset.audiogenes[gn] = true;
     }
     animStep(currentGenes, currentHset.audiogenes, V.audioMutateSpeed);

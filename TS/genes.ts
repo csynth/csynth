@@ -55,7 +55,7 @@ function cleangenes(genes, id, list:any = usedgenes(), clearList = false, dolog 
     var cleaned = {};
     for (var gn in genes) {
         // if ((!!list[gn] as any ^ (!clearList as any)) && gn[0] !== "_" && gn !== "tranrule" && gn !== "name") {
-        if ((  (gn in list) === clearList) && gn[0] !== "_" && gn !== "tranrule" && gn !== "name") {
+        if ((  (gn in list) === clearList) && gn[0] !== "_" && gn !== "tranrule" && gn !== "name" && !permgenes[gn]) {
             cleaned[gn] = genes[gn];
             delete genes[gn];
             //if (id) log("clean ", id, gn);

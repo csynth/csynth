@@ -1346,7 +1346,7 @@ V.vraudioframe = function vraudioframe() {
     if (!setsynths.done) return;
     if (setsynths.done && !currentHset.audiogenes) {
         currentHset.audiogenes = {};
-        for (let gn in usedgenes()) if (genedefs[gn].tag.indexOf('audio') !== -1 && genedefs[gn].free)
+        for (let gn in usedgenes()) if (genedefs[gn]?.tag.indexOf('audio') !== -1 && genedefs[gn]?.free)
             currentHset.audiogenes[gn] = true;
     }
     animStep(currentGenes, currentHset.audiogenes, V.audioMutateSpeed);

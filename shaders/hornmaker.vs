@@ -107,7 +107,7 @@ uniform float nstar, stardepth, ribdepth, gscale;
 #endif
 
 
-// uniform sampler2D tex1, tex2, tex3, tex4;
+uniform sampler2D tex1, tex2, tex3, tex4; // used for sympaint and ???
 
 
 // these are working features of springs and not used by spring users (such as this code)

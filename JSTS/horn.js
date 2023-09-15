@@ -2531,7 +2531,14 @@ export class HornSet {
     ;
     /** get the main horn as a horn, not as a name */
     getmain() {
-        return this.horns[this.mainhorn] || this.horns.main;
+        if (!this.mainhorn)
+            this.mainhorn = 'main';
+        if (!this.horns[this.mainhorn])
+            this.mainhorn = Object.keys(this.horns)[0];
+        const r = this.horns[this.mainhorn];
+        if (!r)
+            console.error('no main horn found');
+        return r;
     }
     ;
     //######### todo use genes
@@ -3104,7 +3111,7 @@ function hornTrancodeForTranrule(tranrulea, genes, recurse = true) {
             setHornSet(tranrulea, nhs);
         }
         //setTimeout( function() { kinectJupDyn.setup(r._springMap); }, 0);
-        if (kinectJupDyn)
+        if (kinectJupDyn && r)
             kinectJupDyn.setup(r._springMap);
         return r;
     }

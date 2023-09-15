@@ -26,14 +26,16 @@ extrakeys['Q,D,X'] = () => {
 extrakeys['Q,D,5'] = () => { I.points[ima.showing + "/5"] = I.points.last.clone(); I.resolve() }
 extrakeys['Q,D,3'] = () => { I.points[ima.showing + "/3"] = I.points.last.clone(); I.resolve() }
 
-I.getdir = function() {
-    let dir = CSynth.getray().ray.direction;
-    tmat4.elements = G._rot4_ele.slice();
-    dir.applyMatrix4(tmat4);
-    msgfix('lastdir', dir)
-    return dir;
-}
+// /** get the current direction, from mouse or ? VR controller */
+// I.getdir = function() {
+//     let dir = CSynth.getray().ray.direction;
+//     tmat4.elements = G._rot4_ele.slice();
+//     dir.applyMatrix4(tmat4);
+//     msgfix('lastdir', dir)
+//     return dir;
+// }
 
+/** get the current direction, from mouse or ? VR controller */
 I.getdir = function() {
     const sg = new THREE.SphereGeometry(100 * G.scaleFactor);
     const m = I.getdirmat = I.getdirmat || CSynth.defaultMaterial.clone();
@@ -59,20 +61,26 @@ I.getdir = function() {
 I.col = n => GLmolX.colorsr[n]  || col3();
 
 
+/** set the position of a given plane, either by xyz or by ab */
 I.setplane = function(n, pdir) {
+    if (pdir && 'a' in pdir) pdir = Plane.ab2Dir(pdir);
     const plane = pdir ? Plane.xxxPlane(pdir) : Plane.xxxPlane(I.getdir().multiplyScalar(100));
     msgfix('plane' + n, plane);
-    const col = plane.color = plane.color || I.col(n);
-    const group = Plane.drawSet(plane, 'plane Q,' + n);
+    const col = plane.color = /* plane.color || */ I.col(n);
+    const group = plane.group = Plane.drawSet(plane, 'plane Q,' + n);
     group.cylmat.color = col
     I.planes[n] = plane;
     I.point(n, plane.point);
+    if (I.show0) I.useplanes();
+    return plane;
 }
 
+/** use the current set of planes to define polyhedron */
 I.useplanes = function(kkk = 'planes Q,0') {
-    Plane.drawSet(Plane.planesetSymset(I.planes), kkk);
+    return Plane.drawSet(Plane.planesetSymset(I.planes), kkk);
 }
 
+/** ?for continuous update of planes */
 I.monitor = extrakeys['Q,E'] = function() {
     if (keysdown[0] !== 'Q') return;
     if (!I.monitorgroup) {
@@ -87,8 +95,8 @@ I.monitor = extrakeys['Q,E'] = function() {
         ccs[i].updateMatrix();
     }
     const k2 = keysdown[1];
-    const kk = ('0' <= k2 && k2 <= '9' ) ? k2 : 'X';
-    I.setplane(kk)
+    const kk = '`' ? '0' : ('0' <= k2 && k2 <= '9' ) ? k2 : 'X';
+    I.setplane(kk);
     msgfix('I.monitor calls', I.monitor.count++);
     if (I.show0) I.useplanes();
 }
@@ -96,7 +104,11 @@ I.monitor.count = 0;
 I.continuous = extrakeys['Q,E,R'] = function() {
     Maestro.on('preframe', I.monitor);
 }
+I.nocontinuous = extrakeys['Q,E,X'] = function() {
+    Maestro.remove('preframe', I.monitor);
+}
 
+extrakeys['Q,`'] = () => I.setplane(0);
 extrakeys['Q,1'] = () => I.setplane(1);
 extrakeys['Q,2'] = () => I.setplane(2);
 extrakeys['Q,3'] = () => I.setplane(3);
@@ -107,6 +119,7 @@ extrakeys['Q,7'] = () => I.setplane(7);
 extrakeys['Q,8'] = () => I.setplane(8);
 extrakeys['Q,9'] = () => I.setplane(9);
 extrakeys['Q,0'] = I.useplanes;
+extrakeys['Q,Tab'] = I.useplanes;
 
 // check point and symmetries for current glmol
 extrakeys['Q,D'] = () => {
@@ -138,8 +151,8 @@ var point3 = VEC3(1, -1, -1).normalize();
 var point5 = VEC3(0, -1, -Plane.phi).normalize();
 var pointx = VEC3().crossVectors(point3, point5);
 
+/** ????? */
 I.resolve = function() {
-
     const p3 = I.points[ima.showing + '/3'];
     const p5 = I.points[ima.showing + '/5'];
 
@@ -183,6 +196,7 @@ I.imascale = function(x) {
 // kill = VEC3( -0.1917662628547351, 0.7238293396909273, -0.6627946796960011})
 //neardir = function(a, b) { return a.clone().normalize(). distanceTo(b.clone().normalize()) < 0.02}
 //neardir = function(a, b) { return a.clone().normalize(). distanceTo(b.clone().normalize()) < 0.02}
+/** ???? appears specific to  */
 I.findpoint = function(th = 0.05) {
     let pts = CSynth.polymesh[cc.extraPDB[2].tiling].verts
     let dir = I.getdir();
@@ -208,6 +222,7 @@ extrakeys['Q,G'] = function() {
     delete CSynth.polymesh["GeodesicIcosahedron25.polys"]
 }
 
+/** ~~~~~~~~~~~ CHECK what is Q,S,planeForS, etc about ???  */
 extrakeys['Q,S'] = function() {
     const dir = I.closePoint();
     if (fpplast) {
@@ -251,8 +266,9 @@ extrakeys['Q,C'] = I.clearPlanes = () =>  {I.planes=[]; I.useplanes() }
 I.symprims = []; I.symmats = [];
 I.sphereRad = 3;
 I.cylrad = 1;
-// draw symmetric point
-// extrakeys['Q,X'] = // use for fxaa
+I.show0 = true;
+
+/** draw symmetric point */
 extrakeys['Q,P'] = I.point = (pid = I.symprims.length, pdir, symmetric = true) => {
     let dir = pdir;
     if (!dir)

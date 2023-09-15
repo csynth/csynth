@@ -122,10 +122,6 @@ ima.demo = {
             filename: '1a6cX.pdb', shortname: 'TRSV',
             // has biomt
             comment: '*nfig 4c',
-            // tiling: 'GeodesicRT1.polys',
-            // meshOrient: [49.6, -31.1, 81.1, 0, 81.2, 49.5, -30.7, 0, -30.6, 81.1, 49.8, 0, 0, 0, 0, 1],
-            // NOTE: meshOrient needed for GeodesicRT1.polys; but NOT needed for tiling as below
-            // CSynth.tiles({a: 0.3758987414465172, b: 0.617193999288073, size: 100}).pset[0].poly.points.map(p=>p.length())
             tiling: {a: 0.3758987414465172, b: 0.617193999288073, size: 100},
             scale: 0.8,
             colorBy: 'chaingroup',
@@ -134,6 +130,23 @@ ima.demo = {
             orient: [-0.500, -0.309, -0.809, 0, -0.309, -0.809, 0.500, 0, -0.809, 0.500, 0.309, 0, 0, 0, 0, 1]
         }, // TRSV
 
+        {
+            filename: '1a6cX.pdb', shortname: 'TRSVX',
+            // has biomt
+            comment: '*nfig 4c',
+            tiling: [ // {a: 0.3758987414465172, b: 0.617193999288073, size: 100},
+                {a: 0.343, b: 0.451, size: 100},
+                {a: 0.235, b: -0.309, size: 100},
+                {a: 0.594, b: -0.119, size: 100}],
+                // {a: 0.343, b: 0.451, size: 100},
+                // {a: 0.244, b: -0.280, size: 100},
+                // {a: 0.594, b: -0.119, size: 100}],
+            scale: 0.8,
+            colorBy: 'chaingroup',
+            baseRadius: 0.5, multiplierRadius: 2, ssNarrowRad: 0.4, ssBroadRad: 2, ssSheetBroadRad: 2, ssArrowSize: 2,
+            // meshOrient: [0.496, -0.311, 0.811, 0, 0.812, 0.495, -0.307, 0, -0.306, 0.811, 0.498, 0, 0, 0, 0, 1],
+            orient: [-0.500, -0.309, -0.809, 0, -0.309, -0.809, 0.500, 0, -0.809, 0.500, 0.309, 0, 0, 0, 0, 1]
+        }, // TRSVX
 
         {
             filename: '2ms2.pdb', shortname: 'MS2',

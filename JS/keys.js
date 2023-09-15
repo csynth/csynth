@@ -77,9 +77,11 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
     const hdispobj = hoverDispobj !== NODO ? hoverDispobj : slots ? slots[mainvp].dispobj : undefined;
 
     const f = extrakeys[kkk];
-    if (f && !evt.repeat && tryextra) {
-        (f.fun || f)();
-        const ggg = GX.getgui(f.mostname); if (ggg) ggg.highlight();
+    if (f && tryextra) {
+        if (!evt.repeat) {
+            (f.fun || f)();
+            const ggg = GX.getgui(f.mostname); if (ggg) ggg.highlight();
+        }
     } else
 
     switch (kkk) {

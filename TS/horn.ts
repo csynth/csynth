@@ -2605,7 +2605,11 @@ export class HornSet {
 
     /** get the main horn as a horn, not as a name */
     getmain() {
-        return this.horns[this.mainhorn] || this.horns.main;
+        if (!this.mainhorn) this.mainhorn = 'main';
+        if (!this.horns[this.mainhorn]) this.mainhorn = Object.keys(this.horns)[0];
+        const r = this.horns[this.mainhorn];
+        if (!r) console.error('no main horn found');
+        return r;
     };
 
     static specgenes = {};
@@ -3183,7 +3187,7 @@ function hornTrancodeForTranrule(tranrulea:string, genes:Genes, recurse: boolean
             setHornSet(tranrulea, nhs);
         }
         //setTimeout( function() { kinectJupDyn.setup(r._springMap); }, 0);
-        if (kinectJupDyn) kinectJupDyn.setup(r._springMap);
+        if (kinectJupDyn && r) kinectJupDyn.setup(r._springMap);
         return r;
     } else {
         throwe("support for old definition style removed");

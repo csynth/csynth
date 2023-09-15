@@ -1152,7 +1152,8 @@ function checkHsetShader(hset = currentHset) {
 #define setxyz(v)
 #define texture2D(a,b) vec4(1,0,0,0)
 float r;
-
+#define position vec3(0)
+#define setpos(x) {}
 
 
 ${hset.uniforms}
@@ -1163,6 +1164,7 @@ void twr(inout float xx, inout float zz, const float v, const float offset) {}
 void twr(inout float xx, inout float zz, const float v) {}
 void twr(inout float xx, inout float zz, const float v, const float offset, const float phase) {}
 uniform vec3 springCentre;    // tadpole specific? work out where to put correctly
+void twax(inout float xx, inout float yy, inout float zz, const vec3 ax, const float v) {}
 
 
 void bb(){

@@ -24,6 +24,8 @@ var searchReplace = {
     testobj: 'startobj=GalaxReflMay9 & I.fullvp=false',
     standard: 'testobj & eval3=setViewports([0,0]), centrescalenow()',
     imfind: 'standard & eval3=imcompareInteract()',
+    sympaint: 'eval3=Tracker.init()',
+    
 
     threek: 'startobj=startup',
     // csynth: 'startscript',

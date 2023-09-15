@@ -4867,14 +4867,20 @@ CSynth.fogfix = function({sc = CSynth.referenceSize, fnear = 0, ffar = 1, t = 0}
 }
 
 var I;
+/** take the given (default current) tiling and convert to interactive;
+    set old tiling invisible
+    prepare display of individual planes, but set visible
+*/
 CSynth.tileToInteractive = function(t) {
     if (!t) t = CSynth.current.extraPDB[ima.showing].tiling;
     if (!t) return msgfixlog('CSynth.tileToInteractive', 'bad input');
     if (typeof t === 'string') return msgfixlog('CSynth.tileToInteractive', 'string input not allowed');
+    CSynth.current.extraPDB[ima.showing].tilemesh.visible = false;
     I.removeallfix();
     I.clearPlanes();
-    t.forEach((p, i) => I.setplane(i, p));
-    I.useplanes();
+    if (!Array.isArray(t)) t = [t];
+    t.forEach((p, i) => I.setplane(i, p).group.visible = false);
+    I.useplanes().visible = true;
 }
 
 CSynth.outdist = 1.5;
