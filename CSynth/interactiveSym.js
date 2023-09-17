@@ -67,7 +67,7 @@ I.setplane = function(n, pdir) {
     const plane = pdir ? Plane.xxxPlane(pdir) : Plane.xxxPlane(I.getdir().multiplyScalar(100));
     msgfix('plane' + n, plane);
     const col = plane.color = /* plane.color || */ I.col(n);
-    const group = plane.group = Plane.drawSet(plane, 'plane Q,' + n);
+    const group = plane.group = Plane.drawSet(plane, 'planeQ' + n);
     group.cylmat.color = col
     I.planes[n] = plane;
     I.point(n, plane.point);
@@ -76,7 +76,7 @@ I.setplane = function(n, pdir) {
 }
 
 /** use the current set of planes to define polyhedron */
-I.useplanes = function(kkk = 'planes Q,0') {
+I.useplanes = function(kkk = 'iplanes') {
     return Plane.drawSet(Plane.planesetSymset(I.planes), kkk);
 }
 
@@ -238,14 +238,14 @@ extrakeys['Q,S'] = function() {
         I.qsdist = Math.min(I.qsdista, I.qsdistb, I.qsdistc)
         msgfix('I.planedir', a, I.qsdist)
         // broken, needs distances
-        Plane.drawSet(I.planes.qs = new Plane(I.planedir, I.qsdist), 'plane Q,S')
+        Plane.drawSet(I.planes.qs = new Plane(I.planedir, I.qsdist), 'planeQS')
     }
     fpplast = fplast;
     fplast = dir.clone()
 }
 
 I.planeForS = function(i) {
-    Plane.drawSet(I.planes[i] = new Plane(I.planedir, I.qsdist), 'plane Q,' + i);
+    Plane.drawSet(I.planes[i] = new Plane(I.planedir, I.qsdist), 'planeQ' + i);
     I.point(i, fpcentroid);
 }
 

@@ -1,4 +1,4 @@
-var V, CSynth, posturi, xyzReader, THREE, random, seed, log, col3, dat, GLmolX, VEC3, msgfix, msgfixerror, msgfixlog,
+var V, CSynth, posturi, xyzReader, THREE, random, seed, log, col3, dat, GLmolX, VEC3, vec3, msgfix, msgfixerror, msgfixlog,
     toKey, newmeshN, canvas, I, XX, onframe, Maestro;
 // var consoleTime, consoleTimeEnd;
 
@@ -769,14 +769,14 @@ CSynth.symrepl = function CSynth_symrepl(omesh, pgroup) {
 
 CSynth.polymesh = {};
 
-CSynth.tiles = function(fid = 'sv40lines.wrl', pgroup = CSynth.rawgroup, pgui = V.gui, defs=undefined) {
+CSynth.tiles = function(fidkey, fid = 'sv40lines.wrl', pgroup = CSynth.rawgroup, pgui = V.gui, defs=undefined) {
     // use using our meshes handle immediately
-    let fidkey;
-    if (typeof fid === 'object') {
-        fidkey = fid.fidkey = fid.fidkey || toKey(fid);
-    }  else {
-        fidkey = fid;
-    }
+    // let fidkey;
+    // if (typeof fid === 'object') {
+    //     fidkey = fid.fidkey = fid.fidkey || toKey(fid);
+    // }  else {
+    //     fidkey = fid;
+    // }
     var ppmesh = CSynth.polymesh[fidkey];
     if (typeof fid !== 'string') {  // do the tiling using our plane intersects
         if (!ppmesh) {
@@ -1109,15 +1109,15 @@ Plane.edges = function(plane) {
     return edges;
 }
 
-Plane.kite = function() {
+Plane.kite = function(sym = false) {
     const phi = Plane.phi;
-    var v2 = VEC3(0, 1, 0).normalize();
-    var v5 = VEC3(1, phi, 0).normalize();
-    var v3 = VEC3(0, 2*phi + 1, phi).normalize();   // centre of face
+    var v2 = VEC3(0, 1, 0);
+    var v5 = VEC3(1, phi, 0);
+    var v3 = VEC3(0, 2*phi + 1, phi);   // centre of face
     I.sphereRad *= 2;
-    I.point(1, v2.multiplyScalar(100), false);
-    I.point(2, v3.multiplyScalar(100), false);
-    I.point(3, v5.multiplyScalar(100), false);
+    I.point(1, v2.setLength(100), sym);
+    I.point(2, v3.setLength(100), sym);
+    I.point(3, v5.setLength(100), sym);
     I.sphereRad /= 2;
 
     // n.b not same as Plane.axisX, Plane.axisX chosed to create simnple generators, vX to be close to each other
@@ -1126,3 +1126,38 @@ Plane.kite = function() {
     //I.point(3, Plane.axis5.clone().multiplyScalar(100), false);
 }
 // Plane.kite();
+
+/** draw canonical triangle, sym true for full symmetry, o != 0 for offset (to see symmetry) */
+Plane.tri = function(sym = false, o = 0) {
+    const phi = Plane.phi;
+    var v5 = VEC3(1 + o, phi, 0).normalize();
+    var v3 = VEC3(0, 2*phi + 1 + o, phi).normalize();   // centre of face
+    var v3a = VEC3(0, 2*phi + 1, -phi + o).normalize();   // centre of face
+    I.sphereRad *= 2;
+    I.point(1, v5.setLength(100), sym);
+    I.point(2, v3.setLength(100), sym);
+    I.point(3, v3a.setLength(100), sym);
+    I.sphereRad /= 2;
+
+    const cen = [v5, v3, v3a].reduce((c,v) => c.add(v), vec3()).setLength(100);
+    I.setplane(0, cen);
+    
+    // n.b not same as Plane.axisX, Plane.axisX chosed to create simnple generators, vX to be close to each other
+    //I.point(1, Plane.axis2.clone().multiplyScalar(100), false);
+    //I.point(2, Plane.axis3.clone().multiplyScalar(100), false);
+    //I.point(3, Plane.axis5.clone().multiplyScalar(100), false);
+}
+// Plane.kite();
+
+/** check polys for regularity e.g. for PAV */
+Plane.checkpoly = function(f = 'PAV') {
+    const pset = Plane.drawSetGroups[f].pset[0];
+    const points = pset.poly.points;
+    log ('dists')
+    log(points.map( (p,i,a) => p.distanceTo(a[(i+1) % a.length])));
+    const cen = points.reduce((c,v) => c.add(v), vec3()).normalize()
+    log ('centres')
+    log(cen)
+    log(pset.dir)
+    log(Plane.dir2Ab(pset.dir))
+}

@@ -187,7 +187,7 @@ ima.show = async function(n = ima.showing, selection = ima.selection) {
     if (tiling) {
         let mesh = xx.tilemesh;
         if (!mesh) {
-            mesh = xx.filemesh = CSynth.tiles(tiling);
+            mesh = xx.filemesh = CSynth.tiles(shortname, tiling);
         }
         mesh.visible = true;
         const mesho = xx.meshOrient;

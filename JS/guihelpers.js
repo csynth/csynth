@@ -6,7 +6,7 @@ GUIwallgui, G, cMap, RGXX, useKinect, RGG, setInput, WA, runkeys, updateGuiGenes
 mainvp, NODO, lastDispobj, saveimage1high, onframe, evalq, S, home, keysdown, imageOpts, ml, msgfix, DispobjC, clearObjzoom,
 lastdocx, lastdocy, oldlayerX, oldlayerY, newmain, framenum, springs, xxxgenes, camera, xxxrt, copyXflip, width, height, fitCanvasToWindow,
 usemask, ops, ctrl, alt, shift, right, left, middle, renderer, xxxdispobj, setExtraKey, getdesksave,
-fixfeed, unfixfeed, canvas, everyframe, fixfeedcoreprep, fixfeedcoreend, shadows, sethighres, Viewedit, guinewbw, feed
+fixfeed, unfixfeed, canvas, everyframe, fixfeedcoreprep, fixfeedcoreend, shadows, sethighres, Viewedit, guinewbw, feed, renderVR
 
 var tad
 

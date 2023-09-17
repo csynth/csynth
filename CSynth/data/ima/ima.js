@@ -196,7 +196,7 @@ ima.demo = {
             // tiling: 'GeodesicRT1.polys',
             // meshOrient: [49.6, -31.1, 81.1, 0, 81.2, 49.5, -30.7, 0, -30.6, 81.1, 49.8, 0, 0, 0, 0, 1],
             // NOTE: meshOrient needed for GeodesicRT1.polys; but NOT needed for tiling as below
-            // CSynth.tiles({a: 0.3758987414465172, b: 0.617193999288073, size: 100}).pset[0].poly.points.map(p=>p.length())
+            // CSynth.tiles(shortname, {a: 0.3758987414465172, b: 0.617193999288073, size: 100}).pset[0].poly.points.map(p=>p.length())
             tiling: {a: 0.3758987414465172, b: 0.617193999288073, size: 100},
             scale: 0.8,
             colorBy: 'chaingroup',
@@ -437,7 +437,7 @@ ima.show = async function(n = ima.showing, selection = ima.selection) {
     if (tiling) {
         let mesh = xx.tilemesh;
         if (!mesh) {
-            mesh = xx.tilemesh = CSynth.tiles(tiling);
+            mesh = xx.tilemesh = CSynth.tiles(shortname, tiling);
         }
         mesh.visible = true;
         const mesho = xx.meshOrient;

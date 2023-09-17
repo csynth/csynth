@@ -87,10 +87,10 @@ ima.demo = {
             //tiling: 'icos14.polys',  // herpes
             tiling: !searchValues.hsvab ? 'GeodesicIcosahedron25.polys' :      // pre Aug 19
             [ // post Aug 19, then replaced by GeodesicIcosahedron25 again, this ab tiling is still wobbly
-                {a: 1, b: 0, size: 99.60515674918517},  // pentagons yellow
-                {a: 0.5043645634880239, b: 0, size: 99.20374665156196},  // hex 1   green/gold
-                {a: 0.2657419602284653, b: -0.733306819738863, size: 99.0790533995604}, // hex 2 green/yello
-                {a: 0, b: 0,size: 99.0760686442865},  // hex3
+                {a: 1, b: 0, size: 99.60515674918517},  // pentagons yellow ... white
+                {a: 0.5043645634880239, b: 0, size: 99.20374665156196},  // hex 1   green/gold ...red
+                {a: 0.2657419602284653, b: -0.733306819738863, size: 99.0790533995604}, // hex 2 green/yellow ... green
+                {a: 0, b: 0,size: 99.0760686442865},  // hex3 ... blue
                 {a: 0.7821769488688209, b: -0.21782305113117853, size: 99.92576073766486},  // tri 1
                 {a: 0.5272617433956593, b: 0.47273825529490177, size: 99.9068905073811},  // tri 2
                 {a: 0.2566082373396572, b: -0.23737687807156496, size: 99.89979459735572},  // tri 3a
@@ -162,7 +162,9 @@ ima.demo = {
             filename: '1f8v.pdb', shortname: 'PAV',
             // has biomt
             comment: '* fig 4a',
-            tiling: {a:0.257, b:0, size: 100},
+            // tiling: {a:0.257, b:0, size: 100},           // set by ?
+            // tiling: {a: 0.160357, b: 0, size: 100},      // set by use of Planes.tri etc 17 Sept 2023
+            tiling: {a: 0.31, b: 0, size: 100},             // set to make ab ref point (almost) coincide with centre 17 Sept 2023
             scale: 0.75,
             orient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 115.8, 16.5, -66.7, 1]
         },  // PAV
@@ -172,7 +174,9 @@ ima.demo = {
             // has biomt
             comment: 'Pariacoto',
             spheres: 'pariacoto_full_export_563_*.pdb',
-            tiling: {a:0.257, b:0, size: 100}, // a=4, b=0, 5/6 triangles
+            // tiling: {a:0.257, b:0, size: 100},           // set by ?
+            // tiling: {a: 0.160357, b: 0, size: 100},      // set by use of Planes.tri etc 17 Sept 2023
+            tiling: {a: 0.31, b: 0, size: 100},             // set to make ab ref point (almost) coincide with centre 17 Sept 2023
             style: 'cartoon', colorBy: 'chain', // opacity: 0.2, transparent: true,
             scale: 0.75,
             orient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 115.8, 16.5, -66.7, 1],
@@ -445,7 +449,7 @@ ima.show = async function(pn, selection = ima.selection) {
         let mesh = xx.tilemesh;
         if (!mesh) {
             // xx passes more than needed, but may include tilerad or ???
-            mesh = xx.tilemesh = glmol.tilemesh = CSynth.tiles(tiling, undefined, undefined, xx);
+            mesh = xx.tilemesh = glmol.tilemesh = CSynth.tiles(shortname, tiling, undefined, undefined, xx);
             if (!mesh.isMesh) {
                 xx.tileplanes = glmol.tileplanes = mesh.children[0];
                 xx.tileedges = glmol.tileedges = mesh.children[1];
