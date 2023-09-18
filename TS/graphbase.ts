@@ -1887,8 +1887,11 @@ var renderObjsInner: RenderObjsInner = function fRenderObjsInner(rt, novr) {
                     camera = dispobj.camera;
                     camToGenes(dispobj.genes);
                 }
-                renderObj(dispobj);
-                V.render(dispobj.rt);
+                const temprt = WA.fxaa.uselate ? getrendertarget('prefxaa', {sizer : dispobj.rt}) : dispobj.rt;
+                renderObj(dispobj, temprt);
+                V.render(temprt);
+                if (WA.fxaa.uselate)
+                    WA.fxaa(temprt.texture, dispobj.rt);
                 Maestro.trigger('postDispobj', dispobj);
             } catch (e) {
                 log("cannot render dispobj", dispobj.vn, e.toString());

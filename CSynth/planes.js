@@ -1127,7 +1127,10 @@ Plane.kite = function(sym = false) {
 }
 // Plane.kite();
 
-/** draw canonical triangle, sym true for full symmetry, o != 0 for offset (to see symmetry) */
+/** draw canonical triangle, sym true for full symmetry, o != 0 for offset (to see symmetry)
+ * Note that for b:0 all a in [0..1) give almost same looking result from inside
+ * but outside 'bulge' behaves differently.
+*/
 Plane.tri = function(sym = false, o = 0) {
     const phi = Plane.phi;
     var v5 = VEC3(1 + o, phi, 0).normalize();
@@ -1141,20 +1144,25 @@ Plane.tri = function(sym = false, o = 0) {
 
     const cen = [v5, v3, v3a].reduce((c,v) => c.add(v), vec3()).setLength(100);
     I.setplane(0, cen);
-    
+
     // n.b not same as Plane.axisX, Plane.axisX chosed to create simnple generators, vX to be close to each other
     //I.point(1, Plane.axis2.clone().multiplyScalar(100), false);
     //I.point(2, Plane.axis3.clone().multiplyScalar(100), false);
     //I.point(3, Plane.axis5.clone().multiplyScalar(100), false);
 }
 // Plane.kite();
+// for icoahedron: {I.setplane(1, {x:1, y:1, z:1, size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
+// OR            : {I.setplane(1, {a:0, b:1,      size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
+
+// for 60 tri PAV: {I.setplane(1, {a: 0.313, b:0, size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
+// for dodca:      {I.setplane(1, {a:1, b:0,      size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
+
 
 /** check polys for regularity e.g. for PAV */
 Plane.checkpoly = function(f = 'PAV') {
     const pset = Plane.drawSetGroups[f].pset[0];
     const points = pset.poly.points;
-    log ('dists')
-    log(points.map( (p,i,a) => p.distanceTo(a[(i+1) % a.length])));
+    log('dists', points.map( (p,i,a) => p.distanceTo(a[(i+1) % a.length])));
     const cen = points.reduce((c,v) => c.add(v), vec3()).normalize()
     log ('centres')
     log(cen)

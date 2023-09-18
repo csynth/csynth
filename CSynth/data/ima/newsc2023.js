@@ -25,7 +25,7 @@ W, G, DNASprings, springdemo, CSynth, nomess, V, msgfix, onframe, resetMat, GX, 
 VH, width, height, springs, THREE, Plane, runkeys, msgboxVisible, toKey, GLmolX, Maestro,
 camera, VEC3, tmat4, setNovrlights, setInput, searchValues, viveAnim, log, col3, I, sleep, setBackgroundColor,
 ambientOcclusionInit, copyFrom, onWindowResize, rrender, vtargetNow, everyframe, renderVR, CLeap, addtarget, S,
-vrresting, EX, location, rotcentre
+vrresting, EX, location, rotcentre, fxaa
 } = window;
 
 var ima = W.ima = {};  // permit ima. namespace
@@ -122,7 +122,8 @@ ima.demo = {
             filename: '1a6cX.pdb', shortname: 'TRSV',
             // has biomt
             comment: '*nfig 4c',
-            tiling: {a: 0.3758987414465172, b: 0.617193999288073, size: 100},
+            // tiling: {a: 0.3758987414465172, b: 0.617193999288073, size: 100},
+            tiling: {a: 0.382, b: 0.618, size: 100},  // refined 18 Sept 2023 to make ref point at average of vertices, nb a+b = 1
             scale: 0.8,
             colorBy: 'chaingroup',
             baseRadius: 0.5, multiplierRadius: 2, ssNarrowRad: 0.4, ssBroadRad: 2, ssSheetBroadRad: 2, ssArrowSize: 2,
@@ -164,7 +165,7 @@ ima.demo = {
             comment: '* fig 4a',
             // tiling: {a:0.257, b:0, size: 100},           // set by ?
             // tiling: {a: 0.160357, b: 0, size: 100},      // set by use of Planes.tri etc 17 Sept 2023
-            tiling: {a: 0.31, b: 0, size: 100},             // set to make ab ref point (almost) coincide with centre 17 Sept 2023
+            tiling: {a: 0.313, b: 0, size: 100},             // set to make ab ref point (almost) coincide with centre 17 Sept 2023
             scale: 0.75,
             orient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 115.8, 16.5, -66.7, 1]
         },  // PAV
@@ -176,8 +177,8 @@ ima.demo = {
             spheres: 'pariacoto_full_export_563_*.pdb',
             // tiling: {a:0.257, b:0, size: 100},           // set by ?
             // tiling: {a: 0.160357, b: 0, size: 100},      // set by use of Planes.tri etc 17 Sept 2023
-            tiling: {a: 0.31, b: 0, size: 100},             // set to make ab ref point (almost) coincide with centre 17 Sept 2023
-            style: 'cartoon', colorBy: 'chain', // opacity: 0.2, transparent: true,
+            tiling: {a: 0.313, b: 0, size: 100},            // set to make ab ref point (almost) coincide with centre 17 Sept 2023
+            style: 'cartoon', colorBy: 'chain',             // opacity: 0.2, transparent: true,
             scale: 0.75,
             orient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 115.8, 16.5, -66.7, 1],
             // meshOrient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 0,0,0,1]
@@ -238,6 +239,7 @@ W.customSettings = () => {
     V.fog.far = V.fog.near+200;  // 400 is approx size, so fade right out just behind back
 
     V.flyy = true;  // full 3d flying
+    fxaa.uselate = true;
     // vrresting.bypassResting = false;
 
     }

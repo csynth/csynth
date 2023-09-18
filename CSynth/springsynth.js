@@ -1064,6 +1064,8 @@ async function springdemo(defs) {
     if (currentLoadingData && !defs.configData) defs.configData = currentLoadingData;
     if (defs.currentLoadingDir === undefined) defs.currentLoadingDir = currentLoadingDir;
     defs.currentLoadingFile = currentLoadingFile;
+    if (defs.extraPDB) for (const x of defs.extraPDB) defs.extraPDB[x.shortname] = x;
+
     await CSynth.springdemoinner(defs);
 
     /***
