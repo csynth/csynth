@@ -1887,7 +1887,7 @@ var renderObjsInner: RenderObjsInner = function fRenderObjsInner(rt, novr) {
                     camera = dispobj.camera;
                     camToGenes(dispobj.genes);
                 }
-                const temprt = WA.fxaa.uselate ? getrendertarget('prefxaa', {sizer : dispobj.rt}) : dispobj.rt;
+                const temprt = WA.fxaa.uselate ? getrendertarget('prefxaalate', {sizer : dispobj.rt}) : dispobj.rt;
                 renderObj(dispobj, temprt);
                 V.render(temprt);
                 if (WA.fxaa.uselate)
@@ -3138,16 +3138,17 @@ function getrendertarget(purpose, p) {
         let s = widthi * heighti * 16 / 1024 / 1024 / 1024;
         if (s > 0.25) log('prepare rendertarget size', widthix, heightix, s, purpose, 'current totsize', newTHREE_DataTextureSize/1e6);
         const filter = purpose.startsWith('prefxaa') ? WA.fxaa.filter : THREE.NearestFilter;
+        const depthBuffer = p.depthBuffer ?? sizer.depthBuffer;
         rendertargets[key] = rrtq = WebGLRenderTarget(widthix, heightix, {
             format: THREE.RGBAFormat,
             type: THREE.FloatType,
             minFilter: filter,
             magFilter: filter,
-            depthBuffer: (p ?? sizer).depthBuffer,
+            depthBuffer,
             stencilBuffer: false
         }, key);
 
-        if ((p ?? sizer).depthBuffer) {
+        if (depthBuffer) {
             renderTargetDepth(rrtq);
         }
         // NO LONGER SUPPORTED rrtq.shareDepthFrom = p.shareDepthFrom;  // this must be got in early, but can't be set on initial options

@@ -91,12 +91,12 @@ ima.demo = {
                 {a: 0.5043645634880239, b: 0, size: 99.20374665156196},  // hex 1   green/gold ...red
                 {a: 0.2657419602284653, b: -0.733306819738863, size: 99.0790533995604}, // hex 2 green/yellow ... green
                 {a: 0, b: 0,size: 99.0760686442865},  // hex3 ... blue
-                {a: 0.7821769488688209, b: -0.21782305113117853, size: 99.92576073766486},  // tri 1
-                {a: 0.5272617433956593, b: 0.47273825529490177, size: 99.9068905073811},  // tri 2
-                {a: 0.2566082373396572, b: -0.23737687807156496, size: 99.89979459735572},  // tri 3a
-                {a: 0.25660824082065414, b: 0.2373768742057317, size: 99.8997947071859},  // tri 3b
-                {a: 0, b: 0.4814983189272394, size: 99.8960463933496},  // tri 4
-                {a: 0, b: -0.9999999981691525, size: 99.89479045079642}  // tri 5
+                {a: 0.7821769488688209, b: -0.21782305113117853, size: 99.92576073766486},  // tri 1 ...4 cyan; white, 2 red
+                {a: 0.5272617433956593, b: 0.47273825529490177, size: 99.9068905073811},  // tri 2 ...5 purple;, green, 2 red
+                {a: 0.2566082373396572, b: -0.23737687807156496, size: 99.89979459735572},  // tri 3a ...6 yellow; red, green, blue
+                {a: 0.25660824082065414, b: 0.2373768742057317, size: 99.8997947071859},  // tri 3b ...7  dark orange; red, green, blue
+                {a: 0, b: 0.4814983189272394, size: 99.8960463933496},  // tri 4 ...8 grey; blue, 2 green
+                {a: 0, b: -0.9999999981691525, size: 99.89479045079642}  // tri 5 ... dark red; 3 green
             ],
             tilerad: 0.6,
 
@@ -118,6 +118,8 @@ ima.demo = {
             Xorient: [0.348, 0.811, 0.280, 0, -0.597, 0.012, 0.708, 0, 0.616, -0.447, 0.527, 0, 0, 0, 0, 1]
         }, // herpes HSV1
 
+        // {shortname: 'HSV1X', like: 'HSV1', tiling: 'GeodesicIcosahedron25.polys'},
+
         {
             filename: '1a6cX.pdb', shortname: 'TRSV',
             // has biomt
@@ -132,9 +134,7 @@ ima.demo = {
         }, // TRSV
 
         {
-            filename: '1a6cX.pdb', shortname: 'TRSVX',
-            // has biomt
-            comment: '*nfig 4c',
+            shortname: 'TRSVX', like: 'TRSV',
             tiling: [ // {a: 0.3758987414465172, b: 0.617193999288073, size: 100},
                 {a: 0.343, b: 0.451, size: 100},
                 {a: 0.235, b: -0.309, size: 100},
@@ -142,11 +142,6 @@ ima.demo = {
                 // {a: 0.343, b: 0.451, size: 100},
                 // {a: 0.244, b: -0.280, size: 100},
                 // {a: 0.594, b: -0.119, size: 100}],
-            scale: 0.8,
-            colorBy: 'chaingroup',
-            baseRadius: 0.5, multiplierRadius: 2, ssNarrowRad: 0.4, ssBroadRad: 2, ssSheetBroadRad: 2, ssArrowSize: 2,
-            // meshOrient: [0.496, -0.311, 0.811, 0, 0.812, 0.495, -0.307, 0, -0.306, 0.811, 0.498, 0, 0, 0, 0, 1],
-            orient: [-0.500, -0.309, -0.809, 0, -0.309, -0.809, 0.500, 0, -0.809, 0.500, 0.309, 0, 0, 0, 0, 1]
         }, // TRSVX
 
         {
@@ -212,8 +207,6 @@ ima.demo = {
 };
 if (searchValues.one) ima.demo.extraPDB = ima.demo.extraPDB.filter(f => f.shortname === searchValues.one);
 springdemo(ima.demo);
-ima.numForName = {};
-ima.demo.extraPDB.forEach((x, i) => ima.numForName[x.shortname] = i);
 
 // this will be called after everything set up,
 // and can be reset after changes with alt-shift-S
@@ -320,14 +313,14 @@ ima.show = async function(pn, selection = ima.selection) {
     const shownum = ima.shownum++;      // not used but can help with debug
     ima.selection = selection;
     let n = pn;
+    let cc = CSynth.current;
     if (typeof n === 'string')
-        n = ima.numForName[n];
+        n = cc.numForName[n];
 
     if (n === undefined)    // called for selection change
         n = ima.showing;
 
     let nn = ima.demo.extraPDB.length;  // num to show
-    let cc = CSynth.current;
     let glmolList = cc.extraPDB.map(nnn => CSynth.xxxGlmol(nnn.shortname));
     let glmol = glmolList[n];
     const xx = cc.extraPDB[n];

@@ -1739,7 +1739,7 @@ var renderObjsInner = function fRenderObjsInner(rt, novr) {
                     camera = dispobj.camera;
                     camToGenes(dispobj.genes);
                 }
-                const temprt = WA.fxaa.uselate ? getrendertarget('prefxaa', { sizer: dispobj.rt }) : dispobj.rt;
+                const temprt = WA.fxaa.uselate ? getrendertarget('prefxaalate', { sizer: dispobj.rt }) : dispobj.rt;
                 renderObj(dispobj, temprt);
                 V.render(temprt);
                 if (WA.fxaa.uselate)
@@ -2964,6 +2964,7 @@ async function clearrendertargets() {
     log(Object.keys(rendertargets));
 }
 function getrendertarget(purpose, p) {
+    var _a;
     let sizer = p ? p.sizer : xxxdispobj().rt;
     let widthi = sizer.width, heighti = sizer.height;
     let widthix = widthi, heightix = heighti;
@@ -2978,15 +2979,16 @@ function getrendertarget(purpose, p) {
         if (s > 0.25)
             log('prepare rendertarget size', widthix, heightix, s, purpose, 'current totsize', newTHREE_DataTextureSize / 1e6);
         const filter = purpose.startsWith('prefxaa') ? WA.fxaa.filter : THREE.NearestFilter;
+        const depthBuffer = (_a = p.depthBuffer) !== null && _a !== void 0 ? _a : sizer.depthBuffer;
         rendertargets[key] = rrtq = WebGLRenderTarget(widthix, heightix, {
             format: THREE.RGBAFormat,
             type: THREE.FloatType,
             minFilter: filter,
             magFilter: filter,
-            depthBuffer: (p !== null && p !== void 0 ? p : sizer).depthBuffer,
+            depthBuffer,
             stencilBuffer: false
         }, key);
-        if ((p !== null && p !== void 0 ? p : sizer).depthBuffer) {
+        if (depthBuffer) {
             renderTargetDepth(rrtq);
         }
         // NO LONGER SUPPORTED rrtq.shareDepthFrom = p.shareDepthFrom;  // this must be got in early, but can't be set on initial options

@@ -1,7 +1,7 @@
 // various interactive methods used for symmetry
 
 var extrakeys, msgfix, tmat4, Plane, G, CSynth, VEC3, THREE, W, log, cc,
-cylinderMesh, dat, V, col3, GLmolX, keysdown, Maestro, EX;
+cylinderMesh, dat, V, col3, GLmolX, keysdown, Maestro, EX, msgfixlog;
 var I={};
 var ima = {showing: 0}; // may be replaced by 'real' ima later
 
@@ -49,8 +49,9 @@ I.getdir = function() {
         const p = intersects[0].point;
         tmat4.elements = G._rot4_ele.slice();
         p.applyMatrix4(tmat4);
-        msgfix('ij', p, p.normalize())
-        return p.normalize();
+        const pn = p.normalize()
+        msgfixlog('ij', p, pn, Plane.dir2ab(p));
+        return pn;
     }
     return VEC3();
 }
@@ -62,16 +63,18 @@ I.col = n => GLmolX.colorsr[n]  || col3();
 
 
 /** set the position of a given plane, either by xyz or by ab */
-I.setplane = function(n, pdir) {
-    if (pdir && 'a' in pdir) pdir = Plane.ab2Dir(pdir);
+I.setplane = function(n, pdir, usenow = I.show0, drawsub = false) {
+    if (pdir && 'a' in pdir) pdir = Plane.ab2dir(pdir);
     const plane = pdir ? Plane.xxxPlane(pdir) : Plane.xxxPlane(I.getdir().multiplyScalar(100));
     msgfix('plane' + n, plane);
     const col = plane.color = /* plane.color || */ I.col(n);
-    const group = plane.group = Plane.drawSet(plane, 'planeQ' + n);
-    group.cylmat.color = col
+    if (drawsub) {
+        const group = plane.group = Plane.drawSet(plane, 'planeQ' + n);
+        group.cylmat.color = col
+    }
     I.planes[n] = plane;
     I.point(n, plane.point);
-    if (I.show0) I.useplanes();
+    if (usenow) I.useplanes();
     return plane;
 }
 

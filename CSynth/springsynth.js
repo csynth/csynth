@@ -1034,7 +1034,22 @@ async function springdemo(defs) {
     loadTime('model 1 springdemo start');
     slowinit.pendend.springgdemo = 'set by springdemo at ' + Date.now();
     if (defs.check === undefined) defs.check = true;
+
+    if (defs.extraPDB) {
+        defs.numForName = {}; defs.extraPDBn = {};
+        defs.extraPDB.forEach((x, i) => {
+            defs.numForName[x.shortname] = i;
+            defs.extraPDBn[x.shortname] = x;
+            if (x.like) {
+                const l= defs.extraPDBn[x.like];
+                for (const n in l) if (!(n in x)) x[n] = l[n];
+            }
+        });
+    }
+
     springdemo.defs = defs;
+
+
 
     // initialize these
     // note the user may overwrite them after initial call to springdemo is complete
@@ -1064,7 +1079,7 @@ async function springdemo(defs) {
     if (currentLoadingData && !defs.configData) defs.configData = currentLoadingData;
     if (defs.currentLoadingDir === undefined) defs.currentLoadingDir = currentLoadingDir;
     defs.currentLoadingFile = currentLoadingFile;
-    if (defs.extraPDB) for (const x of defs.extraPDB) defs.extraPDB[x.shortname] = x;
+    // if (defs.extraPDB) for (const x of defs.extraPDB) defs.extraPDB[x.shortname] = x;
 
     await CSynth.springdemoinner(defs);
 

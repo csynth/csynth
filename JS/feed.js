@@ -176,7 +176,7 @@ feed.onChange = function() {
         }
 
         if (!feed.dofeed) U.feedbackMatrix.elements[0] = 0;
-        g.renderBackground = 1; // always do it, the code should sort out background vs feedback
+        else g.renderBackground = 1; // always do it, the code should sort out background vs feedback
     } finally {
         currentGenes = save_currentGenes;
     }

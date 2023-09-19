@@ -34,14 +34,18 @@ function Poly(..._points) {
 }
 
 /** plane with direction dir through point p, or at dist p */
-function Plane(_dir, _p = _dir, icolor = col3().setHSV( Math.random(), 1, 0.5)) {
+function Plane(_dir, _p, icolor = col3().setHSV( Math.random(), 1, 0.5)) {
+    if (_dir.a !== undefined) _dir = Plane.ab2dir(_dir);
     let me = this;
     me.isPlane = true;
     me.color = icolor;
     me.enabled = true;
     let dir = me.dir = _dir.clone().normalize();
     let dist, point, poly;
-    if (typeof _p === 'number') {
+    if (_p === undefined) {
+        point = _dir;
+        dist = _dir.length();
+    } else if (typeof _p === 'number') {
         dist = _p;
         point = dir.clone().multiplyScalar(dist);
     } else {
@@ -409,6 +413,14 @@ onframe( () => {    // defer to make sure code ready
     CSynth.symMatrix = CSynth.sym60;
 })
 
+
+// Plane.kite();
+// for icoahedron: {I.setplane(1, {x:1, y:1, z:1, size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
+// OR            : {I.setplane(1, {a:0, b:1,      size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
+
+// for 60 tri PAV: {I.setplane(1, {a: 0.313, b:0, size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
+// for dodca:      {I.setplane(1, {a:1, b:0,      size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
+
 Plane.dodeca = function(rad = 120) {
     return Plane.drawSet(new Plane(VEC3(1, Plane.phi, 0), rad), 'dodeca');
 }
@@ -496,7 +508,7 @@ useplanes()
     group.vgui.add(options, 'y', -1,1).listen().step(0.01);
     group.vgui.add(options, 'z', -1,1).listen().step(0.01);
     function redraw() {
-        dir.copy(Plane.ab2Dir({a:_a, b:_b}));
+        dir.copy(Plane.ab2dir({a:_a, b:_b}));
         redrawxyz();
     }
 
@@ -509,7 +521,7 @@ useplanes()
 }
 
 /** convert a,b coordinates to direction coordinates */
-Plane.ab2Dir = function({a=0, b=0, size=1}) {
+Plane.ab2dir = function({a=0, b=0, size=1}) {
     const phi = Plane.phi;
 
     // var v2 = VEC3(0, 1, 0);
@@ -533,7 +545,7 @@ Plane.ab2Dir = function({a=0, b=0, size=1}) {
 }
 
 /** find a,b version of plane within bounds */
-Plane.dir2Ab = function({x=0, y=0, z=1}, d = 1e-20) {
+Plane.dir2ab = function({x=0, y=0, z=1}, d = 1e-20) {
     const ivec = VEC3(x, y, z);
     const size = ivec.length();
     const p = ivec.clone().normalize();
@@ -552,7 +564,7 @@ Plane.dir2Ab = function({x=0, y=0, z=1}, d = 1e-20) {
         if (a + Math.abs(b) > 1+d) continue;
         return {a,b, size};
     }
-    if (d>0) return Plane.dir2Ab(ivec, d*10);
+    if (d>0) return Plane.dir2ab(ivec, d*10);
 }
 
 /** find multiple a,b versions of plane within bounds, ??? may remove */
@@ -579,7 +591,7 @@ Plane.dir2AbX = function({x=0, y=0, z=1}, d = 1e-13) {
 
 
 Plane.ab2Plane = function(ab) {
-    return new Plane(Plane.ab2Dir(ab));
+    return new Plane(Plane.ab2dir(ab));
 }
 Plane.ab2Symset = function(...ab) {
     let rr = [];
@@ -808,7 +820,7 @@ CSynth.tiles = function(fidkey, fid = 'sv40lines.wrl', pgroup = CSynth.rawgroup,
         const mat = CSynth.defaultMaterial.clone();
         mat.side = THREE.DoubleSide;
         mat.vertexColors = 2;
-        ppmesh = CSynth.polymesh[fidkey] = new THREE.Mesh(undefined, mat); ppmesh.name = fid + '_polymesh';
+        ppmesh = CSynth.polymesh[fidkey] = CSynth.polymesh[fid] =new THREE.Mesh(undefined, mat); ppmesh.name = fid + '_polymesh';
         pgroup.add(ppmesh);
     }
 
@@ -898,21 +910,27 @@ CSynth._poly = function(fid = "icos14.polys") {
     // pp geom.setIndex([])
     const pairs = [];
     const geoms = [];
+    const targ = CSynth.startGeom(1000);    // get a targ
+    CSynth.extendGeom.indn = 0; CSynth.extendGeom.posn = 0;
+
     for (let i=0; i<faces.length; i++) {
         const rad = 0.005;
         const f = faces[i];
         for (let k = 0; k < f.length; k++) {
             const i1 = f[k], i2 = f[(k+1)%f.length];
             if (usecount[i1] === 5 || usecount[i2] === 5 || v[i1].kill || v[i2].kill) continue;
-            const c = window.cylinderMesh(v[i1], v[i2], rad);
             pairs.push([v[i1], v[i2]]);
-            c.updateMatrix();
-            // pp geom.merge(c.geometry, c.matrix);
-            c.geometry.applyMatrix4(c.matrix);
-            geoms.push(c.geometry);
+            CSynth.drawCyl(targ, v[i1], v[i2], 0, 0, rad);
+
+            // const c = window.cylinderMesh(v[i1], v[i2], rad);
+            // c.updateMatrix();
+            // // pp geom.merge(c.geometry, c.matrix);
+            // c.geometry.applyMatrix4(c.matrix);
+            // geoms.push(c.geometry);
         }
     }
-    const ppgeom = THREE.BufferGeometryUtils.mergeBufferGeometries(geoms);
+    // const ppgeom = THREE.BufferGeometryUtils.mergeBufferGeometries(geoms);
+    const ppgeom = CSynth.finishGeom(targ);
     return {scale: 100, pairs, ppgeom};
 }
 
@@ -1150,12 +1168,6 @@ Plane.tri = function(sym = false, o = 0) {
     //I.point(2, Plane.axis3.clone().multiplyScalar(100), false);
     //I.point(3, Plane.axis5.clone().multiplyScalar(100), false);
 }
-// Plane.kite();
-// for icoahedron: {I.setplane(1, {x:1, y:1, z:1, size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
-// OR            : {I.setplane(1, {a:0, b:1,      size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
-
-// for 60 tri PAV: {I.setplane(1, {a: 0.313, b:0, size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
-// for dodca:      {I.setplane(1, {a:1, b:0,      size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
 
 
 /** check polys for regularity e.g. for PAV */
@@ -1167,5 +1179,5 @@ Plane.checkpoly = function(f = 'PAV') {
     log ('centres')
     log(cen)
     log(pset.dir)
-    log(Plane.dir2Ab(pset.dir))
+    log(Plane.dir2ab(pset.dir))
 }

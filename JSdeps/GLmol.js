@@ -1617,25 +1617,26 @@ GLmol.prototype.colorByBFactor = function(atomlist = this.atomlist, colorSidecha
 
 
 GLmol.setColors = function() {
-   const color = new TCo(0);
-   const c = GLmol.colors = {};
-   c['0'] = color.setRGB(1,1,1).getHex();
-   c['1'] = c.A = color.setRGB(1,0,0).getHex();
-   c['2'] = c.B = color.setRGB(0,1,0).getHex();
-   c['3'] = c.C = color.setRGB(0,0,1).getHex();
-   c['4'] = c.D = color.setRGB(0,1,1).getHex();
-   c['5'] = c.E = color.setRGB(1,0,1).getHex();
-   c['6'] = c.F = color.setRGB(1,1,0).getHex();
-   c['7'] = c.G = color.setRGB(1,0.3,0).getHex();
-   c.S = color.setRGB(1,1,0).getHex();
+   // const color = new TCo(0);
+   const c = GLmol.colorsr = {};
+   c[0] = col3(1,1,1);
+   c[1] = c.A = col3(1,0,0);
+   c[2] = c.B = col3(0,1,0);
+   c[3] = c.C = col3(0,0,1);
+   c[4] = c.D = col3(0,1,1);
+   c[5] = c.E = col3(1,0,1);
+   c[6] = c.F = col3(1,1,0);
+   c[7] = c.G = col3(1,0.3,0);
+   c.S = col3(1,1,0);
+   for (let i=0; i<7; i++) c[i+8] = c[i].clone().multiplyScalar(0.25);
    for (let i = 0; i <= 255; i++) {
       const ch = String.fromCharCode(i);
       if (!c[ch])
-         c[ch] = color.setHSV((i * 5) % 27 / 27.0, 1, 0.9).getHex();
+         c[ch] = col3().setHSV((i * 5) % 27 / 27.0, 1, 0.9);
    }
-   const cr = GLmol.colorsr = {};
+   const cr = GLmol.colors = {};
    for (let i in c) {
-      cr[i] = col3().setHex(c[i]);
+      cr[i] = c[i].getHex();
    }
 
 }
