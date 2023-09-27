@@ -11,11 +11,14 @@ var V, HW, THREE, getBody, renderer, init, currentGenes, uniforms, springs, CSyn
     searchValues, currentLoadingData, PICKNUM, readdir,
     scaleDampTarget1, nomess, posturi, GX, msgfixlog, objfilter, geneOverrides, col3, inworker, loadTime,
     currentLoadingDir, resetMat, slowinit, GO, renderVR, sleep, myRequestAnimationFrame, htmlDefines, maxTextureSize,
-    Gldebug, startWsListener, distxyz, downloadImage, downloadImageHigh, FIRST, writeBintri, runkeys, STL, islocalhost;
+    Gldebug, startWsListener, distxyz, downloadImage, downloadImageHigh, FIRST, writeBintri, runkeys, STL, islocalhost, fxaa;
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 var CSynthFast;  // set to true even from outside to use fast graphics defaults
 //TODO: fragment more extensively into something like CSynth.ShaderChunks[]
 CSynth.CommonFragmentShaderCode = () => /*glsl*/`
+    #ifndef VERTEX
+        #define VERTEX 0
+    #endif
     ${htmlDefines()}    //
     #define round(c) floor(c+0.5)
     #define PICKNUM ${PICKNUM}
@@ -31,6 +34,7 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
     uniform mat4 projectionMatrix;
 #endif
     uniform float scaleFactor;
+    uniform float hidenobed;
     uniform sampler2D scaleDampTarget;
     uniform sampler2D posNewvals;
     uniform sampler2D posHist;
@@ -279,6 +283,9 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
         float p = rp; //  / Normalised ToTexCo;
         vec3 rbow = hsv2rgb(vec3(p, 1., 1.)); // vec3(p, 1.-p, 0);
         vec4 bed = texture2D(t_ribboncol, vec2(p, 0.25));
+        #if VERTEX == 0
+            if (hidenobed == 1. && bed == vec4(0)) discard;
+        #endif
         float t = bed.w;  // t_ribboncol is bed texture, small 'integer' values for now, but mapped to range 0..1
         float ti = t * 255. - 0.0;
         // when BED doesn't have explicit colour, then all elements will be same... that doesn't make this logic right
@@ -299,6 +306,7 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
 
 CSynth.CommonShaderCode = () => /*glsl*/`
     //CSynth.CommonShaderCode() --------------
+    #define VERTEX 1
     ${CSynth.CommonFragmentShaderCode()}
 // in case we're embedded in a THREE shader, avoid re-defining these properties
 #ifndef NOSTDUNIFORMS
@@ -1683,6 +1691,13 @@ CSynth.chooseBed = function (bed) {
     GX.setValue('modes/beddatasource', bed);
 }
 
+Object.defineProperty(CSynth, 'hidenobed', {
+    get: () => !!G.hidenobed,
+    set: v => {G.hidenobed = +v; if (v) {fxaa.use = false; usemask = -1;}}
+    // note: this will probably always need usemask = -1 to ensure discard is handled correctly
+    // we should not require faxx.use = false, todo
+})
+
 /** add (or replace) top level bed gui, and children if any */
 CSynth.refreshBedGUIs = function (modes = V.modesgui) {
     if (!modes) return;
@@ -1696,6 +1711,7 @@ CSynth.refreshBedGUIs = function (modes = V.modesgui) {
     const sources = CSynth.current.beds.map(b=>b.shortname).concat(Object.keys(CSynth.fixedBeds));
     const n = CSynth.bedgui = modes.add({x:sources[0]}, 'x', sources).name(bedname).listen().onChange(CSynth.chooseBed);
     n.index = index;
+    modes.add(CSynth, 'hidenobed').name('hide no bed').listen();
 
     CSynth.refreshColourGUIs();
     CSynth.refreshTextSource();
