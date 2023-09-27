@@ -22,8 +22,9 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
     //CSynth.CommonFragmentShaderCode() --------------
     precision highp float;
 // in case we're embedded in a THREE shader, avoid re-defining these properties
-// this seems to work with either revision 150 or 157, SHADER_NAME fails ith 157
-#ifndef SHADER_NAMEXXX
+// we did use SHADER_NAME and SHADER_NAMEXXX before, but giving problems with spherevis
+// so now use our explicit NOSTDUNIFORMS which requires extra explicity setting, but won't get confused with any three.js #defines
+#ifndef NOSTDUNIFORMS
     uniform mat4 modelViewMatrix;
     uniform mat4 modelMatrix;
     uniform mat4 viewMatrix;
@@ -300,7 +301,7 @@ CSynth.CommonShaderCode = () => /*glsl*/`
     //CSynth.CommonShaderCode() --------------
     ${CSynth.CommonFragmentShaderCode()}
 // in case we're embedded in a THREE shader, avoid re-defining these properties
-#ifndef SHADER_NAMEXXX
+#ifndef NOSTDUNIFORMS
     attribute vec3 position;
     attribute vec2 uv;
 #endif

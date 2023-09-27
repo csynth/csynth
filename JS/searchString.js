@@ -12,6 +12,7 @@ var searchReplace = {
     tadkinscript: 'tadkin & eval3=setTimeout(() => {fullscreen(); runkeys("Insert,S")}, 2000)',
     tadnoaudio: 'tadkin & noaudio',
     tadbw: 'tadnoaudio & eval1=usemask=1 & eval1=usemask=1 & eval3=tadbwSetup() & canvtop',
+    tadmanchester: 'tadnoaudio & eval1=usemask=2 & eval1=usemask=2 & eval3=tadmanchesterSetup() & canvtop',
     tadsmall: 'tadkin & ribs=4 & tadnum = 600 & initrolename = tree15 & MAX_DEFS_PER_PARTICLE = 16 & startcam & startobj = tad-cammus',
     tadcam: 'tadkin & startcam',
     kintadmut: 'tadkin & notaddetails & noaudio & eval3=setTimeout(() => mutatetad = new mutateTad(),10000)',
@@ -25,7 +26,7 @@ var searchReplace = {
     standard: 'testobj & eval3=setViewports([0,0]), centrescalenow()',
     imfind: 'standard & eval3=imcompareInteract()',
     sympaint: 'eval3=Tracker.init()',
-    
+
 
     threek: 'startobj=startup',
     // csynth: 'startscript',

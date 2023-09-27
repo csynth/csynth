@@ -147,6 +147,7 @@ Plane.drawSet = function plane_drawSet(ppset, id = toKey(ppset), defs=undefined)
         pset.keyPlanes = [qpset];
     } else {
         pset = pset.map(p => Plane.xxxPlane(p));
+        pset.keyPlanes = ppset.keyPlanes;
     }
     Plane.processSet(pset);
     // consoleTimeEnd('drawSet', 'processed', Plane.drawSetLog);
@@ -414,7 +415,6 @@ onframe( () => {    // defer to make sure code ready
 })
 
 
-// Plane.kite();
 // for icoahedron: {I.setplane(1, {x:1, y:1, z:1, size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
 // OR            : {I.setplane(1, {a:0, b:1,      size:100}); Plane.checkpoly('planeQ1'); await S.frame()}
 
@@ -1171,13 +1171,29 @@ Plane.tri = function(sym = false, o = 0) {
 
 
 /** check polys for regularity e.g. for PAV */
-Plane.checkpoly = function(f = 'PAV') {
-    const pset = Plane.drawSetGroups[f].pset[0];
-    const points = pset.poly.points;
+Plane.checkpoly = function(f) {
+    if (f === undefined) return;
+    if (typeof f === 'string') f = Plane.drawSetGroups[f];
+    if (f.pset) f = f.pset;
+    if (Array.isArray(f)) { for (const ff of f) Plane.checkpoly(ff); return; }
+    if (f.poly) f = f.poly;
+    if (f.points) f = f.points;
+    const points = f;
+
+    //const pset = Plane.drawSetGroups[f].pset[0];
+    //const points = pset.poly.points;
     log('dists', points.map( (p,i,a) => p.distanceTo(a[(i+1) % a.length])));
+    log('rads', points.map( (p,i,a) => p.length()));
     const cen = points.reduce((c,v) => c.add(v), vec3()).normalize()
     log ('centres')
     log(cen)
-    log(pset.dir)
-    log(Plane.dir2ab(pset.dir))
+    //log(pset.dir)
+    //log(Plane.dir2ab(pset.dir))
 }
+
+/* some refs
+https://drajmarsh.bitbucket.io/poly3d.html interactive Conway online generator
+https://en.wikipedia.org/wiki/Conway_polyhedron_notation  Conway description
+https://en.wikipedia.org/wiki/Goldberg_polyhedron Goldberg description
+
+*/

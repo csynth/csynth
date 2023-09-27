@@ -605,22 +605,22 @@ void main() {
 		//###opo s = opo s;  // needed for texture coordinate mixing
 		xhornid = oposHornid;
 		if (xhornid == 0.) {
-            if (renderBackground == 0.) discard;   // standard background
-            // ??? colourid = xhornid = oposHornid = WALLID;
-            // could call lightingx here, bute seem  ???? to increase compile time
-            // gl_FragColor = lightingx(vec3(0,0,1), vec4(gl_FragCoord.xy*test3, -1e10, 1), vec3(gl_FragCoord.xy*test3, -1e10)); return;
-            // discard; // this will get background; TODO? could pick uip feedback here if relevant and avoid need for walls
+            if (renderBackground == 0. || feedbackMatrix[0][0] == 0.) discard;   // standard background
+			// background based feedback
+            gl_FragColor.xyz = screenfeed(vec3(0), feeddepth);
+            gl_FragColor.w = feeddepth;
+            return;
         }
         #ifdef SIMPLESHADE
             gl_FragColor = vec4(fract(opos_wok.xyz * 1.97), 1.);
             return;
         #endif
-		float zzzribnum;
+        float zzzribnum;
         vec4 shapepos = (xhornid == WALLID) ? trwall(oposuvw, OUT xmnormal, OUT texpos, OUT zzzribnum) : // compute wall details, especially normals
                 trhorn(oposuvw, OUT xmnormal, OUT texpos, OUT zzzribnum); // compute horn shape. inc normals etc
         if (xhornid != WALLID) {
             float vv = oposHornnum;
-		    $$$chooseHornCode$$						         // make sure xhornid, ribs, ribdepth correct in SINGLEMULTI, noop if not SINGLEMULTI
+            $$$chooseHornCode$$						         // make sure xhornid, ribs, ribdepth correct in SINGLEMULTI, noop if not SINGLEMULTI
             // if (xhornid != oposHornid) {gl_FragColor = vec4(1,1,0,1); return; }  // debug, xhornid should be unchanged
         }
         float zzfullkey; vec3 zzxmnormal; vec4 zzshapepos;
@@ -633,22 +633,10 @@ void main() {
         // getPosNormalColid sets colourid = xhornid from rtshapepos; but rtshapepos not valid in this case
         /// BUT we may want to get at some details such as tadpole based colourid set by tadpole override of getPosNormalColid
 
-//if (length(xmnormal) < 0.1 || length(xmnormal) > 10.)
-// xmnormal = vec3(0.,0.,1.);
+        //if (length(xmnormal) < 0.1 || length(xmnormal) > 10.)
+        // xmnormal = vec3(0.,0.,1.);
    		colourid = xhornid; //  = oposHornid;
-        if (xhornid == WALLID) {
-            // int k = int(test2);
-            // if ((k&1) != 0) xmnormal = normalize(vec3(2,3,-4));
-            // if ((k&2) != 0) trpos = vec4(gl_FragCoord.xy*test3, -1e10, 1);
-            // if ((k&4) != 0) texpos = vec3(gl_FragCoord.xy*test3, -1e10);
-            // if (test3 != 0.) {
-            //     xmnormal = vec3(0,0,1); trpos = vec4(gl_FragCoord.xy*test3, -1e10, 1); texpos = vec3(gl_FragCoord.xy*test3, -1e10);
-            // } else  {
-            //     xmnormal = vec3(0,0,1); /*trpos = vec4(gl_FragCoord.xy*test3, -1e10, 1);*/
-        }
-
         gl_FragColor = lightingx(xmnormal, trpos, texpos, INOUT feeddepth);
-        // if (colourid == WALLID) {gl_FragColor = vec4(0,1,1,1); return;}
         // mix in opo s information, for debug
         if (xxoposprop != 0.) {
             vec4 xopox = vec4(opos_wok.x, oposHornnum/1200.0, xhornid/3., 1.);
@@ -662,6 +650,14 @@ void main() {
 
     #elif (OPMODE == OPTSHAPEPOS2COL)  // need to do the real lighting calculations
         { // OPTSHAPEPOS2COL
+     	if (oposHornid == 0.) {
+            if (renderBackground == 0. || feedbackMatrix[0][0] == 0.) discard;   // standard background
+ 			// background based feedback
+            gl_FragColor.xyz = screenfeed(vec3(0), feeddepth);
+            gl_FragColor.w = feeddepth;
+            return;
+        }
+
         vec4 shapepos;
         float fullkey;
         getPosNormalColid(OUT xmnormal, OUT shapepos, OUT xhornid, OUT fullkey);  // nb sets colourid = xhornid from rtshapepos

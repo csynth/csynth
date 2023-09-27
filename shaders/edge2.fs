@@ -11,9 +11,9 @@
     #define INOUT
 
     uniform sampler2D rtopos;
-    uniform sampler2D rtshapepos;  // not really  used
-    uniform sampler2D tadprop;		// to get radius for varying pen width
-    mat4 rot4;  // <<< not really used
+//#    uniform sampler2D rtshapepos;  	// not used, OPOSZ is 1 for edge2
+//#    mat4 rot4;  						// <<< not used, OPOSZ is 1 for edge2
+    uniform sampler2D tadprop;			// to get radius for varying pen width, and to get colour; not used by edge2
     uniform float edgewidth, edgeDensitySearch, baseksize, radkmult, occludedelta, profileksize, edgestyle, occludewidth;
     uniform float test1, test2, test3;
     uniform vec3 edgecol, occcol, profcol, fillcol, unkcol, backcol, wallcol;
@@ -22,6 +22,7 @@
     float colourid;
     uniform float colby;
     const float MAX_HORNS_FOR_TYPE = 16384.0; // this allows 16384 = 2**14 horns of a single type
+    uniform float _tad_h_ribs;
 
     uniform mat3 feedbackMatrix;
     uniform mat4 feedbackTintMatrix;
@@ -87,17 +88,25 @@ vec3 lanczos(sampler2D sampler, vec2 coord, int r) {
 // floor below means rib number is not part of txx, so ribs of the same tadpole cannot occlude each other
 // it extracts values from rtshapepos or rtopos, depending on OPOSZ
 // 7. is temp pending geting ribnum elsewhere
+
 #define tfetchmx(ij, txx, dxx, qfloor) \
     float txx, dxx; \
-    if (OPOSZ == 1.) { \
-        vec4 v = texelFetch(rtopos, clamp(ij, ivec2(0,0), textureSize(rtopos, 0)-1), 0); \
-        txx = qfloor(v.w); \
-        dxx = txx == 0. ? 1e20 : v.z; \
-        } \
-    else { \
-        vec4 v = texelFetch(rtshapepos, clamp(ij, ivec2(0,0), textureSize(rtshapepos, 0)-1), 0); \
-        vec4 vv = vec4(v.xyz, 1) * rot4; \
-        txx = qfloor(v.w), dxx = txx == 0. ? 1e20 : vv.z; }
+    { vec4 v = texelFetch(rtopos, clamp(ij, ivec2(0,0), textureSize(rtopos, 0)-1), 0); \
+    txx = qfloor(v.w); \
+    dxx = txx == 0. ? 1e20 : v.z; }
+
+// OPOSZ is now forced 1 for edge2
+// #define tfetchmx(ij, txx, dxx, qfloor) \
+//     float txx, dxx; \
+//     if (OPOSZ == 1.) { \
+//         vec4 v = texelFetch(rtopos, clamp(ij, ivec2(0,0), textureSize(rtopos, 0)-1), 0); \
+//         txx = qfloor(v.w); \
+//         dxx = txx == 0. ? 1e20 : v.z; \
+//         } \
+//     else { \
+//         vec4 v = texelFetch(rtshapepos, clamp(ij, ivec2(0,0), textureSize(rtshapepos, 0)-1), 0); \
+//         vec4 vv = vec4(v.xyz, 1) * rot4; \
+//         txx = qfloor(v.w), dxx = txx == 0. ? 1e20 : vv.z; }
 
 // NO floor in tfetchmr means rib number is part of txx, so alternate ribs can be shaded
 #define tfetchm(ij, txx, dxx) tfetchmx(ij, txx, dxx, floor)
@@ -177,6 +186,9 @@ int edgeStatus(out bool alt) {
     ivec2 bi = ivec2(gl_FragCoord.xy);
     int k = int(baseksize);
     // for now, radius based width is only supported for tadpoles in non-main mode
+    // ??? this radius is not used for radius itslef, just used to to set variable pen width
+    // ??? and anyway we don't jave RIBS defined even for tadpoles ???
+    // NOTE: similar test for colourid below, may common up???
     #if !defined(EDGEMAIN) && defined(RIBS)
         if (radkmult != 0.) {
             vec4 v = texelFetch(rtopos, clamp(bi, ivec2(0,0), textureSize(rtopos, 0)-1), 0);
@@ -188,6 +200,7 @@ int edgeStatus(out bool alt) {
             k = int(baseksize + rad * radkmult);
         }
     #endif
+
     tfetchmr(bi,   h00, dxxx); //h00 = t00;
     tfetchmr((bi + ivec2( k, 0)), haa, dxxxaa); //haa = taa;
     tfetchmr((bi + ivec2(-k, 0)), hab, dxxxab); //hab = tab;
@@ -206,7 +219,19 @@ int edgeStatus(out bool alt) {
     int r;
     bool isback = false;
     #ifdef EDGEMAIN
+    {
         colourid = floor(h00 / MAX_HORNS_FOR_TYPE);  // should work for real horns, but with tadpoles will always give 4?
+        if (_tad_h_ribs != 0. && colourid == 4.) {  // ?? is this a reliable test for whether we are in tadpoles
+			// some of this code should be commoned up/factored out
+            vec4 opos = texelFetch(rtopos, clamp(bi, ivec2(0,0), textureSize(rtopos, 0)-1), 0);
+            float w = opos.w;
+            float oposHornid = floor(w / MAX_HORNS_FOR_TYPE);
+            float oposHornnum = floor(w - oposHornid * MAX_HORNS_FOR_TYPE);
+            vec4 tprop = texture(tadprop, vec2(opos.x, oposHornnum/_tad_h_ribs));
+            colourid = tprop.y;
+        }
+    }
+
     #endif
     if (colourid == WALLID) {isback = true; r = edgewall; }
     if (colourid == 0.)  {isback = true; r = edgeback; }
@@ -257,6 +282,9 @@ vec4 trifeed(vec3 feedpos, sampler2D map, inout float feeddepth) {
     vec2 smalltri = (y1 - 0.5) * cr + 0.5;
     // smalltri = clamp(smalltri, 0.005, 0.995);  // avoid joint lines in corefixfeed; fix in feedback setup instead (feed.coreuse)
     vec4 fill = texture(map, smalltri);
+    if (test3 == 2.) {
+        fill = texelFetch(map, ivec2(gl_FragCoord.xy), 0);
+    }
 	feeddepth = fill.a + 1./256.;
 
     if (useLanczos != 0.) {

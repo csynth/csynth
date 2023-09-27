@@ -5,6 +5,22 @@ float nstar = 4.;
 float stardepth = 0.;
 float ribdepth = 0.;
 float ribs = 8.;
+// below added for IMPLICIT, not really used, can we just kill the relevant edge code instead?
+float dribs = 8.;
+float occludedelta = 0.;
+float edgewidth = 0.;
+float edgestyle = 0.;
+float edgeDensitySearch = 0.;
+float baseksize = 0.;
+float profileksize = 0.;
+float colby = 0.;
+float occludewidth = 0.;
+float renderBackground = 0.;
+mat3 feedbackMatrix;
+mat4 feedbackTintMatrix;
+#define OPOSZ 0.
+uniform sampler2D rtopos, rtshapepos, feedtexture;
+
 #endif
 
 const float MAX_HORNS_FOR_TYPE = 16384.0; // this allows 16384 = 2**14 horns of a single type
@@ -81,9 +97,7 @@ vec4 trifeed(vec3 feedpos, sampler2D map, inout float feeddepth);
 vec4 texcentre(vec2 r, sampler2D map, inout float feeddepth) {
     vec3 feedpos;
     if (test3 == 0.)
-        //vec3 feedpos = vec3(r.x, r.y - (wallhigh.y + walllow.y) * 0.5, 1);
         feedpos = vec3(r.x, r.y - springCentre.y, 1);  // can't see what is wrong with this one ....
-        // feedpos = vec3(r.x, r.y - 1.52, 1); // this one is close
     else
         feedpos = vec3(gl_FragCoord.xy*screen * 2. - 1.,1);
 

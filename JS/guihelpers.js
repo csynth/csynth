@@ -442,7 +442,7 @@ tadbwSetup.width = 10.7;  // 10.6 + 5cm left and right
 tadbwSetup.height = 2.21;
 tadbwSetup.aspect = tadbwSetup.width / tadbwSetup.height;
 
-/** setup for bw rendering, espcially wall */
+/** setup for bw rendering, especially wall */
 async function tadbwSetup() {
     feed.test();
     G.OPOSZ=1;
@@ -452,14 +452,31 @@ async function tadbwSetup() {
     // tad.covidSetScene({aspect: tadbwSetup.aspect});
     // sethighres(5e9);
     // new Viewedit({name: 'test'})
-    new Viewedit({name: 'feed', top: "380px", left:"100px"})
-    new Viewedit({name: 'edge', top: "380px", left:"450px"})
-    new Viewedit({name: 'sys', top: "380px", left:"800px"})
+    new Viewedit({name: 'feed', top: "15px", left:"100px"})
+    new Viewedit({name: 'edge', top: "15px", left:"450px"})
+    new Viewedit({name: 'sys', top: "15px", left:"800px"})
     G._tad_h_ribs = tad.TADS;
     await S.frame(20);
     // sethighres(5e9);
     G._tad_h_ribs = tad.TADS;
     feed.showfeed = true;
+}
+
+/** set up for potential Manchester exhibition */
+async function tadmanchesterSetup() {
+    G.OPOSZ=1;
+    G.renderBackground=1;
+    shadows(7);
+
+    new Viewedit({name: 'feed', top: "15px", left:"100px"})
+    new Viewedit({name: 'edge', top: "15px", left:"450px"})
+    new Viewedit({name: 'sys', top: "15px", left:"800px"})
+    G._tad_h_ribs = tad.TADS;
+    await S.frame(20);
+    // sethighres(5e9);
+    G._tad_h_ribs = tad.TADS;
+    feed.showfeed = false;
+
 }
 
 function genfname(base = '', ext) {

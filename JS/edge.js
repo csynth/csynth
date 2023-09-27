@@ -1,4 +1,4 @@
-var zoomCam, feed, camera, xxxrt, imageOpts, xxxgenes, U
+var zoomCam, feed, camera, xxxrt, imageOpts, xxxgenes, U, killev, msgfixlog
 
 /** this will be called after uniforms set to patch them
 scale up some edge details;
@@ -89,10 +89,10 @@ edge.chooseColour = function(evt, rt = getrendertarget('rtopos')) {
     edge.picker.value = '#' + U.custcol[colid % 8].getHexString();
     edge.picker.focus()
     edge.picker.click()
-    edge.picker.onchange = edge.picker.oninput = evt => {
+    edge.picker.onchange = edge.picker.oninput = _evt => {
         U.custcol[colid % 8].setHex(parseInt(edge.picker.value.substring(1), 16))
     }
-    edge.picker.onclose = edge.picker.onblur = evt => edge.picker.style.display = 'none';
+    edge.picker.onclose = edge.picker.onblur = _evt => edge.picker.style.display = 'none';
 
     msgfixlog ('edge', 'read point ', {w, rrr, thornid, hornnum, tadnum, colid})
 }

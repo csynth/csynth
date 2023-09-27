@@ -1685,7 +1685,7 @@ Object.defineProperty(window, 'edgecolour', {
             U.edgecol = c3(0,0,0)
             U.occcol = c3(1,1,1)
             U.profcol = c3(1,1,1)
-            U.backcol = c3(0.3, 0.3, 0.3)
+            U.backcol = c3(1,1,1)
             U.wallcol = c3(0,1,0.2)
             U.unkcol = c3(0,1,1)
         }

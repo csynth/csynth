@@ -1,7 +1,7 @@
 // code to help with feedback
 var planeg, THREE, G, V, width, height, U, GUINewsub, S, springs, fixfeed, unfixfeed, _fixinfo, fixfeedcoreprep, fixfeedcoreend,
 imageOpts, inps, setExtraKey, usemask, cMap, camera, copyXflip, everyframe, xxxdispobj, renderer, ops, ctrl, alt, right,left, middle,
-tad, GX, animateNum, xxxgenes, currentGenes
+tad, GX, animateNum, xxxgenes, currentGenes, msgfix
 
 var feed = { dofeed: true, viewfactor: 0, edgezoom: false, coreuse: 0.99, showfeed: false, _running: true, animfun: animateNum}
 
@@ -42,7 +42,7 @@ async function guinewbw() {
         set: v => {(v ? fixfeedcoreprep : fixfeedcoreend)(50)},
         get: () => !!_fixinfo.core},
     running: {
-        set: v => {renderer.setAnimationLoop(v ? feed.animfun : null); feed._running = v; feed.showone = false;},
+        set: v => {renderer.setAnimationLoop(v ? feed.animfun : () => msgfix.force()); feed._running = v; feed.showone = false;},
         get: () => feed._running},
     showone: {
         set: v => {
@@ -186,14 +186,14 @@ feed.onChange = function() {
 // feed.alwayschange = everyframe(() => feed.onChange()); // not expensive and many things can cause it to be needed
 window.addEventListener('setObjUniforms', feed.onChange);
 
-feed.clear = function() {
+feed.clear = function(col = U.backcol) {
     // const s = U.feedbackMatrix.elements[8]
     // U.feedbackMatrix.elements[8] = 0;
     // await S.frame(2);
     // U.feedbackMatrix.elements[8] = s;
     const dobj = xxxdispobj();
 
-    renderer.setClearColor(U.backcol, 0);
+    renderer.setClearColor(col, 0);
     renderer.setRenderTarget(dobj.rt);
     renderer.clear(true, true, true);
     if (dobj._rts) {

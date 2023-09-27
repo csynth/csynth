@@ -4765,7 +4765,7 @@ forGp uses these from gp: raymatrix, baitPosition, axesbias, pad, trigger
             rad = 0;
         }
         else {
-            var { orb = false, wavy = false, str = 25000, x, y, z, pull = false, pullend = pull, rad, ribs, shape, col, colends, dx = 0, dy = 0, dz = 0.0001 } = opts;
+            var { orb = false, wavy = false, str = 25000, x, y, z, pull = false, pullend = pull, rad, ribs, shape = tadkin.shape, col, colends, dx = 0, dy = 0, dz = 0.0001 } = opts;
         }
         springs.removeAllSprings(ti * RIBS, RIBS);
         const fix = (i, x, y, z, pull) => (pull ? springs.addpull : springs.setfix)(i, x, y, z, pull);

@@ -80,7 +80,7 @@ I.setplane = function(n, pdir, usenow = I.show0, drawsub = false) {
 
 /** use the current set of planes to define polyhedron */
 I.useplanes = function(kkk = 'iplanes') {
-    return Plane.drawSet(Plane.planesetSymset(I.planes), kkk);
+    return Plane.drawSet(Plane.planesetSymset(I.planes), kkk, {tilerad:I.cylrad});
 }
 
 /** ?for continuous update of planes */
@@ -99,7 +99,7 @@ I.monitor = extrakeys['Q,E'] = function() {
     }
     const k2 = keysdown[1];
     const kk = '`' ? '0' : ('0' <= k2 && k2 <= '9' ) ? k2 : 'X';
-    I.setplane(kk);
+    I.setplane(kk, dir);
     msgfix('I.monitor calls', I.monitor.count++);
     if (I.show0) I.useplanes();
 }

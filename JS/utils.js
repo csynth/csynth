@@ -15,7 +15,7 @@ var screens, W = window, opmode, HTMLElement, HTMLDocument, HTMLTextAreaElement,
     ErrorEvent, animateNum, dustbinvp, testopmode, S, sclogE, sclog, islocalhost, dataURItoBlob, saveAs, GX, lastToggleGuiAction,
     foldStates, restoreFoldStates, ises300, deferRender, startSC, isCSynth, WA, G, mutate, addGene, runkeys, regularizeColourGeneVisibility, maxInnerHeight,
     resoverride, U, usemask, numInstances, tad, mutateTad, xxxdispobj, centrescalenow, resetCamera, target, Files, sleep, interactDownTime,
-    readWebGlFloatDirect
+    readWebGlFloatDirect, rrender
     ;
 
 var MAX_HORNS_FOR_TYPE = 16384.0; // this allows 16384 = 2**14 horns of a single type; SHARE WITH common.vfs
@@ -5483,22 +5483,39 @@ function runcommandphp(cmd, quiet, reject) {
     }
 }
 
-let _copyTextureToRenderTargetMesh;
+let _copyTextureToRenderTargetMesh, _copyTextureToRenderTargetScene;
 /** copy texture/renderTargets, I still find it odd the direct renderer.copyTextureToTexture doesn't work */
 function copyTextureToRenderTarget(from, to) {
     if (from.texture) from = from.texture;
-    if (!_copyTextureToRenderTargetMesh) {
+    if (!_copyTextureToRenderTargetScene) {
         const planeGeom = new THREE.PlaneGeometry(2, 2);
-        const planeMat = new THREE.MeshBasicMaterial();
+        // const planeMat = new THREE.MeshBasicMaterial();
+        const planeMat = new THREE.RawShaderMaterial({
+            uniforms: { intex: { value: undefined, type: 't' } },
+            vertexShader: `#version 300 es
+                precision highp float;
+                in vec3 position;
+                void main() {
+                    gl_Position = vec4( position, 1.0 );
+                }`,
+            fragmentShader: `#version 300 es
+                precision highp float;
+                uniform sampler2D intex;
+                out vec4 glFragColor;
+                void main() {
+                    glFragColor = texelFetch(intex, ivec2(gl_FragCoord.xy), 0);
+                }`
+        });
         planeMat.depthTest = false;
         planeMat.depthWrite = false;
         _copyTextureToRenderTargetMesh = new THREE.Mesh(planeGeom, planeMat);
+        _copyTextureToRenderTargetScene = new THREE.Scene();
+        _copyTextureToRenderTargetScene.add(_copyTextureToRenderTargetMesh);
+
     }
-    _copyTextureToRenderTargetMesh.material.map = from;
-    const simpleCam = new THREE.Camera();       // Create simplest camera
-    renderer.setRenderTarget(to); // Save texture to your renderTarget
-    renderer.render(_copyTextureToRenderTargetMesh, simpleCam);
-    renderer.setRenderTarget(null);
+    _copyTextureToRenderTargetMesh.material.uniforms.intex.value = from;
+    const simpleCam = new THREE.Camera();       // Create simplest camera, not used, three.js placebo
+    rrender('copytex', _copyTextureToRenderTargetScene, simpleCam, to);
 }
 
 

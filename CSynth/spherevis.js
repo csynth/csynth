@@ -34,6 +34,7 @@ CSynth.SphereParticles = function() {
         //prefixVertex will be prepended to vertexShader *after* we've finished with it here.
         //For now, "#ifndef SHADER_NAME" around those known to cause error in CommonShaderCode.
         shader.vertexShader = /*glsl*/`//--- spherevis vertex preamble
+            #define NOSTDUNIFORMS
             ${CSynth.CommonShaderCode()}
             uniform float sphereRadius;
             uniform float selectedSphereRadius;
@@ -106,6 +107,7 @@ CSynth.SphereParticles = function() {
 
         shader.fragmentShader = /*glsl*/`
             // #extension GL_OES_standard_derivatives : enable
+            #define NOSTDUNIFORMS
             uniform mat4 modelMatrix;  // not really used, but called
             ${CSynth.CommonFragmentShaderCode()}
             varying float rpx;

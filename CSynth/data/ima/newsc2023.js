@@ -88,7 +88,8 @@ ima.demo = {
             tiling: !searchValues.hsvab ? 'GeodesicIcosahedron25.polys' :      // pre Aug 19
             [ // post Aug 19, then replaced by GeodesicIcosahedron25 again, this ab tiling is still wobbly
                 {a: 1, b: 0, size: 99.60515674918517},  // pentagons yellow ... white
-                {a: 0.5043645634880239, b: 0, size: 99.20374665156196},  // hex 1   green/gold ...red
+                // {a: 0.5043645634880239, b: 0, size: 99.20374665156196},  // hex 1   green/gold ...red
+                {a: 0.5, b: 0, size: 99.20374665156196},  // hex 1   green/gold ...red
                 {a: 0.2657419602284653, b: -0.733306819738863, size: 99.0790533995604}, // hex 2 green/yellow ... green
                 {a: 0, b: 0,size: 99.0760686442865},  // hex3 ... blue
                 {a: 0.7821769488688209, b: -0.21782305113117853, size: 99.92576073766486},  // tri 1 ...4 cyan; white, 2 red

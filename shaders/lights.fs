@@ -708,6 +708,7 @@ virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, 
 		// note, GetReflection taked out of conditional
         // maybe should use NONU
         vec4 rrr = GetReflection(viewdir, mmnormal, texpos, INOUT feeddepth) * vec4(reflred, reflgreen, reflblue, 1.);
+        if (colourid != WALLID) feeddepth = 0.;  // is this an apprppriate place for this ???
         vec4 refl = colsurf.col.w == 0. ? vec4(0.0,0.0,0.0,1.0) : rrr;
         // make feedback part of wall (and other objects) have shadows ... approx method
         refl.rgb *= (visibilityL.L0.a * light0s + visibilityL.L1.a * light1s + visibilityL.L2.a * light2s + ambient) / (light0s + light1s + light2s + ambient);
@@ -880,6 +881,7 @@ virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, 
         bool alt; int etype;
         vec4 edger4 = edgeColour(OUT alt, OUT etype);        // edger is 'suggested' colour from edge code
         vec3 edger = edger4.xyz;
+        // feeddepth = 0.;
         // todo, check feeddepth
         switch (etype) {
             case edgefill: r = mix(r, edger, fillprop); break;

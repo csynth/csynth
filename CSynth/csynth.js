@@ -4879,7 +4879,10 @@ CSynth.tileToInteractive = function(t) {
     I.removeallfix();
     I.clearPlanes();
     if (!Array.isArray(t)) t = [t];
-    t.forEach((p, i) => I.setplane(i, p, false).group.visible = false);
+    t.forEach((p, i) => {
+        const group = I.setplane(i, p, false).group;
+        if (group) group.visible = false;
+    });
     I.useplanes().visible = true;
 }
 
