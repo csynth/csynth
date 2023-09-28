@@ -1560,6 +1560,7 @@ CSynth.interrupt  = function(reason) {
 // var glmol, mesh, mi, opts;  // to help with debug/experiment
 /** script for testing animation of morphing etc */
 CSynth.construction1 = async function CSynth_construction1({sweep = true, prepareonly = false} = {}) {
+    if (!(searchValues.lowry || searchValues.fullvir)) return;
     // Maestro.trigger('constructionClick');  // constructionClick not used
 
     CSynth.interrupt('construction1');              // signal anyone interseted

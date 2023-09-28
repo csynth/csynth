@@ -4993,7 +4993,7 @@ CSynth.rotPosGui = function(pgui) {
         //CSynth.SizeSlider = pgui.add(CSynth, 'objsize', -1, 1).name('size').setHeight(0.07).step(0.01).listen();
     }
 
-    if (searchValues.lowry || searchValues.newsc2023) {
+    if (searchValues.lowry || searchValues.fullvir) {
         CSynth.ActionButtons = pgui.addImageButtonPanel(2,
             // eslint-disable-next-line no-return-await
             {text: 'construction',     func: async () => await CSynth.construction1(),

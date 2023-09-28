@@ -173,10 +173,17 @@ Bacteriophage MS2
 This also shows the RNA polyhedron
 and the chosen Hamiltonian path.
 
-*TRSV_hover
+*TRSV regular_hover
 Tobacco Ringspot Virus
+regular tiling
 
 60 white kites
+
+*TRSV floret_hover
+Tobacco Ringspot Virus
+detailed floret tiling
+
+60 each of red, green, blue florets
 
 *both_hover
 Display both capsid and tiling

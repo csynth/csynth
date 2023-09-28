@@ -52,160 +52,166 @@ window.startvr = searchValues.startvr;
 // also see emd-8397.xml for metadata on the map
 // details on map format http://www.ccp4.ac.uk/html/maplib.html
 
+/** ima.extraPDBName defines all the potential items by name;
+ * those wanted for any particular demo are listed in order by ima.uselist */
+ima.uselist = 'SV40 TRSV TRSVX HSV1 MS2 PAVAX'.split(' ');
+ima.extraPDBName = {
+    SV40: {
+    filename: '1sva.pdb', shortname: 'SV40', comment: 'Emergent Human Pathogen Simian Virus\nalso called HSV',
+    // has biomt
+    //tiling: 'sv40lines.wrl',
+    //meshOrient: [0.493, -0.060, 0.060, 0, 0.083, 0.267, -0.415, 0, 0.018, 0.419, 0.273, 0, 0,0,0,1],
+    tiling: [
+        //{x: -21.346915896865433, y: 66.20536056832843, z: -71.8412097177503},
+        //{x: -30.389703179036854, y: 81.55027525755085, z: -49.25462969211857},
+        //{x: -46.93720120719336, y: 65.19653366135283, z: -59.55091217923984}
+        {a: 0.45451063262124236, b: -0.1735073261813263, size: 99.99},
+        {a: 0, b: 0, size: 100},
+        {a: 0.07608244680159279, b: -0.6415763702842711, size: 100}
+    ],
+
+    scale: 0.5,
+    orient: [1,0,0,0,  0,1,0,0,  0,0,1,0,  0,0,0,1],
+    baseRadius: 0.5, multiplierRadius: 1, ssNarrowRad: 1, ssBroadRad: 1, ssSheetBroadRad: 2, ssArrowSize: 1
+    // XmeshOrient was my original interactively captured one
+    // meshOrient assumes automatic centre: has opposite translate to allow for origin reflection
+    // XmeshOrient: [0.493, -0.060, 0.060, 0, 0.083, 0.267, -0.415, 0, 0.018, 0.419, 0.273, 0, 24.6, -13.1, -24.7, 1],
+},  // SV40
+
+TRSV: {
+    filename: '1a6cX.pdb', shortname: 'TRSV\nregular',
+    // has biomt
+    comment: '*nfig 4c',
+    // tiling: {a: 0.3758987414465172, b: 0.617193999288073, size: 100},
+    tiling: {a: 0.382, b: 0.618, size: 100},  // refined 18 Sept 2023 to make ref point at average of vertices, nb a+b = 1
+    scale: 0.8,
+    colorBy: 'chaingroup',
+    baseRadius: 0.5, multiplierRadius: 2, ssNarrowRad: 0.4, ssBroadRad: 2, ssSheetBroadRad: 2, ssArrowSize: 2,
+    // meshOrient: [0.496, -0.311, 0.811, 0, 0.812, 0.495, -0.307, 0, -0.306, 0.811, 0.498, 0, 0, 0, 0, 1],
+    orient: [-0.500, -0.309, -0.809, 0, -0.309, -0.809, 0.500, 0, -0.809, 0.500, 0.309, 0, 0, 0, 0, 1]
+}, // TRSV
+
+TRSVX: {
+    shortname: 'TRSV\nfloret', like: 'TRSV\nregular',
+    tiling: [ // {a: 0.3758987414465172, b: 0.617193999288073, size: 100},
+        {a: 0.343, b: 0.451, size: 100},
+        {a: 0.235, b: -0.309, size: 100},
+        {a: 0.594, b: -0.119, size: 100}],
+        // {a: 0.343, b: 0.451, size: 100},
+        // {a: 0.244, b: -0.280, size: 100},
+        // {a: 0.594, b: -0.119, size: 100}],
+}, // TRSVX
+
+HSV1: {
+    filename: '6cgr.pdb', shortname: 'HSV1',
+    // NO biomt, but hardcoded below
+    style: searchValues.hsvstyle || 'smooth',
+    colorBy: 'chain', colDistNear: 490, colDistFar: 611, // opacity: 0.5, transparent: true,
+    comment: 'Herpes Simplex Virus\nlike Basilisk, fig 3b',
+    //tiling: 'icos14.polys',  // herpes
+    tiling: !searchValues.hsvab ? 'GeodesicIcosahedron25.polys' :      // pre Aug 19
+    [ // post Aug 19, then replaced by GeodesicIcosahedron25 again, this ab tiling is still wobbly
+        {a: 1, b: 0, size: 99.60515674918517},  // pentagons yellow ... white
+        // {a: 0.5043645634880239, b: 0, size: 99.20374665156196},  // hex 1   green/gold ...red
+        {a: 0.5, b: 0, size: 99.20374665156196},  // hex 1   green/gold ...red
+        {a: 0.2657419602284653, b: -0.733306819738863, size: 99.0790533995604}, // hex 2 green/yellow ... green
+        {a: 0, b: 0,size: 99.0760686442865},  // hex3 ... blue
+        {a: 0.7821769488688209, b: -0.21782305113117853, size: 99.92576073766486},  // tri 1 ...4 cyan; white, 2 red
+        {a: 0.5272617433956593, b: 0.47273825529490177, size: 99.9068905073811},  // tri 2 ...5 purple;, green, 2 red
+        {a: 0.2566082373396572, b: -0.23737687807156496, size: 99.89979459735572},  // tri 3a ...6 yellow; red, green, blue
+        {a: 0.25660824082065414, b: 0.2373768742057317, size: 99.8997947071859},  // tri 3b ...7  dark orange; red, green, blue
+        {a: 0, b: 0.4814983189272394, size: 99.8960463933496},  // tri 4 ...8 grey; blue, 2 green
+        {a: 0, b: -0.9999999981691525, size: 99.89479045079642}  // tri 5 ... dark red; 3 green
+    ],
+    tilerad: 0.6,
+
+    colorScheme: [
+        ['4,A,B,C,D,E,F', 0xffff00],
+        ['M,N,O,S,T,U,V,W,X', 0x0000ff],
+        ['0,1,2,3,G,H,I,J,K,L,P,Q,R,Y,Z', 'green'],
+        ['5,8,b,e,h', 'red'],
+        ['6,7,9,a,c,d,f,g,i,j', 0x3030ff],
+        ['k,l,m,n,o', 'black']
+    ],
+    excludeChains: searchValues.hsvExclude ? 'KLMNOklmno' : 'klmno',
+    // excludeChains: 'KLMNOklmno',    // pre Aug 19, and corrected Sept; but interesting holes, use for Lowry?
+    // excludeChains: 'klmno',         // pre Aug 19, and corrected Sept
+    scale: 0.18,
+    orient: [-0.588, 0.688, -0.425, 0, -0.809, -0.500, 0.309, 0, 0, 0.526, 0.851, 0, 0, 0, 0, 1],
+    // meshOrient: [-0.807, -0.496, -0.310, 0, 0.303, -0.807, 0.501, 0, -0.501, 0.314, 0.807, 0, 0, 0, 0, 1],
+    XmeshOrient: [-80.7, -49.6, -31.0, 0, 30.3, -80.7, 50.1, 0, -50.1, 31.4, 80.7, 0, 0, 0, 0, 1],
+    Xorient: [0.348, 0.811, 0.280, 0, -0.597, 0.012, 0.708, 0, 0.616, -0.447, 0.527, 0, 0, 0, 0, 1]
+}, // herpes HSV1
+
+// {shortname: 'HSV1X', like: 'HSV1', tiling: 'GeodesicIcosahedron25.polys'},
+
+MS2: {
+    filename: '2ms2.pdb', shortname: 'MS2',
+    // has biomt
+    comment: 'Bacteriophage MS2, fig 4b',
+    tiling: [{x:0.89402, y:0, z:1, size: 100}, {x:0, y:0, z:1, size: 100}], // a=0, b=0, rhomb  [0,0,1] [0.9, 0, 1]
+    scale: 0.9,
+    Xorient: [0.809017, 0.500000, 0.309017, 0, -0.30902, 0.809017, -0.50000, 0, -0.50000, 0.309017, 0.809017, 0, 0, 0, 0, 1], // for m2
+    orient: [0.500, -0.309, 0.809, 0, 0.809, 0.500, -0.309, 0, -0.309, 0.809, 0.500, 0, 0, 0, 0, 1]
+},  // MS2
+
+PAV: {
+    filename: '1f8v.pdb', shortname: 'PAV',
+    // has biomt
+    comment: '* fig 4a',
+    // tiling: {a:0.257, b:0, size: 100},           // set by ?
+    // tiling: {a: 0.160357, b: 0, size: 100},      // set by use of Planes.tri etc 17 Sept 2023
+    tiling: {a: 0.313, b: 0, size: 100},             // set to make ab ref point (almost) coincide with centre 17 Sept 2023
+    scale: 0.75,
+    orient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 115.8, 16.5, -66.7, 1]
+},  // PAV
+
+PAVAX: {
+    filename: '1f8v.pdb', shortname: 'PAV\naffine extension',
+    // has biomt
+    comment: 'Pariacoto',
+    spheres: 'pariacoto_full_export_563_*.pdb',
+    // tiling: {a:0.257, b:0, size: 100},           // set by ?
+    // tiling: {a: 0.160357, b: 0, size: 100},      // set by use of Planes.tri etc 17 Sept 2023
+    tiling: {a: 0.313, b: 0, size: 100},            // set to make ab ref point (almost) coincide with centre 17 Sept 2023
+    style: 'cartoon', colorBy: 'chain',             // opacity: 0.2, transparent: true,
+    scale: 0.75,
+    orient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 115.8, 16.5, -66.7, 1],
+    // meshOrient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 0,0,0,1]
+    // scaled 0.75
+    // meshOrient: [-0.594, -0.418, -0.188, 0, 0.295, -0.584, 0.367, 0, -0.351, 0.217, 0.626, 0, 0, 0, 0, 1]
+    // refined
+    // meshOrient: [-0.614, -0.372, -0.217, 0, 0.231, -0.604, 0.381, 0, -0.364, 0.246, 0.608, 0, 0, 0, 0, 1]
+    // 3/5 computed
+    spheresOrient: [0.310, 0.812, -0.502, 0, -0.503, -0.309, -0.810, 0, -0.811, 0.500, 0.307, 0, 0, 0, 0, 1]
+},  // PAV affine
+
+
+// {filename: '2qqp.pdb', shortname: '2qqp providence',
+//     orient: [-0.850, -0.357, 0.389, 0, 0.500, -0.309, 0.809, 0, -0.168, 0.882, 0.441, 0, 0, 0, 0, 1]},  // for providence
+
+// {filename: '1m4x.pdb', shortname: '1m4x PBCV-1',
+//     orient: [0.809, 0.500, 0.309, 0, -0.309, 0.809, -0.500, 0, -0.500, 0.309, 0.809, 0, 0, 0, 0, 1]},  //  PBCV-1
+
+// {filename: '1cwp.pdb', shortname: '1cwp CCMV',
+//     Xorient: [0.348, 0.811, 0.280, 0, -0.597, 0.012, 0.708, 0, 0.616, -0.447, 0.527, 0, 0, 0, 0, 1]} //  CCMV
+
+// {name: 'm2 extras', files: [
+//     'All_capsid_proteins.pdb',
+//     {filename: '1aq3_full.pdb', centre: true},
+//     '1aq3.pdb',
+//     '5tc1.pdb'
+// ]},
+// 'fromCCMV_most.pse.pdb'  // _full as exported, _most removes the extra 15 copies a chains A,B,C
+}
+
 ima.demo = {
     contacts: [{filename: 'triva.contacts', shortname: 'IF'}],
     colorScheme: [['A', 0x3030ff], ['B', 'green'], ['C', 'red']],
     baseRadius: 0.5, multiplierRadius: 2, ssNarrowRad: 0.4, ssBroadRad: 2, ssSheetBroadRad: 2, ssArrowSize: 2,
-    extraPDB: [{
-            filename: '1sva.pdb', shortname: 'SV40', comment: 'Emergent Human Pathogen Simian Virus\nalso called HSV',
-            // has biomt
-            //tiling: 'sv40lines.wrl',
-            //meshOrient: [0.493, -0.060, 0.060, 0, 0.083, 0.267, -0.415, 0, 0.018, 0.419, 0.273, 0, 0,0,0,1],
-            tiling: [
-                //{x: -21.346915896865433, y: 66.20536056832843, z: -71.8412097177503},
-                //{x: -30.389703179036854, y: 81.55027525755085, z: -49.25462969211857},
-                //{x: -46.93720120719336, y: 65.19653366135283, z: -59.55091217923984}
-                {a: 0.45451063262124236, b: -0.1735073261813263, size: 99.99},
-                {a: 0, b: 0, size: 100},
-                {a: 0.07608244680159279, b: -0.6415763702842711, size: 100}
-            ],
-
-            scale: 0.5,
-            orient: [1,0,0,0,  0,1,0,0,  0,0,1,0,  0,0,0,1],
-            baseRadius: 0.5, multiplierRadius: 1, ssNarrowRad: 1, ssBroadRad: 1, ssSheetBroadRad: 2, ssArrowSize: 1
-            // XmeshOrient was my original interactively captured one
-            // meshOrient assumes automatic centre: has opposite translate to allow for origin reflection
-            // XmeshOrient: [0.493, -0.060, 0.060, 0, 0.083, 0.267, -0.415, 0, 0.018, 0.419, 0.273, 0, 24.6, -13.1, -24.7, 1],
-        },  // SV40
-
-        {
-            filename: '6cgr.pdb', shortname: 'HSV1',
-            // NO biomt, but hardcoded below
-            style: searchValues.hsvstyle || 'smooth',
-            colorBy: 'chain', colDistNear: 490, colDistFar: 611, // opacity: 0.5, transparent: true,
-            comment: 'Herpes Simplex Virus\nlike Basilisk, fig 3b',
-            //tiling: 'icos14.polys',  // herpes
-            tiling: !searchValues.hsvab ? 'GeodesicIcosahedron25.polys' :      // pre Aug 19
-            [ // post Aug 19, then replaced by GeodesicIcosahedron25 again, this ab tiling is still wobbly
-                {a: 1, b: 0, size: 99.60515674918517},  // pentagons yellow ... white
-                // {a: 0.5043645634880239, b: 0, size: 99.20374665156196},  // hex 1   green/gold ...red
-                {a: 0.5, b: 0, size: 99.20374665156196},  // hex 1   green/gold ...red
-                {a: 0.2657419602284653, b: -0.733306819738863, size: 99.0790533995604}, // hex 2 green/yellow ... green
-                {a: 0, b: 0,size: 99.0760686442865},  // hex3 ... blue
-                {a: 0.7821769488688209, b: -0.21782305113117853, size: 99.92576073766486},  // tri 1 ...4 cyan; white, 2 red
-                {a: 0.5272617433956593, b: 0.47273825529490177, size: 99.9068905073811},  // tri 2 ...5 purple;, green, 2 red
-                {a: 0.2566082373396572, b: -0.23737687807156496, size: 99.89979459735572},  // tri 3a ...6 yellow; red, green, blue
-                {a: 0.25660824082065414, b: 0.2373768742057317, size: 99.8997947071859},  // tri 3b ...7  dark orange; red, green, blue
-                {a: 0, b: 0.4814983189272394, size: 99.8960463933496},  // tri 4 ...8 grey; blue, 2 green
-                {a: 0, b: -0.9999999981691525, size: 99.89479045079642}  // tri 5 ... dark red; 3 green
-            ],
-            tilerad: 0.6,
-
-            colorScheme: [
-                ['4,A,B,C,D,E,F', 0xffff00],
-                ['M,N,O,S,T,U,V,W,X', 0x0000ff],
-                ['0,1,2,3,G,H,I,J,K,L,P,Q,R,Y,Z', 'green'],
-                ['5,8,b,e,h', 'red'],
-                ['6,7,9,a,c,d,f,g,i,j', 0x3030ff],
-                ['k,l,m,n,o', 'black']
-            ],
-            excludeChains: searchValues.hsvExclude ? 'KLMNOklmno' : 'klmno',
-            // excludeChains: 'KLMNOklmno',    // pre Aug 19, and corrected Sept; but interesting holes, use for Lowry?
-            // excludeChains: 'klmno',         // pre Aug 19, and corrected Sept
-            scale: 0.18,
-            orient: [-0.588, 0.688, -0.425, 0, -0.809, -0.500, 0.309, 0, 0, 0.526, 0.851, 0, 0, 0, 0, 1],
-            // meshOrient: [-0.807, -0.496, -0.310, 0, 0.303, -0.807, 0.501, 0, -0.501, 0.314, 0.807, 0, 0, 0, 0, 1],
-            XmeshOrient: [-80.7, -49.6, -31.0, 0, 30.3, -80.7, 50.1, 0, -50.1, 31.4, 80.7, 0, 0, 0, 0, 1],
-            Xorient: [0.348, 0.811, 0.280, 0, -0.597, 0.012, 0.708, 0, 0.616, -0.447, 0.527, 0, 0, 0, 0, 1]
-        }, // herpes HSV1
-
-        // {shortname: 'HSV1X', like: 'HSV1', tiling: 'GeodesicIcosahedron25.polys'},
-
-        {
-            filename: '1a6cX.pdb', shortname: 'TRSV',
-            // has biomt
-            comment: '*nfig 4c',
-            // tiling: {a: 0.3758987414465172, b: 0.617193999288073, size: 100},
-            tiling: {a: 0.382, b: 0.618, size: 100},  // refined 18 Sept 2023 to make ref point at average of vertices, nb a+b = 1
-            scale: 0.8,
-            colorBy: 'chaingroup',
-            baseRadius: 0.5, multiplierRadius: 2, ssNarrowRad: 0.4, ssBroadRad: 2, ssSheetBroadRad: 2, ssArrowSize: 2,
-            // meshOrient: [0.496, -0.311, 0.811, 0, 0.812, 0.495, -0.307, 0, -0.306, 0.811, 0.498, 0, 0, 0, 0, 1],
-            orient: [-0.500, -0.309, -0.809, 0, -0.309, -0.809, 0.500, 0, -0.809, 0.500, 0.309, 0, 0, 0, 0, 1]
-        }, // TRSV
-
-        {
-            shortname: 'TRSVX', like: 'TRSV',
-            tiling: [ // {a: 0.3758987414465172, b: 0.617193999288073, size: 100},
-                {a: 0.343, b: 0.451, size: 100},
-                {a: 0.235, b: -0.309, size: 100},
-                {a: 0.594, b: -0.119, size: 100}],
-                // {a: 0.343, b: 0.451, size: 100},
-                // {a: 0.244, b: -0.280, size: 100},
-                // {a: 0.594, b: -0.119, size: 100}],
-        }, // TRSVX
-
-        {
-            filename: '2ms2.pdb', shortname: 'MS2',
-            // has biomt
-            comment: 'Bacteriophage MS2, fig 4b',
-            tiling: [{x:0.89402, y:0, z:1, size: 100}, {x:0, y:0, z:1, size: 100}], // a=0, b=0, rhomb  [0,0,1] [0.9, 0, 1]
-            scale: 0.9,
-            Xorient: [0.809017, 0.500000, 0.309017, 0, -0.30902, 0.809017, -0.50000, 0, -0.50000, 0.309017, 0.809017, 0, 0, 0, 0, 1], // for m2
-            orient: [0.500, -0.309, 0.809, 0, 0.809, 0.500, -0.309, 0, -0.309, 0.809, 0.500, 0, 0, 0, 0, 1]
-        },  // MS2
-
-        {
-            filename: '1f8v.pdb', shortname: 'PAV',
-            // has biomt
-            comment: '* fig 4a',
-            // tiling: {a:0.257, b:0, size: 100},           // set by ?
-            // tiling: {a: 0.160357, b: 0, size: 100},      // set by use of Planes.tri etc 17 Sept 2023
-            tiling: {a: 0.313, b: 0, size: 100},             // set to make ab ref point (almost) coincide with centre 17 Sept 2023
-            scale: 0.75,
-            orient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 115.8, 16.5, -66.7, 1]
-        },  // PAV
-
-        {
-            filename: '1f8v.pdb', shortname: 'PAV\naffine extension',
-            // has biomt
-            comment: 'Pariacoto',
-            spheres: 'pariacoto_full_export_563_*.pdb',
-            // tiling: {a:0.257, b:0, size: 100},           // set by ?
-            // tiling: {a: 0.160357, b: 0, size: 100},      // set by use of Planes.tri etc 17 Sept 2023
-            tiling: {a: 0.313, b: 0, size: 100},            // set to make ab ref point (almost) coincide with centre 17 Sept 2023
-            style: 'cartoon', colorBy: 'chain',             // opacity: 0.2, transparent: true,
-            scale: 0.75,
-            orient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 115.8, 16.5, -66.7, 1],
-            // meshOrient: [-0.792, -0.557, -0.251, 0, 0.393, -0.778, 0.490, 0, -0.468, 0.289, 0.835, 0, 0,0,0,1]
-            // scaled 0.75
-            // meshOrient: [-0.594, -0.418, -0.188, 0, 0.295, -0.584, 0.367, 0, -0.351, 0.217, 0.626, 0, 0, 0, 0, 1]
-            // refined
-            // meshOrient: [-0.614, -0.372, -0.217, 0, 0.231, -0.604, 0.381, 0, -0.364, 0.246, 0.608, 0, 0, 0, 0, 1]
-            // 3/5 computed
-            spheresOrient: [0.310, 0.812, -0.502, 0, -0.503, -0.309, -0.810, 0, -0.811, 0.500, 0.307, 0, 0, 0, 0, 1]
-        },  // PAV affine
-
-
-        // {filename: '2qqp.pdb', shortname: '2qqp providence',
-        //     orient: [-0.850, -0.357, 0.389, 0, 0.500, -0.309, 0.809, 0, -0.168, 0.882, 0.441, 0, 0, 0, 0, 1]},  // for providence
-
-        // {filename: '1m4x.pdb', shortname: '1m4x PBCV-1',
-        //     orient: [0.809, 0.500, 0.309, 0, -0.309, 0.809, -0.500, 0, -0.500, 0.309, 0.809, 0, 0, 0, 0, 1]},  //  PBCV-1
-
-        // {filename: '1cwp.pdb', shortname: '1cwp CCMV',
-        //     Xorient: [0.348, 0.811, 0.280, 0, -0.597, 0.012, 0.708, 0, 0.616, -0.447, 0.527, 0, 0, 0, 0, 1]} //  CCMV
-
-        // {name: 'm2 extras', files: [
-        //     'All_capsid_proteins.pdb',
-        //     {filename: '1aq3_full.pdb', centre: true},
-        //     '1aq3.pdb',
-        //     '5tc1.pdb'
-        // ]},
-        // 'fromCCMV_most.pse.pdb'  // _full as exported, _most removes the extra 15 copies a chains A,B,C
-    ]
-
+    extraPDB: []
 };
+for (const s of ima.uselist) ima.demo.extraPDB.push(ima.extraPDBName[s])
 if (searchValues.one) ima.demo.extraPDB = ima.demo.extraPDB.filter(f => f.shortname === searchValues.one);
 springdemo(ima.demo);
 
@@ -478,8 +484,8 @@ ima.show = async function(pn, selection = ima.selection) {
             xx.numSpheres = await CSynth.spheres(xx.spheres);
             spheregroup = CSynth.polySpheres[spheres];
         }
-        if (xx.numSpheres) for (let i=1; i<=xx.numSpheres; i++) ima.spherering(i, true);
-        spheregroup.visible = true;
+        if (xx.numSpheres) for (let i=1; i<=xx.numSpheres; i++) ima.spherering(i, selection !== 'capsid');
+        spheregroup.visible = true; // selection !== 'capsid';
         const sphereso = xx.spheresOrient;
         if (sphereso) {
             spheregroup.matrix.elements.set(sphereso);
@@ -494,7 +500,7 @@ ima.show = async function(pn, selection = ima.selection) {
 
     if (!searchValues.lowry) {
         if (shortname === 'MS2' && !ima.HamMesh) ima.makeh();
-        ima.hamilton(undefined, shortname === 'MS2');
+        ima.hamilton(undefined, shortname === 'MS2' && selection !== 'capsid');
     }
 
     ima.showing = n;
