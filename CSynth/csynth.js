@@ -2663,7 +2663,7 @@ CSynth.bedParser = function CSynth_bedParser(data, fn, bed) {
 
     /*
      sample bedline2col
-     var bedline2col = p => {
+     window.bedline2col = p => {
         let v = p[3];           // as in McGill sample
         v = Math.log10(clamp(v, 0.01, 100))/2;      // map to -1..1
         let r,g,b;
