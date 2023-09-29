@@ -1184,7 +1184,7 @@ CSynth.getBed = function(srcName) {
 
     const fn = srcName.split('/').pop();
     if (CSynth.fixedBeds[fn]) return CSynth.fixedBeds[fn];
-    let bb = CSynth.current.beds.find(x => x.filename === fn);
+    let bb = CSynth.current.beds.findLast(x => x.filename === fn);
     if (bb) return bb;
     bb = CSynth.current.beds.find(x => x.shortname === fn);
     if (bb) return bb;
@@ -2581,7 +2581,7 @@ CSynth.bedParser = function CSynth_bedParser(data, fn, bed) {
     if (minId === undefined) return {};    // called too early
     const groups = CSynth.current.groups;
     let key = [fn, minId, maxId].join(';');
-    if (CSynth.files[key] && CSynth.files[key].bedarr) return CSynth.files[key];
+    // if (CSynth.files[key] && CSynth.files[key].bedarr) return CSynth.files[key];
     const range = maxId - minId;
     const bedArr = new Uint8Array(bedLen * 8);  // bed for graphics
     const minBpWidth = bed ? bed.minbpwidth : 0;
@@ -2605,7 +2605,7 @@ CSynth.bedParser = function CSynth_bedParser(data, fn, bed) {
             startBp -= x;
             endBp += x;
         }
-        d = { chr, startbp: startBp, endbp: endBp, key: d[3], col: d[8], line: dl };  // start/end in bp
+        Object.assign(d, { chr, startbp: startBp, endbp: endBp, key: d[3], col: d[8], line: dl });  // start/end in bp
         const i = bb.length;
         bb.push(d);
         let s, e;
@@ -2629,12 +2629,15 @@ CSynth.bedParser = function CSynth_bedParser(data, fn, bed) {
         e = Math.ceil(e * (bedLen - 1));    // was floor TODO "�"�"�
         if (s > e) s = e;  // make sure at least on point hit
         let c;
-        if (d.col) {
+        if (W.bedline2col) {
+            c = W.bedline2col(d);
+        } else if (d.col) {
             c = d.col.split(',');
         } else {
             c = colorScheme[(i+1) % colorScheme.length];
         }
         if (typeof(c) === 'string') col.set(c);
+        else if (c.r !== undefined) col.copy(c);
         else if (isNaN(c[0])) col.set(c[0]);
         else col.setRGB(c[0] / 255.99, c[1] / 255.99, c[2] / 255.99);
 
@@ -2657,6 +2660,22 @@ CSynth.bedParser = function CSynth_bedParser(data, fn, bed) {
             //}
         }
     }
+
+    /*
+     sample bedline2col
+     var bedline2col = p => {
+        let v = p[3];           // as in McGill sample
+        v = Math.log10(clamp(v, 0.01, 100))/2;      // map to -1..1
+        let r,g,b;
+        if (v < 0) {                  // blue/red with white at 0
+            b = 1; r = g = 1+v;
+        } else {
+            r = 1; g = b = 1-v;
+        }
+        r *=r; g *= g; b *= b;      // improve perceptual discrimination
+        return {r, g, b};
+     }
+     */
 
 
     const texture = newTHREE_DataTextureNamed('bed', bedArr, bedLen, 2, THREE.RGBAFormat,
