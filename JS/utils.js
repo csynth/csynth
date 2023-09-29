@@ -2518,7 +2518,7 @@ function getInput(input) {
  */
 function setInput(input, value, forcechange, s) {
     if (!input) {
-        serious('setInput called with no input');
+        console.error('setInput called with no input');
         return;
     }
     if (typeof input === "string") {
