@@ -3,7 +3,7 @@ var planeg, THREE, G, V, width, height, U, GUINewsub, S, springs, fixfeed, unfix
 imageOpts, inps, setExtraKey, usemask, cMap, camera, copyXflip, everyframe, xxxdispobj, renderer, ops, ctrl, alt, right,left, middle,
 tad, GX, animateNum, xxxgenes, currentGenes, msgfix
 
-var feed = { dofeed: true, viewfactor: 0, edgezoom: false, coreuse: 0.99, showfeed: false, _running: true, animfun: animateNum}
+var feed = { dofeed: false, viewfactor: 0, edgezoom: false, coreuse: 0.99, showfeed: false, _running: true, animfun: animateNum}
 
 
 feed._showfeed = function() {

@@ -1432,6 +1432,8 @@ function correctSlots() {
 function makevr2() {
     if (!islocalhost)
         return;
+    if (WA.WEBVR.novr)
+        return msgfixerrorlog('XR', "makevr2, No attempt send F2 and to enter XR as it isn't available.");
     renderVR.xrfs.lastrequest = true;
     EX.toFront();
     // EX.toFront();  // also stops it being maximized
@@ -1916,7 +1918,7 @@ function applyAll(fun, parms, genes) {
     }
 }
 var lastTraninteracttime = 0;
-var tranInteractDelay = oxcsynth ? 1e98 : 60000;
+var tranInteractDelay = Infinity; // no, default to never and set if wanted oxcsynth ? 1e98 : 60000;
 function tranInteract() { return frametime > lastTraninteracttime + tranInteractDelay; }
 /** function dolly */
 function dollyZoom(k, genes) {

@@ -74,22 +74,22 @@
 <div id="allbody">
     <div id="seriousbox" style="display:none">
         <h3>Serious unexpected error in CSynth.</h3>
-        <div id='seriousMessage'></div>
-        <div id='seriousContextLost'></div>
+        <div id="seriousMessage"></div>
+        <div id="seriousContextLost"></div>
         <span>
             Please select an option below to report any errors.
             <br>You can edit the information below to give extra information
             <br>or to remove information you do not wish to send.
             <br>
-            <button onclick=serious.saveLocal()>save</button>
+            <button onclick="serious.saveLocal()">save</button>
             <span class="help">Save error box to local storage.</span>
-            <button onclick=serious.selectAll()>select</button>
+            <button onclick="serious.selectAll()">select</button>
             <span class="help">Select contents of box, then use ctrl-C (or similar) to copy.</span>
-            <button onclick=serious.upload()>upload to server</button>
+            <button onclick="serious.upload()">upload to server</button>
             <span class="help">Upload content of error box to server.</span>
-            <button onclick=serious.clear()>clear</button>
+            <button onclick="serious.clear()">clear</button>
             <span class="help">Clear error box.</span>
-            <button onclick=serious.nodebug()>no debug</button>
+            <button onclick="serious.nodebug()">no debug</button>
             <span class="help">Stop future debug stop (developer mode only).</span>
         </span>
         <br>
@@ -125,13 +125,13 @@
                 </span>
                 <div id="controlscore" style="direction: ltr;">  <!-- includes all controls; defines real width etc -->
                     <fieldset id="filterhistory" class="hidebelow" style="border-color:white; pointer-events:all">
-                        <legend onclick=toggleFold(this)>filter history</legend>
-                        <ul id="filterhistorylist"  onclick="filterDOMClick(event)"><ul>
+                        <legend onclick="toggleFold(this)">filter history</legend>
+                        <ul id="filterhistorylist" onclick="filterDOMClick(event)"></ul>
                     </fieldset>
                     <span id="versiondata"></span>
 
                     <fieldset id="snippetouter" class="hidebelow" style="border-color:red">
-                        <legend onclick=toggleFold(this)>snippets</legend>
+                        <legend onclick="toggleFold(this)">snippets</legend>
                         <div id="snippetdiv" class="fieldbody">
                             <div id="snippetlocal" contenteditable="true">add extra snippets here</div>
                             <!---
@@ -202,7 +202,7 @@
                                     <br><br>
                                     <!-- note, overuse of span means we can't easily use <p> or <li> inside here -->
                                     <br><br>
-                                    If the height field is > 10 it is used as a height, otherwise it is used as an aspect ratio,
+                                    If the height field is &gt; 10 it is used as a height, otherwise it is used as an aspect ratio,
                                     the height will be width/aspect.
                                     <br><br>
                                     The values may be written as expressions.  For example, a 4/3 aspect may be written as such.
@@ -249,7 +249,7 @@
                                 <span class="help">Set speed for continuous rotation.</span>
                             </span>
 
-                            <span class="group" style="border-color:gray" title="springs" style="white-space: normal;">
+                            <span class="group" style="border-color:gray; white-space: normal;" title="springs">
                                 usepairs: <input id="PUSHPAIRS" type="checkbox"  checked="checked" onchange="springs.newmat()"/>
                                 <span class="help">use spring pairs, off to ignore pairs</span>
                                 smallpairs: <input id="SMALLPAIRS" type="checkbox"  onchange="springs.newmat()"/>
@@ -376,7 +376,7 @@
                                         <input  id="resbaseui" type="number" min="0" max="12" value="10" step="0.1" onchange="FCall('newres');" />
                                         <span class="help">Base resolution for mesh used to generate horn.
                                             <br>0 low, 10 high.
-                                            <br>old low/1/2/3/4/high -> 3/5/9/17/33/65 -> new 0/2/4/6/8/10
+                                            <br>old low/1/2/3/4/high -&gt; 3/5/9/17/33/65 -&gt; new 0/2/4/6/8/10
                                         </span>
                                         <b>Delta: </b>
                                         <input  id="resdyndeltaui" type="number" min="0" max="2" value="1" step="0.1" onchange="FCall('newres');" />
@@ -565,8 +565,6 @@
                     <fieldset id="fieldabout" class="hidebelow">
                         <legend  onclick="FCall('toggleFold', this);">About</legend>
                         <div class="fieldbody">
-                            <p>
-
                             <p>        This is a basic implementation of Formgrow using shaders to implement the form shaping         and texture.
                             </p>
                             <ul>
@@ -608,7 +606,7 @@
                                 </li>
                             </ul>
                             <p style="display:none;">        <b>Test:</b><br />
-                                <textarea id="test" rows="3" cols="50">for(int i=0; i<100; i++) col = sqrt(col);</textarea>
+                                <textarea id="test" rows="3" cols="50">for(int i=0; i&lt;100; i++) col = sqrt(col);</textarea>
                             </p>
 
                         </div>
@@ -635,7 +633,7 @@
                 </span><br>
 
                 <span>
-                    <button onclick="vpchoose(event);">-></button>
+                    <button onclick="vpchoose(event);">-&gt;</button>
                     <span class="help">choose this object as current object</span>
                 </span><br>
 
@@ -645,7 +643,7 @@
                 </span><br>
 
                 <span>
-                    <button onclick="vpswap(event);">&lt;-></button>
+                    <button onclick="vpswap(event);">&lt;-&gt;</button>
                     <span class="help">swap this object and current object</span>
                 </span><br>
 
@@ -659,7 +657,7 @@
 
         <div id="trancontextmenu" style="display: none;"></div>
         <div id="horncontextmenu" style="display: none;"></div>
-        <div id=mldetails style="display: none;">
+        <div id="mldetails" style="display: none;">
             id: <input id="mlid" type="number" min="1" max="1000">
             &emsp;j: <b id="mljudge"></b>
             &emsp;notes: <textarea id="mlnotes" cols="30" rows="1"></textarea>
@@ -798,7 +796,7 @@
         <script src="JS/automode.js"></script>
         <script src="jsopen/TextureMaterial/col.js"></script>
         <script src="jsopen/TextureMaterial/texture.fs.js" type="module"></script>
-        <script src="JSTS/tomodule.js" type='module'></script> <!-- brings in horn> -->
+        <script src="JSTS/tomodule.js" type="module"></script> <!-- brings in horn> -->
         <script src="JS/FileSaver.js"></script>
         <script src="JS/stl.js"></script>
 

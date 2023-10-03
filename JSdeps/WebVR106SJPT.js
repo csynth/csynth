@@ -1,5 +1,5 @@
 var Maestro, log, msgfix, msgfixerror, msgfixerrorlog, renderVR, dockeydowninner, animateNum, nop, WA, renderer, nircmd,
-	cheatxr, W, vpxSceneRenderCamera;
+	cheatxr, W, vpxSceneRenderCamera, startvr, nomess;
 
 var WEBVR = {
 
@@ -10,6 +10,8 @@ var WEBVR = {
 			return;
 		}
 		msgfix("VR", 'XR session is supported, F2 or F6 to enter VR, F4 to exit	');
+		if (startvr) nomess('force');
+
 
 		if ( options && options.referenceSpaceType ) {
 			renderer.xr.setReferenceSpaceType( options.referenceSpaceType );
@@ -91,6 +93,8 @@ var WEBVR = {
 
 /** enter and leave xr */
 renderVR.xrfs = async function xrenderVRfs(bool = true) {
+	if (bool && WEBVR.novr)
+		return msgfixerrorlog('XR', "No attempt to enter XR as it isn't available.");
     log('renderVR.xrfs wanted', bool, 'current', renderVR.invr() );
     renderVR.xrfs.lastrequest = bool;       // remembers if we want to be in XR
 	if (renderVR.invr() === bool) return;   // already in correct

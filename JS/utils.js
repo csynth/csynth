@@ -65,11 +65,8 @@ function countXglobals() {
     return Object.keys(xGlobals()).length;
 }
 
-// function key name(k) {
-//     if (key map[k]) return key map[k];
-//     return '#' + k;
-// }
-String.prototype.replaceall = function (a, b) { return this.split(a).join(b); };  // convenience function
+/** convenience replaceall, to be replaced by replaceAll soon */
+String.prototype.replaceall = ''.replaceAll ?? function (a, b) { return this.split(a).join(b); };  // convenience function
 
 function nop() { }
 /** promise wait for ms millesecs; do NOT consider S.kill */
@@ -487,6 +484,11 @@ function msgfixerrorlog(...args) {
 function msgboxVisible(flag = 'toggle') {
     const msgbox = W.msgbox;
     function hide() {
+        if (msgset.VR?.val?.startsWith('\tNO XR')) {
+            console.error('msgbox hide ignored, no XR')
+            return;
+        }
+        
         msgboxVisible.save = [msgbox.style.width, msgbox.style.height];
         msgbox.style.width = '5em'; msgbox.style.height = '1em';
         msgbox.style.overflow = 'hidden';
@@ -4189,9 +4191,9 @@ function uniformsForTag(tag) {
 */
 async function slowinit() {
     loadTime('shaders 1 start');
-    if (startvr) {
-        nomess('force');
-    }
+    // if (startvr) {
+    //     nomess('force');
+    // }
 
     function showmsg(mm, prop = framenum/25) {
         msgfixlog('loadCSynth', `<div style="font-size: 300%; color: white">${mm}</div>
@@ -5609,4 +5611,28 @@ async function reviewmask() {
 function fieldsFrom(o, list) {
     if (typeof list === 'string') list = list.split(' ')
     return list.reduce((c, v) => {c[v] = o[v]; return c;}, {});
+}
+
+function mat3(...e) {
+    const x = new THREE.Matrix3();
+    if (e.length === 0) {
+        //
+    } else if (Array.isArray(e[0])) {
+        x.elements.set(...e[0])
+    } else {
+        x.elements.set(...e)
+    }
+    return x;
+}
+
+function mat4(...e) {
+    const x = new THREE.Matrix4();
+    if (e.length === 0) {
+        //
+    } else if (Array.isArray(e[0])) {
+        x.elements.set(...e[0])
+    } else {
+        x.elements.set(...e)
+    }
+    return x;
 }

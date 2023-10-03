@@ -23,7 +23,7 @@ flatten, format, lastTouchedDispobj, debugKey, setHolo, Holo, GX, makevr, tadpol
 OrganicSpeech, bigimprep, feedbacktests, mutateVisibleGenes, fxaa, shangbig, currentHset, xxxhset, HornSet, resolveFilter, clearSelected,
 xxxgenes, hoverDispobj, resetCamera, slots, mainvp, nop, isCSynth, fullscreen, transferView, mutateColour, mutateForm, BrightonStyle, GUIInit, GUIwallkeys,
 niractcmd, randmuts, genmini, setBackgroundColor, home, toggleFullscreen, enterFullscreen, exitFullscreen, showzoom, showzoomfix,
-saveLots, edge
+saveLots, edge, genwinsom
 
 var extrakeys = {}; // var for sharing
 var keysEmulateVR = false;     // set to true if we want to emulate some VT button experiences
@@ -434,7 +434,7 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
 
         case 'alt,ContextMenu,4': // toggle renderObs and renderQuad
             renderObjs = renderObjs === renderQuad ? renderObjsInner : renderQuad; msgfix('renderQuad', renderObjs === renderQuad); break;
-        case 'ctrl,W': case 'alt,W':  {// kinect extra mouse mode (???broken???)
+        case 'alt,W':  {// kinect extra mouse mode (???broken???)
             var m = kinectJupDyn.extramouse.mode;
             let msgw;
             if (!m) {m = 3; msgw = 'main'; }
@@ -858,6 +858,7 @@ function dockeydowninner(kkk, evt) {
         // nb f5 does not do devtools in Electron
         case 'ctrl,shift,I': if (navigator.userAgent.indexOf('Electron') !== -1) handled = false; else saveimage1high(); break; // save image of central object, high quality
         case 'ctrl,K': saveSkeleton(); break; // save current form (and colours) as skeleton for use in tadpoles
+        case 'ctrl,E': genwinsom(); break;  // save current form as winsomefiles
         case 'alt,0': setViewports([0,0]); break; // single viewport
         case 'alt,-': setViewports(lastvps); break; // switch to last viewports
         case 'alt,1': setInput(W.layoutbox, 0); setViewports([4,3]); break; // 12 viewports
