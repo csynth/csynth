@@ -127,13 +127,11 @@ to create 60 instances
 interactive symmetry
 full 60 instances
 
-
-
 *endisweep
 Interactive sweep ended.
 
 *SV40_hover
-Emergent Human Pathogen Simian Virus
+Polyomavirus (Simian Virus 40)
 
 60 white kites
 60 green rhombs

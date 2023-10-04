@@ -57,7 +57,8 @@ window.startvr = searchValues.startvr;
 ima.uselist = 'SV40 TRSV TRSVX HSV1 MS2 PAVAX'.split(' ');
 ima.extraPDBName = {
     SV40: {
-    filename: '1sva.pdb', shortname: 'SV40', comment: 'Emergent Human Pathogen Simian Virus\nalso called HSV',
+    filename: '1sva.pdb', shortname: 'SV40', comment: 'Polyomavirus (Simian Virus 40) ', //
+    // comment was 'Emergent Human Pathogen Simian Virus\nalso called HSV'
     // has biomt
     //tiling: 'sv40lines.wrl',
     //meshOrient: [0.493, -0.060, 0.060, 0, 0.083, 0.267, -0.415, 0, 0.018, 0.419, 0.273, 0, 0,0,0,1],
