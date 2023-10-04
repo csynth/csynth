@@ -32,7 +32,7 @@ var searchReplace = {
     // csynth: 'startscript',
     rsse: 'startscript=rsse/loadrsse.js',
     crick: 'startscript=CrickLots/lots.js',
-    newsc2023: "startscript=CSynth/data/ima/newsc2023.js & startvr",   // nb: front for exhibition
+    newsc2023: "startscript=CSynth/data/ima/newsc2023.js & startvr & fullscreen",   // nb: front for exhibition
     fullvir: "newsc2023 & nofront & nostartvr",
     ima: "startscript=CSynth/data/ima/ima.js",
     lowry: 'startscript=ima/lowry.js',
