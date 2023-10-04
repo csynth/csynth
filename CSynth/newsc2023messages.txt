@@ -131,7 +131,8 @@ full 60 instances
 Interactive sweep ended.
 
 *SV40_hover
-Polyomavirus (Simian Virus 40)
+Polyomavirus
+(Simian Virus 40)
 
 60 white kites
 60 green rhombs
