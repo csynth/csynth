@@ -50,9 +50,9 @@ function  runkeysQuiet(kkkp, ff, evt = {}) {
     let handled = false;
     try {
         handled = runkeys(kkkp, ff, evt);
-        msgfix('keys');
+        msgfix('runkeys');
     } catch (e) {
-        msgfixerrorlog('keys', 'invalid keys for current context', kkkp, `<br><small><white>${e.message}</white></small><br>`);
+        msgfixerrorlog('runkeys', 'invalid keys for current context', kkkp, `<br><small><white>${e.message}</white></small><br>`);
         killev(evt);
     }
     return handled;
@@ -184,20 +184,22 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
             showzoomfix(+ff)
             break;
 
-        case 'ctrl,alt,0':  // # renderRatio 1
-        case 'ctrl,alt,1':  // # renderRatio 0.707 (2xaa)
-        case 'ctrl,alt,2':  // # renderRatio 1/2 (4xaa)
-        case 'ctrl,alt,3':  // # renderRatio 1/3 (9xaa)
-        case 'ctrl,alt,4':  // # renderRatio 1/4 (16x aa)
-        case 'ctrl,alt,5':  // # renderRatio 1
-        case 'ctrl,alt,6':  // # renderRatio 1.414
-        case 'ctrl,alt,7':  // # renderRatio 2
-        case 'ctrl,alt,8':  // # renderRatio 3
-        case 'ctrl,alt,9':  // # renderRatio 4
-            var rrs = [1, Math.sqrt(1/2), 1/2, 1/3, 1/4, 1,  Math.sqrt(2), 2, 3, 4];
+        case 'alt,Q,0':  // # renderRatio 1
+        case 'alt,Q,1':  // # renderRatio 1
+        case 'alt,Q,2':  // # renderRatio 0.707 (2xaa)
+        case 'alt,Q,3':  // # renderRatio 1/2 (4xaa)
+        case 'alt,Q,4':  // # renderRatio 1/3 (9xaa)
+        case 'alt,Q,5':  // # renderRatio 1/4 (16x aa)
+        case 'alt,Q,6':  // # renderRatio 1.414
+        case 'alt,Q,7':  // # renderRatio 2
+        case 'alt,Q,8':  // # renderRatio 3
+        case 'alt,Q,9':  // # renderRatio 4
+            var rrs = [1, 1, Math.sqrt(1/2), 1/2, 1/3, 1/4, 1,  Math.sqrt(2), 2, 3, 4];
             // setInput(W.renderRatioUi, Math.pow(2, ff-5));
             setInput(W.renderRatioUi, rrs[+ff]);
-            msgfix('renderRatio', '$renderRatioUi');
+            setInput(W.renderRatioUiProj, 0);
+            setInput(W.renderRatioUiMain, 0);
+            msgfix('renderRatio', '$renderRatioUi', 'Proj and Main set to 0 to follow base value');
             break;
         case 'N':  // burst of noise
             if (currentGenes.noiseforce !== 0.1) {
