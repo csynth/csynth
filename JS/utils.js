@@ -3842,7 +3842,7 @@ function beep() {
  */
 Object.defineProperty(Array.prototype, 'set', {
     value: function(...from) {
-        if (from.length === 1 && Array.isArray(from[0])) from = from[0];
+        if (from.length === 1 && (Array.isArray(from[0]) || from[0].buffer instanceof ArrayBuffer)) from = from[0];
         for(let i = 0; i < from.length; i++) this[i] = from[i];
     },
     enumerable: false,
