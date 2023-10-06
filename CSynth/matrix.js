@@ -255,6 +255,8 @@ CSynth.Matrix = function() {
         //guiFromGene(f, 'matrixcontactmin');
         //guiFromGene(f, 'matrixcontactmult');
         guiFromGene(f, 'matrixbedtint');
+        guiFromGene(f, 'matrixbedtriangle');
+        guiFromGene(f, 'matrixbededge');
         guiFromGene(f, 'matrixBedSelTint');
         guiFromGene(f, 'matgamma');
         guiFromGene(f, 'matrixgridres');
@@ -332,7 +334,9 @@ CSynth.Matrix = function() {
 
             // TODO; formalize and generalize gene/sampler patterns below
             // extra uniforms added in 'common.vfs'; not sure I'm happy about that.
-            addgeneperm('matrixbedtint', 0, 0, 0.1,  0.001, 0.001, 'matrix bed tint', 'matrix', 0);
+            addgeneperm('matrixbedtint', 0, 0, 1,  0.001, 0.001, 'matrix bed tint', 'matrix', 0);
+            addgeneperm('matrixbedtriangle', 0, 0, 1,  1, 1, 'if 1, bed tint only triangles', 'matrix', 0);
+            addgeneperm('matrixbededge', 0, 0, 0.05,  0.0001, 0.0001, 'if non-0 only tint the edges ', 'matrix', 0);
             addgeneperm('matrixBedSelTint', 0.2, 0, 0.5,  0.001, 0.001, 'highlight selected bed region on matrix', 'matrix', 0);
 
             addgeneperm('matrixgridres', 0, 0, 100,  1, 1, 'matrix grid resolution', 'matrix', 0);
@@ -831,14 +835,21 @@ function heightMatrixMaterial() {
             // when BED doesn't have explicit colour, then all elements will be same... that doesn't make this logic right
             // but close enough for now (famous last words), closer with test against green as well
             bedrgb = bed.r != t || bed.g != t ? bed.rgb : t == 0. ? vec3(0) : stdcolY(ti);
-            c.col.rgb += bedrgb * matrixbedtint;
 
             // TODO factor bed colour option and use for x and y (and ribbon)
             vec4 bedy = texture2D(matrixbed, vec2(mtp.y, 0.25));
             float ty = bedy.w;  // t_ribboncol is bed texture, small 'integer' values for now, but mapped to range 0..1
             float tiy = ty * 255. - 0.0;
             bedrgby = bedy.r != ty || bedy.g != ty ? bedy.rgb : ty == 0. ? vec3(0) : stdcolY(tiy);
-            c.col.rgb += bedrgby * matrixbedtint;
+            bool tintx = true, tinty = true;
+            if (matrixbededge != 0.) {
+                tintx = texture2D(matrixbed, vec2(mtp.x - matrixbededge, 0.25)).w != t;
+                tinty = texture2D(matrixbed, vec2(mtp.y + matrixbededge, 0.25)).w != ty;
+            }
+            if (t == ty || matrixbedtriangle == 0.) {
+                if (tintx) c.col.rgb += bedrgby * matrixbedtint;
+                if (tinty) c.col.rgb += bedrgb * matrixbedtint;
+            }
         //}
 
 
