@@ -23,7 +23,7 @@ CSynth.Matrix = function() {
     // see also addfragment
     //nb, as of this writing, this vert is used only for 2d matrix,
     //and is simpler than the code would suggest. Left stuff around just in case...
-    const vert2d = `
+    const vert2d = /*glsl*/`
         //2d matrix vertex
 
         ${CSynth.CommonShaderCode()}
@@ -53,7 +53,7 @@ CSynth.Matrix = function() {
         }
     `;
 
-    const frag2d = `
+    const frag2d = /*glsl*/`
         // 2d matrix fragment for flat 2d matrix
         ${CSynth.CommonFragmentShaderCode()}
         //color uniforms equivalent to 3d matrix
@@ -119,7 +119,7 @@ CSynth.Matrix = function() {
         }
     `;
 
-    const colkeyfrag = `
+    const colkeyfrag = /*glsl*/`
         // matrix fragment for flat matrix
         ${CSynth.CommonFragmentShaderCode()}
         uniform float matC00r, matC00g, matC00b, matC11r, matC11g, matC11b,  matC10r, matC10g, matC10b, matC01r, matC01g, matC01b;
@@ -633,7 +633,7 @@ CSynth.Matrix = function() {
     /************  end createPickDebugGUI */
 }  // end CSynth.Matrix
 
-CSynth.colchoice = `
+CSynth.colchoice = /*glsl*/`
     // matintype   0=>0, 1=>1, 2=>x, 3=>y, 4=>currentDist, 5=>dist from texture, 6=>contact from texture
     float nval(in float matintype, in sampler2D tex, in vec2 pos, in float currentDist, in float low, in float high) {
         float v = 0.;
@@ -681,7 +681,7 @@ function heightMatrixMaterial() {
 
 
 
-    CSynth.Matrix.extradefines = `
+    CSynth.Matrix.extradefines = /*glsl*/`
         #define NOHORNMAKER
         highp float radius=1., gscale=1., nstar=4., stardepth=0., ribs=1., ribdepth=0.;  // temp, to move to better place
         ${uniformsForTag('matrix')}
@@ -717,7 +717,7 @@ function heightMatrixMaterial() {
     `;
 
 
-    CSynth.testHybridOverrides = `
+    CSynth.testHybridOverrides = /*glsl*/`
     override vec4 tr(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnum){
         pickopos(loposuvw);
         vec4 p = loposuvw;
