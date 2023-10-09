@@ -1222,6 +1222,7 @@ CSynth.getrawray = function() {
 CSynth.castExtra = function() {
     // TODO, better lauch of casting so test below not necessary (see launch below at '!RAYA')
     // needed for Edge, but could be needed for any browser
+    if (!CSynth.active) return 'cast pending';
     if (!V.gui) return {hitdist: 'casting will start when gui ready ...'}; // in case casting starts too early
 
     let hit = {hitdist: Number.POSITIVE_INFINITY};

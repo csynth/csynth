@@ -15,7 +15,7 @@ var screens, W = window, opmode, HTMLElement, HTMLDocument, HTMLTextAreaElement,
     ErrorEvent, animateNum, dustbinvp, testopmode, S, sclogE, sclog, islocalhost, dataURItoBlob, saveAs, GX, lastToggleGuiAction,
     foldStates, restoreFoldStates, ises300, deferRender, startSC, isCSynth, WA, G, mutate, addGene, runkeys, regularizeColourGeneVisibility, maxInnerHeight,
     resoverride, U, usemask, numInstances, tad, mutateTad, xxxdispobj, centrescalenow, resetCamera, target, Files, sleep, interactDownTime,
-    readWebGlFloatDirect, rrender
+    readWebGlFloatDirect, rrender, startscript, animatee, springs
     ;
 
 var MAX_HORNS_FOR_TYPE = 16384.0; // this allows 16384 = 2**14 horns of a single type; SHARE WITH common.vfs
@@ -488,7 +488,7 @@ function msgboxVisible(flag = 'toggle') {
             console.error('msgbox hide ignored, no XR')
             return;
         }
-        
+
         msgboxVisible.save = [msgbox.style.width, msgbox.style.height];
         msgbox.style.width = '5em'; msgbox.style.height = '1em';
         msgbox.style.overflow = 'hidden';
@@ -4185,21 +4185,50 @@ function uniformsForTag(tag) {
     return r.join('\n');
 }
 
+// const _loaddatamsg = (isCSynth && startscript === undefined) ? `
+// <div style="font-size: 200%; color: white">
+// to load data
+// <ul>
+// <li>ctrl-O to open file dialog</li>
+// <li>copy (eg ctrl-C from Explorer) and paste (crtl-V) files</li>
+// <li>drag-drop files (eg from Explorer)</li>
+// </ul>
+// </div>
+// ` : '';
 
 /** test script for starting with a frame for each material
  * this helps us post loading progress information
 */
 async function slowinit() {
-    loadTime('shaders 1 start');
+    if (isCSynth && startscript === undefined) {
+        // push message box out of the way during load to leave room for other startscreen messages
+        const ss = W.msgbox.style;
+        ss.width = '70%'
+        ss.top = 'revert'
+        ss.bottom = '10%'
+        ss.position = 'fixed';
+        monitorX(ss, 'bottom')
+        ss.left = '10%'
+    }
+    // loadTime('shaders 1 start');
+    // msgfixlog('loadCSynth1', _loaddatamsg);
+    // nomess.msgvisible = true;
+    // msgfix.force();
+
+    // await S.sleep(0);
     // if (startvr) {
     //     nomess('force');
     // }
 
     function showmsg(mm, prop = framenum/25) {
-        msgfixlog('loadCSynth', `<div style="font-size: 300%; color: white">${mm}</div>
+        msgfixlog('loadCSynth', `<div style="font-size: 200%; color: white">${mm}</div>
             ${genbar(prop)}`);
     }
-    if (!startvr) W.startscreen.innerHTML = '';
+
+
+    if (!startvr) W.startscreeni.innerHTML = '';
+    if (isCSynth && startscript === undefined) W.startscreeni.innerHTML = `
+    `
     log("'#'#'#", "code starting", '#'); msgfix.force();
     const mats = {};
     const st = performance.now();
@@ -4217,7 +4246,7 @@ async function slowinit() {
     }
     function comp1(mat, popmode) {
         const x = log('comp1', mat.substring(0,8), oplist[popmode]);
-        const mm = 'preparing shaders ...' + oplist[popmode] + ' ' + framenum;
+        const mm = `preparing shaders ...` + oplist[popmode] + ' ' + framenum;
         showmsg(mm);
         lastop = x;
         consoleTime(x);
@@ -4310,7 +4339,25 @@ async function slowinit() {
             return onframe(endup);
         }
         loadTime(`shaders 6 pending others done after ${ff} frames`);
-        showmsg('data and shaders ready, awaiting very final processing', 1);
+        showmsg('last shaders being prepared');
+
+        if (isCSynth) {
+            //console.profile('endshad');
+            if (!springs.material) {
+                if (springs.getPARTICLES() < 0) springs.setPARTICLES(8)
+                springs.step(1);
+            }
+            if (startscript === undefined) {
+                const s = CSynth.active; CSynth.active = true; animatee(); CSynth.active = s;
+            }
+            //console.profileEnd('endshad');
+            loadTime(`after force more shaders`);
+        }
+
+        if (isCSynth && startscript === undefined)
+            showmsg(`shaders ready`, 1);
+        else
+            showmsg('data and shaders ready, awaiting very final processing', 1);
         onframe( () => {
             loadTime('shaders 7 waited 3 more frames');
             showmsg('running ...', 1);
@@ -4347,7 +4394,7 @@ function checkres() {
     }
     if (current !== latest) {
         /*** not quite ready yet ....
-        W.startscreen.innerHTML = `
+        W.startscreeni.innerHTML = `
         CSynth has been updated from version ${current} to ${latest}
         <br>
         `;

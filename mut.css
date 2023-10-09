@@ -1,8 +1,12 @@
 #startscreen { z-index: 1; display: block; background-color: black;
                position: fixed; width: 100%; height: 100%; top: 0; left: 0;
+			   font-size: 24pt;
+			   color: white; font-family: verdana, sans;
                background-image: url("images/UI/startscreen.jpg");
                background-repeat: no-repeat; background-position: left;
 }
+li.UU {text-decoration: underline; color:#bbf}
+
 /* <editor-fold> general */
 body {
 	width:100%;

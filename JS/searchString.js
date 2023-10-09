@@ -32,9 +32,9 @@ var searchReplace = {
     // csynth: 'startscript',
     rsse: 'startscript=rsse/loadrsse.js',
     crick: 'startscript=CrickLots/lots.js',
-    newsc2023: "startscript=CSynth/data/ima/newsc2023.js & startvr & fullscreen",   // nb: front for exhibition
+    newsc2023: "startscript=ima/newsc2023.js & startvr & fullscreen",   // nb: front for exhibition
     fullvir: "newsc2023 & nofront & nostartvr",
-    ima: "startscript=CSynth/data/ima/ima.js",
+    ima: "startscript=ima/ima.js",
     lowry: 'startscript=ima/lowry.js',
     york: 'startscript=YorkStudents/newtest_v5.js',
     lorentz: 'startscript=Lorentz/lorentz.js',
@@ -49,6 +49,7 @@ var searchReplace = {
     cexample1: 'startscript=C75X1200GitHub/loadnotiff.js',
     cexample2: 'startscript=CrickGithub/loadcrick_chrII.js',
     cexample3: 'startscript=chr13multiresGitHub/load_50kb.js',
+    cexample4: 'fullvir',
     // cexample3_5: 'startscript=chr13multiresGitHub/load_5kb.js',
     cexample3_50: 'startscript=chr13multiresGitHub/load_50kb.js',
     // cexample3_data: 'startscript=chr13multiresGitHub/load_data.js',
@@ -57,9 +58,9 @@ var searchReplace = {
 };
 
 var useForced;
-function interpretSearchString(error = serious || alert) {
+function interpretSearchString(istring, error = serious || alert) {
     let var0 = '';
-    let istring = decodeURIComponent(location.search.substring(1));
+    if (istring === undefined) istring = decodeURIComponent(location.search.substring(1));
     if (istring === 'last')
         istring = localStorage.interpretSearchString_last || '';
     else
@@ -143,5 +144,5 @@ function interpretSearchString(error = serious || alert) {
         document.title += ' ' + var0 + '   ...' + Date.now().toString().slice(-2);
     interpretSearchString.done = true;
 }
-interpretSearchString(console.error);
+interpretSearchString(undefined, console.error);
 

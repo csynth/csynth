@@ -106,7 +106,7 @@ CSynth.setDefaults = function(docustom = true) {
     DNASprings.stretch = DNASprings.laststretch = false;  // we may sort out a sensible strech length later
     DNASprings.fixends = false;
 
-    if (docustom && CSynth.current.ready)
+    if (docustom && CSynth.current?.ready)
         customSettings();  // will possibly override almost all the defaults above
 
     updateGuiGenes();  // ensure new genes display right
@@ -117,7 +117,7 @@ CSynth.setDefaults = function(docustom = true) {
     G.scaleFactor = -999;
     G.matDistFar = -999;
     const cc = CSynth.current;
-    if (cc.ready)
+    if (cc?.ready)
         CSynth.autoDefaults();
 
     newmain();

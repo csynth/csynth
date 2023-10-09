@@ -49,8 +49,8 @@
             // and also lots of other things that we done want to enumerate
             // It is interpreted again during init()
             // This one may fail if the istring contains reference tdo things defined later,
-            // so we log on the console but not as 'serious' as in interpretSearchString()
-            // now done in searchString.js interpretSearchString(console.error);
+            // so we log on the console but not as 'serious' as in interpret SearchString()
+            // now done in searchString.js interpret SearchString(console.error);
 
             // console.log('$ = ' + window.$);
             /**/
@@ -99,7 +99,24 @@
         <button id="entervr" style="display: none" onclick="renderVR.xrfs(true);">Enter VR (or hit F2)</button>
         <img src="images/UI/circle_white.png" id="fingerimage" alt="" style="display:none;"/>
        <div id="baderror"></div>
-       <div id="startscreen" style="color: white; font-size: 64pt; font-family: verdana, sans">CSynth loading...</div>
+       <div id="startscreen">
+            <div>
+                To load local data
+                <ul>
+                <li tabindex="0" onmousedown="filesFromDialog()" onkeypress="filesFromDialog()" class="UU">ctrl-O or click here to open file dialog</li>
+                <li>copy (eg ctrl-C from Explorer) and paste (crtl-V) files</li>
+                <li>drag-drop files (eg from Explorer)</li>
+                </ul>
+                To run examples click below
+                <ul>
+                    <li tabindex="0" onmousedown="CSynth.runexample(1)" class="UU">cexample 1: Mouse alpha globin (with WIMM)</li>
+                    <li tabindex="0" onmousedown="CSynth.runexample(2)" class="UU">cexample 2: Yeast (with Crick Institute)</li>
+                    <li tabindex="0" onmousedown="CSynth.runexample(3)" class="UU">cexample 3: Human structural variant on chromosome 13</li>
+                    <li tabindex="0" onmousedown="CSynth.runexample('fullvir')" class="UU">fullvir: Icosohedral Viruses (with York)</li>
+                </ul>
+            </div>
+            <div id="startscreeni">CSynth loading...</div>
+        </div>
         <div id="gestureHelp"></div>
 
         <span id="msgbox"></span>

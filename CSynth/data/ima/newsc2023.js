@@ -12,7 +12,7 @@
 // warmup=0 do not do automatic warmup
 //
 // nohorn=true;  This should always be set, but cannot be defaulted here as it comes too late.
-// Defualted as true for lowry.js as special case in interpretSearchString() in searchValues.js
+// Defualted as true for lowry.js as special case in interpret SearchString() in searchValues.js
 
 // for hsv diagrams
 // hsvstyle= for style to render HSV1

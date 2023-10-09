@@ -19,7 +19,7 @@ springdemo, yaml, readTextureAsVec3, col3, VEC3, lastdocx, lastdocy, mousewhich,
 GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, runkeys, renderer, viveAnim, S, setExtraKey,
 badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt,
 HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files, feed, buff2GenStruct, inputType,
-blob2forEach, _binfiles, olength, blob2StringCB
+blob2forEach, _binfiles, olength, blob2StringCB, searchReplace, interpretSearchString
 ;
 //, msgbox, serious, slider1, slider2, uniforms, currentGenes, dat; // keep linter happy
 
@@ -1836,8 +1836,13 @@ async function loadData (cc, fid=cc.key) {
 function bedReader(data, fn) {
     const bed = {filename: fn, shortname: fn, bedtext: data};
     const cc = CSynth.current;
-    CSynth.useBed(bed, cc, 'DROPPED:');
-    cc.beds.push(bed);
+    const obed = cc.beds.filter(b => b.filename === fn && b.shortname === fn)[0];
+    if (obed) {
+        Object.assign(obed, bed);
+    } else {
+        CSynth.useBed(bed, cc, 'DROPPED:');
+        cc.beds.push(bed);
+    }
     // CSynth.makegui(true);  // TODO, less expensive refresh of bed dropdowns
     CSynth.refreshBedGUIs();
     CSynth.chooseBed(fn);
@@ -5561,6 +5566,12 @@ CSynth.xtooltips = {
 
 CSynth.shortcuts = {
     cov: 'covid/Corona-httpkorkinlab.org-wuhan/4. Models of viral-human protein complexes/wS_trimer-ACE2.js'
+}
+
+CSynth.runexample = function(n) {
+    if (typeof n === 'number') n = 'cexample' + n;
+    interpretSearchString(n);// this will set startscript etc
+    processFile('CSynth/data/' + startscript);
 }
 
 /** spring oddities at end of big pdb

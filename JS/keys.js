@@ -23,7 +23,7 @@ flatten, format, lastTouchedDispobj, debugKey, setHolo, Holo, GX, makevr, tadpol
 OrganicSpeech, bigimprep, feedbacktests, mutateVisibleGenes, fxaa, shangbig, currentHset, xxxhset, HornSet, resolveFilter, clearSelected,
 xxxgenes, hoverDispobj, resetCamera, slots, mainvp, nop, isCSynth, fullscreen, transferView, mutateColour, mutateForm, BrightonStyle, GUIInit, GUIwallkeys,
 niractcmd, randmuts, genmini, setBackgroundColor, home, toggleFullscreen, enterFullscreen, exitFullscreen, showzoom, showzoomfix,
-saveLots, edge, genwinsom
+saveLots, edge, genwinsom, filesFromDialog
 
 var extrakeys = {}; // var for sharing
 var keysEmulateVR = false;     // set to true if we want to emulate some VT button experiences
@@ -760,13 +760,7 @@ function dockeydowninner(kkk, evt) {
             getserveroao("gallery/Tempest3ax8.oao");
             renderVR.xrfs(true);
             break;
-        case 'ctrl,O': // open files
-            W.fileDialog.onclick = function (evtp) { this.value = null; }
-            W.fileDialog.onchange = function (evtp) {
-                openfiles(evtp.target.files);
-            }
-            W.fileDialog.click();
-            break;
+        case 'ctrl,O': filesFromDialog();  break; // open files
         case 'ctrl,shift,O':  // reopen last opened files (from drop or ctrl,o)
             openfiles();
             break;

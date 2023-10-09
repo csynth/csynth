@@ -6,12 +6,13 @@ var V, HW, THREE, getBody, renderer, init, currentGenes, uniforms, springs, CSyn
     minimizeSkelbuffer, Maestro, onframe, centrescalenow, serious, startscript, processFile,
     addgeneperm, format, readWebGlFloat, skelbuffer, startvr, pick, msgfix, showpick, writetextremote,
     target, remakeShaders, simpleset, setInput, usemask, VH, dat, camera, inputs, pickGPU, renderMainObject, inmutator,
-    adduniform, addtaggeduniform, oxcsynth, S, currentLoadingFile, location, msgfixerror, copyFrom, trimstrings, getFileExtension, getFileName,
+    adduniform, addtaggeduniform, oxcsynth, S, currentLoadingFile, msgfixerror, copyFrom, trimstrings, getFileExtension, getFileName,
     customLoadDone, nop, guiFromGene, otraverse, canvas, setAllLots, settings, initialSettings,
     searchValues, currentLoadingData, PICKNUM, readdir,
     scaleDampTarget1, nomess, posturi, GX, msgfixlog, objfilter, geneOverrides, col3, inworker, loadTime,
     currentLoadingDir, resetMat, slowinit, GO, renderVR, sleep, myRequestAnimationFrame, htmlDefines, maxTextureSize,
-    Gldebug, startWsListener, distxyz, downloadImage, downloadImageHigh, FIRST, writeBintri, runkeys, STL, islocalhost, fxaa;
+    Gldebug, startWsListener, distxyz, downloadImage, downloadImageHigh, FIRST, writeBintri, runkeys, STL, islocalhost, fxaa, filesFromDialog,
+    openfile, openfiles;
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 var CSynthFast;  // set to true even from outside to use fast graphics defaults
 //TODO: fragment more extensively into something like CSynth.ShaderChunks[]
@@ -860,7 +861,7 @@ CSynth.xyzSpringsWhite = () => { if (CSynth.current.xyzs[1]) CSynth.applyXyzs(CS
 let springguiHTMLAdded = false;
 
 /** start CSynth demos just once (merge with init????) */
-CSynth.startdemo = function() {
+CSynth.startdemo = async function() {
     if (!uniforms.t_ribboncol) adduniform('t_ribboncol', undefined, 't');
     if (!uniforms.t_ribbonrad) adduniform('t_ribbonrad', undefined, 't');
     if (!uniforms.matrixbed) addtaggeduniform('matrix', 'matrixbed', undefined, 't');
@@ -894,7 +895,13 @@ CSynth.startdemo = function() {
 
     if (startscript) { //
     } else {
-        startscript = 'CSynth/data/rsse/loadrsse.js'; //'CSynth/data/noConfig.js';
+        // filesFromDialog(); // no requires user
+        CSynth.init();
+        CSynth.makegui();
+        // let files;
+        // filesFromDialog(ff => files = ff);
+        // await S.waitVal(() => files);
+        // startscript = 'CSynth/data/rsse/loadrsse.js'; //'CSynth/data/noConfig.js';
         try {
             startWsListener();
         } catch (e) {
@@ -920,7 +927,7 @@ CSynth.startdemo = function() {
 }
 
 /** create a config structure for a drop list that does not include a config file */
-CSynth.handlefileset = function(evt, data) {
+CSynth.handlefileset = async function(evt, data) {
     log ('CSynth.handlefileset', evt, data);
     const files = Array.from(evt.eventParms);
     const o = {   // config file in waiting
@@ -933,14 +940,18 @@ CSynth.handlefileset = function(evt, data) {
         beds: [],
         wigs: [],
         matchPairs: true
-
     };
+    const pass0 = [];  // files to open
+    const pass1 = [];  // files to open
+    const pass2 = [];
     for (let i=0; i < files.length; i++) {  // do NOT use files.forEach as the .js return case does not return far enough
         const file = files[i];
         const path = file.canonpath;
         const ext = getFileExtension(path);
         switch(ext) {
             case '.js':
+                pass0.push(file);
+                break;
             case '.config':
                 log('handlefileset, drop list included a config file, no auto config needed', path);
                 return;  // already have a config file, nothing for us to do
@@ -951,21 +962,26 @@ CSynth.handlefileset = function(evt, data) {
             case '.csv':
             case '.bintri':
                 o.contacts.push(path);
+                pass1.push(file)
                 break;
             case '.xyz':
             case '.pdb':
             case '.vdb':
             case '.json':
                 o.xyzs.push(path);
+                pass1.push(file)
                 break;
             case '.bed':
                 o.beds.push(path);
+                pass2.push(file)
                 break;
             case '.wig':
                 o.wigs.push(path);
+                pass2.push(file)
                 break;
             case '.tif':
             case '.map':
+                pass2.push(file)
                 o.imagetiff = path;
                 break;
             default:
@@ -973,11 +989,23 @@ CSynth.handlefileset = function(evt, data) {
                 break;
         }
     }
+    CSynth.current = o;
     if (o.contacts.length + o.xyzs.length > 0) {
+        openfiles.processed = true;  // we'll handle the files
+        log('handlefileset, opening files sequentially for now');
+        await readall(pass0);
+        await readall(pass1);
+        await readall(pass2);
         log('handlefileset, auto config generated as no config file');
         springdemo(o);
     } else {
         log('handlefileset, no special files so handle files individually');
+    }
+
+    async function readall(ff) {
+        const prom = [];
+        for (const f of ff) prom.push(openfile(f));
+        await Promise.all(prom);
     }
 
 }
@@ -1283,8 +1311,9 @@ async function springdemoinner(defs) {
         if (is) processFile(CSynth.current.fullDir + is);
         GX.savegui(GX.localprefix + 'initial.settings');
         GX.savegui(GX.localprefix + '!auto.settings');
-        CSynth.current.ready = true;
+        CSynth.active = CSynth.current.ready = true;
     });
+    CSynth.active = true;
 
     if (searchValues.runs) {
         onframe( async function autoruns () {
@@ -1733,7 +1762,7 @@ CSynth.makegui = async function(force) {
 
     if (!V.gui) {
         CSynth.updateAvailableFiles.last = undefined;   // sidestep file dropdown optimization
-        V.gui = dat.GUIVR.createX("CSynth: " + cc.project_name);
+        V.gui = dat.GUIVR.createX("CSynth: " + (cc?.project_name ?? '?project'));
         let cam = startvr ? camera : V.nocamcamera;
 
         if (typeof force === 'function') force(V.gui);
@@ -1765,6 +1794,7 @@ CSynth.makegui = async function(force) {
         //V.rawscene.add( V.gazeInput.cursor ); //  only add the cursor, not the laser
         V.showbigcontrollers = true;
     }
+    if (!cc) return;
     var gui = V.gui;
 
     // no dat.GUIVR.remove. so clean old gui .. for testing remake of gui, dangerous use of V.gui.children[0]

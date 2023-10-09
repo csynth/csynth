@@ -282,7 +282,8 @@ function orginit() {
         document.onpaste = docpaste;
         document.body.onfocus = docfocus; // in case keys have got confused, but doesn't seem to get called
         document.body.onblur = docblur; // in case keys have got confused, but doesn't seem to get called
-        makeDraggable(W.msgbox, false);
+        if (!WA.isCSynth)
+            makeDraggable(W.msgbox, false);
         const dragcode = W.dragcode;
         dragcode.onmousedown = function (evt) {
             W.codemsg.innerHTML = 'dragging';

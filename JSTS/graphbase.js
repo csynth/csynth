@@ -1454,6 +1454,9 @@ var renderFrame = function (rt) {
         Maestro.trigger('postframe');
         return;
     }
+    if (isCSynth && !CSynth.active)
+        return msgfix('CSynthPending', 'waiting for ready before rendering');
+    msgfix('CSynthPending');
     _firstRealRender++;
     if (_firstRealRender <= 3)
         msgfixlog('tad+', 'real render, framenum=', framenum, _firstRealRender);
@@ -5018,8 +5021,13 @@ function Testmaterial() {
         tmesh.material = mmat;
         // mmat.uniforms.rot4.value.elements.set(trot4.elements);
         try {
-            rrender("Testmaterial", tscene, camera, tbuff);
+            // rrender("Testmaterial", tscene, camera, tbuff);
+            const k = '### rrender compile ' + popmode + oplist[popmode];
+            console.time(k);
+            renderer.compile(tscene, camera);
+            // console.timeLog(k)  // very little lost in extra checkglerror(); probably already done by THREE.
             let rc = checkglerror("testing new material");
+            console.timeEnd(k);
             if (rc) {
                 log("glerror in material", mat);
                 return false;

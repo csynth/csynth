@@ -163,7 +163,7 @@ declare let
     everyframe, guifilter, filterDOMEv, seed, Plane,
     numInstances, numInstancesP2, Springs, readdir, fileExists, fileExistsAsync, posturiasync, fileDelete, getcurrentdir, getFileExtension, march2021,
     arraydiff: (a: any[], b: any[]) => any[],
-    checkTranruleAll, safeFunction, setlight,
+    checkTranruleAll, safeFunction, setlight, isCSynth,
     fileOpenWriteWS, fileAppendWS, fileCloseWS, fileOpenReadWS, fileReadWS, dateToFilename, cheatxr,
 
     vrresting: (()=>void) & { bypassResting?, angMult?, linMult?, dampToSleep?, dampToWake?, damped?, wakeThresh?, sleepThresh?, msg?,

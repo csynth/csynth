@@ -21,7 +21,7 @@ var W, genedefs, mainvp, savedef, keysdown, inputs, fileOpenReadWS, fileReadWS, 
         loadStartTime, genbar, uriclean, S, isNode, mkdir, readdir, readtext, runcommandphp,
         writetextremote, fileExists, remotesave, fileStat, currentLoadingData, target, defaultObj, filterDOMEv, checkoao, msgflash, canvdroppaste,
         searchValues, inps, COL, cMap, setBackgroundColor, addscript, GX, islocalhost, readbinaryasync, HW,
-        msgboxVisible;
+        msgboxVisible, isCSynth;
 
 var _binfiles = ['.tif', '.bintri', '.zip', '.map'];
 var FrameSaver = {};  // psuedo-class
@@ -56,7 +56,15 @@ function openfileevt(evt) {
 }
 
 var lastopenfiles;
-/** handle the input file selection, also dragdrop */
+/** handle the input file selection, also dragdrop
+ * called from
+ *      _docdroppaste,
+ *      filesFromDialog, (ctrl~O, ctr~shift~O (reuse last), and ?? startup)
+ *      process (in csyscript)
+ *      CSynth.dock,
+ *      openfileevt (input openfilebut, not in CSynth),
+ *
+*/
 async function openfiles(files) {
     msgfix();  // clear non-urgent messages
     msgboxVisible(true);  // and show
@@ -76,8 +84,11 @@ async function openfiles(files) {
         openfiles.promises[files[f].canonpath] = new Promise( (resolve, reject) => { xx = resolve; });
         openfiles.resolvers[files[f].canonpath] = xx;
     }
+    openfiles.processed = false;
     Maestro.trigger('preopenfiles', files);  // escape may want to change, e.g. sort files? Used by CSynth.handlefileset for drag/dropped set of files
-    for (let f=0; f<files.length; f++) openfile(files[f]);  // note do NOT await, it was always async, previously by callback, now by async keyword
+    if (!openfiles.processed)
+        for (let f=0; f<files.length; f++)
+            openfile(files[f]);  // note do NOT await, it was always async, previously by callback, now by async keyword
     Maestro.trigger('postopenfiles', files);
 }
 openfiles.pending = {};
@@ -86,6 +97,7 @@ openfiles.dropped = {};  // contents of dropped and other opened files
 const chromeMaxString = 536870888;
 /** read and process a single file, given a File object */
 async function openfile(file) {
+    log('openfile start ', file.name);
     var ext = getFileExtension(file.name);
     var handler = fileTypeHandlers[ext];
     const canonpath = file.canonpath;
@@ -149,6 +161,8 @@ async function openfile(file) {
     } else {
         msgfixlog("baddrop", "attempt to open file of wrong filetype " + file.name);
     }
+    log('openfile end ', file.name);
+
 }
 
 /** */
@@ -2390,3 +2404,26 @@ async function blob2forEach(blob, fid) {
     return info;
 }
 
+async function filesFromDialog(callback) {
+    W.fileDialog.onclick = function (evtp) { this.value = null; }
+    W.fileDialog.onchange = function (evtp) {
+        W.startscreeni.innerHTML = 'preparing files';
+        (callback ?? openfiles)(evtp.target.files);
+    }
+    W.fileDialog.click();
+    W.startscreeni.innerHTML = 'choosing files';
+    // await S.waitEvent()
+}
+
+//
+// function showdialog() {
+//     if (showdialog.done) return;
+//     showdialog.done = true;
+//     filesFromDialog();
+//     document.removeEventListener('mousedown', showdialog)
+//     document.removeEventListener('keydown', showdialog)
+//     }
+// if (isCSynth && startscript === undefined) {
+//     document.addEventListener('mousedown', showdialog)
+//     document.addEventListener('keydown', showdialog)
+// }
