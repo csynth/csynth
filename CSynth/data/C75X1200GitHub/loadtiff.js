@@ -20,5 +20,7 @@ W.customSettings = async () => {
 }
 
 // this will be called once when everything set up, so can add to the gui
-W.customLoadDone = () => {
+W.customLoadDone = async () => {
+    await S.waitVal(() => CSynth.imagevis4);
+    GX.getgui('simulationsettings/useimage').setValue(true)
 }

@@ -45,8 +45,10 @@ var searchReplace = {
     fano: 'appToUse=Fano',
     julia: 'appToUse=Julia',
     texture: 'appToUse=Texture',
+    mousetiff: 'startscript=C75X1200GitHub/loadtiff.js',
+    mousenotiff: 'startscript=C75X1200GitHub/loadtiff.js',
 
-    cexample1: 'startscript=C75X1200GitHub/loadnotiff.js',
+    cexample1: 'mousetiff',
     cexample2: 'startscript=CrickGithub/loadcrick_chrII.js',
     cexample3: 'startscript=chr13multiresGitHub/load_50kb.js',
     cexample4: 'fullvir',
