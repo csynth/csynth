@@ -1309,7 +1309,10 @@ function init1() {
                 startscript = dir +  startscript;
             }
 
-            if (!fileExists(startscript)) { const s = 'start file does not exist:<br>' + startscript; showbaderrornogl(s); throw new Error(s); }
+            if (!startscript.startsWith('http') && !fileExists(startscript)) { 
+                const s = 'start file does not exist:<br>' + startscript; showbaderrornogl(s); 
+                throw new Error(s);
+            }
             const r = processFile(startscript);
         }
         //currentMaterialChanged();

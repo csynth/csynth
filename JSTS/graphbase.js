@@ -1173,7 +1173,7 @@ function init1() {
                 const dir = location.href.includes('/csynthstatic/') ? '../data/' : 'CSynth/data/';
                 startscript = dir + startscript;
             }
-            if (!fileExists(startscript)) {
+            if (!startscript.startsWith('http') && !fileExists(startscript)) {
                 const s = 'start file does not exist:<br>' + startscript;
                 showbaderrornogl(s);
                 throw new Error(s);
