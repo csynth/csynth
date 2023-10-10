@@ -4029,6 +4029,7 @@ CSynth.summary = function(o = CSynth.current) {
 // get CSynth load files
 CSynth.getAllFiles = function(dir, ftlist='.js') {
     if (!dir) dir = startscript.includes('csynthstatic') ? '/csynthstatic/data' : 'CSynth/data';
+    if (typeof ftlist === 'string') ftlist = [ftlist];
     const r = [];
     const list = readdir(dir);
     let n = 0;    // recursicve number of actual files
@@ -4053,18 +4054,21 @@ CSynth.getAllFiles = function(dir, ftlist='.js') {
 }
 
 CSynth.msgAllFiles = function(f) {
+    const ff = CSynth.getAllFiles(f)[1]
     msgfix('fff',
         `<div onclick="CSynth.getAllFiles.click(event)">
         <div>
-        ${CSynth.getAllFiles(f)[1]}
-        </div>`
+        ${ff}
+        </div></div>`
     );
 }
 
 CSynth.getAllFiles.click = function (e) {
     const s = e.target;
-    const path = s.dataset.path;
+    let path = s.dataset.path;
     if (path) {
+        if (path.startsWith('CSynth/data/')) path = path.post('CSynth/data/');
+        if (path.startsWith('/')) path = path.substring(1);
         // work out new href (not needed for plain click), prelace startscript in place
         let [pre, post] = location.href.split('startscript=');
         if (post === undefined) post = '';
@@ -4083,7 +4087,7 @@ CSynth.getAllFiles.click = function (e) {
             processFile(path);
         }
     } else {
-        const sub = s.parentNode.children[2];
+        const sub = s.parentNode.getElementsByTagName('ul')[0]
         sub.style.display = sub.style.display ? '' : 'none';
         msgfixlog('fffclick', 'NO', s.childNodes[0].textContent.substring(0, 40));
     }
