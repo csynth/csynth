@@ -290,10 +290,8 @@ function readdir(dir) {
             result[name] = {name, isDir: name.endsWith('/')};
         });
     } else if ( location.href.contains('csynth.github.io')) {
+        console.error('no sync readdir for csynth.github.io');
         result = {};
-        //const response = await fetch('https://api.github.com/repos/csynth/CSynth/contents/');
-        //const rr = await r.json();
-        //// https://api.github.com/repos/csynth/CSynth/contents/CSynth/data
     } else if (location.href.indexOf('https://csynth.molbiol.ox.ac.uk') !== -1
             || location.href.indexOf('https://programbits.co.uk/Mutspace') !== -1) {
                     // this version for Oxford public project or one of our csynthstatic/data directories
@@ -341,6 +339,17 @@ function readdir(dir) {
 
     for (const n in result) result[n].nsize = nsize(result[n].size);
     return result;
+}
+
+async function readdirAsync(dir) {
+    if ( location.href.contains('csynth.github.io')) {
+        const response = await fetch('https://api.github.com/repos/csynth/CSynth/contents/');
+        const rr = await response.json();
+        const result = {};
+        for (const di of rr) result[di.name] = {name: di.name, isDir: di.type==='dir' };
+        return result;
+    }
+    return readdir(dir);
 }
 
 // read directory recursive,

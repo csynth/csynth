@@ -19,7 +19,7 @@ springdemo, yaml, readTextureAsVec3, col3, VEC3, lastdocx, lastdocy, mousewhich,
 GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, runkeys, renderer, viveAnim, S, setExtraKey,
 badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt,
 HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files, feed, buff2GenStruct, inputType,
-blob2forEach, _binfiles, olength, blob2StringCB, searchReplace, interpretSearchString
+blob2forEach, _binfiles, olength, blob2StringCB, searchReplace, interpretSearchString, readdirAsync
 ;
 //, msgbox, serious, slider1, slider2, uniforms, currentGenes, dat; // keep linter happy
 
@@ -4027,16 +4027,16 @@ CSynth.summary = function(o = CSynth.current) {
 }
 
 // get CSynth load files
-CSynth.getAllFiles = function(dir, ftlist='.js') {
+CSynth.getAllFiles = async function(dir, ftlist='.js') {
     if (!dir) dir = startscript.includes('csynthstatic') ? '/csynthstatic/data' : 'CSynth/data';
     if (typeof ftlist === 'string') ftlist = [ftlist];
     const r = [];
-    const list = readdir(dir);
+    const list = await readdirAsync(dir);
     let n = 0;    // recursicve number of actual files
     for (let f in list) {
         const lf = list[f];
         if (lf.isDir) {
-            const [nn, xxx] = CSynth.getAllFiles(dir + '/' + f)
+            const [nn, xxx] = await CSynth.getAllFiles(dir + '/' + f)
             n += nn;
             if (nn !== 0) r.push(xxx);
         } else if (ftlist.includes(getFileExtension(f)) || ftlist === '*') {
@@ -4053,14 +4053,18 @@ CSynth.getAllFiles = function(dir, ftlist='.js') {
     + '<ul style="display:none;"><li>' + r.join('</li><li>') + '</li></ul>'];
 }
 
-CSynth.msgAllFiles = function(f) {
-    const ff = CSynth.getAllFiles(f)[1]
+CSynth.msgAllFiles = async function(f) {
+    msgfix('fff');
+    const ff = (await CSynth.getAllFiles(f))[1]
+    msgfix.force();
+    
     msgfix('fff',
         `<div onclick="CSynth.getAllFiles.click(event)">
         <div>
         ${ff}
         </div></div>`
     );
+    msgfix.force();
 }
 
 CSynth.getAllFiles.click = function (e) {
