@@ -1,0 +1,3 @@
+chr11	32073939	32137097	LeftFlank					255,0,0
+chr11	32137098	32200373	ExtrudeRegion					0,255,0
+chr11	32200374	32263240	RightFlanks					0,0,255

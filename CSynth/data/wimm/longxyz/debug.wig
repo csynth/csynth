@@ -1,0 +1,7 @@
+variableStep  chrom=chr16 span=20
+# add some data to show regions, the span also controls the total resolution
+32001350	100
+32101350	100
+32201350	100
+32301350	100
+32301350	100

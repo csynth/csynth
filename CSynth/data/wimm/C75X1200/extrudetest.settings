@@ -1,0 +1,48 @@
+// ctcf.bed
+//chr11	32136936	32137432	CTCF_19					213,94,0
+//chr11	32138482	32138930	CTCF_20					213,94,0
+//chr11	32198988	32199224	CTCF_25					213,94,0
+//chr11	32199925	32200134	CTCF_26					213,94,0
+
+// extrude.bed
+//chr11	32073939	32137097	LeftFlank					0,255,0
+//chr11	32137098	32200373	ExtrudeRegion					255,0,0
+//chr11	32200374	32263240	RightFlanks					0,0,255
+
+// arguments are time t for extrude, and pause time tp before restore of normal forces
+window.extrudeTest = async function(t = 20000, tp = 2000) {
+    const s = [G.contactforce, G.pushapartforce, G.pushapartpow];   // save original settings
+
+    // settings for use during extrusion
+    G.contactforce = 0.01;
+    G.pushapartforce = 0.00005;
+    // G.pushapartforce = 0;
+    G.pushapartpow = -4;
+
+    // loadopen();      // this one for big helix
+    CSynth.randpos();   // this one for more compact random walk position
+
+    const cc = CSynth.current;  // used if we want to peek into loaded data for numbers
+    // setup for three regions, a,b,c  (left flank, extrude, right flank)
+    // partly taken from .bed info above and partly from loaded data
+    // const a1 = cc.minid;
+    const a1 = 32073939;  // use flank as no ctcf
+    const a2 = 32136936;
+    const b1 = 32138930;
+    const b2 = 32198988;
+    const c1 = 32200134;
+    // const c2 = cc.maxid;
+    const c2 = 32263240;
+
+    // do the extrusion(s), you may well only want one extrusion
+    // these will run asynchronously
+    // CSynth.extrude(a1,a2, t, 0);
+    CSynth.extrude(b1,b2, t, 2);
+    // CSynth.extrude(c1,c2, t, 4);
+
+    // wait till they should all be finished
+    await sleep(t + tp);
+    //and restore settings
+    [G.contactforce, G.pushapartforce, G.pushapartpow] = s;
+}
+extrudeTest();

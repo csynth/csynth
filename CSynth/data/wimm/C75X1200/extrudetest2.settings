@@ -1,0 +1,38 @@
+// ctcf.bed
+//chr11	32136936	32137432	CTCF_19					213,94,0
+//chr11	32138482	32138930	CTCF_20					213,94,0
+//chr11	32198988	32199224	CTCF_25					213,94,0
+//chr11	32199925	32200134	CTCF_26					213,94,0
+
+// extrude.bed
+//chr11	32073939	32137097	LeftFlank					0,255,0
+//chr11	32137098	32200373	ExtrudeRegion					255,0,0
+//chr11	32200374	32263240	RightFlanks					0,0,255
+
+// arguments are time for extrude, and pause time before restore of norm al forces
+window.extrudeTest = async function(t = 20000, tp = 2000) {
+    const s = [G.contactforce, G.pushapartforce, G.pushapartpow];
+    G.contactforce = 0;
+    G.pushapartforce = 0;
+    G.pushapartforce = 0;
+    G.pushapartpow = -4;
+    // loadopen();
+    CSynth.randpos();
+    const cc = CSynth.current;
+    // const a1 = cc.minid;
+    const a1 = 32073939;  // use flank as no ctcf
+    const a2 = 32136936;
+    const b1 = 32138930;
+    const b2 = 32198988;
+    const c1 = 32200134;
+    // const c2 = cc.maxid;
+    const c2 = 32263240;
+
+    CSynth.extrude(a1,a2, t, 0);
+    CSynth.extrude(b1,b2, t, 2);
+    CSynth.extrude(c1,c2, t, 4);
+
+    await sleep(t + tp);
+    [G.contactforce, G.pushapartforce, G.pushapartpow] = s;
+}
+extrudeTest();
