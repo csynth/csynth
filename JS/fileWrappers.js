@@ -322,8 +322,8 @@ function readdir(dir) {
         let urlx
         if (location.href.includes('/!')) {
             const pre = location.href.pre('/!')
-            const post = location.href.post('/!')
-            urlx = pre + '/dir.php?/!' + post.pre('csynth.html') + '/';
+            const ppost = location.href.post('/!')
+            urlx = pre + '/dir.php?/!' + ppost.pre('csynth.html') + '/';
         } else {
             urlx = 'dir.php?';
         }
@@ -349,9 +349,11 @@ function readdir(dir) {
     return result;
 }
 
-async function readdirAsync(dir) {
+// readdirAsync, works on github, otherwise passes through to readdir
+// sample generated call  https://api.github.com/repos/csynth/CSynth/contents/CSynth/data/wimm
+var readdirAsync = async function readdirAsync(dir) {
     if ( location.href.contains('csynth.github.io')) {
-        const response = await fetch('https://api.github.com/repos/csynth/CSynth/contents/');
+        const response = await fetch('https://api.github.com/repos/csynth/CSynth/contents/' + dir);
         const rr = await response.json();
         const result = {};
         for (const di of rr) result[di.name] = {name: di.name, isDir: di.type==='dir' };
@@ -359,6 +361,7 @@ async function readdirAsync(dir) {
     }
     return readdir(dir);
 }
+// readdirAsync('CSynth/data/wimm')
 
 // read directory recursive,
 function readdirRec(dir, list=[]) {

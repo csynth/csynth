@@ -176,6 +176,14 @@ var Springs = function(id = '') {
 
         const _sgui = GUINewsub("More ...");
         // gui.add(W, 'threshold', 0, 150).listen().name("Spring threshold").onChange(setthresh);
+
+        const bb = [2,
+            { func: CSynth.setAlignmentTarget, tip: "Use current positions to set the alignment for future align requests", text: 'set align' },
+            { func: CSynth.alignConformationtest, tip: "Fix current positions and align to preset target", text: 'use align' },
+        ];
+        _sgui.addImageButtonPanel.apply(_sgui, bb).setRowHeight(0.100);
+
+
         CSynth.addSpringSourceGUI(_sgui);
         guiFromGene("stepsPerStep");
         guiFromGene("damp");
@@ -190,6 +198,7 @@ var Springs = function(id = '') {
         guiFromGene("springspreaddist");
         guiFromGene("fractforce");
         guiFromGene("fractpow");
+        guiFromGene("pullspringforce");
 
         const yy = { get boosting() {return !!CSynth.boostsprings.mid}, set boosting(v) { CSynth.boostsprings(v);} }
         GUISubadd(yy, 'boosting').name('boost springs').listen()
@@ -1451,7 +1460,7 @@ meX.setHISTLEN(256); meX.repos(); meX.demotopology(); setTimeout(meX.start, 500)
         // const sc = G._uScale
         // if (sc !== 1) mat = mat.clone().premultiply(tmat4.makeScale(sc, sc, sc));
         // me.transformPositions(v => v.clone().applyMatrix4(mat), false, false, num);
-        
+
         // as long as rot4uniforms() has been applied, U.rot4 allows for rot4_ele, uScale, tad.centre, ...
         const mat2 = tmat4.copy(U.rot4).transpose();
         me.transformPositions(v => v.clone().applyMatrix4(mat2), false, false, num);

@@ -3,7 +3,7 @@
 var CSynth, msgfixlog, springs, spearson, G, format, msgfix, sleep, log, numInstances, distxyz, col3, throws,
 Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S;
 
-var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain, setAllLots;
+var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain, setAllLots, msgfixerrorlog;
 
 // get positions for key or ready made positions
 CSynth.pos = function(inputDef) {
@@ -1216,31 +1216,60 @@ function skelstats() {
 }
 // CSynth.showEigen('angleed', skelstats());
 
-/** align the current conformation (assumed distances for now) with the given fixed positions */
-CSynth.alignConformation = function(n = 0, pull = 1) {
+/** align the current conformation (assumed distances for now) with the given fixed positions
+using pullsprings */
+CSynth.alignConformation = async function({maxpull = 1, minpull = 0.001, degrade = 0.9} = {}) {
     const cc = CSynth.current;
-    cc.xyzs[n].coords.forEach((v,i,a) => springs.addpull(i, v.x, v.y, v.z, 1));
-    G.pullspringforce = pull;
+    if (!CSynth.alignmentTarget) return msgfixerrorlog('align request with no target set');
+
+    setAllLots('force', 1e-26); // not sure why 0 fails
+    G.springmaxvel = 9999;  // make high so we can get really fast convergence
+    G.xyzforce = 0.01;      // strongest we can get away with for Lorentz initial test
+    G.pullskelforce = 0;    // relevant ???
+    springs.finishFix();    // in case in a fixed position already
+
+    CSynth.alignmentTarget.forEach((v,i,a) => springs.addpull(i, v.x, v.y, v.z, 1));
+    let p = maxpull, i = 0;
+    while (p > minpull) {
+        G.pullspringforce = p;
+        springs.step(1);
+        if (i++ % 40 === 0) {
+            await S.frame();
+            log(i, 'pull', p)
+        }
+        p *= degrade;
+    }
+    G.pullspringforce = 0;
+    log(i, 'alignment complete with pull', p);
 }
 
-var runlor, nop;
-CSynth.alignConformationtest = async function(n = 0, o = 1, pull = 1) {
+/** test alignment between two xyz's, by default move current to previously set target */
+CSynth.alignConformationtest = async function(opts = {}) {
 
     GX.setValue('simulationsettings/autoalign', false);
 
     const cc = CSynth.current;
-    const sname = cc.xyzs[o].shortname
-    GX.getgui('modes/' + sname + '\npositions').press();
-    await S.frame();
-    GX.getgui('modes/' + sname + '\ndists').press();
-    await S.frame();
+    const src = opts.src ?? 'current';
+    if (typeof src === 'number') {
+        const sname = cc.xyzs[src].shortname
+        GX.getgui('modes/' + sname + '\npositions').press();
+        await S.frame();
+        GX.getgui('modes/' + sname + '\ndists').press();
+        await S.frame();
+    } else {
+        log('capture current position as distance texture')
+        const texture = CSynth.xyzsToTexture(springs.getpos());
+        U.distbuff = texture;
+    }
 
-    setAllLots('force', 1e-6); // not sure why 0 fails
-    G.xyzforce = 1;
-    // G.springforce = 1;
-    G.pullskelforce = 0
+    await CSynth.alignConformation(opts);
+}
 
-    CSynth.alignConformation(n, pull);
-
-
+/** set the alignment target, but do not use it yet */
+CSynth.setAlignmentTarget = function(targ = 'current') {
+    const cc = CSynth.current;
+    if (typeof targ === 'number')
+        CSynth.alignmentTarget = cc.xyzs[targ].coords;
+    else
+        CSynth.alignmentTarget = springs.getpos();
 }

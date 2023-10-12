@@ -3315,15 +3315,15 @@ CSynth.xyzsToTexture = function(xyznum) {
         return;
     }
     if (xyz.texture) return xyz.texture;
-    const n = xyz.numInstances;
+    const n = xyz.numInstances ?? xyz.length;
     const tt = THREE.FloatType;
 
     const td = new Float32Array(n * n);
-    const dd = xyz.coords;
-    const dist= (i,j) => Math.sqrt((i.x-j.x)^2 + (i.y-j.y)^2 + (i.z-j.z)^2);
+    const dd = Array.isArray(xyz) ? xyz : xyz.coords;
+    const dist= (vi,vj) => Math.sqrt((vi.x-vj.x)**2 + (vi.y-vj.y)**2 + (vi.z-vj.z)**2);
     for (let i = 0; i < n; i++) {
         for (let j = i+1; j < n; j++) {
-            td[i + n*j] = td[n*i + j] = dist(dd[i], dd[j]);
+            const d = td[i + n*j] = td[n*i + j] = dist(dd[i], dd[j]);
         }
     }
 
@@ -4060,7 +4060,7 @@ CSynth.msgAllFiles = async function(f) {
     msgfix('fff');
     const ff = (await CSynth.getAllFiles(f))[1]
     msgfix.force();
-    
+
     msgfix('fff',
         `<div onclick="CSynth.getAllFiles.click(event)">
         <div>
