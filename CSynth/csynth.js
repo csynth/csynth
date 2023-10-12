@@ -4033,11 +4033,14 @@ CSynth.getAllFiles = async function(dir, ftlist='.js') {
     const r = [];
     const list = await readdirAsync(dir);
     let n = 0;    // recursicve number of actual files
+    let nd = 0;    // recursicve number of directories
     for (let f in list) {
         const lf = list[f];
         if (lf.isDir) {
-            const [nn, xxx] = await CSynth.getAllFiles(dir + '/' + f)
+            const [nn, xxx, nnd] = await CSynth.getAllFiles(dir + '/' + f)
             n += nn;
+            nd += nnd;
+            nd++;
             if (nn !== 0) r.push(xxx);
         } else if (ftlist.includes(getFileExtension(f)) || ftlist === '*') {
             r.push(`<span data-path="${dir + '/' + f}">${f}</span>
@@ -4050,7 +4053,7 @@ CSynth.getAllFiles = async function(dir, ftlist='.js') {
     }
     return [n, `<span class="files_dir">${dir}</span>
         <span class="help">Click to fold/unfold</span>`
-    + '<ul style="display:none;"><li>' + r.join('</li><li>') + '</li></ul>'];
+    + '<ul style="display:none;"><li>' + r.join('</li><li>') + '</li></ul>', nd];
 }
 
 CSynth.msgAllFiles = async function(f) {

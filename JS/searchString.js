@@ -3,7 +3,7 @@
  * eval1 and eval2 are called on first and second call resp.
 */
 var serious, alert, localStorage, usesavedglsl, startvr=false, runtest, ises300, enterfullscreen, inps, setViewports, Touch2Init, W,
-nomess, brusselsNoAuto, _isNode, onframe, appToUse, mutatetad;   // so windows.startvr exists as bool
+nomess, brusselsNoAuto, _isNode, onframe, appToUse, mutatetad, fileExists;   // so windows.startvr exists as bool
 var searchValues = {};
 
 var searchReplace = {
@@ -30,7 +30,7 @@ var searchReplace = {
 
     threek: 'startobj=startup',
     // csynth: 'startscript',
-    rsse: 'startscript=rsse/loadrsse.js',
+    rsse: 'startscript=wimm/rsse/loadrsse.js',
     crick: 'startscript=CrickLots/lots.js',
     newsc2023: "startscript=ima/newsc2023.js & startvr & fullscreen",   // nb: front for exhibition
     fullvir: "newsc2023 & nofront & nostartvr",
@@ -38,7 +38,7 @@ var searchReplace = {
     lowry: 'startscript=ima/lowry.js',
     york: 'startscript=YorkStudents/newtest_v5.js',
     lorentz: 'startscript=Lorentz/lorentz.js',
-    steve: 'startscript=SteveJan19/test.js',
+    steve: 'startscript=wimm/SteveJan19/test.js',
     covid: 'startscript=covid/spike.js',
     pdb: 'pdb=1GFL',
     triyork: 'startscript=tric/tric.js',
@@ -148,3 +148,17 @@ function interpretSearchString(istring, error = serious || alert) {
 }
 interpretSearchString(undefined, console.error);
 
+function checkSearchReplace(pre='CSynth/data/') {
+    let bad = 0, good = 0;
+    for (const [k,v] of Object.entries(searchReplace)) {
+        const ss = v.post('startscript=')?.pre('&')?.trim()
+        if (ss)
+            if (!fileExists(pre + ss))
+            {bad++; console.log(k, ': no file', ss, v)}
+        else
+            good++;
+    }
+    console.log('checkSearchReplace', 'bad', bad, 'good', good);
+}
+//console.clear()
+//checkSearchReplace()

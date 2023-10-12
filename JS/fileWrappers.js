@@ -319,7 +319,15 @@ function readdir(dir) {
 // ...href="Interphase_chrII.normMtx.txt">Interphase_chrII.nor..&gt;</a></td><td align="right">2018-01-08 10:17  </td><td align="right"> 66M</td><td>&nbsp;</td></tr>
     } else {
         // this version for local server nodeserver.js
-        const fileNames = posturi('dir.php?' + dir.replace(/\/\//g,'/'));
+        let urlx
+        if (location.href.includes('/!')) {
+            const pre = location.href.pre('/!')
+            const post = location.href.post('/!')
+            urlx = pre + '/dir.php?/!' + post.pre('csynth.html') + '/';
+        } else {
+            urlx = 'dir.php?';
+        }
+        const fileNames = posturi(urlx + dir.replace(/\/\//g,'/'));
         try {
             result = fileNames[0] === '{' ? JSON.parse(fileNames) : fileNames.split(',');
         } catch (e) {

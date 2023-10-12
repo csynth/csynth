@@ -3,7 +3,7 @@
 var CSynth, msgfixlog, springs, spearson, G, format, msgfix, sleep, log, numInstances, distxyz, col3, throws,
 Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S;
 
-var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain;
+var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain, setAllLots;
 
 // get positions for key or ready made positions
 CSynth.pos = function(inputDef) {
@@ -863,7 +863,7 @@ CSynth.alignForces = function(use = 'lor') {
 
 }
 
-/** align models to given model */
+/** align models to given model (? that is, align Lorenz m_ values with our  contactforce etc values */
 CSynth.alignModels = function(type = 'auto') {
     // Lorentz, wish distance = m_k / if ** m_alpha
     // CSynth, implicit wish distance (if * contactforce/pushapartforce) ** (1/(pushapartpow-1))
@@ -922,7 +922,7 @@ CSynth.alignModels = function(type = 'auto') {
     } else if (type === 'xyz') { //
 
     } else {
-        console.error(`'Unexpected type '${type}' in CSynth.alignModels.`);
+        console.error(`Unexpected type '${type}' in CSynth.alignModels.`);
     }
     copyFrom(G, x);
 
@@ -1215,3 +1215,32 @@ function skelstats() {
     return r;
 }
 // CSynth.showEigen('angleed', skelstats());
+
+/** align the current conformation (assumed distances for now) with the given fixed positions */
+CSynth.alignConformation = function(n = 0, pull = 1) {
+    const cc = CSynth.current;
+    cc.xyzs[n].coords.forEach((v,i,a) => springs.addpull(i, v.x, v.y, v.z, 1));
+    G.pullspringforce = pull;
+}
+
+var runlor, nop;
+CSynth.alignConformationtest = async function(n = 0, o = 1, pull = 1) {
+
+    GX.setValue('simulationsettings/autoalign', false);
+
+    const cc = CSynth.current;
+    const sname = cc.xyzs[o].shortname
+    GX.getgui('modes/' + sname + '\npositions').press();
+    await S.frame();
+    GX.getgui('modes/' + sname + '\ndists').press();
+    await S.frame();
+
+    setAllLots('force', 1e-6); // not sure why 0 fails
+    G.xyzforce = 1;
+    // G.springforce = 1;
+    G.pullskelforce = 0
+
+    CSynth.alignConformation(n, pull);
+
+
+}

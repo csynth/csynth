@@ -2233,15 +2233,15 @@ function tryfun(input, ff) {
 }
 
 /** find fields in object with name matching string */
-function findfields(obj, s) {
+function findfields(obj, s, filt = _=>true) {
     const r = {};
     if (s instanceof RegExp) {
         for (let n in obj)
-            if (n.match(s)) r[n] = obj[n];
+            if (n.match(s) && filt(obj[n])) r[n] = obj[n];
     } else {
         s = s.toLowerCase();
         for (let n in obj)
-            if (n.toLowerCase().indexOf(s) !== -1) r[n] = obj[n];
+            if (n.toLowerCase().indexOf(s) !== -1 && filt(obj[n])) r[n] = obj[n];
     }
     return r;
 }
@@ -4207,7 +4207,7 @@ async function slowinit() {
         ss.top = 'revert'
         ss.bottom = '10%'
         ss.position = 'fixed';
-        monitorX(ss, 'bottom')
+        // monitorX(ss, 'bottom')
         ss.left = '10%'
     }
     // loadTime('shaders 1 start');
@@ -4623,7 +4623,7 @@ function makeDraggable(ptodrag, usesize=true, button = 2, callback) {
     s.position = 'fixed';
     s.left = Math.min(screen.width-300, Math.max(0, rr.x + 100)) + 'px';
     let top;
-    if (s.top) {
+    if (s.top && s.top.endsWith('px')) {
         top = s.top.pre('px');
     } else {
         top = Math.min(screen.height-300, Math.max(0, rr.y));

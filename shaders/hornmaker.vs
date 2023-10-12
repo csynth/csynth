@@ -152,6 +152,11 @@ void usecolhsv(const float h, const float s, const float v) {  // use this as th
 }
 **/
 
+gene(global_radmult, 1, 0,10, 0.1,0.1, geom, frozen)    // multiplier for radius
+gene(global_radmin, -999, 0,10,0.1,0.1,geom, frozen)    // minimum radius
+gene(global_radadd, 0,  0,10,0.1,0.1, geom, frozen)     // amount to add to radius
+
+
 gene(histl, 0.0, 0,0.9, 0.1, 0.01, springs, frozen) // proportion of history to use
 gene(springl, 0.9, 0,0.9, 0.1, 0.01, springs, frozen) // proportion of spring chain to use
 gene(kinxagg, 1, 0,20, 1, 0.1, springs, frozen) // exaggeration for kinect changes
@@ -982,6 +987,8 @@ vec4 tr_i(const vec4 p, const float ppx, const Parpos parpos, out float xrscale,
     //     r =  max(r, 0.);
     // #endif
     xrscale = xscale * r;
+    // Math.max(r * radmult + radadd, radmin);
+    xrscale = max(xrscale * global_radmult + global_radadd, global_radmin);
 
     return vec4(x, y, z, w);
 }  // tr_i
