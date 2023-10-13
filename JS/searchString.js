@@ -27,7 +27,6 @@ var searchReplace = {
     imfind: 'standard & eval3=imcompareInteract()',
     sympaint: 'eval3=Tracker.init()',
 
-
     threek: 'startobj=startup',
     // csynth: 'startscript',
     rsse: 'startscript=wimm/rsse/loadrsse.js',
@@ -56,6 +55,7 @@ var searchReplace = {
     cexample3_50: 'startscript=chr13multiresGitHub/load_50kb.js',
     // cexample3_data: 'startscript=chr13multiresGitHub/load_data.js',
     cexample3_smaller: 'startscript=chr13multiresGitHub/load_smaller.js',
+    wimmdir: 'rsse & eval3=onframe(()=>CSynth.msgAllFiles("CSynth/data/wimm",true),10)',
 
 };
 

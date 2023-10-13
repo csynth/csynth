@@ -114,7 +114,10 @@ dt { display: inline; font-weight:bold; }
 .msg_item {
 	padding: 1px;
 } */
-.files_dir {color: green;}
+.files_dir,a:visited {color: #f8f;}
+.files_dir,a {color: #bbf;}
+.files_dir {color: #8f8;}
+
 #valbox {
     color: black;
     background-color: #e0d8d8;

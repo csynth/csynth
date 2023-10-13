@@ -4044,7 +4044,7 @@ CSynth.getAllFiles = async function(dir, ftlist='.js') {
             nd++;
             if (nn !== 0) r.push(xxx);
         } else if (ftlist.includes(getFileExtension(f)) || ftlist === '*') {
-            r.push(`<span data-path="${dir + '/' + f}">${f}</span>
+            r.push(`<a href="${location.origin + location.pathname + '?startscript=' + dir + '/' + f}">${f}</a>
             <span class="help">Click to load this file in current CSynth session
             <br>Ctrl-click to load new CSynth with this file in this tab
             <br>Alt-click to load new CSynth with this file in new tab
@@ -4057,7 +4057,12 @@ CSynth.getAllFiles = async function(dir, ftlist='.js') {
     + '<ul style="display:none;"><li>' + r.join('</li><li>') + '</li></ul>', nd];
 }
 
-CSynth.msgAllFiles = async function(f) {
+CSynth.msgAllFiles = async function(f, tidy=false) {
+    if (tidy) {
+        W.startscreen.style.display='none';
+        msgfix.killMost();
+    }
+
     msgfix('fff');
     const ff = (await CSynth.getAllFiles(f))[1]
     msgfix.force();
@@ -4073,6 +4078,7 @@ CSynth.msgAllFiles = async function(f) {
 
 CSynth.getAllFiles.click = function (e) {
     const s = e.target;
+    if (s.tagName === 'A') return;  // already handled by <a> link
     let path = s.dataset.path;
     if (path) {
         if (path.startsWith('CSynth/data/')) path = path.post('CSynth/data/');

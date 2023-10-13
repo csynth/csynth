@@ -1294,9 +1294,10 @@ CSynth.alignConformationNow = async function(opts = {}) {
 
 /** align by transform two array vectors p1 and p2 */
 CSynth.alignTransform = function(p1, p2, {
-        stab = 0.5, loop = 1000, apply = false,
+        loop = 1000, apply = false,
+        sample = 1, tol = 1e-3, vdamprate = 0.8,
         t = [0,0,0,0,0,0], mirror = false,
-        imax=6, loglow = 2, lograte = 50
+        imax = 6, loglow = 2, lograte = 50
     } = {}) {
     console.time('aligntr')
     const cc = CSynth.current;
@@ -1315,8 +1316,10 @@ CSynth.alignTransform = function(p1, p2, {
     let l;
 
     const dd = (p) => p1[p].distanceToSquared(tv.copy(p2[p]).applyMatrix4(m));  // error or particle
-    const ddd = () => { makem(); return p1.reduce( (c,v,p) => c + dd(p), 0); }; // overall error
-    let dampv = ddd();
+    // const ddd = () => { makem(); return p1.reduce( (c,v,p) => c + dd(p), 0); }; // overall error
+    const ddd = (ss = sample) => { makem(); let c = 0; for (let p=0; p < p1.length; p += ss) c += dd(p); return c; }; // overall error
+    let dampv = ddd();  // used for convergence test
+    let err = () => Math.min(dampv, Math.abs(ddd()-dampv) / dampv);
 
     // perform one test interation on one variable; could do several on given i so only need fewer ddd() tests
     function test(i, d = del[i]) {
@@ -1333,21 +1336,23 @@ CSynth.alignTransform = function(p1, p2, {
             t[i] = t1;
             v = v1;
         }
-        if (l < loglow) log('test', {l, i, d, t1, t2, v1, v2, v, dampv})
-        if (l%lograte === 0 && i === 0) log({l, del, t, v , dampv});
+        if (l < loglow) log('test', {l, i, d, t1, t2, v1, v2, v, dampv, err: err()})
+        if (l%lograte === 0 && i === 0) log({l, del, t, v , dampv, err: err().toString()});
         return v;
     }
     const test6 = _=> { let v; for (let i = 0; i < imax; i++) v = test(i); return v; }; // perform single iteration on all variables
 
-    // todo check for stuck and del prematurely too small
-    const drate = 0.9;
+    const drate = vdamprate;
+    const vv = new Float32Array(loop);
+    // W.xvv = vv;
     for (l = 0; l < loop; l++) {
         const v = test6();         // perform all iterations on all variables
+        vv[l] = v;
         dampv = drate * dampv + (1-drate) * v;
-        if (l > 20 && Math.abs(v-dampv) / dampv < 0.001 || dampv < 1e-5)
+        if (l > 20 && err() < tol)
             break;
     }
-    log('finish at', {l, v: ddd(), dampv, del, t});
+    log('finish at', {l, vsamp: ddd(), vfull: ddd(1), dampv, err: err(), del, t});
 
     if (apply) {
         for (let p = 0; p < p2.length; p++) p2[p].applyMatrix4(m);
