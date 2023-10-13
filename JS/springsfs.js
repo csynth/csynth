@@ -11,7 +11,7 @@ and each call to the fragment shader performs a calculation for a single time sl
 Each spring is thus calculated twice each time slot, once for each end particle.
 
 */
-var addtaggeduniform, addgeneperm, getdata, uniformsForTag, springs, G, uniforms, ffloat, Springs, torsionSprings, THREE, inps;
+var addtaggeduniform, addgeneperm, getdata, uniformsForTag, springs, G, uniforms, ffloat, Springs, torsionSprings, THREE, inps, CSynth;
 
 const springUniformCache = {};
 /** set the uniforms and genes used by springs */
@@ -428,8 +428,8 @@ vec3 spring(vec3 mypos, vec4 spr) {
     //>> 17/12/2019 backboneScale and nonBackboneLen should NOT apply to these single springs
     //>> The spring generation code should allow for the equivalent if appropriate.
     //>> The horrid patch below is for York projects in progress ... TODO review and remove when a safe time comes
-    //>> The offending line is commented out except for York case detected by window.springdemo.defs.fixedPoints
-    ${window.springdemo && window.springdemo.defs && window.springdemo.defs.fixedPoints ? '' : '// '} lspringlen *= min(backbonedist * VnumInstancesP2, nonBackboneLen) * backboneScale;  // <<<< WRONG
+    //>> The offending line is commented out except for York case detected by window.CSynth.defs.fixedPoints
+    ${CSynth.defs && window.CSynth.defs.fixedPoints ? '' : '// '} lspringlen *= min(backbonedist * VnumInstancesP2, nonBackboneLen) * backboneScale;  // <<<< WRONG
     float lspringforce = spr.z * (springforce * roleforce + roleforceFix);   // force of this spring
     float lspringpow = spr.w + springpow;       // power to apply to this spring
 

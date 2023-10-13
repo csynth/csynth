@@ -12,7 +12,7 @@ var V, HW, THREE, getBody, renderer, init, currentGenes, uniforms, springs, CSyn
     scaleDampTarget1, nomess, posturi, GX, msgfixlog, objfilter, geneOverrides, col3, inworker, loadTime,
     currentLoadingDir, resetMat, slowinit, GO, renderVR, sleep, myRequestAnimationFrame, htmlDefines, maxTextureSize,
     Gldebug, startWsListener, distxyz, downloadImage, downloadImageHigh, FIRST, writeBintri, runkeys, STL, islocalhost, fxaa, filesFromDialog,
-    openfile, openfiles;
+    openfile, openfiles, xstring;
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 var CSynthFast;  // set to true even from outside to use fast graphics defaults
 //TODO: fragment more extensively into something like CSynth.ShaderChunks[]
@@ -1084,7 +1084,9 @@ async function springdemo(defs) {
         });
     }
 
-    springdemo.defs = defs;
+    CSynth.defs = defs;
+    CSynth.defsstring = xstring(defs);
+    onframe(() => msgfix('defs', `<pre>` + CSynth.defsstring + `<\pre>`), 25);
 
 
 
