@@ -179,7 +179,7 @@ var Springs = function(id = '') {
 
         const bb = [2,
             { func: CSynth.setAlignmentTarget, tip: "Use current positions to set the alignment for future align requests", text: 'set align' },
-            { func: CSynth.alignConformationtest, tip: "Fix current positions and align to preset target", text: 'use align' },
+            { func: CSynth.alignConformationNow, tip: "Fix current positions and align to preset target", text: 'use align' },
         ];
         _sgui.addImageButtonPanel.apply(_sgui, bb).setRowHeight(0.100);
 

@@ -1292,7 +1292,7 @@ async function springdemoinner(defs) {
         uniforms.contactforcesc.value = ('contactforcesc' in geneOverrides ? geneOverrides : G).contactforcesc;
 
         if (_cc.contacts.length === 0 && G.xyzforce === 0 ) G.xyzforce = 0.5;
-        if (!U.distbuff) G.xyzforce = 0;
+        if (!U.distbuff) geneOverrides.xyzforce = 0;
     });
 
     // everything is settled, do any specific overrides the user wants

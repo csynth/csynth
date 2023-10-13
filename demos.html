@@ -3,22 +3,35 @@
     <head>
         <title>Mutator Demos</title>
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <style>
+            * { box-sizing: border-box; }
+            row { display: flex; }
+            /* Create two equal columns that sits next to each other */
+            column { flex: 33%; padding: 4em; }
+        </style>
     </head>
     <body>
+        <row>
+        <column>
+
         <h1>Mutator group web demos</h1>
-        <h2>Oxford Creative Machine</h2>
-        <ul style="font-size:150%">
+        <p>This launches various Mutator group WebGL and WebVR based demos.
+            It does not include non web-based systems such as Vortex and FoldSynth.</p>
+            <p>Use <b>alt,leftarrow</b> to return to this menu from any chosen item; or hit <b>F11</b> to see standard browser window.</p>
+
+        <h2>Current 'active' projects</h2>
+        These are mainly collected here for convenience in testing.
+        <ul style="font-size:125%">
             <li><a href="threek.html?tadkinscript">Kinect script version</a></li>
             <li><a href="threek.html?tadmutnoiseimage">tad+mutate dual system; with noise/image/form</a></li>
             <li><a href="threek.html?imfind">automatic mutation, to find an image</a>
                 Mutate the 'standard' object attempting to match an image.
             </li>
             <li><a href="csynth.html?newsc2023">Virus: New Scientist Live: 2023</a></li>
+            <li><a href="threek.html?tadmanchester">Kinect version, towards Manchester</a></li>
+
         </ul>
 
-        <p>This launches various Mutator group WebGL and WebVR based demos.
-        It does not include non web-based systems such as Vortex and FoldSynth.</p>
-        <p>Use <b>alt,leftarrow</b> to return to this menu from any chosen item; or hit <b>F11</b> to see standard browser window.</p>
         <h3><a href="threek.html?standard">Organic horns</a></h3>
 		<p>Organic horns as used in William's exhibition.  These do heavy geometry on the graphics card.
 		This allows us to generate complex forms in realtime on fairly high end machines,
@@ -55,7 +68,7 @@
 
         </ul>
 
-        <h4>WebXR and three.js debug samples</a></h4>
+        <h4>WebXR and three.js debug samples</h4>
         <ul>
             <li><a href="https://threejs.org/examples/?q=webxr#webxr_xr_ballshooter">Three.js VR ballshooter</a>
                 Not our code; here to help debug some WebXR issues.
@@ -73,7 +86,7 @@
         </ul>
 
 
-        <h3>Organic tadpoles</a></h3>
+        <h3>Organic tadpoles</h3>
         <ul>
             <li><a href="threek.html?tadkin">Kinect version</a></li>
             <li><a href="threek.html?tadnoaudio">Kinect version, no audio</a></li>
@@ -103,11 +116,19 @@
 
 
         </ul>
+        </column>
+        <column>
+
 
         <h3>'mini' version</h3>
         <ul>
             <li><a href="minicode/test/miniorg.html">minified mini version</a></li>
             <li><a href="minicode/miniorganic.html">debug mini version</a></li>
+        </ul>
+
+        <h3>symmetry painter</h3>
+        <ul>
+            <li><a href="http://localhost:8800/threek.html?sympaint">symmetry painter</a></li>
         </ul>
 
         <h3>Remote Controls</h3>
@@ -122,6 +143,7 @@
                 <li><a href="csynth.html?startscript=CrickLots/lotsNoConstraints.js">Crick, image shell</a>Crick contrained to microscope shell</li>
                 <li><a href="csynth.html?rsse">Royal Society</a></li>
                 <li><a href="csynth.html?startscript=C75X1200/loadtiff.js">C75X1200, mouse fit to image</a>Mouse image data compbined with hic for folding</li>
+                <li><a href="csynth.html?lorentz">Lorentz experiments</a></li>
 
 
                 <li><a href="csynth.html?newsc2023">Virus: New Scientist Live: 2023</a></li>
@@ -153,18 +175,39 @@
         <h3><a href="http://programbits.co.uk/minster/minstv3.html">Winchester Minster (from UKSC)</a></h3>
         <p>This is not a direct part of the Mutator group work, but is related in various ways</p>
 
-        <h3><a href="threek.html?fano">Fano</a></h3>
-		<p>This implements a surface hunting technique in the graphics card to render implicit functions.
-		The functions used are called Fano functions, with special interest in mathematics.</p>
-        <h3><a href="threek.html?julia">Julia</a></h3>
-		<p>This implements a surface hunting technique in the graphics card to render implicit functions.
-		The functions used are called Julia functions, with special interest in mathematics.</p>
-        <h3><a href="threek.html?texture">Implicit Texture</a></h3>
-		<p>This implements a surface hunting technique in the graphics card to render implicit functions.
-		The functions are the functions we usually use for 3d texturing of other forms.</p>
+        <h3>Implicit surfaces</h3>
+        These implement a surface hunting technique in the graphics card to render implicit functions.
+        <ul>
+        <li><a href="threek.html?fano">Fano</a>
+		The functions used are called Fano functions, with special interest in mathematics.
+        </li>
+        <li><a href="threek.html?julia">Julia</a>
+		The functions used are called Julia functions, with special interest in mathematics.
+        </li>
+        <li><a href="threek.html?texture">Implicit Texture</a>
+		The functions are the functions we usually use for 3d texturing of other forms.
+        </li></ul>
+        </column>
+       <column>
+
+        <h3>working sites</h3>
+        Clicking on these takes you to the demo page on various working sites.
+        Several of the sites are specific to some machines.
+        Note that several of the demos will not work on all the sites.
+        <ul>
+            <li><a href = "http://localhost:8800/demos.html">Local working</a></li>
+            <li><a href = "http://localhost:8800/gdrive/demos.html">Local GDrive</a></li>
+            <li><a href = "http://localhost:8800/!c:/gitProjects/csynth/demos.html">Local Git</a></li>
+            <li><a href = "https://csynth.github.io/csynth/demos.html">Public site, Github.io</a></li>
+            <li><a href = "https://programbits.co.uk/Mutspace/organicart/threek.html">External private Organic, programbits</a></li>
+        </ul>
 
         <h2>From regression tests</h2>
         <dl id="regr"></dl>
+
+        </column>
+        </row>
+
 
 
     <script src="JS/searchString.js"></script>

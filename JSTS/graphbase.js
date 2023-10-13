@@ -2501,9 +2501,10 @@ function setRunning() {
 let lastuniforms = [];
 /** quick copy genes to uniforms, */
 function genes2uniforms(genes, u, tocopy = genes) {
+    var _a;
     for (const gn in tocopy)
         if (gn in uniforms)
-            uniforms[gn].value = genes[gn];
+            uniforms[gn].value = (_a = geneOverrides[gn]) !== null && _a !== void 0 ? _a : genes[gn];
 }
 /** set uniforms for object, u may be uniforms */
 function setObjUniforms(genes, u, quick = framenum > 100) {

@@ -3,7 +3,8 @@
 var CSynth, msgfixlog, springs, spearson, G, format, msgfix, sleep, log, numInstances, distxyz, col3, throws,
 Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S;
 
-var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain, setAllLots, msgfixerrorlog;
+var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain, setAllLots, msgfixerrorlog,
+    clamp;
 
 // get positions for key or ready made positions
 CSynth.pos = function(inputDef) {
@@ -167,8 +168,15 @@ CSynth.correlNormBase = 0; // 1000000; beware changes when using workers, <<<
 CSynth.rmse = function csynthrmse(d1, d2) {
     const n = d1.length;
     let ss = 0;
-    for (let i=0; i<n; i++)
-        ss += (d1[i]-d2[i]) ** 2;
+    if (d1[0].x === undefined) {
+        for (let i=0; i<n; i++)
+            ss += (d1[i]-d2[i]) ** 2;
+    } else {
+        for (let i=0; i<n; i++) {
+            const v1 =  d1[i], v2 = d2[i];
+            ss += (v1.x-v2.x) ** 2 + (v1.y-v2.y) ** 2 + (v1.z-v2.z) ** 2;
+        }
+    }
     return Math.sqrt(ss / n);
 }
 
@@ -1219,6 +1227,7 @@ function skelstats() {
 /** align the current conformation (assumed distances for now) with the given fixed positions
 using pullsprings */
 CSynth.alignConformation = async function({maxpull = 1, minpull = 0.001, degrade = 0.9} = {}) {
+    console.time('align')
     const cc = CSynth.current;
     if (!CSynth.alignmentTarget) return msgfixerrorlog('align request with no target set');
 
@@ -1241,6 +1250,8 @@ CSynth.alignConformation = async function({maxpull = 1, minpull = 0.001, degrade
     }
     G.pullspringforce = 0;
     log(i, 'alignment complete with pull', p);
+    console.timeEnd('align')
+
 }
 
 /** test alignment between two xyz's, by default move current to previously set target */
@@ -1272,4 +1283,80 @@ CSynth.setAlignmentTarget = function(targ = 'current') {
         CSynth.alignmentTarget = cc.xyzs[targ].coords;
     else
         CSynth.alignmentTarget = springs.getpos();
+}
+
+CSynth.alignConformationNow = async function(opts = {}) {
+    if (!CSynth.alignmentTarget) return msgfixerrorlog('align request with no target set');
+    const p2 = springs.getpos();
+    CSynth.alignTransform(CSynth.alignmentTarget, p2, {apply: true});
+    CSynth.usedata(p2);
+}
+
+/** align by transform two array vectors p1 and p2 */
+CSynth.alignTransform = function(p1, p2, {
+        stab = 0.5, loop = 1000, apply = false,
+        t = [0,0,0,0,0,0], mirror = false,
+        imax=6, loglow = 2, lograte = 50
+    } = {}) {
+    console.time('aligntr')
+    const cc = CSynth.current;
+    if (typeof p1 === 'number') p1 = cc.xyzs[p1].coords;
+    if (typeof p2 === 'number') p2 = cc.xyzs[p2].coords;
+    let mmirror = new THREE.Matrix4().makeScale(-1, 1, 1);
+    let m = new THREE.Matrix4();
+    const dp = 0.1, dr = 0.1;
+    let del = [dp, dp, dp,  dr, dr, dr];
+    const tv = new THREE.Vector3();
+    function makem() {
+        m.makeRotationFromEuler({x:t[3], y:t[4], z:t[5], order: 'XYZ'}).setPosition(t[0], t[1], t[2]);
+        if (mirror) m.multiply(mmirror);
+        return m;
+    }
+    let l;
+
+    const dd = (p) => p1[p].distanceToSquared(tv.copy(p2[p]).applyMatrix4(m));  // error or particle
+    const ddd = () => { makem(); return p1.reduce( (c,v,p) => c + dd(p), 0); }; // overall error
+    let dampv = ddd();
+
+    // perform one test interation on one variable; could do several on given i so only need fewer ddd() tests
+    function test(i, d = del[i]) {
+        const t1 = t[i];
+        const v1 = ddd();
+        const t2 = t[i] = t1 + d;
+        const v2 = ddd();
+        let v;
+        if (v1 > v2) {
+            del[i] *= 1.1;
+            v = v2;
+        } else {
+            del[i] *= -0.9;
+            t[i] = t1;
+            v = v1;
+        }
+        if (l < loglow) log('test', {l, i, d, t1, t2, v1, v2, v, dampv})
+        if (l%lograte === 0 && i === 0) log({l, del, t, v , dampv});
+        return v;
+    }
+    const test6 = _=> { let v; for (let i = 0; i < imax; i++) v = test(i); return v; }; // perform single iteration on all variables
+
+    // todo check for stuck and del prematurely too small
+    const drate = 0.9;
+    for (l = 0; l < loop; l++) {
+        const v = test6();         // perform all iterations on all variables
+        dampv = drate * dampv + (1-drate) * v;
+        if (l > 20 && Math.abs(v-dampv) / dampv < 0.001 || dampv < 1e-5)
+            break;
+    }
+    log('finish at', {l, v: ddd(), dampv, del, t});
+
+    if (apply) {
+        for (let p = 0; p < p2.length; p++) p2[p].applyMatrix4(m);
+        const f = cc.xyzs.find(x => x.coords === p2);
+        if (f)
+            GX.getgui('modes/' + f.shortname + '\npositions').press();
+    }
+    log('mat', m.toString());
+    log('t', t.toString())
+    console.timeEnd('aligntr')
+    return m;
 }

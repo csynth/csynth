@@ -2037,7 +2037,8 @@ CSynth.showSummary = function(cc = CSynth.current) {
         msgfixlog('!datax',
         `$cc.numInstances$$cc.xyzs[0].numInstances$
         <br>$cc.minid$$cc.maxid$$cc.res$$cc.xyzs[0].coords.length$
-        <br>$cc.xyzs[0].filename$$cc.minid$`)
+        <br>$cc.xyzs[0].filename$$cc.minid$
+        `)
     else
         msgfixlog('!datax')
 }
@@ -3865,7 +3866,7 @@ CSynth.randpos.seed = 0;    // set to non 0 for fixed seed
 
 
 /**  use the array (eg from hilbert or twist), pull may be true or 'pull' for pullsprings, false, undefined, etc 'fix' for fixsprings, always return array */
-CSynth.usedata = function(arr, num, pull) {
+CSynth.usedata = function(arr, num = arr.length, pull) {
     if (!pull) pull = 'fix';        // false or undefined etc
     if (pull === true) pull = 'pull';
     if (pull === 'pull') {

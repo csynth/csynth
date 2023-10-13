@@ -1309,8 +1309,8 @@ function init1() {
                 startscript = dir +  startscript;
             }
 
-            if (!startscript.startsWith('http') && !fileExists(startscript)) { 
-                const s = 'start file does not exist:<br>' + startscript; showbaderrornogl(s); 
+            if (!startscript.startsWith('http') && !fileExists(startscript)) {
+                const s = 'start file does not exist:<br>' + startscript; showbaderrornogl(s);
                 throw new Error(s);
             }
             const r = processFile(startscript);
@@ -2660,7 +2660,7 @@ let lastuniforms: string[] = [];
 
 /** quick copy genes to uniforms, */
 function genes2uniforms(genes: Genes, u: Uniforms, tocopy:any = genes) {
-    for (const gn in tocopy) if (gn in uniforms) uniforms[gn].value = genes[gn];
+    for (const gn in tocopy) if (gn in uniforms) uniforms[gn].value = geneOverrides[gn] ?? genes[gn];
 }
 
 /** set uniforms for object, u may be uniforms */

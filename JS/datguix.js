@@ -656,7 +656,7 @@ GX._setselect = function() {
 }
 GX._setselect();
 
-/***/
+/** x */
 
 GX.localprefix = '>';
 GX.downloadprefix = '!';
