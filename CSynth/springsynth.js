@@ -989,8 +989,8 @@ CSynth.handlefileset = async function(evt, data) {
                 break;
         }
     }
-    CSynth.current = o;
     if (o.contacts.length + o.xyzs.length > 0) {
+        CSynth.current = o;
         openfiles.processed = true;  // we'll handle the files
         log('handlefileset, opening files sequentially for now');
         await readall(pass0);
