@@ -4372,10 +4372,12 @@ async function slowinit() {
             loadTime(`after force more shaders`);
         }
 
-        if (isCSynth && startscript === undefined)
+        if (isCSynth && startscript === undefined) {
             showmsg(`shaders ready`, 1);
-        else
+            setTimeout(() => msgboxVisible(false), 2000);
+        } else {
             showmsg('data and shaders ready, awaiting very final processing', 1);
+        }
         onframe( () => {
             loadTime('shaders 7 waited 3 more frames');
             showmsg('running ...', 1);
