@@ -131,8 +131,9 @@ var Springs = function(id = '') {
                 set autoAlign(b) {
                     if (b && !meX.alignMaestro) {
                         meX.alignMaestro = Maestro.on('postframe', () => CSynth.alignModels());
-                        CSynth.alignModels('lor');
-                        CSynth.alignForces('lor');
+                        const tt = CSynth.springSettings.current;
+                        CSynth.alignModels(tt);
+                        CSynth.alignForces(tt);
                         GX.guilist.forEach(g => {if (g.mostName().endsWith('force')) g.normalizeRange(0.2)});
                     } else if (!b && meX.alignMaestro) {
                         meX.alignMaestro = Maestro.remove('postframe', meX.alignMaestro);
@@ -177,9 +178,13 @@ var Springs = function(id = '') {
         const _sgui = GUINewsub("More ...");
         // gui.add(W, 'threshold', 0, 150).listen().name("Spring threshold").onChange(setthresh);
 
-        const bb = [2,
+        const bb = [3,
             { func: CSynth.setAlignmentTarget, tip: "Use current positions to set the alignment for future align requests", text: 'set align' },
             { func: CSynth.alignConformationNow, tip: "Fix current positions and align to preset target", text: 'use align' },
+            { func: springs.perturbPos, tip: "Perturb postions", text: 'Perturb postions' },
+            { func: ()=>springs.step(10), tip: '10 spring steps', text: 'step 10' },
+            { func: ()=>springs.step(100), tip: '100 spring steps', text: 'step 100' },
+            { func: ()=>springs.step(1000), tip: '1000 spring steps', text: 'step 1000' },
         ];
         _sgui.addImageButtonPanel.apply(_sgui, bb).setRowHeight(0.100);
 
@@ -207,6 +212,9 @@ var Springs = function(id = '') {
         const zz = { get strength() {return G.boostfac < 1 ? 0 : Math.log10(G.boostfac)}, set strength(v) { G.boostfac = v <= 0 ? 0 : Math.pow(v, 10);} }
         GUISubadd(zz, 'strength',0, 10).step(0.1).name('strength').listen();
         guiFromGene('boostrad');
+        guiFromGene('patchwidth');
+        guiFromGene('patchval');
+        guiFromGene('perturbScale');
 
         return gui;
     }
@@ -1266,7 +1274,7 @@ meX.setHISTLEN(256); meX.repos(); meX.demotopology(); setTimeout(meX.start, 500)
 
     /** perform steps for a single frame */
     me.framesteps = function springsframesteps() {
-        me.step(parms.stepsPerStep);
+        if (parms) me.step(parms.stepsPerStep);
     }
 
     /** start spring simulation on each frame */
@@ -1675,6 +1683,13 @@ meX.setHISTLEN(256); meX.repos(); meX.demotopology(); setTimeout(meX.start, 500)
     me.addDistline = function(s, e, d, len, str, pow, type) {
         for (let i = s; i <= e-d; i++)
             me.addspring(i, i+d, len, str, pow, type);
+    }
+
+    me.perturbPos = function(k = G.perturbScale) {
+        const pp = me.getpos();
+        for (let i = 0; i < me.numInstances; i++)
+            me.setfix(i, pp[i].add(randvec3(k)));
+        springs.finishFix()
     }
 
     return this;

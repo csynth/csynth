@@ -3,6 +3,7 @@ var THREE, posturi, throwe, rrender, renderer, log, clearrendertargets, opmode;
 
 /** perform fxaa, nb outrt is undefined/null for output to canvas */
 function fxaa(intex, outrt) {
+    if (!fxaa.use) return;
     if (!fxaa.scene) fxaa.MakeScene();
     if (outrt && (intex.image.width !== outrt.width || intex.image.height !== outrt.height))
         throwe('wrong sizes to fxaa');

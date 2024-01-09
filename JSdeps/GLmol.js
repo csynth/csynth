@@ -1895,14 +1895,19 @@ GLmol.prototype.loadMolecule = function(repressZoom) {
    this.loadMoleculeStr(repressZoom, $('#' + this.id + '_src').val());
 };
 
-GLmol.prototype.loadMoleculeStr = function(repressZoom, source) {
+// var getFileExtension;
+GLmol.prototype.loadMoleculeStr = function(repressZoom, source, sstruct) {
    const time = new Date();
 
    this.protein = {sheet: [], helix: [], biomtChains: '', biomtMatrices: [], symMat: [], pdbID: '', title: ''};
    this.atoms = [];
-
-   this.parsePDB2(source);
-   if (!this.parseSDF(source)) this.parseXYZ(source);
+   if (sstruct && window.getFileExtension(sstruct.filename) === '.xyz') {
+      this.parseXYZ(source);
+      this.chains = [];
+   } else {
+      this.parsePDB2(source);
+      if (!this.parseSDF(source)) this.parseXYZ(source);
+   }
    console.log("parsed in " + (+new Date() - time) + "ms");
 
    const title = $('#' + this.id + '_pdbTitle');

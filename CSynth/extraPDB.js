@@ -55,7 +55,7 @@ CSynth.loadExtraPDB = async function CSynth_loadExtraPDB(sstruct = CSynth.curren
     if (!data) {msgfixerror('no data for', fid); return; }
 
     const glmol = CSynth.glmol[shortname] = new GLmolX(shortname, true);
-    glmol.loadMoleculeStr(false, data);
+    glmol.loadMoleculeStr(false, data, sstruct);
     const atoms = glmol.atoms;
     if (sstruct.excludeChains) {
         glmol.atomlist = [];
@@ -452,10 +452,12 @@ CSynth.loadExtraPDBSmooth = function CSynth_loadExtraPDBSmooth(sfid, pgui, pgrou
     vgui.add(options, 'justCA').listen();
     vgui.add(options, 'twopass').listen();
     options.xchain = 'none';
-    const list = glmol.chains.map(c=>c.chain);
-    list.splice(0,0,'none');
-    const drop = vgui.add(options, 'xchain', list).name('xchain').listen();
-    drop.setToolTip('"opposite" chain for medial surface');
+    if (glmol.chains.length > 0) {
+        const list = glmol.chains.map(c=>c.chain);
+        list.splice(0,0,'none');
+        const drop = vgui.add(options, 'xchain', list).name('xchain').listen();
+        drop.setToolTip('"opposite" chain for medial surface');
+    }
     vgui.add(options, 'cubic').listen();
     vgui.add(options, 'useids').listen();
     vgui.add(options, 'usecols').listen();

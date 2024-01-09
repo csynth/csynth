@@ -213,7 +213,7 @@ function copygenestoclip(genes) {
     const s = resolveFilter();
     clipboard = {};
     for (let gn in s) clipboard[gn] = genes[gn];
-    navigator.clipboard.writeText(JSON.stringify({genes},undefined, '\t'))
+    navigator.clipboard.writeText(JSON.stringify({genes:clipboard},undefined, '\t'))
 }
 
 /** paste filtered genes from clipboard */

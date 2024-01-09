@@ -234,7 +234,8 @@ var OPREGULAR:N, OPSHADOWS:N, OPPICK:N, OPMAKEGBUFFX:N, OPPOSITION:N, OPOPOS:N, 
 
 // var oplist = ['regular', 'shadows', 'pick', 'makegbuffx', 'position', 'opos', 'opos2col', 'shapepos', 'tshapepos2col', 'texture', 'bumpnormal', 'makeskelbuff', 'edge', 'test'];
 var oplist = 'regular shadows pick makegbuffx position opos opos2col shapepos tshapepos2col texture bumpnormal makeskelbuff edge edge2 test'.split(' ');
-var OPDEFINE = "";
+var OPDEFINE = "\n//^^^^^ OPDEFINE\n";
+var OPDEFINE2 = "\n//^^^^^ OPDEFINE2\n";
 (function () {
     for (let i = 0; i < oplist.length; i++) {
         let uname = "OP" + oplist[i].toUpperCase();
@@ -244,9 +245,11 @@ var OPDEFINE = "";
     OPDEFINE += '#define virtual\n';
     OPDEFINE += '#define OUT\n';
     OPDEFINE += '#define INOUT\n';
-    OPDEFINE += '$$$uniforms$$\n';
-    OPDEFINE += '$$$varyings$$\n';
-    OPDEFINE += '$$$header$$\n';
+
+    OPDEFINE2 += '$$$uniforms$$\n';
+    OPDEFINE2 += '$$$varyings$$\n';
+    OPDEFINE2 += '$$$header$$\n';
+
 })();
 var PROJ_STEM_DIR = 'projection_stems/';
 
@@ -279,7 +282,7 @@ var appToUse: string; if (!appToUse) appToUse = "Horn";
 // these will probably be overridden by the application, and really uniforms.lennumn.value is definitive
 var lennum = 1, radnum = 1;
 var resdelta = 0;  // set temporarily for lower res, eg for shadows
-var extradefines = "";  // used for test/debug
+var extradefines = "" as any;  // used for test/debug, may be function for easier dynamic change
 
 
 /** code to define a simple scene with n planes.
@@ -606,18 +609,18 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
             vertcode = "// !!!!!!! VERT " + vertfid + "\n" + doInclude(vertcode);
             parseUniforms(vertcode, material.shadergenes, texturedefines, genes);
             material.basevertcode =
-                //"#define VERTEX 1\n#define textureget(s,p) texture2DLod(s,p,0.)\n"
-                "#define VERTEX 1\n#define textureget(s,p) texture2D(s,p)\n"
-                + OPDEFINE + vertcode;
+                //"#def ine VERTEX 1\n#define textureget(s,p) texture2DLod(s,p,0.)\n"
+                "#define textureget(s,p) texture2D(s,p)\n"
+                + OPDEFINE2 + vertcode;
 
             texturedefines = [];
             var fragcode = getfiledata("shaders/" + fragfid);
             fragcode = "// !!!!!!! FRAG " + fragfid + "\n" + doInclude(fragcode);
             parseUniforms(fragcode, material.shadergenes, texturedefines, genes);
             material.basefragcode =
-                //"#define VERTEX 0\n#define textureget(s,p) texture2D(s,p,-16.)\n"
-                "#define VERTEX 0\n#define textureget(s,p) texture2D(s,p)\n"
-                + OPDEFINE
+                //"#def ine VERTEX 0\n#define textureget(s,p) texture2D(s,p,-16.)\n"
+                "#define textureget(s,p) texture2D(s,p)\n"
+                + OPDEFINE2
                 + fragcode;
             if (shaderlog) log("common material assembled");
 
@@ -654,7 +657,7 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
 
         if (!matcodes) {  // first time in for this trankey
             // these vary more often so must be taken out of prework above
-            let sdefines = "";
+            let sdefines = "\n//^^^^^sdefines\n";
             for (let i in shaderdefs) sdefines += "#define " + i + " " + shaderdefs[i] + "\n";
 
             vertcode = sdefines + material.basevertcode;
@@ -669,6 +672,8 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
             }
 
             let undef = {};
+            // OPDEFINE2 = substituteShadercode(OPDEFINE2, vals, codevariant, 'vertex', undef);
+
             vertcode = substituteShadercode(vertcode, vals, codevariant, 'vertex', undef);
             // TODO separate uniforms and colour/texture part of parseUniforms
             parseUniforms(vertcode, material.shadergenes, [], genes);
@@ -698,17 +703,19 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
         //if (typeof opmode !== "number")
         //    opmode = -1;
         let xopmode = typeof opmode === "number" ? opmode : -1;
-        let oppre = '\n'  // initial \n needed for three.js bug ?
+        const extradefinesx = typeof extradefines === 'function' ? extradefines() : extradefines;
+        let oppre = '\n//^^^^^ oppre\n'  // initial \n needed for three.js bug ?
+            + OPDEFINE
             + "precision " + precision + " sampler2D;\n"
             + "precision " + precision + " float;\n"
             + "\n#define OPMODE " + xopmode + " // ubershader variant for " + oplist[xopmode]
             + "\n#define MAXH 16\n"
             + "\n#define COLNUM " + ffloat(COL.NUM) + "      //<< used to define how many different coloured objects there are, depends on the horndef.\n"
             + "\n#define COLPARMS " + ffloat(COL.PARMS / 4) + "  //<< used to give range of how many different genet definitiona are allowed (4 definitions for each entry as it is a vec4)\n"
-            + material.defines + extradefines + "\n"
+            + material.defines + extradefinesx + "\n"
             + (normloop ? "\n#define NORMLOOP " + ffloat(normloop) + "\n" : "\n");
 
-        let vertpre = "", fragpre = "";
+        let vertpre = "//^^^^^ vertpre\n", fragpre = "//^^^^^ fragpre\n";
         if (!matvariant || matvariant === "NOTR") { // for walls etc
             oppre += "#define NOTR\n";
         } else if (matvariant === 'horn("main");') {
@@ -726,6 +733,7 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
         }
         vertpre += "precision " + precision + " float;\n";
         fragpre += "precision " + precision + " float;\n";
+        fragpre += "#define VERTEX 0\n";
         let glver;
         [vertpre, fragpre, oppre, glver] = testes300(vertpre, fragpre, oppre);
 
@@ -736,6 +744,7 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
             vertpre += "attribute vec2 position2;\n";
         vertpre += "attribute vec3 position;\n";
         vertpre += "attribute vec3 normal;\n";
+        vertpre += "#define VERTEX 1\n";
         oppre += "uniform vec3 awayvec;\n";
         oppre += "uniform vec3 cameraPositionC;\n";
         oppre += "uniform vec4 _camd;\n";
@@ -750,7 +759,7 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
         oppre += "precision " + precision + " float; uniform mat4 modelViewMatrix; uniform mat4 projectionMatrix; \n";
         oppre += "#define JAVASCRIPT(x)   \n";  // permit embedded javascript in shaders
 
-        let vertpost = "";
+        let vertpost = "\n//^^^^^ vertpost\n";
         //if (inputs.SINGLEMULTI && currentHset && matvariant !== 'NOTR' && opmode === OPPOSITION)
         //    vertpost = '\n void test test() { \n' + currentHset.singlePassCode + '\n}';               // debug if singlePassCode will even compile
 
@@ -758,7 +767,7 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
         //log("compile material", oplist[xopmode], matvariant.substring(0, 20));
         //let save = material;
 
-        let vertexShader = vertpre + oppre + matcodes.vertcode + vertpost;
+        let vertexShader = vertpre + oppre + '\n//^^^^^matcodes.vertcode\n' + matcodes.vertcode + vertpost;
         let fragmentShader = fragpre + oppre + matcodes.fragcode;
 
         // used prepared shaders for given key, if avalable use an 'opt' shader
@@ -1084,9 +1093,9 @@ function init1() {
 
 
     THREESingleChannelFormat = (isWebGL2) ? THREE.RedFormat : THREE.LuminanceFormat;
-    if (+THREE.REVISION <= 151) {
-        renderer.outputEncoding = THREE.sRGBEncoding;   // not used by Organic render, but used by camscene/nocamscene etc
-    } else {
+    // if (+THREE.REVISION <= 151) {
+    //     renderer.outputEncoding = THREE.sRGBEncoding;   // not used by Organic render, but used by camscene/nocamscene etc
+    // } else {
         // this gives backwards compatible lighting etc for 157 etc with 150 and before
         // we may tine lights later to take advantage of the later three.js features, but as of 10 Sept 2023 just play it safe with old tuned values
         (renderer as any).useLegacyLights = true;
@@ -1096,7 +1105,7 @@ function init1() {
         //       datgui menu much too dark if LinearSRGBColorSpace used
         //       ... it would be good if ColourSpace could be set as a material property ???
         // (renderer as any).outputColorSpace  = (THREE as any).LinearSRGBColorSpace; // final copy applies gamma
-}
+    // }
 
     // three.js default (at 106) is 'local-floor', which should be supported but is not on Chrome 79.0.3942.0 and 81.0.4006.0
     if (renderer.xr.setReferenceSpaceType)
@@ -1397,6 +1406,8 @@ function init1() {
     // </editor-fold>
     if ("ontouchstart" in window && !V.BypassHammer) Touch2Init(); // Touch.Init();
     log("extra windows. globals used=", countXglobals());
+
+    onframe(WA.callibrateGPU, 50);
 
 }  // end init1
 
@@ -2543,7 +2554,7 @@ function onWindowResize(force = undefined) {
 /** set the controls opacity from its control*/
 function setControlOpacity(opacity: N): void {
     let o = FIRST(opacity, trygeteleval("controlOpacity", 100));
-    W.controlscore.style.backgroundColor = "rgba(13,13,13," + (o / 100) + ")";
+    W.controlscore.style.backgroundColor = "rgba(0,0,0," + (o / 100) + ")";
     saveInputToLocal();
 }
 
@@ -2777,7 +2788,7 @@ function showSelectedSlots() {
 function myObjUniforms(genes, u) { }
 
 function col3(r=1, g=r, b=g) { return new THREE.Color().setRGB(r, g, b); }
-var selcol = col3(0.13, 0.13, 0.2);
+var selcol = col3(1, 0, 0); // remove  col3(0.13, 0.13, 0.2);
 var maincol = col3(0,0,0);
 var rescol = col3(0.1, 0.4, 0.1);
 var directorcol = col3(0.4, 0.1, 0.1);
@@ -3535,10 +3546,6 @@ function _renderObjInner(dispobj, rt?, checkrtsize = true) {
             rendererSetViewportCanv(0, 0, rt.width, rt.height);// seems setViewport works in scaled coords, not canvas
     }
 
-    // color below does not matter if transparent, eg highlighting by backdrop
-    // let selected = vp.dispobj.selected || parentvps.indexOf(vn) !== -1;
-    //renderer.setClearColor(vn === mainvp ? bigcol : selected ? selcol : noselcol, 0.5);
-
     // always render with clear background
     renderer.setClearColor(bigcol, 1);  // alpha was 0, but did not work with WebGL2
 
@@ -3552,8 +3559,10 @@ function _renderObjInner(dispobj, rt?, checkrtsize = true) {
     }
     **/
     renderer.clearTarget(rt, true, true, true);
-    // if (WA.fxaa.use)
-    //     renderer.clearTarget(getrendertarget('prefxaa', {sizer:rt}), true, true, true); // clear once, not per phase (eg if matrix extra render phase)
+    // not sure how often this is needed, but needed to steop matrix on ribbon off displayin old ribbon
+    // TODO check real rules for fxaa and its relationship to any extra renders
+    if (WA.fxaa.use)
+        renderer.clearTarget(getrendertarget('prefxaa', {sizer:rt}), true, true, true); // clear once, not per phase (eg if matrix extra render phase)
     Maestro.trigger("prerenderObj", { dispobj: dispobj, rendertarget: rt });
 
     if (renderMainObject && !searchValues.nohorn)
@@ -3844,6 +3853,7 @@ class Dispobj {
     uniforms: Uniforms; lcx: number; lcy: number; needsRender: number; needsPaint: boolean; alwaysPaint?: boolean;
     scene: any; _renderTarget; _rts; xid; cz; ppp; pppr; backcolor?; borderwidth?; static singleViewInteract?; camera?;
     hoverMessage?: string;
+    static fixlayerx: number; static fixlayery: number;
 
     constructor() {
         this.createDate = this.lastTouchedDate = Date.now();
@@ -3895,6 +3905,8 @@ class Dispobj {
                 log("should not try to render -1");
                 debugger;
                 return;
+            //} else if (renderVR.invr() && (this.vn === 1 || this.vn === 2)) {
+            //    rt = WebGLRenderTarget(this.width, this.height, opts, 'dispobj_vr' + this.vn);
             } else if (this.vn === mainvp) {   // big mapinvp because doubling for large projection vp -1
                 let vpp = slots[mainvp], rr = renderRatioMain;
                 if (slots[-1]) {vpp = slots[-1]; rr = renderRatioProj;}
@@ -4060,8 +4072,8 @@ class Dispobj {
         //this.uniforms.R.value = 1.01;
 
         this.uniforms.zoom.value = Dispobj.zoom;
-        let ulx = FIRST(Dispobj.olx, oldlayerX);
-        let uly = FIRST(Dispobj.oly, oldlayerY);
+        let ulx = FIRST(Dispobj.fixlayerx, oldlayerX);
+        let uly = FIRST(Dispobj.fixlayery, oldlayerY);
         let yy = (height - uly - this.bottom) / this.height;
         let xx = (ulx - this.left) / this.width;
         if (copyXflip === -1) xx = 1 - xx;
@@ -5330,6 +5342,7 @@ interface Rrender { (reason, scene, camera, target, flag?): void, effects?,
 };
 /** catcher for rendering, to allow performance tests etc */
 var rrender: Rrender = function (reason, scenep, camerap, target = null, flag?) {
+    if (WA.rrender2) if (WA.rrender2(reason, scenep, camerap, target, flag)) return;
     if (scenep.visible == false ) return; // n.b. there are special cases of scenep, hence convoluted test
     reason = rrender.xtag.join('_') + '_' + reason;
 
@@ -5813,21 +5826,27 @@ var renderVR: RenderVR = function (rt) {
     }
 
     genesToCam(currentGenes);
-    const rs = renderer.getSize(new THREE.Vector2());
+    // const rs = renderer.getSize(new THREE.Vector2());
     // renderer.getSize() could be non-integer;
     // canvas should have correct width/height, but MAY be wrong if devicePixelRatio !== 1
     // and wrong if odd width
     // todo remove/tidy Nov 2020
     //if (renderer. vr.is xr) { // in xr
         const bl = renderer.xr.getSession().renderState.baseLayer
-        rs.width = bl.framebufferWidth;
-        rs.height = bl.framebufferHeight;
+        const rswidth = bl.framebufferWidth;
+        const rsheight = bl.framebufferHeight;
     //} else {
     //    rs.width = rs.width || rs.x;    // compatability between three versions, renderer.getSize changed specs.
     //    rs.height = rs.height || rs.y;
     //}
-    const ww = Math.floor(rs.width/2) * 2;
-    const hh = Math.floor(rs.height);
+    const ww = Math.floor(rswidth/2) * 2;
+    const hh = Math.floor(rsheight);
+    msgfix('VR res', 'framebuffer', rswidth/2, rsheight); //, 'rt', fb.width/2*renderVR.ratio, fb.height*renderVR.ratio)
+    // nb with old Vive/1080 and render resolution auto is 150%:  framebufferWidth: 3704 (1852), framebufferHeight: 2056
+    // 150% => 1852 x 2056
+    // 100% => 1512 x 1680
+    // 52%  => 1088 x 1208
+    // real resolution is 1080 x 1200
 
     //fitCanvasToWindow();
     renderVR.newfsTimeout = undefined;
@@ -5847,7 +5866,7 @@ var renderVR: RenderVR = function (rt) {
     vpborder = 0;
     if (vps[0] !== 2 || vps[1] !== 1 || slots[1].width * 2 !== ww - 4 * vpborder || slots[1].height !== hh) {
         rendertargets = {};
-        setViewports([2, 1], rs.width, rs.height);
+        setViewports([2, 1], rswidth, rsheight);
         vrcanv();       // now we know width and height try vrcanv again
         dustbinvp = undefined;
         return;  // wait for viewports to be ready
@@ -6002,14 +6021,14 @@ var renderVR: RenderVR = function (rt) {
 
 
     if (!renderVR.hidemain) {
-        if (+THREE.REVISION <= 127) {
-                // this should render to the canvas/screen, just with the layout copy phase
-                (renderer as any).setFramebuffer(null); //type defs currently out of sync between three loaded in script tag vs npm (09/21)
+        // if (+THREE.REVISION <= 127) {
+        //         // this should render to the canvas/screen, just with the layout copy phase
+        //         (renderer as any).setFramebuffer(null); //type defs currently out of sync between three loaded in script tag vs npm (09/21)
 
-                slots[1].dispobj.needsPaint = true;
-                //slots[2].dispobj.needsPaint = true;
-                renderObjsInner(rt);
-        } else {
+        //         slots[1].dispobj.needsPaint = true;
+        //         //slots[2].dispobj.needsPaint = true;
+        //         renderObjsInner(rt);
+        // } else {
             // main screen vr for 150 ??
             renderer.setRenderTarget(null);
             //?? renderer.setViewport(0,0,canvas.width,canvas.height);
@@ -6017,7 +6036,7 @@ var renderVR: RenderVR = function (rt) {
             //slots[2].dispobj.needsPaint = true;
             gl.bindFramebuffer(36160, null);
             renderObjsInner(null);
-        }
+        // }
     }
     renderVR.eye2 = false;
 
@@ -6148,7 +6167,8 @@ function VRTrack() {
     // side effect is input camera values are set
     // and output is stereo pair of cameras (used later for display) with matrixWorld and matrixWorldInverse set (but NOT matrix)
     // renderVR.camera.near = camera.near; renderVR.camera.far = camera.far;  // handle near/far in renderVR instead
-    if (+THREE.REVISION > 130) renderer.xr.updateCamera(renderVR.camera);
+    // if (+THREE.REVISION > 130)
+        renderer.xr.updateCamera(renderVR.camera);
     // three 150 strict typing does not like the renderVR.camera argument, but some earlier versions require it. hence as any
     renderVR.cameras = (renderer.xr.getCamera as any)(renderVR.camera);   // ++++ <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!!!!! real work here
     renderVR.posemat = renderVR.cameras.cameras[0] && renderVR.cameras.cameras[0].matrix.elements.slice(0);
@@ -7010,21 +7030,21 @@ function exportmyshaders(mat:any = 'ALL', code, extra = '') {
         let dir = 'exportShader/' + xcode + '/';
         mkdir(dir);
         let place = dir + op;
-        if (!fileExists(`${dir}/optimizeShaders.cmd`)) {
-            const optimizeShaders = nwfs.readFileSync('optimizeShaders.cmd');
-            writetextremote(`${dir}/optimizeShaders.cmd`, optimizeShaders);
+        if (!fileExists(`${dir}/loptimizeShaders.cmd`)) {
+            const loptimizeShaders = nwfs.readFileSync('loptimizeShaders.cmd');
+            writetextremote(`${dir}/loptimizeShaders.cmd`, loptimizeShaders);
         }
         writetextremote(place + '.vs.c', x300 + mat.vertexShader);
         writetextremote(place + '.fs.c', x300 + mat.fragmentShader);
-        require('child_process').exec('optimizeShaders.cmd ' + op, { cwd: dir });
+        require('child_process').exec('loptimizeShaders.cmd ' + op, { cwd: dir });
     } else {
         let dir = 'exportShader\\' + xcode + '\\';
         mkdir(dir);
         let place = dir + op;
-        runcommandphp(`copy optimizeShaders.cmd exportShader\\${xcode}\\optimizeShaders.cmd`);
+        runcommandphp(`copy loptimizeShaders.cmd exportShader\\${xcode}\\loptimizeShaders.cmd`);
         remotesave(place + '.vs.c', x300 + mat.vertexShader);
         remotesave(place + '.fs.c', x300 + mat.fragmentShader);
-        runcommandphp(dir + '\\optimizeShaders.cmd ' + op);
+        runcommandphp(dir + '\\loptimizeShaders.cmd ' + op);
     }
 }
 

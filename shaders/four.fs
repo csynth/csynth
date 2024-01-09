@@ -21,6 +21,10 @@ This is because of (broken?) support for real 4d, where rot4 behaves differently
 including remove multifact, and normal code in hornmaker NO TR , around !!!
 
 **/
+precision highp float;
+#ifndef gene
+#define gene(name, value, min, max, step, delta, class, free) uniform float name;
+#endif
 
 #define FORCEVER 0.0016
 
@@ -67,17 +71,17 @@ gene(revealstyle, -2, -2, 10, 1,1, gtex, frozen) // reveal style, -2 dis card, -
 gene(revealribs, 1, 1, 40, 1,1, gtex, frozen) // reveal # ribs
 gene(revealstripes, 1, 1, 40, 1,1, gtex, frozen) // reveal # stripes
 // some genes below only apply to edge. They don't really belong in four.fs, but here for convenience
-gene(edgewidth, 1.5, 0.5, 2, 1,1, gtex, frozen)   // edge width, 1 = just use first horn, 2 use both sides of edge; 1.5, single ribs, others double, nb set during 4 style render
-gene(OPOSZ, 0, 0, 1, 1,1, gtex, frozen)   // if 1, output z in output.w
-gene(edgestyle, 0, 0, 7, 1,1, gtex, frozen)   // style of edges, 1 alternate ribs, 2 alternate horns, 4 alternate hornid
-gene(occludewidth, 0, 0, 20, 1,1, gtex, frozen)   // size of occlusion zone
-gene(occludedelta, 0.005, 0, 0.1, 0.001, 0.001, gtex, frozen)   // occlusion tolerance to stop 'V' occlusion
-gene(edgeDensitySearch, -1, 0, 8, 1,1, gtex, frozen)   // fill overpopulated areas, -1 different neighbour count, 0 any neighour masks, >0 in front neighbour threshold
-gene(baseksize, 1, 1, 6, 0.1,0.1, gtex, frozen)   // size for base edge detection kernel
-gene(radkmult, 0, 0, 20, 0.1,0.1, gtex, frozen)   // multiplier for radius (where available) for basek
-gene(profileksize, 1, 1, 16, 1,1, gtex, frozen)   // size for profile edge detection kernel
-gene(colby, 0, 0, 3, 1,1, gtex, frozen)   // colouring (if used) for bw rendering
-gene(renderBackground, 0, 0, 1, 0.01, 0.01, gtex, frozen)  // proportion of background to render; 0 falls through to dis card/backcol
+gene(edgewidth, 1.5, 0.5, 2, 1,1, edge, frozen)   // edge width, 1 = just use first horn, 2 use both sides of edge; 1.5, single ribs, others double, nb set during 4 style render
+gene(OPOSZ, 0, 0, 1, 1,1, edge, frozen)   // if 1, output z in output.w
+gene(altstyle, 0, 0, 7, 1,1, edge, frozen)   // style of edges, 1 alternate ribs, 2 alternate horns, 4 alternate hornid
+gene(occludewidth, 0, 0, 20, 1,1, edge, frozen)   // size of occlusion zone
+gene(occludedelta, 0.005, 0, 0.1, 0.001, 0.001, edge, frozen)   // occlusion tolerance to stop 'V' occlusion
+gene(edgeDensitySearch, -1, 0, 8, 1,1, edge, frozen)   // fill overpopulated areas, -1 different neighbour count, 0 any neighour masks, >0 in front neighbour threshold
+gene(baseksize, 1, 1, 6, 0.1,0.1, edge, frozen)   // size for base edge detection kernel
+gene(radkmult, 0, 0, 20, 0.1,0.1, edge, frozen)   // multiplier for radius (where available) for basek
+gene(profileksize, 1, 0, 16, 1,1, edge, frozen)   // size for profile edge detection kernel
+gene(colby, 0, 0, 3, 1,1, edge, frozen)   // colouring (if used) for bw rendering
+gene(renderBackground, 0, 0, 1, 0.01, 0.01, edge, frozen)  // proportion of background to render; 0 falls through to dis card/backcol
 uniform mat3 feedbackMatrix;        // rot, scale etc of feedback
 uniform mat4 feedbackTintMatrix;          // rgb tint for edge feedback
 
@@ -491,13 +495,13 @@ void main() {
         gl_FragColor.w = gl_FrontFacing ? (gl_FragColor.w) : 99.;  // often ignored as later stages recompute from splitk
 		// todo choose best depth value for both tadpoles (w better) and horn (z better)
         if (OPOSZ <= 1.) {
-            float numribs = makeribs(oposuvw);  // n.b. implicit input xhornid
+            float numribs = makeribsx(oposuvw);  // n.b. implicit input xhornid
             float rp = opos.x; float rpx = clamp((rp - 0.5 * capres) * (1. / (1. - capres)), 0., 1.);
             float ribnum = round(rpx * (numribs));    // todo, refine because of ends
             // gl_FragColor.w = round(gl_FragColor.w);
             gl_FragColor.w += mod(ribnum, 2.) * 0.5;
         } else if (OPOSZ == 2.) {  // used to be 1., no longer used except for edge/mini (and that only temporary?)10July2023
-            gl_FragColor.w = gl_FragCoord.w;        // depth, used for edge finding in conjunction with edge.vs/edge.fs
+            gl_FragColor.w = gl_FragCoord.w;        // depth, used for edge finding in conjunction with edge2.vs/edge2.fs
             gl_FragColor.y += oposHornid;               // multiplex horn class (integer) into v (stripe/around) (fraction)
             // gl_FragColor.x = 99.;  // ??? dist along horn, used for ribs
             // gl_FragColor.z = 99.;  // ??? ???? hornnum
@@ -532,7 +536,7 @@ void main() {
        } // return;;
 
     #elif (OPMODE == OPEDGE || OPMODE == OPEDGE2)   // compute edges for plotter
-    #error OPEDGE should not be compiled via four.fs; uses shaders/edge.fs and .vs
+    #error OPEDGE should not be compiled via four.fs; uses shaders/edge2.fs and .vs
        } // return;;
 
 

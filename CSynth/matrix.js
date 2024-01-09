@@ -489,7 +489,7 @@ CSynth.Matrix = function() {
         // shortcut horn code by going direct to rrender
         function renderPass(genes, puniforms, rendertarget, scene) {
 //            opmode = 'matrix';
-            rrender('extramat', scene, camera, rendertarget);
+              rrender('extramat', scene, camera, rendertarget);
         }
 
     }

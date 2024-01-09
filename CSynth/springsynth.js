@@ -12,10 +12,125 @@ var V, HW, THREE, getBody, renderer, init, currentGenes, uniforms, springs, CSyn
     scaleDampTarget1, nomess, posturi, GX, msgfixlog, objfilter, geneOverrides, col3, inworker, loadTime,
     currentLoadingDir, resetMat, slowinit, GO, renderVR, sleep, myRequestAnimationFrame, htmlDefines, maxTextureSize,
     Gldebug, startWsListener, distxyz, downloadImage, downloadImageHigh, FIRST, writeBintri, runkeys, STL, islocalhost, fxaa, filesFromDialog,
-    openfile, openfiles, xstring;
+    openfile, openfiles, xstring, xfetch;
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 var CSynthFast;  // set to true even from outside to use fast graphics defaults
 //TODO: fragment more extensively into something like CSynth.ShaderChunks[]
+
+CSynth.pickAndColCode = () => /*glsl*/`
+//^^^^^ CSynth.pickAndColCode
+    uniform float hidenobed;
+    //return the range of the region occupied by particle 'p'
+    //values in 0 .. numSegs/numInstancesP2 for mid, start, end of the range (order of those to match annotationDisplay...)
+    vec4 getPickRange(const in float p, sampler2D bed) {
+        // information stored in row 2 of t_ribboncol (see bedParser), other uses updated to read uv.y = 0.25 rather than 0.5.
+        // That is probably more efficient and less hassle than adding an extra texture / uniform / etc...
+        // ** see also matrixbed; t_ribboncol by any other name... **
+        return texture2D(bed, vec2(p/NormalisedToTexCo, 0.75));
+    }
+    // for a particle p, is it in the range of the region occupied by particle 'pr'?
+    // for example, while rendering 'p', should it be considered in range of 'pr' which is a picked particle?
+    // returns 1 or 0 for in/out (areas within 'smooth' range will fade)
+    // -- not sure how useful this approach to 'smooth' is - ends up feathering end of selection even when pointing to middle...
+    float isInPickRange(float p, float pr, float psmooth, sampler2D bed) {   // 'float smooth' fails to compile, why???
+        // p /= NormalisedToTexCo; //
+        vec4 r = getPickRange(pr, bed); // texture2D(t_ribboncol, vec2(p/NormalisedToTexCo, 0.75));
+        // Next lines prevent the end spheres failing to reduce near the ends.
+        // As beds are just Unit8Array (22 May 2020) ranges beyond the ends are truncated.
+        // We extend them very significantly so we get full pick effect at ends.
+        if (r.y == 0.) r.y = -1.;
+        if (r.z == 1.) r.z = 2.;
+        float v = smoothstep(r.y, r.y+psmooth, p);
+        v = min(v, 1. - smoothstep(r.z-psmooth, r.z, p));
+        return v;
+    }
+
+    #ifndef HSV2RGB
+    //http://lolengine.net/blog/2013/07/27/rgb-to-hsv-in-glsl
+    vec3 hsv2rgb(in vec3 c) {
+        vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+        vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+        vec3 pp = c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+        return clamp(pp, 0.0, 1.0);  // added sjpt 30 July 2015, can probably remove other clamp???
+    }
+    vec3 rgb2hsv(in vec3 c) {
+        vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+        vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+        vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+
+        float d = q.x - min(q.w, q.y);
+        float e = 1.0e-10;
+        return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+    }
+    #define HSV2RGB
+    #endif
+
+        // 'standard' colour, sadly no array for gles 2
+    // consider colour lookup texture. (bear in mind how this relates to other colour mapping features...)
+    vec3 stdcolX(float tv) {
+        // tv = round(tv);
+        float k = 1./ceil(tv/7.);
+        tv = mod(tv, 7.);
+        vec3 col;
+        if (tv < 0.) col = vec3(9.5, 0.5, 0.5);  // debug
+        else if (tv < 0.5) col = vec3(0.5, 0.5, 0.5);
+        else if (tv < 1.5) col = vec3(1,0,0);
+        else if (tv < 2.5) col = vec3(0,1,0);
+        else if (tv < 3.5) col = vec3(0,0,1);
+        else if (tv < 4.5) col = vec3(0,1,1);
+        else if (tv < 5.5) col = vec3(1,0,1);
+        else if (tv < 6.5) col = vec3(1,1,0);
+        else col = vec3(1,1,1);
+        return col; //  * k;
+    }
+    //get colour based on particle position 0..numSegs & given source
+    vec3 bedColor(const in float rp, vec4 opos) { // return vec3(1,0,1);
+        float p = rp; //  / Normalised ToTexCo;
+        vec4 bed = texture2D(t_ribboncol, vec2(p, 0.25));
+        //#if defined(OPMODE) && defined(OPOPOS) && defined(OPREGULAR)  //
+            #if VERTEX == 0 // && (OPMODE == OPOPOS || OPMODE == OPREGULAR))
+                if ( hidenobed == 1. && bed == vec4(0)) discard;
+            #endif
+        //#endif
+        float t = bed.w;  // t_ribboncol is bed texture, small 'integer' values for now, but mapped to range 0..1
+        float ti = t * 255. - 0.0;
+        // when BED doesn't have explicit colour, then all elements will be same... that doesn't make this logic right
+        // but close enough for now (famous last words), closer with test against green as well
+        //PJT::: not so sure about this... trying with just bed...
+        float tv = ti; // floor(ti == 0. ? 0. : (mod(ti, 6.) + 1.));
+        vec3 col = bed.r != t || bed.g != t ? bed.rgb : stdcolX(tv);
+
+        #define MAX_HORNS_FOR_TYPE 16384.0
+        float thornid = floor(opos.w / MAX_HORNS_FOR_TYPE);
+        //if (thornid != 0. && thornid != 3.) {
+        //    col = stdcolX(thornid);
+        //}
+        // with NORMTYPE == 5 range 0.5..1 is hidden
+        // if (opos.y > 0.25 ) col = stdcolX(thornid);  // for striping
+        if (fract(opos.x*5000. + opos.y) < 0.2) col = stdcolX(thornid); // for helix striping
+
+
+        // could do this here, but colmix not always available, and what's it really for anyway
+        // vec3 rbow = hsv2rgb(vec3(p, 1., 1.)); // vec3(p, 1.-p, 0);
+        // col = mix(col, rbow, colmix);
+
+
+//        col.x += opos.x;  // temp test OK
+//        col.x += colourid;  // temp test OK
+//        if (colourid != 3.) col.xyz = vec3(1,1,0);
+
+        //vec3 col = bed.rgb;
+
+
+
+        return col;
+    }
+
+    //get colour based on particle position 0..numSegs & given source
+    vec3 bedColor(const in float rp) { return bedColor(rp, vec4(rp, 0.5,0.5, 0)); }
+
+`
+
 CSynth.CommonFragmentShaderCode = () => /*glsl*/`
     #ifndef VERTEX
         #define VERTEX 0
@@ -35,7 +150,7 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
     uniform mat4 projectionMatrix;
 #endif
     uniform float scaleFactor;
-    uniform float hidenobed;
+    // uniform float hidenobed;
     uniform sampler2D scaleDampTarget;
     uniform sampler2D posNewvals;
     uniform sampler2D posHist;
@@ -79,30 +194,7 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
         }
         return r * NormalisedToTexCo; //XXX: ended up dividing by this again in HistoryTrace; careful now.
     }
-    //return the range of the region occupied by particle 'p'
-    //values in 0 .. numSegs/numInstancesP2 for mid, start, end of the range (order of those to match annotationDisplay...)
-    vec4 getPickRange(const in float p, sampler2D bed) {
-        // information stored in row 2 of t_ribboncol (see bedParser), other uses updated to read uv.y = 0.25 rather than 0.5.
-        // That is probably more efficient and less hassle than adding an extra texture / uniform / etc...
-        // ** see also matrixbed; t_ribboncol by any other name... **
-        return texture2D(bed, vec2(p/NormalisedToTexCo, 0.75));
-    }
-    // for a particle p, is it in the range of the region occupied by particle 'pr'?
-    // for example, while rendering 'p', should it be considered in range of 'pr' which is a picked particle?
-    // returns 1 or 0 for in/out (areas within 'smooth' range will fade)
-    // -- not sure how useful this approach to 'smooth' is - ends up feathering end of selection even when pointing to middle...
-    float isInPickRange(float p, float pr, float psmooth, sampler2D bed) {   // 'float smooth' fails to compile, why???
-        // p /= NormalisedToTexCo; //
-        vec4 r = getPickRange(pr, bed); // texture2D(t_ribboncol, vec2(p/NormalisedToTexCo, 0.75));
-        // Next lines prevent the end spheres failing to reduce near the ends.
-        // As beds are just Unit8Array (22 May 2020) ranges beyond the ends are truncated.
-        // We extend them very significantly so we get full pick effect at ends.
-        if (r.y == 0.) r.y = -1.;
-        if (r.z == 1.) r.z = 2.;
-        float v = smoothstep(r.y, r.y+psmooth, p);
-        v = min(v, 1. - smoothstep(r.z-psmooth, r.z, p));
-        return v;
-    }
+    ${CSynth.pickAndColCode()}
     vec3 getPickColor(const in int i) {
         if (i < 8)  return vec3(1., 0., 0.);
         if (i < 16) return vec3(0., 1., 0.);
@@ -136,22 +228,6 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
     #define VALID_PICK_INDEX (i==0 || i==4 || i==5 || i==8 || i==12 || i==13 )
     #define SKIP_PICK if (!VALID_PICK_INDEX) continue;
 
-    //http://lolengine.net/blog/2013/07/27/rgb-to-hsv-in-glsl
-    vec3 hsv2rgb(in vec3 c) {
-        vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-        vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-        vec3 pp = c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-        return clamp(pp, 0.0, 1.0);  // added sjpt 30 July 2015, can probably remove other clamp???
-    }
-    vec3 rgb2hsv(in vec3 c) {
-        vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-        vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
-        vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
-
-        float d = q.x - min(q.w, q.y);
-        float e = 1.0e-10;
-        return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
-    }
 
     //https://stackoverflow.com/questions/13501081/efficient-bicubic-filtering-code-in-glsl
     // cubic return interpolation weights so interpolation DOES NOT go through control points
@@ -261,47 +337,6 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
     #define histpostBicubic(p,t) textureBicubic(posHist,  vec2(fract(1. + histtime - (t), (p)))
     #define histpostCubic(p,t) textureCubic(posHist, vec2(fract(1. + histtime - (t)), (p)))
 
-    // 'standard' colour, sadly no array for gles 2
-    // consider colour lookup texture. (bear in mind how this relates to other colour mapping features...)
-    vec3 stdcolX(float tv) {
-        // tv = round(tv);
-        float k = 1./ceil(tv/7.);
-        tv = mod(tv, 7.);
-        vec3 col;
-        if (tv < 0.) col = vec3(9.5, 0.5, 0.5);  // debug
-        else if (tv < 0.5) col = vec3(0.5, 0.5, 0.5);
-        else if (tv < 1.5) col = vec3(1,0,0);
-        else if (tv < 2.5) col = vec3(0,1,0);
-        else if (tv < 3.5) col = vec3(0,0,1);
-        else if (tv < 4.5) col = vec3(0,1,1);
-        else if (tv < 5.5) col = vec3(1,0,1);
-        else if (tv < 6.5) col = vec3(1,1,0);
-        else col = vec3(1,1,1);
-        return col; //  * k;
-    }
-    //get colour based on particle position 0..numSegs & given source
-    vec3 bedColor(const in float rp) {
-        float p = rp; //  / Normalised ToTexCo;
-        vec3 rbow = hsv2rgb(vec3(p, 1., 1.)); // vec3(p, 1.-p, 0);
-        vec4 bed = texture2D(t_ribboncol, vec2(p, 0.25));
-        #if VERTEX == 0
-            if (hidenobed == 1. && bed == vec4(0)) discard;
-        #endif
-        float t = bed.w;  // t_ribboncol is bed texture, small 'integer' values for now, but mapped to range 0..1
-        float ti = t * 255. - 0.0;
-        // when BED doesn't have explicit colour, then all elements will be same... that doesn't make this logic right
-        // but close enough for now (famous last words), closer with test against green as well
-        //PJT::: not so sure about this... trying with just bed...
-        float tv = ti; // floor(ti == 0. ? 0. : (mod(ti, 6.) + 1.));
-        vec3 col = bed.r != t || bed.g != t ? bed.rgb : stdcolX(tv);
-        //vec3 col = bed.rgb;
-
-
-        // for helix striping
-        // if (fract(opos.x*5000. + opos.y) < 0.1) col = std col(6.);
-
-        return col;
-    }
         //CSynth.CommonFragmentShaderCode() --------------
 `;
 
@@ -524,7 +559,7 @@ function setthresh(v, contacts) {
 var customSettings = ()=>{};
 
 CSynth.applyContacts = (contacts, pftype = CSynth.springSettings.contactFtype) => {
-    const ftype = (pftype.toLowerCase().indexOf('lor') === -1) ? 'contact' : 'contactLor';
+    const ftype = (pftype.toLowerCase().indexOf('lor') === -1) ? 'csy' : 'lor';
     const cc = CSynth.current;
     if (contacts === undefined) contacts = cc.selectedSpringSource;
     if (typeof contacts === 'number') contacts = cc.contacts[contacts];
@@ -533,7 +568,7 @@ CSynth.applyContacts = (contacts, pftype = CSynth.springSettings.contactFtype) =
         return;
     }
     const cn = cc.contacts.indexOf(contacts);
-    if (cn !== -1) ftype === 'contactLor' ? CSynth.pressLorDG(cn) :  CSynth.pressCsynth(cn);
+    if (cn !== -1) ftype === 'lor' ? CSynth.pressLorDG(cn) :  CSynth.pressCsynth(cn);
     // currentGenes.stepsPerStep = 2;
     // GX.restoregui('contact.settings');  // no op if non saved
     CSynth.switchSpringSettings(ftype);
@@ -633,19 +668,23 @@ function loadwide() {
 CSynth.fastdamp = 0.9999;
 
 
+CSynth.defvals = {xyzforce: 1 , contactforce: 1, pushapartforce: 0.0008, m_force: 1};  // default values if 0 and being used
 CSynth.switchSpringSettings = function(ftype) {
     const eg = {
         xyz: ['xyzforce'],
-        contact: ['contactforce', 'contactforcesc', 'pushapartforce', 'pushapartpow'],
-        contactLor: ['m_force', 'm_alpha', 'm_c', 'm_k']
+        csy: ['contactforce', 'contactforcesc', 'pushapartforce', 'pushapartpow'],
+        lor: ['m_force', 'm_alpha', 'm_c', 'm_k']
     };
+
     for (let type in eg) {
         const l = eg[type];
         l.forEach(gn => {
-            if (type === ftype)
+            if (type === ftype) {
                 CSynth.enable(gn)
-            else
+                if (G[gn] === 0 && CSynth.defvals[gn]) G[gn] = CSynth.defvals[gn];
+            } else {
                 CSynth.disable(gn)
+            }
         })
     }
     CSynth.springSettings.current = ftype;
@@ -930,6 +969,39 @@ CSynth.startdemo = async function() {
 CSynth.handlefileset = async function(evt, data) {
     log ('CSynth.handlefileset', evt, data);
     const files = Array.from(evt.eventParms);
+    for (const f of files) xfetch.droppedFiles[f.name] = f;
+    const configs = files.filter(f => f.name.endsWith('.csyconfig'));
+    if (configs.length > 0) {
+        let cfile;
+        if (configs.length > 1) {
+            const x = prompt('choose config file' + configs.map((v,i) => i + ': ' + v.name).join('\n'), '0');
+            if (x === null) return;
+            cfile = configs[x];
+        } else {
+            cfile = configs[0];
+        }
+        currentLoadingFile = cfile.name;
+        currentLoadingDir = 'droppedFiles';
+        openfiles.processed = true;  // we've handled the files
+        
+        // horrid workaround to arrange files ready for sync loading of xyz files
+        const sspringdemo = springdemo;
+        let lcc;
+        W.springdemo = x => lcc = x;  // capture the definitions
+        eval(await cfile.text());
+        W.springdemo = sspringdemo;
+
+        for (const f of lcc.xyzs) {
+            const fid = f.filename || f;  //
+            const file = xfetch.droppedFiles[fid];
+            file.data = await file.text();
+        }
+        springdemo(lcc);            // and use them
+        customSettings();
+        // customLoadDone();
+        return;
+    }
+
     const o = {   // config file in waiting
         filename: 'auto:' + getFileName(files[0].canonpath),
         dir: '',
@@ -1054,6 +1126,7 @@ var SS = new Proxy({}, {
 /** process settings */
 CSynth.processSettings = function(s) {
     if (!s) return;
+    if (typeof s === 'function') return s();
     const wrong = [];
     for (let k in s) {
         const o = CSynth.settingsObject(k);
@@ -1217,8 +1290,8 @@ async function springdemoinner(defs) {
 
         // set up default values for the different spring settings
         CSynth.springSettings = {
-        //     contact: {xyzforce: 0, contactforce: 80, pushapartforce: 0.0002, m_force: 0},
-        //     contactLor: {xyzforce: 0, contactforce: 0, pushapartforce: 0, m_force: 1, pushapartlocalforce: 0, backboneforce: 0},
+        //     csy: {xyzforce: 0, contactforce: 80, pushapartforce: 0.0002, m_force: 0},
+        //     lor: {xyzforce: 0, contactforce: 0, pushapartforce: 0, m_force: 1, pushapartlocalforce: 0, backboneforce: 0},
         //     xyz: {xyzforce: 0.1, contactforce: 0, pushapartforce: 0, m_force: 0}
         };
         // for (let ftype in CSynth.springSettings) {
@@ -1437,7 +1510,7 @@ CSynth.showpick = function (callback) {
         let bp = CSynth.getBPFromNormalisedIndex(p);
         let pname = (pnames ? pnames[partid] : typeof bp === 'number' ? Number(Math.round(bp)).toLocaleString() : bp)+'bp';
         CSynth.picks[i] = CSynth.picks[CSynth.pickslots[i]] = undefined;
-        if (!CSynth.pickslots[i]) continue;   // this pick slot not used
+        if (CSynth.pickslots[i] === undefined) continue;   // this pick slot not used
         if (!(0 < p && p < 1)) continue;      // this slots indicates no pick
         let bedh = CSynth.bedhitsForFract(p).map(b => b.key);
         let bedt = 'no bed';
@@ -1474,13 +1547,29 @@ CSynth.showpick = function (callback) {
     }
     if (CSynth.guidetail >= 4) CSynth.showPickDist();
 
-    if (CSynth.bc && CSynth.picks[4] && CSynth.picks[5]) {
-        const x = CSynth.picks[4].partid, y = CSynth.picks[5].partid;
+    // picks names ['ribbon', 0, 0, 0, 'matrix1', 'matrix2', 0, 0, 'g-ribbon', 0, 0, 0, 'g-matrix1', 'g-matrix2', 0, 0, 'bp_13950000', 'bp_13970000']
+
+
+    let x, y, ok = false;
+    const test = (a,b = a) => {
+        if (ok) return;
+        if (CSynth.picks[a] && CSynth.picks[b])
+            {x = CSynth.picks[a].partid; y = CSynth.picks[b].partid; ok = true;}
+    }
+
+    if (CSynth.bc) {
+        test('g-ribbon');
+        test('g-matrix1', 'g-matrix2');
+        test('ribbon');
+        test('matrix1', 'matrix2');
+
         if (x !== CSynth.bc.last.x || y !== CSynth.bc.last.y) {
-            CSynth.bc.postMessage({command: 'setxyShow', args: [0, x, y]})
+            if (ok) CSynth.bc.postMessage({command: 'setxyShow', args: [0, x, y]})
             CSynth.bc.last = {x, y};
         }
+
     }
+
 
     if (callback) callback(pick.array, bedts);
 }
@@ -1723,8 +1812,8 @@ CSynth.chooseBed = function (bed) {
 }
 
 Object.defineProperty(CSynth, 'hidenobed', {
-    get: () => !!G.hidenobed,
-    set: v => {G.hidenobed = +v; if (v) {fxaa.use = false; usemask = -1;}}
+    get: () => !!U.hidenobed,
+    set: v => {U.hidenobed = +v; if (v) {fxaa.use = false; usemask = -1;}}
     // note: this will probably always need usemask = -1 to ensure discard is handled correctly
     // we should not require faxx.use = false, todo
 })
@@ -1827,6 +1916,7 @@ CSynth.makegui = async function(force) {
             desc = cc.contacts[i].shortname;
 
         const cci = cc.contacts[i];
+        cc.showLorentzian = cc.showLorentzian ?? true;
         if (cc.showLorentzian) {
             buttonsc.push({
                 func: () => {ctype('contact'); CSynth.applyContacts( cc.contacts[i]);},
@@ -1840,7 +1930,7 @@ ${cci.filename}`,
             });
 
             buttonsc.push({
-                func: () => {ctype('contactLor'); CSynth.applyContacts( cc.contacts[i]);},
+                func: () => {ctype('lor'); CSynth.applyContacts( cc.contacts[i]);},
                 tip:
 `${cci.description}
 Model derived from
@@ -2255,7 +2345,7 @@ CSynth.press = function(ii) {
 
 
 /** make dropdown for file, and replace in place if needed */
-CSynth.updateAvailableFiles = function(parent = V.lastsavegui || V.saveloadgui, newname) {
+CSynth.updateAvailableFiles = function(parent = /* V.lastsavegui || */ V.saveloadgui, newname) {
     V.lastsavegui = parent;
     const cc = CSynth.current;
     if (!cc) return;
@@ -2562,3 +2652,130 @@ CSynth.springtest = function(a,b,c,d) {
 
 // test for fixed -> distance and whether it jumps
 // springs.settleHistory(); CSynth.xyzsExact(0); springs.settleHistory(); CSynth.applyXyzs(0); springs.step(1); springs.settleHistory();
+var checkvr;
+function wasInOAO() {
+    var extradefines, overrides
+    var KILLRADLEN = 20;
+    adduniform('hidenobed', 0.0); // to chase, order of genes and uniforms; do we want to add genes here, not in oao
+
+    onframe(checkvr, 5);
+onframe(checkvr, 25);
+extradefines = () => /*glsl*/`
+//^^^^^ wasInOAO extradefines
+//  #define NOSTDUNIFORMS 1
+// $ { CSynth.CommonShaderCode() }
+  uniform sampler2D t_ribboncol, t_ribbonrad;
+  #define KILLRADLEN ${KILLRADLEN}
+  uniform float killrads[KILLRADLEN];
+  #define NormalisedToTexCo 1. // (numSegs/numInstancesP2)
+
+  ${CSynth.pickAndColCode()}
+//   //copy/paste from springsynth...
+//   vec4 getPickRange(const in float p) {
+//     return texture2D(t_ribboncol, vec2(p, 0.75));
+//   }
+//   float isInPickRange(float p, float pr, float psmooth) {  // nb 'smooth' does not compile under webgl2
+//       vec4 r = getPickRange(pr);
+//       float v = smoothstep(r.y, r.y+psmooth, p);
+//       v = min(v, 1. - smoothstep(r.z-psmooth, r.z, p));
+//       return v;
+//   }
+
+`;
+overrides = () => //gl //comment serves as a tag to start a glsl section
+/*glsl*/`
+
+//^^^^^ wasInOAO overrides
+
+override float skelrad(float r, float rp, float oposz) {
+  // note no sqrt for wig, already arranged in layout of the texture
+  float wigg = texture2D(t_ribbonrad, vec2(rp, 0.5)).x;
+  r = scaleFactor * (R_radius +  wigg * wigmult);
+  if (wigmult < 0. && wigg != 0.) r = -0.1;     // so some segments can disappear, eg between chains/chroms in Ss-S10 example
+
+  // boost radius for pick item i
+  #define xrad(i) { \
+    float p = getPickC(i);\
+    float xtra = 1. - abs(p-rp) / ribbonPickWidth;\
+    rx = max(rx, xtra);\
+    rangeX = max(rangeX, isInPickRange(rp, p, 1./255., t_ribboncol));\
+  }
+  // boost ribbon radius based on matrix picks
+  //PJT adding other pick slots (0 & 8), as per VALID_PICK_INDEX
+  if (ribbonPickExtra != 0.) {
+    float rx = 0., rangeX = 0.;
+    xrad(0) xrad(4) xrad(5) xrad(8) xrad(12) xrad(13)
+    r += ribbonPickExtra * rx;
+    r += ribbonPickRangeExtra * rangeX;
+  }
+
+  // killrads in particles, this is used to create breaks between chains/chroms, eg in full yeast example
+  for (int i=0; i < KILLRADLEN; i++)
+    if (abs(rp * (numSegs) - killrads[i]) <= killradwidth) r = -0.1;
+
+  float pi = 3.141592;
+  float tr = max(endbloblen-rp, -1. + endbloblen + rp)/endbloblen;
+  if (tr > 0.) { float dr = max(0.00, (1. + cos( (1.-tr) * 6.28318 * endblobs)) * 0.5 * (1.- tr)); r *= sqrt(dr); }
+
+  // display range
+  if (rp < ribbonStart || rp > ribbonEnd) r = -0.1;
+  return r;
+}
+
+override Colsurf iridescentTexcol(in vec3 texpos, in vec3 viewDir, in vec3 normal) {
+    Colsurf cs = colsurfd();
+    float p = opos.x;
+    // vec3 rbow = vec3(p,1.-p,0); // rainbow colouring, also to verify opos.x correct
+    // TODO use bedColor from commonFragmentShaderCode
+
+    #define NormalisedToTexCo 1. // (numSegs/numInstancesP2)
+
+    vec3 col = bedColor(p, opos);
+    // this could be in bedColor for more generality, but not much use anyway???
+    if (colmix != 0.) {
+        vec3 rbow = hsv2rgb(vec3(p, 1., 1.));
+        col = mix(col, rbow, colmix);
+    }
+
+    // //vec3 col = cs.col.rgb;
+    // // using opos.x instead of p below gives wrong answers!
+    // // Maybe compiler can't cope with texture call within texture call? opos is macro for texture call
+    // vec4 bed = texture2D(t_ribboncol, vec2(p, 0.25)); //was 0.5, added row for range, 0.75 to debug, should be 0.25
+    // if (hidenobed == 1. && bed == vec4(0)) discard;
+    // float t = bed.w;  // t_ribboncol is bed texture, small 'integer' values for now, but mapped to range 0..1
+    // float ti = t * 255. - 0.0;
+    // // when BED doesn't have explicit colour, then all elements will be same... that doesn't make this logic right
+    // // but close enough for now (famous last words), closer with test against green as well
+    // vec3 col = bed.r != t || bed.g != t ? bed.rgb : stdcolY(ti);
+    // // for helix striping
+    // // if (fract(opos.x*5000. + opos.y) < 0.1) col = stdcolY(6.);
+
+
+    // now overlay preselection highlights
+    float op = (opos.x - capres*0.5) / (1. - capres);
+    for (int i=0; i<16; i++) {
+      //yuck.  Ignore the elements that aren't wanted. Will need to change later.
+      if (!(i==0 || i==4 || i==5 || i==8 || i==12 || i==13 )) continue;
+      float p = getPickC(i);
+      float k = 10. * (1. - clamp(abs(op-p) * 400., 0., 1.));
+      float k1 = abs(op-p) * 14000. < 1. ? 0. : k;
+      col += vec3(k,k1,k1) * getPickColor(i)*0.1;
+    }
+
+    cs.col.rgb = col;
+    return cs;
+}
+
+//over ride vec4 lightingxNOT(const vec3 xmnormal, const vec4 trpos, const vec3 texpos) {
+//    // needs usemask = -1; mmm = material.regular[G.tranrule];  mmm.transparent=true; mmm.side = THREE.DoubleSide
+//    vec4 col = lightingx_base(xmnormal, trpos, texpos);
+//    if (fract(opos.x*5000. + opos.y) > 0.1) col.a = 0.2;
+//    return col;
+//}
+
+`; ///gl  //comment closes the glsl section
+return {extradefines, overrides};
+//CSynth.startdemo();
+}
+
+// wasInOAO();

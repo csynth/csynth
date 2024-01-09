@@ -367,23 +367,29 @@ function orginit() {
     }
 }
 
+// this should force  codeMirror => tranrulebox in step, must check changes other way round
+// also colour codeMirror by bad (red), good but changed from definitive G.tranrule (green), not changed (clear, ?black)
+function _CodeMirrorInstanceOnChange() {
+    if (HornSet._incompilehs) return;
+    let code = _CodeMirrorInstance.getValue();
+    let r = '#004000';
+    // const res = dummyHset.parsehorn(code, undefined, true);
+    const res = checkTranruleAll(code);
+    if (typeof res === 'string') {
+        r = '#400000';
+        msgfixerror('compile', res);
+    } else {
+        msgfix('compile', 'OK');
+    }
+    setInput(W.tranrulebox, code);
+    if (code === G.tranrule) r = '';
+    _CodeMirrorInstance.display.lineDiv.style.backgroundColor = r;
+    return res;
+}
+
 /** call to start showing good/bad on tranrule */
-function setShowBad() {
-    _CodeMirrorInstance.on('change', ()=>{
-        if (HornSet._incompilehs) return;
-        let code = _CodeMirrorInstance.getValue();
-        let r = '#004000';
-        // const res = dummyHset.parsehorn(code, undefined, true);
-        const res = checkTranruleAll(code);
-        if (res) {
-            r = '#400000';
-            msgfixerror('compile', res);
-        } else {
-            msgfix('compile', 'OK');
-        }
-        if (code === W.tranrulebox.value) r = '';
-        _CodeMirrorInstance.display.lineDiv.style.backgroundColor = r;
-    });
+function _SetCodeMirrorInstanceOnChange() {
+    _CodeMirrorInstance.on('change', _CodeMirrorInstanceOnChange);
 }
 
 /** Prettifying code input... */
@@ -406,7 +412,7 @@ function initCodeMirror() {
         mode: {name: "jsgl", globalVars: true}, matchBrackets: true, autoCloseBrackets: true, theme: "organic-dark",
         foldGutter: true, gutters: ["CodeMirror-foldgutter"]
     });
-    setShowBad();
+    _SetCodeMirrorInstanceOnChange();
     // $('.CodeMirror').css({'z-index': 10000, 'max-width': '1200px', 'position': 'fixed', 'bottom': 0,
     //     height: 'auto', width: 'auto', left: '360px' });
     // changed now tranrulebox is wrapped in foldable group
@@ -450,10 +456,21 @@ function initCodeMirror() {
     _CodeMirrorInstance.setOption("extraKeys", {"Ctrl-Space": "autocomplete",
         "Ctrl-Enter": function(cm) {
             var code = cm.getValue();
+            currentGenes.tranrule = code;
+            // as of 17 Dec 2023
+            // currentGenes.tranrule is the 'definitive' tranrule
+            // codeMirror and tranrulebox should be in lock step
+            // changeMat is needed to check 'side-effects' of tranrule change, such as html rule display
+
+
             //for now, the tranrulebox will still ultimately be the source of code to evaluate
             // $('#tranrulebox').val(code);
-            setInput(W.tranrulebox, code);  // make sure update consequencies happen
+            if (code !== W.tranrulebox.value) {
+                console.error('tranrulebox and codeMirror out of step');
+                setInput(W.tranrulebox, code);  // make sure update consequencies happen
+            }
             changeMat(undefined, false);  // no force
+            _CodeMirrorInstanceOnChange();
             //remakeShaders();
         },
         "Alt-Enter": function(cm) {
@@ -461,10 +478,17 @@ function initCodeMirror() {
             //for now, the tranrulebox will still ultimately be the source of code to evaluate
             //$('#tranrulebox').val(code);
             HW.setGenesFromTranrule(code, trancodeForTranrule(currentGenes.tranrule, currentGenes).trankey );
+            if (code !== W.tranrulebox.value) console.error('tranrulebox and codeMirror out of step');
+            setInput(W.tranrulebox, code);   // probably not needed?, done more generically on change
+            currentHset.tranrule = code;
         },
         "Shift-Ctrl-Enter": function(cm) {
             var code = cm.getValue();
-            //for now, the tranrulebox will still ultimately be the source of code to evaluate
+            //NONONO for now, the tranrulebox will still ultimately be the source of code to evaluate
+            // change 17 Dec 2023. tranrulebox and codeMirror should be kept in lock step.
+            // G.tranrulebox is the tranrule code that will be used for main window
+            // and should be the same until user edit of tranruleBox/codeMirror (see _CodeMirrorInstanceOnChange)
+
             $('#tranrulebox').val(code);
             changeMat(undefined, true);  // force
             remakeShaders();

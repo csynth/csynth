@@ -484,18 +484,13 @@ function msgfixerrorlog(...args) {
 function msgboxVisible(flag = 'toggle') {
     const msgbox = W.msgbox;
     function hide() {
-        if (msgset.VR?.val?.startsWith('\tNO XR')) {
-            console.error('msgbox hide ignored, no XR')
-            return;
-        }
-
-        msgboxVisible.save = [msgbox.style.width, msgbox.style.height];
+        if (msgbox.style.overflow === 'auto') msgboxVisible.save = [msgbox.style.width, msgbox.style.height];
         msgbox.style.width = '5em'; msgbox.style.height = '1em';
         msgbox.style.overflow = 'hidden';
     }
     function show() {
         if (msgbox.style.overflow === 'auto') return;
-        if (msgboxVisible.save) [msgbox.style.width, msgbox.style.height] = msgboxVisible.save;
+        [msgbox.style.width, msgbox.style.height] = msgboxVisible.save ?? ['auto', 'auto'];
         msgbox.style.overflow = 'auto';
         if (window.reserveSlots && slots[1]) msgbox.style.top = slots[1].height + 'px';
     }
@@ -2015,11 +2010,13 @@ function getBody(fun) {
 
 
 /** format number with max n decimal places, remove trailing 0 . */
-function format(k, n, opts) {
-    let trim = opts?.trim ?? false;
-    let totlen = opts?.totlen ?? 100000;
+function format(k, n, opts = {}) {
+    let trim = opts.trim ?? false;
+    let totlen = opts.totlen ?? 100000;
+    let maxdepth = opts.maxdepth ?? 2;
     if (opts && typeof opts !== 'object') trim = opts;  // support old use of trim as third parm
 
+    // if (typeof k === 'number' && k > 1000) return k.toLocaleString(); // , breaks write object and read back in
     if (totlen <= 0) return '!!!';
     if (k === undefined) return 'U';
     if (k === null) return '#null#';
@@ -2036,7 +2033,7 @@ ${k.stack}`;
     }
     if (typeof k === 'object') {
         if (k instanceof Date) return k.toUTCString();
-        if (format.depth > 2) return '!too deep!';
+        if (format.depth > maxdepth) return '!too deep!';
         format.depth++;
         let r;
         try {
@@ -2050,7 +2047,7 @@ ${k.stack}`;
                     // don't use map, won't work for typedArrays
                     const s = [];
                     for (let i = 0; i < k.length; i++) {
-                        s[i] = format(k[i], n, {trim, totlen});
+                        s[i] = format(k[i], n, {trim, totlen}, opts);
                         totlen -= s[i].length;
                         if (totlen <= 0) { s.push('!!!'); break; }
                     }
@@ -2060,7 +2057,7 @@ ${k.stack}`;
                 r = [];
                 for (var ff in k) {
                     if (typeof k[ff] !== 'function') {
-                        const rr = ff + ': ' + format(k[ff], n, {trim, totlen});
+                        const rr = ff + ': ' + format(k[ff], n, {trim, totlen, maxdepth});
                         r.push(rr);
                         totlen -= rr.length
                         if (totlen <= 0) {r.push('!!!'); break; }
@@ -2265,6 +2262,27 @@ function addscript(src, callback) {
         };
     }
 }
+
+/** add a script dynamically */
+function addmodule(srcurl, item, callback) {
+    var head = document.getElementsByTagName('head')[0];
+    var script = document.createElement('script');
+    script.type = 'module';
+    // const src = `import {${item}} from "${srcurl}"; window.${item} = ${item};`;
+    const src = `alert(999); debugger; import * as ${item} from "${srcurl}"; window.${item} = ${item};`;
+    log('module source', src);
+    script.textContent = src;
+    head.appendChild(script);
+    var loaded = false;
+    // https://gist.github.com/hagenburger/500716
+    if (callback) {
+        script.onreadystatechange = script.onload = function (e) {
+            if (!loaded) callback();
+            loaded = true;
+        };
+    }
+}
+
 
 
 /** set values in an object from another */
@@ -4570,13 +4588,13 @@ function delgcd(a) {
 }
 
 
-// make html table out of 2d array
-function array2Table(a, classs='simpletable') {
+// make html table out of 2d array, cr can be \n for legibility, but upsets msgfix
+function array2Table(a, classs='simpletable', cr='') {
     const r = [];
     for (let i=0; i<a.length; i++) {
         r.push( '<tr><td>' + a[i].join('</td><td>') + '</td></tr>')
     }
-    return `<table class = "${classs}"">\n` + r.join('\n') + '\n</table>';
+    return `<table class = "${classs}">${cr}` + r.join(cr) + `${cr}</table>`;
 }
 
 function toggleDraggable(ptodrag) {
@@ -5683,3 +5701,305 @@ function mat4(...e) {
     }
     return x;
 }
+
+var debugframedelta, resetDebugstats;
+/** callibrate the GPU using recent from history */
+function callibrateGPU({targtime = 35, repeat = 4} = {}) {
+    // if (framenum < 110) debugframedelta = debugframedelta.slice(10); // not needed?
+    const slow = debugframedelta.reduce((c,v) => c + (v>targtime), 0 ) / debugframedelta.length;
+    if (slow > 0.25) {
+        inps.renderRatioUi = 1;
+        inps.renderRatioUiProj =  inps.renderRatioUiMain = 0;
+        resoverride.lennum = Math.max(U.lennum * 0.5, 25);
+        resoverride.radnum = Math.max(U.radnum * 0.5, 4);
+        resetDebugstats();
+        msgfixlog('callibrateGPU', resoverride, 'rr', inps.renderRatioUi);
+        if (repeat > 0) onframe(() => callibrateGPU({targtime, repeat: repeat-1}), 25);
+        return;
+    }
+    log('callibrateGPU', 'OK');
+}
+
+
+/** Generalized Hilbert ('gilbert') space-filling curve for arbitrary-sized
+   2D rectangular grids.
+   hfrom ttps://stackoverflow.com/questions/38463130/hilbert-peano-curve-to-scan-image-of-arbitrary-size
+
+   n.b. filter from power 2 'standard' curve gives jumps, eg
+       gilbert2d(8,8).filter( ([x,y]) => x < 5 && y < 3).map((v,i,a) => i === 0 ? 0 : (v[0]-a[i-1][0])**2 + (v[1]-a[i-1][1])**2)
+    This is OK
+        gilbert2d(5,3).map((v,i,a) => i === 0 ? 0 : (v[0]-a[i-1][0])**2 + (v[1]-a[i-1][1])**2)
+    ...
+    3d available in Python at https://github.com/jakubcerveny/gilbert/blob/master/gilbert3d.py
+**/
+function gilbert2d(x, y, ax, ay, bx, by, p) {
+    if (ax === undefined) return x >= y ? gilbert2d(0, 0, x, 0, 0, y, []) : gilbert2d(0, 0, 0, y, x, 0, [])
+
+
+    const w = Math.abs(ax + ay);
+    const h = Math.abs(bx + by);
+    const sgn = Math.sign;
+
+    const dax = sgn(ax), day = sgn(ay); // unit major direction
+    const dbx = sgn(bx), dby = sgn(by); // unit orthogonal direction
+
+    if (h === 1) {  // trivial row fill
+        for (let i = 0; i < w; i++) {
+            p.push([x,y])
+            x += dax; y += day;
+        }
+        return;
+    }
+
+    if (w == 1) { // trivial column fill
+        for (let i = 0; i < h; i++) { // i in range(0, h):
+            p.push([x,y])
+            x += dbx; y += dby; // (x), y) = (x + dbx, y + dby)
+        }
+        return;
+    }
+    const fl = Math.floor;
+    let ax2 = fl(ax/2), ay2 = fl(ay/2); // (ax2, ay2) = (ax/2, ay/2)
+    let bx2 = fl(bx/2), by2 = fl(by/2); // (bx2, by2) = (bx/2, by/2)
+    const w2 = Math.abs(ax2 + ay2)
+    const h2 = Math.abs(bx2 + by2)
+
+    if (2*w > 3*h) {
+        if (w2 % 2 && w > 2) { // prefer even steps
+            ax2 += dax; ay2 += day; // (ax2, ay2) = (ax2 + dax, ay2 + day)
+        }
+
+        // long case: split in two parts only
+        gilbert2d(x, y, ax2, ay2, bx, by, p)
+        gilbert2d(x+ax2, y+ay2, ax-ax2, ay-ay2, bx, by, p)
+
+    } else {
+        if (h2 % 2 && h > 2) { // prefer even steps
+            bx2 += dbx; by2 += dby; //  (bx2, by2) = (bx2 + dbx, by2 + dby)
+        }
+
+        // standard case: one step up, one long horizontal, one step down
+        gilbert2d(x, y, bx2, by2, ax2, ay2, p)
+        gilbert2d(x+bx2, y+by2, ax, ay, bx-bx2, by-by2, p)
+        gilbert2d(x+(ax-dax)+(bx2-dbx), y+(ay-day)+(by2-dby), -bx2, -by2, -(ax-ax2), -(ay-ay2), p)
+    }
+    return p;
+}
+
+// def main():
+//     width = int(sys.argv[1])
+//     height = int(sys.argv[2])
+
+//     if width >= height:
+//         gilbert2d(0, 0, width, 0, 0, height)
+//     else:
+//         gilbert2d(0, 0, 0, height, width, 0)
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/*** converted from https://github.com/jakubcerveny/gilbert/blob/master/gilbert3d.py
+ * by https://www.codeconvert.ai/app
+ *
+BSD 2-Clause License
+
+Copyright (c) 2018, Jakub Červený
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+// eslint-disable-next-line no-shadow
+function* gilbert3d(width, height, depth) {
+
+    if (width >= height && width >= depth) {
+        yield* generate3d(0, 0, 0,
+                          width, 0, 0,
+                          0, height, 0,
+                          0, 0, depth);
+    } else if (height >= width && height >= depth) {
+        yield* generate3d(0, 0, 0,
+                          0, height, 0,
+                          width, 0, 0,
+                          0, 0, depth);
+    } else {
+        yield* generate3d(0, 0, 0,
+                          0, 0, depth,
+                          width, 0, 0,
+                          0, height, 0);
+    }
+
+function sgn(x) {
+    return x < 0 ? -1 : (x > 0 ? 1 : 0);
+}
+
+function* generate3d(x, y, z,
+                    ax, ay, az,
+                    bx, by, bz,
+                    cx, cy, cz) {
+    const w = Math.abs(ax + ay + az);
+    const h = Math.abs(bx + by + bz);
+    const d = Math.abs(cx + cy + cz);
+    const dax = sgn(ax);
+    const day = sgn(ay);
+    const daz = sgn(az);
+    const dbx = sgn(bx);
+    const dby = sgn(by);
+    const dbz = sgn(bz);
+    const dcx = sgn(cx);
+    const dcy = sgn(cy);
+    const dcz = sgn(cz);
+
+    if (h === 1 && d === 1) {
+        for (let i = 0; i < w; i++) {
+            yield {x, y, z};
+            x += dax;
+            y += day;
+            z += daz;
+        }
+        return;
+    }
+    if (w === 1 && d === 1) {
+        for (let i = 0; i < h; i++) {
+            yield {x, y, z};
+            x += dbx;
+            y += dby;
+            z += dbz;
+        }
+        return;
+    }
+    if (w === 1 && h === 1) {
+        for (let i = 0; i < d; i++) {
+            yield {x, y, z};
+            x += dcx;
+            y += dcy;
+            z += dcz;
+        }
+        return;
+    }
+    let ax2 = Math.floor(ax / 2);
+    let ay2 = Math.floor(ay / 2);
+    let az2 = Math.floor(az / 2);
+    let bx2 = Math.floor(bx / 2);
+    let by2 = Math.floor(by / 2);
+    let bz2 = Math.floor(bz / 2);
+    let cx2 = Math.floor(cx / 2);
+    let cy2 = Math.floor(cy / 2);
+    let cz2 = Math.floor(cz / 2);
+    const w2 = Math.abs(ax2 + ay2 + az2);
+    const h2 = Math.abs(bx2 + by2 + bz2);
+    const d2 = Math.abs(cx2 + cy2 + cz2);
+
+    if (w2 % 2 && w > 2) {
+        ax2 += dax;
+        ay2 += day;
+        az2 += daz;
+    }
+    if (h2 % 2 && h > 2) {
+        bx2 += dbx;
+        by2 += dby;
+        bz2 += dbz;
+    }
+    if (d2 % 2 && d > 2) {
+        cx2 += dcx;
+        cy2 += dcy;
+        cz2 += dcz;
+    }
+
+    if (2 * w > 3 * h && 2 * w > 3 * d) {
+        yield* generate3d(x, y, z,
+                          ax2, ay2, az2,
+                          bx, by, bz,
+                          cx, cy, cz);
+        yield* generate3d(x + ax2, y + ay2, z + az2,
+                          ax - ax2, ay - ay2, az - az2,
+                          bx, by, bz,
+                          cx, cy, cz);
+    } else if (3 * h > 4 * d) {
+        yield* generate3d(x, y, z,
+                          bx2, by2, bz2,
+                          cx, cy, cz,
+                          ax2, ay2, az2);
+        yield* generate3d(x + bx2, y + by2, z + bz2,
+                          ax, ay, az,
+                          bx - bx2, by - by2, bz - bz2,
+                          cx, cy, cz);
+        yield* generate3d(x + (ax - dax) + (bx2 - dbx),
+                          y + (ay - day) + (by2 - dby),
+                          z + (az - daz) + (bz2 - dbz),
+                          -bx2, -by2, -bz2,
+                          cx, cy, cz,
+                          -(ax - ax2), -(ay - ay2), -(az - az2));
+    } else if (3 * d > 4 * h) {
+        yield* generate3d(x, y, z,
+                          cx2, cy2, cz2,
+                          ax2, ay2, az2,
+                          bx, by, bz);
+        yield* generate3d(x + cx2, y + cy2, z + cz2,
+                          ax, ay, az,
+                          bx, by, bz,
+                          cx - cx2, cy - cy2, cz - cz2);
+        yield* generate3d(x + (ax - dax) + (cx2 - dcx),
+                          y + (ay - day) + (cy2 - dcy),
+                          z + (az - daz) + (cz2 - dcz),
+                          -cx2, -cy2, -cz2,
+                          -(ax - ax2), -(ay - ay2), -(az - az2),
+                          bx, by, bz);
+    } else {
+        yield* generate3d(x, y, z,
+                          bx2, by2, bz2,
+                          cx2, cy2, cz2,
+                          ax2, ay2, az2);
+        yield* generate3d(x + bx2, y + by2, z + bz2,
+                          cx, cy, cz,
+                          ax2, ay2, az2,
+                          bx - bx2, by - by2, bz - bz2);
+        yield* generate3d(x + (bx2 - dbx) + (cx - dcx),
+                          y + (by2 - dby) + (cy - dcy),
+                          z + (bz2 - dbz) + (cz - dcz),
+                          ax, ay, az,
+                          -bx2, -by2, -bz2,
+                          -(cx - cx2), -(cy - cy2), -(cz - cz2));
+        yield* generate3d(x + (ax - dax) + bx2 + (cx - dcx),
+                          y + (ay - day) + by2 + (cy - dcy),
+                          z + (az - daz) + bz2 + (cz - dcz),
+                          -cx, -cy, -cz,
+                          -(ax - ax2), -(ay - ay2), -(az - az2),
+                          bx - bx2, by - by2, bz - bz2);
+        yield* generate3d(x + (ax - dax) + (bx2 - dbx),
+                          y + (ay - day) + (by2 - dby),
+                          z + (az - daz) + (bz2 - dbz),
+                          -bx2, -by2, -bz2,
+                          cx2, cy2, cz2,
+                          -(ax - ax2), -(ay - ay2), -(az - az2));
+    }
+}
+}
+
+// function testgilbert3d(width, height, depth)
+// const args = process.argv.slice(2);
+// const width = parseInt(args[0]);
+// const height = parseInt(args[1]);
+// const depth = parseInt(args[2]);
+
+// for (const [x, y, z] of gilbert3d(width, height, depth)) {
+//     console.log(x, y, z);
+// }
+
+

@@ -69,15 +69,23 @@ void pickopos(vec4 loposuvw) {
 	#endif
 }
 
+gene(global_ribmult, 1, 0,10, 0.1,0.1, geom, frozen)    // multiplier for #ribs
+gene(global_ribmin, 20, 0,200, 1,1, geom, frozen)       // min #ribs
+/** makeribsraw handles ribsa array (or overridden equivalent), makeribsx also handles global_ribmult, global_ribmin */
+float makeribsraw(vec4 loposuvwzz);
+float makeribsx(vec4 loposuvw) {
+    return max(makeribsraw(loposuvw) * global_ribmult, global_ribmin);  // n.b. implicit input xhornid
+}
 
 #ifdef NOHORNMAKER
 // NOHORNMAKER so bulk of hornmaker.vs skipped, but some things get (probably unnecessarily) referenced, so some dummies for those
+// ??? const float global_ribmult = 1.0, global_ribmin = -999.0;
 uniform float NORMTYPE;
 virtual vec4 tr(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnum){  // 'real' tr () (not NO TR) passed from tr () to computeNormalsEtc
     return vec4(0);
 }
 uniform float horncount;
-virtual float makeribs(vec4 loposuvwzz) {return 10.; } // << if this one is being used we don't want to override it.
+virtual float makeribsraw(vec4 loposuvwzz) {return 10.; } // << if this one is being used we don't want to override it.
 #else
 
 // This file is highly interdependent with horn.js.
@@ -155,7 +163,6 @@ void usecolhsv(const float h, const float s, const float v) {  // use this as th
 gene(global_radmult, 1, 0,10, 0.1,0.1, geom, frozen)    // multiplier for radius
 gene(global_radmin, -999, 0,10,0.1,0.1,geom, frozen)    // minimum radius
 gene(global_radadd, 0,  0,10,0.1,0.1, geom, frozen)     // amount to add to radius
-
 
 gene(histl, 0.0, 0,0.9, 0.1, 0.01, springs, frozen) // proportion of history to use
 gene(springl, 0.9, 0,0.9, 0.1, 0.01, springs, frozen) // proportion of spring chain to use
@@ -296,11 +303,16 @@ float ppp(const float n, const float nsub) {
 // For other values of v, r.x may be below the correct value,
 // but only trivially so (by the same amount that v was below the correct value).
 
+// ka and kb together keep track of horns of horns up to depth 8.
+// ka for the first 4 levels (ka.x, ka.y, etc), kb for the next 4.
+// many (?most) models don't use more than 4 levels in which case kb will never be initialized
+// That give an issue with minimizer not declaring it.
+
 // split an integer v (possibly held in z of modelMat rix), k is range of numbers (parpos)
 // k may be fractional to allow for part subhorns
 Parpos splitk(float vv) {
-    // ka = kb = vec4(9999999);
-    vec4 ka, kb;  // set from uniforms parnumsa/b for shorter names
+    vec4 ka, kb;  // set from uniforms parnumsa/b for shorter names; , => ; to help minify
+    ka = kb = vec4(9999999);  // make sure they appear set for eg minimizer
     #ifdef SINGLEMULTI
 	    $$$singlePassCode$$
     #endif
@@ -436,6 +448,7 @@ vec3 rotaxf(const vec3 p, const vec3 aax, const float th) {
 
 float pulsex(float rate, float perhorn, float powp, float scale, float modrate, float modscale, float maxp, float pulseendfade,
     float crp, float r, float xscale, float rp, float time) {
+    if (scale == 0.) return r;  // n.b. this stops maxp being active
     float modv = modscale / max(modrate, 0.000001)  * sin(time * rate * modrate);           // fm modulation contribution to wave
 
     float wave = 0.5 + 0.5 * sin(6.283185307179586 * (time * rate  - crp * perhorn  + modv )); // wave scale: range 1 .. 2
@@ -454,8 +467,6 @@ float pulsex(float rate, float perhorn, float powp, float scale, float modrate, 
 
 // stack along yy axis
 #define st(yy, v) yy += v;
-//dead #define bend(v) xtw(x,y, v, 0.);
-//dead #define twist(v, offset) xtw(x,z, v, offset);
 #define warp(v, amp, offset) wp(x, y, v, amp, offset)
 
 /** base clelia function */
@@ -506,16 +517,6 @@ void clelia2(inout float x, out float y, out float z, float k, float j, float ga
     p += cleliaf(x, k2, j2, gamma2, beta2);
     x = p.x; y = p.y; z = p.z;
 }
-
-// // note that multiline preprocessing requires help from doInclude(); xtw probably dead 15 Jan 2015
-// // not part of openGL spec
-// #define xtw(xx, zz, v, offset) { \
-//     c = cos((v) * torad); \
-//     s = sin((v) * torad); \
-//     tx = xx + (offset); \
-//     xx = c * tx - s * zz - (offset); \
-//     zz = c * zz + s * tx; \
-// }
 
 // for compatability with older users of tw(...)
 #define tw(xx, zz, v, offset) {twr(xx, zz, v, offset);}
@@ -988,7 +989,7 @@ vec4 tr_i(const vec4 p, const float ppx, const Parpos parpos, out float xrscale,
     // #endif
     xrscale = xscale * r;
     // Math.max(r * radmult + radadd, radmin);
-    xrscale = max(xrscale * global_radmult + global_radadd, global_radmin);
+    /*??? if (r > 0.) **/ xrscale = max(xrscale * global_radmult + global_radadd, global_radmin);
 
     return vec4(x, y, z, w);
 }  // tr_i
@@ -1001,10 +1002,10 @@ vec4 tr_i(const vec4 p, const float ppx, const Parpos parpos, out float xrscale,
 //ge ne(sampdist, 0.01, 0,1, 0.0001, 0.001, system, frozen) // sampling distance to establish horn radii
 
 //minimal todo ,ake this a #define
-#define NORMTYPE 1.
-#if 1==0  // generate the gene and uniform even though they are ignored, some code looks at them
+//#define NORMTYPE 1.
+//#if 1==0  // generate the gene and uniform even though they are ignored, some code looks at them
 gene(NORMTYPE, 1,  -9990,-9996, 1, 1, system, frozen) // type used for normals WARNING NOT ACTIVE GENE
-#endif
+//#endif
 gene(ENDTYPE, 1.5, -3,3, 0.01,0.01, system, frozen)      // type used for ends
 
 
@@ -1082,7 +1083,15 @@ void cubicChoice(float x, vec4 p0, vec4 p1, vec4 p2, vec4 p3) {
     // for some reason, hermite works for csynth but not for any/many Organic models
     // specific catrom and cubic did not help much either, 12/10/18 sjpt, but left in just in case
     // so disabled for now
-    if (bias >= 103.) {       // was the only case for some time, still default at 1 May 2023
+    if (bias == 17.) {
+        aa = p1;
+        skela3 = aa.xyz;
+        skelstep = vec3(0);
+    } else if (bias == 18.) {
+        aa = p1 * (1.-x) + p2*x;
+        skela3 = aa.xyz;
+        skelstep = vec3(0);
+    } else if (bias >= 103.) {       // was the only case for some time, still default at 1 May 2023
         vec4 a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
         vec4 b =  1.0 * p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
         vec4 c = -0.5 * p0            + 0.5 * p2           ;
@@ -1566,7 +1575,7 @@ virtual float makeribdepth(Parpos parpos, vec4 loposuvw) {
     // return ribdepth * lribdeptha[clamp(int(xhornid), 0, MAXPATHS-1)];
 }
 // overridable function for tailoring ribs
-virtual float makeribs(vec4 loposuvw) {
+virtual float makeribsraw(vec4 loposuvw) {
     #ifdef NOTR
         return 0.;
     #else
@@ -1665,7 +1674,7 @@ vec4 trnoflat(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float
     float lk = 0., fac = 1.;
     ribnum = 0.;  // TODO correct for rib at each end
 	/**	sjpt temp, cost of ribs is around 2fps in 60 on VR test **/
-    float uribs = makeribs(loposuvw);
+    float uribs = makeribsx(loposuvw);
     float uribdepth = makeribdepth(parpos, loposuvw);
     #ifdef HEADRIBS
     	float xrp = min(ppx, 1.-ppx ); // extra ribs from centre so head and tail undisturbed
@@ -1873,10 +1882,10 @@ transformation pipe
                                                 skelpos                               shapepos    trpos             mtrpos                ooo
                                                     |                                     |          |                  |                   |
 | ------------------ tr_i -----------------------|  | trskel |  |--------- tr -----------| |-four.fs-|------ threek.vs--+-------------------+--------------|
-  |tranrule autoscale gpuscale | xrscale=xscale*r    clearpos    cyl star ribs tail head     rot4     modelViewMatrix    projectionMatrix     distortpix
- pretranrule             posttranrule                  uses
-                                                       rot4
-
+  |tranrule autoscale gpuscale | xrscale=xscale*r|    clearpos    cyl star ribs tail head     rot4     modelViewMatrix    projectionMatrix     distortpix
+ pretranrule             posttranrule            |      uses
+                                                 |      rot4
+                                              radadd &c
 CSynth tranrule
 includes scaleFactor
 * autoscale is implemented in different ways for gpuscale and cpuscale, but the effect should be the same
@@ -1889,5 +1898,5 @@ includes scaleFactor
 
 
 */
-#endif
+#endif // NOHORNMAKER
 // end hornmaker.vs <<<<

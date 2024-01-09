@@ -3,31 +3,8 @@ var planeg, THREE, G, V, width, height, U, GUINewsub, S, springs, fixfeed, unfix
 imageOpts, inps, setExtraKey, usemask, cMap, camera, copyXflip, everyframe, xxxdispobj, renderer, ops, ctrl, alt, right,left, middle,
 tad, GX, animateNum, xxxgenes, currentGenes, msgfix
 
-var feed = { dofeed: false, viewfactor: 0, edgezoom: false, coreuse: 0.99, showfeed: false, _running: true, animfun: animateNum}
-
-
-feed._showfeed = function() {
-    if (!feed.coreshow) {
-        const geom = planeg(2,2,1,1)
-        const mat = new THREE.MeshBasicMaterial({transparent: true, opacity: 0.25, color: 'green'})
-        feed.coreshow = new THREE.Mesh(geom, mat);
-        V.nocamscene.add(feed.coreshow);
-    }
-    if (!feed.feedshow) {
-        const geom = planeg(22,22,11,11)
-        const mat = new THREE.MeshBasicMaterial({wireframe:true, color: 'red'})
-        feed.feedshow = new THREE.Mesh(geom, mat);
-        V.nocamscene.add(feed.feedshow);
-    }
-    feed.coreshow.visible = feed.feedshow.visible = feed.showfeed && !_fixinfo.core
-}
-
-/* eslint object-curly-newline: 0 */
-async function guinewbw() {
-    const bwg = GUINewsub('bwrender', 'black/white render settings');   // get place in top level list now
-    await S.waitVal(_=>'edgewidth' in G);
-
-    Object.defineProperties(feed, {
+var feed = { dofeed: false, viewfactor: 0, edgezoom: false, coreuse: 0.99, showfeed: false, _running: true, animfun: animateNum};
+Object.defineProperties(feed, {
     alternate: {
         set: v => {if (v) U.feedbackTintMatrix.set(-1,0,0,0, 0,-1,0,0, 0,0,-1,0, 1,1,1,1); else U.feedbackTintMatrix.identity()},
         get: () => U.feedbackTintMatrix.elements[0] < 0},
@@ -54,8 +31,52 @@ async function guinewbw() {
                 feed._iii = undefined;
             }
         },
-        get: () => feed._iii !== undefined}
+        get: () => feed._iii !== undefined},
+
+    shadow: {
+        set: v => {
+            if (!v) {
+                var fp, ftm
+                [fp, feed.dofeed, G.centrerefl, G.centrereflx, G.centrerefly, G.maxfeeddepth, ftm] = feed.shadsave;
+                Object.assign(feed.fp, fp);
+                U.feedbackTintMatrix.copy(ftm);
+                feed.shadsave = undefined
+            } else {
+                feed.shadsave = [Object.assign({}, feed.fp), feed.dofeed, G.centrerefl, G.centrereflx, G.centrerefly, G.maxfeeddepth, U.feedbackTintMatrix.clone()]
+                feed.fp.scale = feed.fp.scalex = feed.fp.scaley = 1;
+                feed.fp.rot = 0;
+                feed.fp.perspx = feed.fp.perspy = 0;
+                feed.fp.panx = 0.2; feed.fp.pany = 0.1;
+                feed.dofeed = true;
+                G.centrerefl = G.centrereflx = G.centrerefly = 1;
+                G.maxfeeddepth = 1;
+                U.feedbackTintMatrix.elements.fill(0); U.feedbackTintMatrix.elements[15] = 1
+            }
+        },
+        get: () => !!feed.shadsave}
     });
+
+
+feed._showfeed = function() {
+    if (!feed.coreshow) {
+        const geom = planeg(2,2,1,1)
+        const mat = new THREE.MeshBasicMaterial({transparent: true, opacity: 0.25, color: 'green'})
+        feed.coreshow = new THREE.Mesh(geom, mat);
+        V.nocamscene.add(feed.coreshow);
+    }
+    if (!feed.feedshow) {
+        const geom = planeg(22,22,11,11)
+        const mat = new THREE.MeshBasicMaterial({wireframe:true, color: 'red'})
+        feed.feedshow = new THREE.Mesh(geom, mat);
+        V.nocamscene.add(feed.feedshow);
+    }
+    feed.coreshow.visible = feed.feedshow.visible = feed.showfeed && !_fixinfo.core
+}
+
+/* eslint object-curly-newline: 0 */
+async function guinewbw() {
+    const bwg = GUINewsub('bwrender', 'black/white render settings');   // get place in top level list now
+    await S.waitVal(_=>'edgewidth' in G);
 
     bwg.add(feed, 'dofeed', 'do feedback', 'do feedback').listen();
     bwg.add(feed, 'alternate', 'alternate bw/wb', 'alternate bw/wb').listen();
@@ -63,7 +84,7 @@ async function guinewbw() {
     bwg.add(feed, 'freeze', 'freeze springs and time', 'freeze springs and time').listen();
     bwg.add(feed, 'clear');
     cycle(U, 'edgewidth', 0.5, 1,2); // toggle edgewidth, 1,2
-    cycle(U, 'edgestyle', 1, 0, 7); // cycle front
+    cycle(U, 'altstyle', 1, 0, 7); // cycle front
     cycle(U, 'occludewidth', 0.1, 0, 6);
     cycle(U, 'occludedelta', 0.001, 0, 0.04);
     cycle(U, 'edgeDensitySearch', 1, -2, 10);

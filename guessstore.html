@@ -8,7 +8,7 @@
         <script type="text/javascript">
             searchValues = {};
         </script>
-        <script src="JSdeps/three106SJPT.js"></script>
+        <script src="JSdeps/three157.js"></script>
 
         <script type="text/javascript">
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -89,7 +89,7 @@ async function guessStore() {
             log('guessStore return bad rc', rcd, i);
             break;
         }
-        log('ok so far', i, i*i*16);
+        log('ok so far', i, 'bytes', i*i*16);
         maxi = i;
     }
     fgl.finish();       // might for a context lost?
@@ -136,9 +136,10 @@ async function guessStoreX() {
 
 window.onload = guessStoreX;
         </script>
+    </head>
     <body>
-        <p id='_main'></p>
-        <p id='_iiii'></p>
+        <p id="_main"></p>
+        <p id="_iiii"></p>
 
 
     </body>

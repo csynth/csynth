@@ -1,10 +1,13 @@
 'use strict'
 var makeDraggable, log, everyframe, currentGenes, U, tad, tadkin, W, feed, GX, S, format, Maestro, killev, writetextremote, readtext,
-fileTypeHandlers, COL, WA, makeRegexp, THREE;
+fileTypeHandlers, COL, WA, makeRegexp, THREE, getFoldState, genedefs, xfetch;
 
 var _vieweditlist = {}
 /** make a new viewedit panel me.name, and  use it  to set values if requested */
-function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {}) {
+function Viewedit({name = 'test', usevalues = true, initstring, top, left, right} = {}) {
+    if (!everyframe) everyframe = f => setInterval(f, 100); //  for minicode version
+    if (!readtext) readtext = async f => await (await xfetch(f)).text();
+    if (!W) W = window; if (!WA) W = window;
     name = name.replace('.vesettings', '');
     var me = this;
     me.name = name;
@@ -14,9 +17,9 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
     _vieweditlist[me.name] = me;
 
     var hh = me.topgui = document.createElement('fieldset')
-    document.body.appendChild(hh)
     hh.id = 'viewedit' + me.name
     const old = document.getElementById(hh.id); if (old) document.body.removeChild(old);
+    document.body.appendChild(hh)
     hh.className = 'vieweditholder';
     hh.innerHTML = `
         <legend onclick="toggleFold(this)">viewedit: ${me.name}</legend>
@@ -26,8 +29,9 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
         </div>`
     me.calcloop = everyframe(() => me.calc())
     hh.style.top = top ?? (innerHeight * 0.1)+'px';
-    makeDraggable(hh, false)
-    if (left) hh.style.left = left;
+    hh.style.left = left ?? 'unset';
+    hh.style.right = right ?? 'unset';
+    if (makeDraggable) makeDraggable(hh, false)
     // not yet window.addEventListener('beforeunload', () => me.remove())
 
     const ee = me.gui = hh.getElementsByClassName('viewedit')[0];
@@ -35,7 +39,7 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
 
     filtbox.onchange = filtbox.oninput = evt => me.filter(filtbox.value)
 
-    // special values control classes control display details, held on the key and vlaye fields
+    // special values control classes control display details, held on the key and value fields
     // mytype: number, string, function, boolean, myoneof, myoneofsummary, myfolder, myerror
     // myselected:
     // mypending:
@@ -52,6 +56,7 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
     // recalculate, and add empty line if needed
     me.calc = function eecalc() {
         if (!me.topgui.parentNode) return console.error('calc in unconnected gui')
+        if (getFoldState(me.topgui)) return;
         if (W.timex) console.time('calctime' + W.timex)
         let dds = me.dds = Array.from(ee.childNodes);
         for (let i = dds.length - 4; i >= 0; i -= 2) {
@@ -65,7 +70,7 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
                 continue;
             } else try {
                 if (k[0] === '.') {
-                    r = JSON.stringify(me.list(k.substring(1))).replaceall('"','');
+                    r = JSON.stringify(Viewedit.list(k.substring(1))).replaceall('"','');
                 } else {
                     r = dds[i].getter();
                 }
@@ -75,6 +80,7 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
             }
             const ty = r?.isColor ? 'color' : typeof r;
             const rbase = r;
+            dds[i+1].onmousedown = null; // until proven otherwise
             if (ty === 'object') {
                 r = r.toString !== toString ? r.toString() : format(r, undefined, {totlen: 30}); // JSON.stringify(r).replaceall('"','');
             } else if (ty === 'function') {
@@ -98,7 +104,7 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
                 if (oldstep > step) dds[i+1].step = '0.'+'0'.repeat(dused-1)+'1';
             }
         }
-        if (dds[dds.length-2].value !== '')
+        if (dds[dds.length-2]?.value !== '')
             me.addrow('');
         if (W.timex) console.timeEnd('calctime' + W.timex)
     }
@@ -123,6 +129,32 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
         }
         if (tt?.type === 'color') ee.onchange(evt)
         return true;
+    }
+
+    ee.onmouseover = function(evt) {
+        let h = Viewedit.hover;
+        if (!h) {
+            h = Viewedit.hover = document.createElement('DIV');
+            document.body.append(h);
+            // h.style = 'position: fixed; zindex:9999; background: white; color: black; font-size: 125%';
+            h.style = 'position: fixed; z-index:999999; background: white; color: black; font-size: 150%; border: 2px solid red; paddng:0.25em' 
+        }
+        const dds = me.dds = Array.from(ee.childNodes);
+        const tt = evt.target;
+        const i = dds.indexOf(tt) | 1;
+        const help = dds[i]?.help;
+        if (!help) return;
+        // log('enter', dds[i]?.help ?? 'nohelp')
+        h.style.display = ''
+        const r = dds[i-1].getBoundingClientRect();
+        h.innerHTML = help;
+        h.style.top = (r.top + r.height + 5) + 'px';
+        h.style.left = r.left + 'px';
+        log('sty', h.style.bottom, h.style.left)
+    }
+
+    ee.onmouseout = function() {
+        Viewedit.hover.style.display = 'none';
     }
 
     ee.onmousedown = function(evt) {
@@ -242,7 +274,18 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
         } else if (i%2 == 0) {
             try {
                 dds[i].getter = me.makefun(dds[i].value);
-                me.inpp(dds[i+1], dds[i].getter())
+                me.inpp(dds[i+1], dds[i].getter());
+                const k = tt.value;
+                if (k.startsWith('G.')) {
+                    const gd = genedefs[k.substring(2)];
+                    if (gd) {
+                        const f = dds[i+1];
+                        f.min = gd.min;
+                        f.max = gd.max;
+                        f.step = gd.step;
+                        f.help = gd.help;
+                    }
+                }                
             } catch (e) {
                 dds[i].getter = me.makefun('"???  ' + e + '"');
                 // console.error('???', dds[i].value)
@@ -275,10 +318,10 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
         writetextremote('settings/' + sname + '.vesettings', me.lastsave);
     }
 
-    me.load = function(lname, values = true) {
+    me.load = async function(lname, values = true) {
         if (!lname) lname = prompt('enter name for load', me.name);
         if (!lname) return;
-        const ss = readtext('settings/' + lname + '.vesettings', true)
+        const ss = await readtext('settings/' + lname + '.vesettings', true)
         me.restore(ss, values)
     }
 
@@ -306,9 +349,9 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
         return {k:e, v:f};
     }
 
-    me.restore = function eerestore(ll, set = usevalues) {
+    me.restore = async function eerestore(ll, set = usevalues) {
         ll = ll ?? initstring;
-        ll = ll ?? readtext('settings/' + me.name + '.vesettings', true);
+        ll = ll ?? await readtext('settings/' + me.name + '.vesettings', true);
         ll = ll ?? localStorage['viewedit_' + me.name];
         ll = ll ?? '';
         const lls = ll.split('\n~~~\n');
@@ -323,21 +366,6 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left} = {})
     me.restore(initstring, me.restoreset); // will restore from file or localStorage if no initstring
 
     me.calc()
-
-    /** find all places where this name happens */
-    me.prefs = 'W G U tad tadkin'.split(' ')
-    me.list = function eelist(lname, prefs = me.prefs) {
-        const r = {}
-        for (const pn of prefs) {
-            const p = window[pn];
-            const v = JSON.stringify(p[lname]);
-            if (v !== undefined) {
-                if (!r[v]) r[v] = '';
-                r[v] += pn
-            }
-        }
-        return r;
-    }
 
     me.remove = function() {
         const dds = me.dds = Array.from(ee.childNodes);
@@ -467,9 +495,25 @@ Viewedit.mapobjects = function() {
 return r;
 }
 
+/** find all places where this name happens */
+Viewedit.owners = 'W G U tad tadkin feed'.split(' ')
+Viewedit.list = function eelist(lname, prefs = Viewedit.owners) {
+    const r = {}
+    for (const pn of prefs) {
+        const p = window[pn];
+        const v = JSON.stringify(p[lname]);
+        if (v !== undefined) {
+            if (!r[v]) r[v] = '';
+            r[v] += pn
+        }
+    }
+return r;
+}
+
+
 
 
 var VEF = name => GX.getgui(name).press;
 var VEV = new Proxy({}, {get: (o,k)=>GX.getValue(k), set: (o,k,v)=>GX.setValue(k,v)})
 
-fileTypeHandlers['.vesettings'] = (data, fid) => new Viewedit({name:fid, initstring: data})
+if (fileTypeHandlers) fileTypeHandlers['.vesettings'] = (data, fid) => new Viewedit({name:fid, initstring: data})

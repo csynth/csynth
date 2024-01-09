@@ -7,15 +7,18 @@
             * { box-sizing: border-box; }
             row { display: flex; }
             /* Create two equal columns that sits next to each other */
-            column { flex: 33%; padding: 4em; }
+            column { flex: 33%; padding: 0 2%;}
+            ul {margin-top: 0;}
+            h3 {margin-bottom: 0.3em;}
         </style>
     </head>
     <body>
+        <h1>Mutator group web demos</h1>
+        <span style="position:absolute; top:2em; right: 3em">Serving from: <b id="serverdir"></b></span>
         <row>
         <column>
 
-        <h1>Mutator group web demos</h1>
-        <p>This launches various Mutator group WebGL and WebVR based demos.
+        <p>This launches various Mutator group WebGL and WebXR based demos.
             It does not include non web-based systems such as Vortex and FoldSynth.</p>
             <p>Use <b>alt,leftarrow</b> to return to this menu from any chosen item; or hit <b>F11</b> to see standard browser window.</p>
 
@@ -29,6 +32,7 @@
             </li>
             <li><a href="csynth.html?newsc2023">Virus: New Scientist Live: 2023</a></li>
             <li><a href="threek.html?tadmanchester">Kinect version, towards Manchester</a></li>
+            <li><a href="threek.html?orgbw">pre-mini bw prep in full Organic</a></li>
 
         </ul>
 
@@ -68,21 +72,13 @@
 
         </ul>
 
-        <h4>WebXR and three.js debug samples</h4>
+        <h3>WebXR and three.js debug samples</h3>
+        Not our code; here to help debug some WebXR issues.
         <ul>
-            <li><a href="https://threejs.org/examples/?q=webxr#webxr_xr_ballshooter">Three.js VR ballshooter</a>
-                Not our code; here to help debug some WebXR issues.
-            </li>
-            <li><a href="https://immersive-web.github.io/webxr-samples/immersive-vr-session.html?usePolyfill=0">github immersive webXR tests</a>
-                Not our code; here to help debug some WebXR issues.
-            </li>
-            <li><a href="https://immersive-web.github.io/webxr-samples/input-tracking.html">github controller webXR tests</a>
-                Not our code; here to help debug some WebXR issues.
-            </li>
-
-            <li><a href="https://immersive-web.github.io/webxr-samples/">github webXR multiple tests</a>
-                Not our code; here to help debug some WebXR issues.
-            </li>
+            <li><a href="https://threejs.org/examples/?q=webxr#webxr_xr_ballshooter">Three.js VR ballshooter</a></li>
+            <li><a href="https://immersive-web.github.io/webxr-samples/immersive-vr-session.html?usePolyfill=0">github immersive webXR tests</a></li>
+            <li><a href="https://immersive-web.github.io/webxr-samples/input-tracking.html">github controller webXR tests</a></li>
+            <li><a href="https://immersive-web.github.io/webxr-samples/">github webXR multiple tests</a></li>
         </ul>
 
 
@@ -122,7 +118,7 @@
 
         <h3>'mini' version</h3>
         <ul>
-            <li><a href="minicode/test/miniorg.html">minified mini version</a></li>
+            <li><a href="minicode/latestmini.html">minified mini version</a></li>
             <li><a href="minicode/miniorganic.html">debug mini version</a></li>
         </ul>
 
@@ -137,6 +133,7 @@
 
         <h3>CSynth various demos</h3>
             <ul>
+                <li><a href="csynth.html">Launch CSynth, no data</a></li>
                 <li><a href="csynth.html?york">York virus join the RNA (no outer shell)</a></li>
                 <li><a href="csynth.html?startscript=CSynth/data/York/S6-S10_interactions_Edges_for_CSynth.js">York virus (broken Guy Fawkes 2022)</a></li>
                 <li><a href="csynth.html?crick">Crick</a>Yeast constrained to shell</li>
@@ -155,8 +152,10 @@
 
             </ul>
 
-        <h3><a href=",,/xyz/xyz.html?startdata=data/4bcufullCA.pdb">Simple virus display and symmetry</a></h3>
-        <p>Simple display of virus and dynamics to demonstrate geometry symmetry.</p>
+        <h3>Simple virus display and symmetry</h3>
+        <ul><li>
+        <a href=",,/xyz/xyz.html?startdata=data/4bcufullCA.pdb">Simple display of virus and dynamics to demonstrate geometry symmetry.</a>
+        </li></ul>
 
         <h3><a href=",,/xyz/xyz.html?arch">Star Carr</a></h3>
 		<p>3d display of Star Car finds and context.</p>
@@ -200,6 +199,8 @@
             <li><a href = "http://localhost:8800/!c:/gitProjects/csynth/demos.html">Local Git</a></li>
             <li><a href = "https://csynth.github.io/csynth/demos.html">Public site, Github.io</a></li>
             <li><a href = "https://programbits.co.uk/Mutspace/organicart/threek.html">External private Organic, programbits</a></li>
+            <li><a href = "http://desktop:8800/demos.html">Local via network</a></li>
+            <li><a href = "chrome://inspect/#devices">Chrome remote debug</a>. chrome://inspect/#devices . won't work as link</li>
         </ul>
 
         <h2>From regression tests</h2>
@@ -212,18 +213,24 @@
 
     <script src="JS/searchString.js"></script>
     <script type="text/javascript">
-        window.onload = () => {
+        var islocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.startsWith('192.168.1.');
+        window.onload = async () => {
             const s = Object.entries(searchReplace).map(x =>`
                 <dt><a href="threek.html?${x[0]}">${x[0]}</a></dt>${x[1]}
             `)
             window.regr.innerHTML = s;
+            window.serverdir.innerHTML = islocalhost ? await runcmd('cd') : location.hostname;
         }
 
-        var islocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
         async function nircmd(str) {
             if (islocalhost)
                 return await fetch('runcmd.php', {headers: {cmd: `..\\nircmd\\nircmd.exe ${str}`}})
             console.error('cannot use nircmd when not in localhost', location.hostname, str);
+        }
+        async function runcmd(str) {
+            if (islocalhost)
+                return await(await fetch('runcmd.php', {headers: {cmd: str}})).text();
+            console.error('cannot use runcmd when not in localhost', location.hostname, str);
         }
         async function restorewin() {
             console.log('restorewin was', innerWidth, innerHeight, outerWidth, outerHeight);

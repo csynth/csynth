@@ -31,7 +31,7 @@ async function fileExistsAsync(fid) {
     if (nwfs)
         return nwfs.existsSync(fid);    // TODO, make sure what nwfs.exists returns
     else {
-        const r = await fetch('/fileexists/'+fid);
+        const r = await xfetch('/fileexists/'+fid);
         const rr = await r.text();
         return rr === 'true';
     }
@@ -262,7 +262,10 @@ https://csynth.molbiol.ox.ac.uk/csynthstatic/data
 /** read directory */
 function readdir(dir) {
     let result;
-    if (nwfs) {
+    if (dir.startsWith('droppedFiles/')) {
+        // console.error('dir for droppedFiles');
+        return xfetch.droppedFiles;  // ?? to refine before returning ??
+    } else if (nwfs) {
         // this version for Electron
         const list = nwfs.readdirSync(dir);
         const rr = {};

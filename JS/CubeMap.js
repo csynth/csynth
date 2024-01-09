@@ -281,7 +281,7 @@ var CubeMap = new function () {
         if (value === 'color' && cMap.renderState === 'color') return; // no, maybe just first time ???
         cMap.renderState = value;
 
-        selcol.setRGB(0.13, 0.13, 0.2);
+        // remove selcol.setRGB(0.13, 0.13, 0.2);
 
         if (!cMap.textures) cMap.Init(true, genes);
 
@@ -292,12 +292,12 @@ var CubeMap = new function () {
         // set up some 'standard' things that may have been lost
         setAllLots('wall_refl[rgb]', {value:1, free: 0});
 
-        selcol.setRGB(0.8, 1, 1);
+        // remove selcol.setRGB(0.8, 1, 1);
         switch (value) {
             case 'color':
                 cMap.renderMap = false;
                 cMap.renderBack = false;
-                selcol.setRGB(0.13, 0.13, 0.2);
+                // remove selcol.setRGB(0.13, 0.13, 0.2);
                 break;
             case 'cubemap': case 'skymap':
                 genes.wall_refl1 = genes.wall_refl2 = genes.wall_refl3 = 1;

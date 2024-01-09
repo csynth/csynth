@@ -19,7 +19,7 @@ springdemo, yaml, readTextureAsVec3, col3, VEC3, lastdocx, lastdocy, mousewhich,
 GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, runkeys, renderer, viveAnim, S, setExtraKey,
 badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt,
 HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files, feed, buff2GenStruct, inputType,
-blob2forEach, _binfiles, olength, blob2StringCB, searchReplace, interpretSearchString, readdirAsync
+blob2forEach, _binfiles, olength, blob2StringCB, searchReplace, interpretSearchString, readdirAsync, gilbert3d, xfetch, msgfixerrorlog
 ;
 //, msgbox, serious, slider1, slider2, uniforms, currentGenes, dat; // keep linter happy
 
@@ -60,7 +60,7 @@ CSynth.init = function CSynth_init(quickout) {
     CSynth.initdone = true;
     if (oxcsynth) msgfix.all = '';  // show serious (>) but not others
 
-    fileTypeHandlers['.config'] = loadjs;  // allow .config files for .js (? too late here ?)
+    fileTypeHandlers['.csyconfig'] = loadjs;  // allow .config files for .js (? too late here ?)
     fileTypeHandlers['.txt'] = contactsReader;  // allow .txt files for contacts
 
     W.fileDialog.multiple = true;
@@ -156,8 +156,8 @@ contactsReader = async function contactsReaderF(dataStr, fid, contact = {}, isSu
         if (dataStr) {
             blob = dataStr
         } else {
-            const fff = await fetch(fid);
-            blob = await fff.blob();
+            const fff  = await xfetch(fid);
+            blob = fff.blob ? await fff.blob() : fff;   // <<<< TO VERIFY TODO
         }
         if (_binfiles.includes(ext) ) {
             dataStr = new Uint8Array( await blob.arrayBuffer() );
@@ -1344,6 +1344,7 @@ CSynth.parseXYZ = function (xyzstruct, parseonly=false, all = CSynth.pdball) {
         copyFrom(xyzstruct, CSynth.xyzs[key]);
         return xyzstruct;
     } // using this broke different pdb intersect things
+    if (!rawXyzData && filename.startsWith('droppedFiles/')) rawXyzData = xfetch.droppedFiles[getFileName(filename)]?.data;
     if (!rawXyzData) rawXyzData = openfiles.dropped[filename];
     if (!rawXyzData) rawXyzData = posturierror(filename);
     if (!rawXyzData) { console.error('cannot load file', xyzstruct); return; }
@@ -1783,6 +1784,10 @@ async function loadData (cc, fid=cc.key) {
     cc.representativeContact = FIRST(cc.representativeContact,
         cc.contacts.reduce((c,v) => Math.max(c, v.meannzv), 0));
 
+    // if (cc.currentLoadingDir === 'droppedFiles' && cc.xyzs.length > 0) {
+    //     msgfixerrorlog('cannot load xyzs from dropped config file')
+    //     cc.xyzs = [];
+    // }
     if (cc.xyzs.length > 0) {
         cc.xyzs.forEach( xx => CSynth.parseXYZ(xx) );
         CSynth.mergePdbs(cc);
@@ -2070,7 +2075,7 @@ async function getContacts(contact, dir, isSubfile = false) {
     //         || ext === '.rawobserved') {
     //         // const _rawdata = posturierror(fidd);  // must read data
     //         let _rawdata;
-    //         const fff = await fetch(fidd);
+    //         const fff = await xfetch(fidd);
     //         const blob = await fff.blob();
     //         if (ext === '.zip') {
     //             _rawdata = new Uint8Array(await blob.arrayBuffer());
@@ -2923,6 +2928,7 @@ function arrayStats(p, c = {}) {
     // measure backbone length and other stats ... todo move to initial reading
     let ds = 0, dmin = 99999, dmax = 0;
     for (let i=1; i < p.length; i++) {
+        if (p[1-1] === void 0) continue;
         let d = distxyz(p[i], p[i-1]);  // p[i].distanceTo(p[i-1]); may have xyz but not be Vector3
         ds += d;
         dmin = Math.min(d, dmin);
@@ -3192,8 +3198,8 @@ CSynth.getContactsZZ = function(contactnum) {
         for (let a = 0; a < numInstances-1; a++) {
             const b = a+1;
             const x = contact.getab(a, b);
-            if (x <= thresh) td[a*n+b] = v;
             const y = contact.getab(b, a);
+            if (x <= thresh) td[a*n+b] = v;
             if (y <= thresh) td[b*n+a] = v;
             // if (x !== y) console.error('warning, asymmetric backbone', a, a+1, x, y);
         }
@@ -3373,7 +3379,7 @@ CSynth.xyzToTexture = function(xyznum) {
 // CSynth.markerNames = ['user0', 'user1', 'user2', 'user3', 'user4', 'user5', 'user6', 'user7'];
 CSynth.markers = new Array(PICKNUM-16);
 /** set a marker , id=0..7 -ve to autoassign, bp is base pair number, -ve to remove marker */
-CSynth.setMarker = function(id, bp, name = 'bp_' + bp) {
+CSynth.setMarker = function(id, bp, name) {
     id = +id;
     if (id < 0) {
         id = CSynth.markers.findIndex(m => m && m.bp === bp);
@@ -3383,11 +3389,15 @@ CSynth.setMarker = function(id, bp, name = 'bp_' + bp) {
             {msgfixerror('marker', 'no space to allocate marker in CSynth.setMarker', bp, name); return; }
     }
     if (id < 0 || id > PICKNUM-16 || isNaN(id)) {msgfixerror('marker', 'bad id to CSynth.setMarker', id); return; }
+
     if (bp < 0) {
         uniforms.userPicks.value[id] = 999;
         delete CSynth.markers[id];
         return;
     }
+    if (bp.bp !== undefined) bp = bp.bp;
+    if (bp.partid !== undefined) bp = bp.partid;
+    if (name === undefined)  name = 'bp_' + bp;
     const bpn = CSynth.getNormalisedIndex(bp);
     if (bpn < 0 || bpn > 1) log(`warning, bp ${bp} to CSynth.setMarker out of range ${CSynth.current.minid}..${CSynth.current.maxid}`)
     if (uniforms.userPicks) uniforms.userPicks.value[id] = bpn;
@@ -3431,10 +3441,10 @@ CSynth.setMarkerFromSelection = function(id) {
     const p = CSynth.picks['g-matrix1'];
     const r = CSynth.picks['g-ribbon'];
     if (p) {
-        CSynth.setMarker(id, p.bp);
-        CSynth.setMarker(id+1, CSynth.picks['g-matrix2'].bp);
+        CSynth.setMarker(id, p);
+        CSynth.setMarker(id+1, CSynth.picks['g-matrix2']);
     } else if (r) {
-        CSynth.setMarker(id, r.bp);
+        CSynth.setMarker(id, r);
     } else {
         CSynth.setMarker(id, -1);
         // CSynth.setMarker(id+1, -1);
@@ -3824,11 +3834,15 @@ CSynth.showContacts = function(td, a, ar=3, b=a, br=ar) {
     for (let i = a-ar; i <= a + ar; i++) {
         const y = [];
         for (let j = b-br; j <= b + br; j++) {
-            y.push(format(td[i+j*n], 6));
+            let f = format(td[i+j*n], 6);
+            if (i === j) f = `<yellow>${f}</yellow>`;
+            else if (i === a) f = `<green>${f}</green>`;
+            else if (j === b) f = `<red>${f}</red>`;
+            y.push(f);
         }
         x.push(y);
     }
-    msgfix(`contacts ${a-ar} ${a+ar} ${b-br} ${b+br}`, array2Table(x));
+    msgfix(`contacts ${a} ${b}`, `${a-ar} ${a+ar} ${b-br} ${b+br} ${array2Table(x)}`);
 }
 
 // edge does not support TextDecoder.  We only want very limited function
@@ -3843,7 +3857,7 @@ if (!TextDecoder) {
 }
 
 
-CSynth.randpos = function(k=G.m_k, seedv = CSynth.randpos.seed || frametime ) {
+CSynth.randpos = function(k = CSynth.referenceSize * 0.07, seedv = CSynth.randpos.seed || frametime ) {
     const r = () => random() - 0.5;
     let x=0, y=0, z=0, sx = 0, sy = 0, sz = 0;
 
@@ -3882,13 +3896,22 @@ CSynth.usedata = function(arr, num = arr.length, pull) {
 if fill is true the full curve is sampled to fill space with less regular form */
 CSynth.hilbert = function(sc = 1, num = numInstances, cen = vec3(), pull=false, fill = false) {
     // 4 -> 64, 8->512,
-    const k = num ** (1/3);
-    const o = (k-1)/2;
-    const ox = o - cen.x/sc, oy = o - cen.y/sc, oz = o - cen.z/sc;
-    const r = hilbertC(k);
+    let ox,oy, oz, r, nnum;
+    if (num[0]) {
+        nnum = num[0] * num[1] * num[2];
+        const k = num ** (1/3);
+        ox = (num[0]-1)/2 - cen.x/sc, oy = (num[1]-1)/2 - cen.y/sc, oz = (num[2]-1)/2 - cen.z/sc;
+        r = Array.from(gilbert3d(...num));
+    } else {
+        nnum = num;
+        const k = num ** (1/3);
+        const o = (k-1)/2;
+        ox = o - cen.x/sc, oy = o - cen.y/sc, oz = o - cen.z/sc;
+        r = hilbertC(k);
+    }
     const arr = [];
-    const rat = fill ? r.length / num : 1;
-    for (let i=0; i<num; i++) {
+    const rat = fill ? r.length / nnum : 1;
+    for (let i=0; i<nnum; i++) {
         const ii = Math.round(i * rat);
         const {x,y,z} = r[ii];
         arr[i] = VEC3(sc*(x-ox), sc*(y-oy), sc*(z-oz));
@@ -5588,8 +5611,10 @@ CSynth.shortcuts = {
 
 CSynth.runexample = function(n) {
     if (typeof n === 'number') n = 'cexample' + n;
-    interpretSearchString(n);// this will set startscript etc
-    processFile('CSynth/data/' + startscript);
+    location.search = n;
+    // below uses ready loaded shaders, but prevents back button
+    // interpretSearchString(n);// this will set startscript etc
+    // processFile('CSynth/data/' + startscript);
 }
 
 /** spring oddities at end of big pdb

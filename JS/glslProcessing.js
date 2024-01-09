@@ -62,6 +62,7 @@ function substituteShadercode(code, vals, codevariant, type, undef) {
  */
 function substituteVirtualShaderCode(code, overrides, type, undef) {
     if (!overrides) return code;
+    if (typeof overrides === 'function') overrides = overrides();
     const hasUndef = undef !== undefined;
     // replace overrides in their correct position
     var oo = overrides.split('override ');

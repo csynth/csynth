@@ -68,6 +68,8 @@ uniforms = {
         horncount:      { type: "f", value: 1.0 },  // total number of horns
         _boxsize:       { type: "f", value: 500 },  // reference size for box
         cumcount:       { value: new Array(MAXPATHS).fill(0)},    // for cumulative count of different horn types
+        horndepth:      { value: new Array(MAXPATHS).fill(0)},    // nesting depth of honn of horns
+        hornvdepth:     { value: new Array(MAXPATHS).fill(0)},    // visible nesting depth of honn of horns (eg ignore no radius)
         ribsa:          { value: new Array(MAXPATHS).fill(0)},    // ribs (for ribbing) of different horn types
         lribdeptha:     { value: new Array(MAXPATHS).fill(0)},    // ribdepth
         dynUniforms:    { value: dynUniforms},          // for dynamic oprations
@@ -180,6 +182,7 @@ function rangeiprep(genes, whichRange) {
     setObjUniforms(genes, uniforms);
     uniforms.gscale.value = 1;                                  // for cpu scale
     uniforms.gcentre.value.set(0,0,0,0);
+    uniforms.shrinkradiusA.value = uniforms.shrinkradiusB.value = 0;    // scale does not use shrink/cut
     if (!render_camera) render_camera = camera;
 
     renderskelbuff(genes);
@@ -486,8 +489,6 @@ function centrescale(xxx = currentGenes, whichRange=undefined, damp=undefined, a
 
     var rr = establishObjpos(genes, whichRange, damp);
     resetCamera(genes);
-    if (rr === 'done') return;
-    if (rr === 'notdone') { onframe(() => centrescale(xxx, whichRange, damp, anduser) ); return; }
 
     // and make rot4 behave (3d only)
     // if anduser set (default for compatibility) we override user scale
@@ -499,6 +500,8 @@ function centrescale(xxx = currentGenes, whichRange=undefined, damp=undefined, a
         genes._uScale =  1;             // reset zoom
         genes._panx = genes._pany = genes._panz = 0
     }
+    if (rr === 'done') return;
+    if (rr === 'notdone') { onframe(() => centrescale(xxx, whichRange, damp, anduser) ); return; }
 
     newframe();
     return rr;

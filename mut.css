@@ -1,10 +1,23 @@
-#startscreen { z-index: 1; display: block; background-color: black;
-               position: fixed; width: 100%; height: 100%; top: 0; left: 0;
-			   font-size: 24pt;
-			   color: white; font-family: verdana, sans;
+#startscreen {
+               z-index: 1;
+               display: block;
+               background-color: rgba(0,0,0,0.5);
+               position: fixed;
+               width: 100%;
+               height: 100%;
+               top: 0;
+               left: 0;
+               font-size: 24pt;
+               color: white;
+               opacity: 1;
+               font-family: verdana, sans;
                background-image: url("images/UI/startscreen.jpg");
-               background-repeat: no-repeat; background-position: left;
+               background-repeat: no-repeat;
+               background-position: left;
 }
+
+#startscreeng {background-color: rgba(0,0,0,0.5); width: 60%;}
+
 li.UU {text-decoration: underline; color:#bbf}
 
 /* <editor-fold> general */
@@ -15,7 +28,7 @@ body {
 	margin:0;
 	font-size: 70%;
 	background-color: #222;
-	color: #aaa;
+	color: #fff;
 	font-family: 'consolas', monospace;
 }
 
@@ -114,7 +127,7 @@ dt { display: inline; font-weight:bold; }
 .msg_item {
 	padding: 1px;
 } */
-.files_dir,a:visited {color: #f8f;}
+.files_dir,a:visited {color: #c4f;}
 .files_dir,a {color: #bbf;}
 .files_dir {color: #8f8;}
 
@@ -158,10 +171,10 @@ dt { display: inline; font-weight:bold; }
 /* <editor-fold> genes */
 .min, .max, .delta, .step, .gtag  { display:inline; }
 input[type="radio"] { margin: 0px 3px 0px 3px; }
-input[type="range"]  { width: 60%; }
+input[type="range"]  {width: 60%;}
 input[type="number"]  { width: 6em; }
 input.current, input.name, span.name {width: 6em;/* font-size: 80%; */display: inline-block; padding: 1px}
-.gene input.slider  {width: 50%;}
+.gene input.slider  {width: 45%;}
 input.min, input.max, input.delta, input.step { width: 4em; font-size: 80%; }
 
 .gene {
@@ -169,7 +182,7 @@ input.min, input.max, input.delta, input.step { width: 4em; font-size: 80%; }
     white-space: nowrap;
 }
 
-.genehidegroup {display: block;text-align: center;}
+.genehidegroup {display: block;text-align: right;right: -10em;background: black;padding: 12px;border-radius: 6px;max-width: 15em;min-width: 0;border: 1px solid green;top: 0em;}
 
 /* #genefieldset .gene .genemain  */
 .addgene, .gtagx { display:none !important; }
@@ -225,7 +238,7 @@ fieldset			for 'normal' collapse, including gene groups
 In each case, the top level may be marked by the tag .hidebelow;
 which is added/removed dynamically by Javascript on click of the first child.
 */
-.hidebelow:not(:hover) > :not(:first-child) { display : none; } /* hidden except for legend, until hover */
+.hidebelow:not(:hover) > :not(:first-child) {display : none;/* right:  0px; *//* overflow: visible; *//* width: 10em; */} /* hidden except for legend, until hover */
 
 
 legend:before, .genehide:before { content : "-"; }
@@ -245,25 +258,17 @@ legend, .genehide {
 :hover.hidebelow > .genehide { color: green; }  /* when flyout */
 
 .hidebelow:hover > legend:first-child +*, .hidebelow:hover > .genehide +* { /* flyout of single */
-	display: block;
-	left: 1em;
-	top: 0; /* so mouse move does not lose the hovering item */
-	position:absolute;
-	border: 1px solid #080;
-	margin: 0 -4004px 0 4px;
-	padding: 12px;
+	
+	 /* so mouse move does not lose the hovering item */
+	position: absolute;
 	z-index: 2000;
-	background-color: #2f2f2f;
-	border-radius: 6px;
-	min-width: 360px;
-	width: 360px;
+	background-color: #400;
 }
 .hidebelow:hover > .genehide +* { /* flyout for gene must be closer */
-	left: -19.3em;
-	top: 2em;
-	max-width: 15em;
-	min-width: 0em;
+	left: -16em;
+	top: 1em;
 }
+#filterhistorylist {top:-0.5em}
 
 /* </editor-fold> collapse and flyout ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  */
 /* <editor-fold> controls */
@@ -285,14 +290,15 @@ controlscore is always same width  (340)
 canvas has width based on full window width less scrollbar less controlscore
 */
 #mystats { height: 96px; display: block }
-#guifilter {display: block;pointer-events: auto;width: 350px;height: 40px;background-color: rgba(13, 13, 13, 0.75); color: #aaa}
+#guifilter {display: block;pointer-events: auto;width: 350px;height: 40px;background-color: black;color: white;}
 #guifilter.error { background-color: #a00 }
 #controlsouter {
     z-index: 1500;  /* high, so fly-outs are displayed over the canvas */
     position: absolute;
     left: 0px;   /** set top left to around 305/50px if main screen is TV, eg GV gallary */
     top: 0px;
-	pointer-events: none;  /* off, so mouse still works on all canvas */
+    pointer-events: none;  /* off, so mouse still works on all canvas */
+    background-color: #004;
 }
 
 /* fix width of controls, not controlsouter, so controlsouter narrow when only stats displayed */
@@ -314,7 +320,7 @@ canvas has width based on full window width less scrollbar less controlscore
 	padding: 0px;
 	position: absolute;
 	left: 0px; /* seems to be about right for scroll bar, at least on Peter's W8 machine. */
-	background-color: rgba(13,13,13,1);
+	background-color: black;
 	text-align: left;
 	pointer-events: auto;  /* on, so mouse works at this level and below */
 }
@@ -797,13 +803,13 @@ input[type=color] {
 }
 
 #hovercontrols button {
-	margin-bottom: 4px;
+	margin-bottom: 0px;
 	margin-left: -4px;  /* why gap otherwise? */
 	width: 2em;
-    font-size: 200%;
+	font-size: 200%;
 }
 
-#hovercontrols + .help {
+#hovercontrols .help {
 	top: 30px;
     font-size: 150%;
 	width: 10em;
@@ -1024,6 +1030,7 @@ html-gl { display: inline-block; transform: translateZ(0);}
 	margin: 0;
 	padding: 0;
 	max-width: 60em;
+	color: black;
 }
 
 .vieweditholder legend {

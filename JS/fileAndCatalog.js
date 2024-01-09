@@ -21,7 +21,7 @@ var W, genedefs, mainvp, savedef, keysdown, inputs, fileOpenReadWS, fileReadWS, 
         loadStartTime, genbar, uriclean, S, isNode, mkdir, readdir, readtext, runcommandphp,
         writetextremote, fileExists, remotesave, fileStat, currentLoadingData, target, defaultObj, filterDOMEv, checkoao, msgflash, canvdroppaste,
         searchValues, inps, COL, cMap, setBackgroundColor, addscript, GX, islocalhost, readbinaryasync, HW,
-        msgboxVisible, isCSynth;
+        msgboxVisible, isCSynth, msgfixerrorlog;
 
 var _binfiles = ['.tif', '.bintri', '.zip', '.map'];
 var FrameSaver = {};  // psuedo-class
@@ -40,7 +40,7 @@ var regularizeTranruleOnLoad = false;
 
 
 /** handlers for different file types; in each case pass in data content of file */
-var fileTypeHandlers = { ".oao": loadOao, ".stem": loadStem, '.oag': loadOag, '.js': loadjs, '.binary': loadRunSave };
+var fileTypeHandlers = { ".oao": loadOao, ".stem": loadStem, '.oag': loadOag, '.js': loadjs, '.csyconfig': loadjs, '.binary': loadRunSave };
 
 /** use .binary dropped file to render a saved scene, uses entire directory */
 function loadRunSave(file) {
@@ -284,7 +284,7 @@ async function _docdroppaste(evt, dt) {
     let fileEntries = [], directoryEntries= [];
     // copy here as the async destroys the original ds.items etc
     const dtcopy = Array.from(dt.items);
-    const filescopy = Array.from(dt.files);
+    let filescopy = Array.from(dt.files);
     const promises = [];
     for(let i=0; i < dtcopy.length; i++) {
         const item = dtcopy[i].webkitGetAsEntry();
@@ -295,7 +295,7 @@ async function _docdroppaste(evt, dt) {
     }
     await Promise.all(promises);
     log('found files:', fileEntries.length, directoryEntries.length);
-    if (directoryEntries.length !== 0) return log(msgfixerror('drop', 'directory drop not yet supported'));
+    if (directoryEntries.length !== 0) { filescopy = await directoryDrop(directoryEntries); directoryEntries = []; }
     // if (isdir) return;
 
     var done = false;
@@ -316,8 +316,9 @@ async function _docdroppaste(evt, dt) {
                     CSynth.handlefileset( {eventParms: [{ canonpath: data}] })
                 } else {
                     msgfix('evaluate', data);
-                    var r = eval(data);
-                    msgfix('evaluate', data, 'result', r);
+                    var r = await eval(data);
+                    r = format(r)
+                    msgfix('evaluate', data, 'result', format(r).substring(0, 100));
                 }
             } catch (e) {
                 msgfix('evaluate', data, 'failed', e.message);
@@ -329,8 +330,25 @@ async function _docdroppaste(evt, dt) {
     dragOverDispobj = NODO;
 
     if (done) return killev(evt);
+    return;
 }
 
+async function directoryDrop(directoryEntries) {
+    if (directoryEntries.length > 0) msgfixerrorlog('drop', 'multiple directory drop not yet supported, only first used');
+    const d = directoryEntries[0];
+    const files = await _scanFiles(d)
+    async function getFile(fileEntry) {
+        try {
+          return new Promise((resolve, reject) => fileEntry.file(resolve, reject));
+        } catch (err) {
+          console.log(err);
+        }
+    }
+    const filesfile = [];
+    for (const f of files) filesfile.push(await getFile(f));
+    // const filesfile = files.map(async f => await getFile(f));
+    return filesfile;
+}
 /** document drop  */
 function docdragover(evt) {
     dragOverDispobj = getDispobj(evt);
@@ -773,7 +791,8 @@ var saveSnap = saven;
 /** save genes in the current savename, or given name if specified */
 function save(genes, name) {
     genes = genes || currentGenes;
-    name = name || trygeteleval("savename") || genes.name;
+    if (!name) name = prompt('name for save', trygeteleval("savename") || genes.name);
+    if (!name) return;
     //log( camera );
     //~~~ localStorageX[savedef + name] = JSON.stringify(newVersion );
     name = name.replace('.oao','');  // just in case .oao given
@@ -2131,7 +2150,7 @@ var geojsonReader = jsonReader;
 /** read file and return structure, or undefined if no file */
 async function readJSON(fid) {
     if (await fileExistsAsync(fid)) {
-        const resp = await fetch(fid);
+        const resp = await xfetch(fid);
         const data = await resp.text();
         return JSON.parse(data);
     }
@@ -2415,6 +2434,17 @@ async function filesFromDialog(callback) {
     // await S.waitEvent()
 }
 
+async function xfetch(fid) {
+    if (fid.startsWith('droppedFiles')) {
+        const sfid = fid.post('/').replaceall('/', '');
+        const ff = xfetch.droppedFiles[sfid];
+        if (!ff) console.error('no file', fid);
+        return ff;
+    }
+    return await fetch(fid);
+}
+xfetch.droppedFiles = {};
+
 //
 // function showdialog() {
 //     if (showdialog.done) return;
@@ -2427,3 +2457,19 @@ async function filesFromDialog(callback) {
 //     document.addEventListener('mousedown', showdialog)
 //     document.addEventListener('keydown', showdialog)
 // }
+
+
+/***
+access to files/directories.
+
+ctrl-o => filesFromDialog() => html input type='file'
+paste
+drag-drop
+
+nwfs
+patches to our local server
+
+showDirecteoryPicker, showOpenFilePicker, showSaveFilePicker
+
+
+***/

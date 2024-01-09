@@ -23,7 +23,7 @@ flatten, format, lastTouchedDispobj, debugKey, setHolo, Holo, GX, makevr, tadpol
 OrganicSpeech, bigimprep, feedbacktests, mutateVisibleGenes, fxaa, shangbig, currentHset, xxxhset, HornSet, resolveFilter, clearSelected,
 xxxgenes, hoverDispobj, resetCamera, slots, mainvp, nop, isCSynth, fullscreen, transferView, mutateColour, mutateForm, BrightonStyle, GUIInit, GUIwallkeys,
 niractcmd, randmuts, genmini, setBackgroundColor, home, toggleFullscreen, enterFullscreen, exitFullscreen, showzoom, showzoomfix,
-saveLots, edge, genwinsom, filesFromDialog
+saveLots, edge, genwinsom, filesFromDialog, WEBVR
 
 var extrakeys = {}; // var for sharing
 var keysEmulateVR = false;     // set to true if we want to emulate some VT button experiences
@@ -248,7 +248,7 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
         case 'K,R': CSynth.randpos(G.backboneScale * 3); break;     // set random positions
         case 'K,N': tadpoleSystem.remakePositions(); break;         // set tadpole random grid posistions
         case 'K,H': loadopen(); break;                               //# set spring positions to helix
-        case 'K,S': CSynth.hilbert(G.backboneScale * 4); break;     // set springs positions to speace filling (Hilbert) curve
+        case 'K,S': CSynth.hilbert(G.backboneScale * 4); break;     // set springs positions to space filling (Hilbert) curve
         case 'K,;': springs.rotatePositions(); break;               // rotate all particles about their centroid
         case 'K,#': springs.reCentre(); break;                     // K,# centre all particles based on their centroid
         case 'K,W': cMap.toggle(); break;                           // toggle wall type
@@ -834,7 +834,8 @@ function dockeydowninner(kkk, evt) {
         // ca se 'ct rl, Z': undo(); break;
         case 'alt,T': toTargetNow(); break;     // jump genes to target immediately
         case 'F2': case 'F6': log('f2/f6 seen for forcevr zzz'); renderVR.xrfs(true); break;  // try to enter VR
-        case 'F4': case 'shift,F2':     // leave VR mode
+        case 'shift,F2': WEBVR.setup(); break;  // try to recover if XR started after our initialization
+        case 'F4': // leave VR mode
             renderVR.xrfs(false);
             onframe(() => { setViewports([0,0]); setSize(); fitCanvasToWindow(); }, 3); break;  // special for odd sendKeys
 

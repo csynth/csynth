@@ -47,11 +47,14 @@ function res2uniforms() {
         }
 
         // occlusion less than line width gives odd line edge effect (todo? fix in shader)
-        if (U.occludewidth && U.occludewidth < U.baseksize) U.occludewidth = U.baseksize
+        // for now, allow these odd line edge effects to happen
+        // if (U.occludewidth && U.occludewidth < U.baseksize) U.occludewidth = U.baseksize
 
         // use a little bit of thickness to allow for fractional basekdise
-        imageOpts.thickness += U.baseksize % 1;
-        U.baseksize = Math.floor(U.baseksize);
+        if (imageOpts.usethick) {
+            imageOpts.thickness += U.baseksize % 1;
+            U.baseksize = Math.floor(U.baseksize);
+        }
     }
 
 }

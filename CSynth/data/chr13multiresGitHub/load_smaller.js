@@ -16,7 +16,8 @@ contacts: [
 
 	pdbs: [],
 	wigs: [],
-	xyzs: []
+	xyzs: [],
+    showLorentzian: false
 });
 
 

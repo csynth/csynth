@@ -125,6 +125,9 @@ COL.setx = function setx(list, low, high) {
     if (high === undefined) high = low;
     low = Math.max(low, list.start, 0);
     high = Math.min(high, list.end, COL.NUM - 1);
+    if (list.h !== undefined) {
+        list.col = hsv2rgb(list.h, list.s ?? 1, list.v ?? 1);
+    }
 
     if (list.col || list.col1 || list.col2 || list.col3) {
         //    list = Object.assign({}, list);// safe copy
@@ -195,6 +198,12 @@ COL.getx = function(keys={'':0}, low, high) {
 }
 
 COL.defaultDef = {'': 0.0, red:1, band:1, gloss:0.8, plastic:0.5, shininess: 40, texsc:50, texrepeat: 1, texfract3d: 1, subb: -1};
+
+COL.huecols = function(l = 0, h = COL.NUM-1, sp = 1.7) {
+    for (let i = l; i <= h; i++)
+        COL.setx({h: (i * sp) % 1, bump:0, band1:9999}, i); 
+    COL.col2genes();
+}
 
 COL.randcols = function randcols(kk=0, opts = {}) {
     COL.seed(kk);

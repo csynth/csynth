@@ -37,7 +37,7 @@
             var threever = searchValues.threever || 'three150'; // 127 'three106SJPT';  // unless set otherwise, 106 pending Oxford 'safe' server
 
             oxcsynth = true;
-            islocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            islocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.startsWith('192.168.1.');
             // note on webVR/webXR, 28/02/20.
             // Standard Chrome no longer supports webVR, so we must allowXR for CSynth.
             // Firefox does not yet support webXR, so we still should keep our webVR support for some time?
@@ -109,10 +109,12 @@
                 </ul>
                 To run examples click below
                 <ul>
-                    <li tabindex="0" onmousedown="CSynth.runexample(1)" class="UU">cexample 1: Mouse alpha globin (with WIMM)</li>
-                    <li tabindex="0" onmousedown="CSynth.runexample(2)" class="UU">cexample 2: Yeast (with Crick Institute)</li>
-                    <li tabindex="0" onmousedown="CSynth.runexample(3)" class="UU">cexample 3: Human structural variant on chromosome 13</li>
-                    <li tabindex="0" onmousedown="CSynth.runexample('fullvir')" class="UU">fullvir: Icosohedral Viruses (with York)</li>
+                    <!-- <li tabindex="0" onmousedown="CSynth.runexample(1)" class="UU">cexample 1: alpha-globin locus in different cell types (with WIMM)</li> -->
+                    <li><a href="csynth.html?cexample1">cexample 1: alpha-globin locus in different cell types (with WIMM)</a></li>
+                    <li><a href="csynth.html?cexample2">cexample 2: Yeast (with Crick Institute)</a></li>
+                    <li><a href="csynth.html?cexample3">cexample 3: Human structural variant on chromosome 13</a></li>
+                    <li><a href="csynth.html?mousetiff">cexample 4: Mouse alpha globin,  microscope matching (with WIMM)</a></li>
+                    <li><a href="csynth.html?fullvir">fullvir: Icosohedral Viruses (with York)</a></li>
                 </ul>
             </div>
             <div id="startscreeni">CSynth loading...</div>
@@ -892,7 +894,9 @@
             Maestro.on("preframe", function() {
 //                $('#startscreen').hide();
 //                W.startscreen.style.display = 'none';
+                msgboxVisible(false);
             }, {}, true);
+            msgboxVisible(false);
 
             // extra definitions for files not included in CSynth but with variables declared
             var dualmode = false;

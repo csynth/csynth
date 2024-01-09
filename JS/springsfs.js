@@ -176,6 +176,8 @@ function getSpringUniforms(springModel = springs) {
     addGenePerm_withID("patchwidth", 1.5, 0, 50, 0.1, 0.1, "patch width for backbone with missing contacts", "springs", "frozen");
 
     addGenePerm_withID("randvecscale", 1, 0, 2, 0.0001, 0.0001, "scale of random vector (for position of hidden particles", "springs", "frozen");
+    addGenePerm_withID("perturbScale", 50, 0, 100, 0.1, 0.01, "scale of spring position perturbatiuon", "springs", "frozen");
+
 
     return [myUniforms, myParms];
 }
@@ -591,11 +593,11 @@ vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float de
     if (m_force != 0.) {
         // to decide, how much to share with contactforce path
         float contact = texture2D(contactbuff, vec2(part, opart) * SMALLTEXTURE).x;
-        contact /= representativeContact;    // normaize, should not change shape, only scale
         if (contact <= -9.) {  // probably == -999., but may not be if using linear interpolation and expand
             gforce = 0.;
             if (backbonedistP <= patchwidth) contact = patchval;
         }
+        contact /= representativeContact;    // normalize, should not change shape, only scale
         if (backbonedistP < 1.5)        // their special case for |i-j| = 1
             contact = maxv/representativeContact;      // IFmax somewhat hard coded for now!
         if (contact > 0.) {

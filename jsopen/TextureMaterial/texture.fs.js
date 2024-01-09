@@ -285,7 +285,7 @@ vec3 bump(vec3 ttpos, vec3 mnormal) {
 	return bnorm;
 }
 
-
+#ifndef HSV2RGB
 //http://lolengine.net/blog/2013/07/27/rgb-to-hsv-in-glsl
 vec3 hsv2rgb(in vec3 c) {
     vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
@@ -302,6 +302,8 @@ vec3 rgb2hsv(in vec3 c) {
     float e = 1.0e-10;
     return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
 }
+#define HSV2RGB
+#endif
 float tpxx = 1.;  // shared texture lookup value, this will always be overwritten but the compiler could not see that so must initialize
 
 Colsurf colsurfd() { return colsurf(vec4(0.5,0.5,0.5,0), vec4(25, 0.6, -1, 0.5), vec4(0,0,0,0)); }

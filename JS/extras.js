@@ -6,7 +6,8 @@ writetextremote, Blob, readbinaryasync, currentObjects, refall, pick, lastdocx, 
 slots, mainvp, distxyz, material, EX, setInput, onframe, setViewports, Director, tad, showControls, mutateVisibleGenes, setSize, fullscreen, exitfullscreen,
 cMap, _boxsize, basescale, searchValues, getdesksave, S, runcommandphp, nircmd, islocalhost, downloadImageGui, Buffer, vec3, SG, substituteExpressions,
 currentHset, gl, showUniformsUsed, arraydiff, saveAs, everyframe, Maestro, msgfixerror, clearPostCache, runkeys, isCSynth, _R, GUIwallkeys,
-shadows, usemask, inps, exportmyshaders, readtext, format, savesystem, centrescalenow, xxxvn, lastDownLayerX, lastDownLayerY, copyXflip, feed, fileExists, niractcmd
+shadows, usemask, inps, exportmyshaders, readtext, format, savesystem, centrescalenow, xxxvn, lastDownLayerX, lastDownLayerY, copyXflip, feed, fileExists, niractcmd,
+ofirst
 
 
 /** convenient look at uniforms, n.b. uniforms must be mentioned in the proxy else ownKeys does not work */
@@ -1134,7 +1135,8 @@ function patchPulse() {
 // ERROR: 0:60: 'assign' : l-value required (can't modify a const)
 
 
-/** check the shader for an hset compiles, return error string if fails */
+/** check the shader for an hset compiles, return error string if fails
+note the #define values are just to allow cheap test  */
 function checkHsetShader(hset = currentHset) {
     const ss = `precision highp float; float crp, userp,x,y,z;
 #define stack(s)
@@ -1144,6 +1146,8 @@ function checkHsetShader(hset = currentHset) {
 #define warp(v,amp,offset)
 #define reflx(v)
 #define radiate(v)
+#define randf(i_. d_) i_
+#define cubicmix(i,j,k) i
 #define topfollow
 
 // for springs etc
@@ -1208,10 +1212,10 @@ function _compileShader(string, type) {
 // }
 
 
-var _CodeMirrorInstance, HornSet, _testcompile, _lastchecked;
+var _CodeMirrorInstance, HornSet, _testcompile, _lastchecked, _lastres;
 /** check a tranrule, and if x = console show times */
 function checkTranruleAll(rcode = _CodeMirrorInstance.getValue(), x = {time: nop, timeEnd: nop}) {
-    if (rcode === _lastchecked) return;
+    if (rcode === _lastchecked) return _lastres;
     _lastchecked = rcode;
 
     const code = substituteExpressions(rcode)
@@ -1228,12 +1232,13 @@ function checkTranruleAll(rcode = _CodeMirrorInstance.getValue(), x = {time: nop
         window.xxhset = dummyHset;
         const rr = dummyHset.parsehorn( code, undefined, true);
         x.timeEnd('parse');
-        if (rr.error) return 'parse error: ' + rr.error;
+        if (rr.error) return _lastres = 'parse error: ' + rr.error;
         dummyHset.tranrule = code;
 
         x.time('compile');
         try {
             dummyHset._compilehs(dummyHset.tranrule, {});
+            return _lastres = dummyHset;
         } catch (e) {
             return 'our compile error: ' + e;
         } finally {
@@ -1243,7 +1248,8 @@ function checkTranruleAll(rcode = _CodeMirrorInstance.getValue(), x = {time: nop
         x.time('gl check');
         const herr = checkHsetShader(dummyHset);
         x.timeEnd('gl check');
-        if (herr) return 'gl compile error: ' + herr;
+        if (herr) return _lastres = 'gl compile error: ' + herr;
+        _lastres = undefined
     } finally {
         ////console.profileEnd('checkTranruleAll')
         [_testcompile, currentHset] = s;
@@ -1255,7 +1261,7 @@ function checkTranruleAll(rcode = _CodeMirrorInstance.getValue(), x = {time: nop
 // // from https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
 // async function* makeTextFileLineIterator(fileURL) {
 //     const utf8Decoder = new TextDecoder('utf-8');
-//     const response = await fetch(fileURL);
+//     const response = await xfetch(fileURL);
 //     const reader = response.body.getReader();
 //     let { value: chunk, done: readerDone } = await reader.read();
 //     chunk = chunk ? utf8Decoder.decode(chunk) : '';
@@ -1376,25 +1382,18 @@ function setlight(k, p) {
     }
 }
 
-/** test function for tadpole interations, can change dynamically
- * to set for ui and ui+1
- *  U.twist[ui]
-    U.linebaitAttractStrength[ui]
-    U.excludeRadius[ui]
-    U.excludeForce[ui]
-    U.condir[ui]
-*/
 function tadmodetest(ui) {
     const me = tad;
     let bd = tad.batondata[ui];
 }
 
+let excludeUniforms =  {modelViewMatrix: 1, projectionMatrix: 1, pointSize: 1}
 /** find the uniforms in .opt. files */
 async function findUniforms(fids = ['minicode/opos.opt.fs', 'minicode/opos.opt.vs'],
-                           exclude = {modelViewMatrix: 1, projectionMatrix: 1}) {
+                           exclude = excludeUniforms) {
     const uu = {};
     for (const fid of fids) {
-        const t = await (await (await fetch(fid)).text()).split('\n');
+        const t = await (await (await xfetch(fid)).text()).split('\n');
         for (let line of t) {
             line = line.trim();
             if (line.startsWith('uniform')) {
@@ -1410,22 +1409,27 @@ async function findUniforms(fids = ['minicode/opos.opt.fs', 'minicode/opos.opt.v
 //
 // NOTE the combination blows up: usemask = -97; inps.USESKELBUFFER = false; inps.GPUSCALE = false;
 
-async function genmini({all = true, exclude = {modelViewMatrix: 1, projectionMatrix: 1}, shorten=false, shortenh=true} = {}) {
+async function genmini({all = true, exclude = excludeUniforms, shorten=4} = {}) {
     shadows(0);
     usemask = 4;
+    G.OPOSZ = 1;  // not sure why it matters what this is when generating code, but it does seem to
     inps.USESKELBUFFER = false;
     inps.GPUSCALE = false;
+    G.profileksize = Math.round(G.profileksize)
+    G.baseksize = Math.round(G.baseksize)
+    // inps.tranrulebox = currentGenes.tranrule = currentGenes.tranrule.replace(/pulser\(.*?\)/g, "''")
+    setViewports([0,0]);
+
     await S.frame(5);
     regenHornShader();
     await S.frame(5);
-    setViewports([0,0]);
-    inps.tranrulebox = currentGenes.tranrule = currentGenes.tranrule.replace(/pulser\(.*?\)/g, "''")
     if (all) {
         // set up minimal rendering
 
         // export the relevant shaders
 //        runcommandphp('del /s /q exportShader\\mini\\*');
-        await exportmyshaders(undefined, 'mini');
+        await exportmyshaders(ofirst(material.opos), 'mini');
+        // await exportmyshaders(ofirst(material.edge2), 'mini');
 //        runcommandphp('del minicode\\*.opt.*');
     }
     inps.USESKELBUFFER = true;   // otherwise gives issues with gscale and usemask=-97
@@ -1435,21 +1439,7 @@ async function genmini({all = true, exclude = {modelViewMatrix: 1, projectionMat
     // prepare and run minifier
     runcommandphp('copy exportShader\\mini\\*.opt.* minicode');
     runcommandphp('copy exportShader\\mini\\extras\\*B.* minicode');
-    runcommandphp('copy exportShader\\mini\\extras\\*mini.* minicode');
-    //// below now done by exportmyshaders()
-    //let mc = readtext('exportShader\\mini\\extras\\oposB.vs')
-    //mc = '#version 300 es\n' + mc;
-    //writetextremote('minicode\\oposB.vs', mc);
-    // const smopts = '--format text --preserve-externals --zformat js --zno-renaming --format indented'
-    // const smcmd = `..\\glsl_optimize\\shader_minifier.exe ${smopts} minicode\\oposB.vs -o minicode\\oposmini.vs`
-    // const rr = runcommandphp(smcmd);
-
-    //// below to get an idea of size
-    // const smcmd2 = `..\\glsl_optimize\\shader_minifier.exe ${smopts} minicode\\opos.opt.vs -o minicode\\oposminiopt.vs`
-    // const rr2 = runcommandphp(smcmd2);
-
-    // generate the uniforms file
-    // const uu = await findUniforms(dd);
+    runcommandphp('copy exportShader\\mini\\extras\\*mini*.* minicode');
     const vv = showUniformsUsed().all;
     const uu = {};
     for (const gn of vv) if (!gn.endsWith('_cutoffset')) uu[gn] = U[gn];
@@ -1458,7 +1448,7 @@ async function genmini({all = true, exclude = {modelViewMatrix: 1, projectionMat
     // For some reason showUniformsUsed() doesn't find lennum, but that is easily fixed.
 
     // generate the uniforms file
-    const r = ['/* eslint-disable no-sparse-arrays */', 'var U, R, v2, v3, v4, m3, m4', `var sourcename='${inps.savename || G.name}'`];
+    const r = ['/* eslint-disable no-sparse-arrays */', 'var R, v2, v3, v4, m3, m4, CAM, W=window', `var sourcename='${inps.savename || G.name}'`];
     for (let gn in uu) {
         const gd = genedefs[gn];
         if (gd && gd.free && !gn.endsWith('_num') && !gn.endsWith('_ribs'))
@@ -1466,11 +1456,19 @@ async function genmini({all = true, exclude = {modelViewMatrix: 1, projectionMat
         else
             r.push(`R.${gn}=[${f(uu[gn])}]`)
     }
+    for (let p in feed.fp) {
+        r.push(`W.${p}=${feed.fp[p]}`)
+    }
+    r.push(`W.feed=${feed.dofeed}`)
+    //r.push('CAM.proj=[' + camera.projectionMatrix.elements + ']')
+    //r.push('CAM.pos=[' + camera.position + ']')
+    r.push("CAM=" + JSON.stringify(camera));
+
     const miniuniforms = r.join('\n');
     writetextremote('minicode\\miniuniforms.js', miniuniforms);
 
 
-    collectmini({exclude, shorten, shortenh, uu});
+    collectmini({exclude, shorten, uu, miniuniforms});
 
 
     function ff(v) { return format(v,6,true); }
@@ -1491,7 +1489,12 @@ async function genmini({all = true, exclude = {modelViewMatrix: 1, projectionMat
 
 }
 
-async function collectmini({exclude = {modelViewMatrix: 1, projectionMatrix: 1}, shorten=false, shortenh=true, uu} = {}) {
+async function collectmini(opts = {}) {
+    // if (opts.lastopts) opts = collectmini.lastopts
+    // else collectmini.lastopts = opts
+    opts = Object.assign(collectmini.lastopts ?? {}, opts);
+    let {exclude = excludeUniforms, shorten, uu, fid, maincode = 'miniorganics'} = opts;
+
     let sizes = {}, totsize = 0;
 
     const miniuniforms = readtext('minicode\\miniuniforms.js');
@@ -1502,46 +1505,50 @@ async function collectmini({exclude = {modelViewMatrix: 1, projectionMatrix: 1},
         .map(n => 'minicode\\' + n);
 
 
-    var allglsl = ''
+    var allglsl = '', usedShaders = [];
     // read the source glsl files, hand tuned shaders or 'fix' version if available, otherwise auto generated mini version
-    function glsl(id) {
-        let vert = readtext('shaders\\' + id + '.vs', true);
-        if (!vert) vert = readtext('minicode\\' + id + 'fix.vs', true);
-        if (!vert) vert = readtext('minicode\\' + id + 'mini.vs');
-        let frag = readtext('shaders\\' + id + '.fs', true);
-        if (!frag) frag = readtext('minicode\\' + id + 'fix.fs', true);
-        if (!frag) frag = readtext('minicode\\' + id + 'mini.fs');
+    async function  glsl(opmode) {
+        async function readtextf(rfid, b) {
+            let r = readtext(rfid, b);
+            if (!r) return;
+            if (!r.startsWith('#version 300 es')) r = '#version 300 es\n' + r;
+            // !!!!! emergency code here as minifier generated bad code
+            if (!await checkshader(r, rfid, rfid.endsWith('.vs'))) {
+                console.error('!!!! minicode? bad, fallback to alternative .vs version', rfid);
+                return;
+            }
+            usedShaders.push(rfid);
+            return r;
+        }
+        let vert = await readtextf('shaders\\' + opmode + '.vs', true);
+        if (!vert) vert = await readtextf('minicode\\' + opmode + 'fix.vs', true);
+        if (!vert) vert = await readtextf('minicode\\' + opmode + 'mini.vs', true);
+        if (!vert) vert = await readtextf('minicode\\' + opmode + 'miniNOR.vs', true);
+        if (!vert) vert = await readtextf('minicode\\' + opmode + 'B.vs', true);
+        vert = vert.replace('#version', '// #version')
+        // dead vert = vert.replace('__VERSION__', '99999')
+
+        let frag = await readtextf('shaders\\' + opmode + '.fs', true);
+        if (!frag) frag = await readtextf('minicode\\' + opmode + 'fix.fs', true);
+        if (!frag) frag = await readtextf('minicode\\' + opmode + 'mini.fs');
+        if (!frag) frag = await readtextf('minicode\\' + opmode + 'miniNOR.fs');
+        if (!frag) frag = await readtextf('minicode\\' + opmode + 'B.fs');
+        frag = frag.replace('#version', '// #version')
+        // dead frag = frag.replace('__VERSION__', '99999')
         const rr = `
-            S.${id}vert = \` ${vert}\`
-            S.${id}frag = \` ${frag}\`
+            S.${opmode}vert = \` ${vert}\`
+            S.${opmode}frag = \` ${frag}\`
         `
         allglsl += rr;
-        totsize+= sizes[id + 'vert'] = vert.length
-        totsize+= sizes[id + 'frag'] = frag.length
+        totsize+= sizes[opmode + 'vert'] = vert.length
+        totsize+= sizes[opmode + 'frag'] = frag.length
+        log('usedShaders', usedShaders.join('  '));
         return rr;
     }
 
     // prepare total text
-    const code = readtext('minicode\\miniorganics.js');
+    const code = readtext('minicode\\' + maincode + '.js');
     totsize+= sizes.code = code.length;
-    // const track = readtext('jsopen/TextureMaterial/minicode\\miniorganics.js');
-//     let html = `<!DOCTYPE html><html style="background: black"><meta charset="utf-8"/><head>
-//     <!-- <script src=",,/jsdeps/three127.js"></script> -->
-//     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script> -->
-//     <script src="https://threejs.org/build/three.js"></script>
-
-//     <script type="text/javascript">
-//     ${code}
-//     ${glsl('opos')}
-//     ${glsl('edge')}
-//     ${miniuniforms}
-//     var module={}
-//     </script>
-
-// <script src="https://cdn.jsdelivr.net/npm/three-trackballcontrols@0.0.8/index.min.js"></script>
-
-//     </head></html>
-//     `
     let html = readtext('minicode\\miniorganic.html');
     totsize+= sizes.html = html.length;
 
@@ -1549,8 +1556,8 @@ async function collectmini({exclude = {modelViewMatrix: 1, projectionMatrix: 1},
     html = html.replace('<script src="miniuniforms.js"></script>',
 `     <script type="text/javascript">
      ${code}
-     ${glsl('opos')}
-     ${glsl('edge')}
+     ${await glsl('opos')}
+     ${await glsl('edge2')}
      ${miniuniforms}
      var module={}
      </script>
@@ -1572,11 +1579,51 @@ async function collectmini({exclude = {modelViewMatrix: 1, projectionMatrix: 1},
         }
         window.xxxuu = uu;
     }
+    html = shortenmini(html, {exclude, shorten, uu, miniuniforms, fid});
+    log('sizes', sizes)
+    log('totsize', totsize)
+    log('shortensize', html.length)
+}
+
+var lastminihtml, lastminiuniforms, lastminiuu, minishortened;
+function shortenmini(html, opts = {}) {
+    opts = Object.assign(collectmini.lastopts ?? {}, opts);
+    let {shorten, uu, miniuniforms, fid, shortmax=1e10} = opts;
+    fid = opts.fid ?? prompt('name for save/export of mini files', inps.savename || G.name);
+
+    if (html) lastminihtml = html; else html = lastminihtml;
+    if (miniuniforms) lastminiuniforms = miniuniforms; else miniuniforms = lastminihtml;
+    if (uu) lastminiuu = uu; else uu = lastminiuu;
+
+    html = html.replace('miniorganic debug</title>', 'miniorganic: ' + fid + '</title>');
+    const sizein = html.length;
 
     // shorten uniform names
     // three possibilities, 'U': used, 'X': unused but seen and needed in code, 'Q': not needed
     if (shorten && !uu) console.error('collectmini: shorten requested bbut no uu')
-    if (shorten && uu) {
+    if (shorten & 1 && uu) {
+        minishortened = {};
+        const bb = '\\W'; // '^[a-zA-Z0-9]';
+        let i = 0, n = 0, s;
+        for (const v in uu) {
+            if (excludeUniforms[v]) continue;
+            for (i = i+1;;i++) {
+                s = i.toString(36);  // could use a bigger number
+                if ('0' <= s[0] && s[0] <= '9') continue;
+                // const rgt = new RegExp(`\\W${s}\\W`);
+                const rgt = new RegExp(`${bb}${s}${bb}`);
+                if (!html.match(rgt)) break;  // unused short key s
+                //log('>>>> used', s);
+            }
+            const rg = new RegExp(`(${bb})(${v})(${bb})`, `g`);
+            //log(n, 'shorten', v, s);
+            minishortened[v] = s;
+            html = html.replace(rg, `$1${s}$3`);
+            if (n++ > shortmax) break;
+        }
+        log('shortened', n);
+    }
+    if (shorten & 2 && uu) {
         const kuu = Object.keys(uu).sort((a,b) => a.length > b.length ? -1 : 0)
         kuu.forEach((v, i) => {
             let k = uu[v] === 'X' ? 'X' : 'U';
@@ -1591,7 +1638,9 @@ async function collectmini({exclude = {modelViewMatrix: 1, projectionMatrix: 1},
         });
     }
 
-    if (shortenh) {
+
+    // shorten horn names and bend etc
+    if (shorten & 4) {
         let i = 0;
         const hornnames = miniuniforms.match(/R\.(.*?)_/g).filter((v,ii,a) => a.indexOf(v) === ii).map(x => x.substring(2))
 
@@ -1606,15 +1655,23 @@ async function collectmini({exclude = {modelViewMatrix: 1, projectionMatrix: 1},
             html = html.replace( new RegExp(`_${op}(\\W)`, 'g'), `_${sop}$1`);
         }
     }
-    log('sizes', sizes)
-    log('totsize', totsize)
-    log('shortensize', html.length)
 
-    const handle = await savesystem.save('minicode', undefined, html, [{accept: {'text/html': '.html'}}])
-    writetextremote('minicode\\test\\' + handle.name, html);
+    // this didn't work because too far removed from use interaction
+    // const handle = await savesystem.save('minicode', undefined, html, [{accept: {'text/html': '.html'}}])
+    // AND we used to try to write twice, once in savesystem.save, and then in writetextremote() below.
+    // ?? no, was writing to minicode and minicode/test, so we still will
+    const ffid = 'minicode\\test\\' + fid + '.html';
+    writetextremote(ffid, html);
+    writetextremote('minicode\\latestmini.html', html);
 
+    window.open(ffid,'_blank');
 
-    log('genmini complete')
+    log('genmini complete', fid)
+    window.savedmini = html
+    const sizeout = html.length;
+
+    log({sizein, sizeout});
+    return html;
 }
 
 /** generate a shader from explict files, eg edge.vs and edgs.fs
@@ -1729,4 +1786,26 @@ function findnewfiles(src, done=[]) {
         runcommandphp(ccc);
     }
     return done
+}
+
+/** check a shader */
+async function checkshader(pstr, fid, vert = true) {
+  // Compiles either a shader of type gl.VERTEX_SHADER or gl.FRAGMENT_SHADER
+    let str = pstr;
+    if (str.length < 50) {
+        str = await (await (await xfetch(str)).text())
+    }
+
+  const shader = gl.createShader(vert ? gl.VERTEX_SHADER : gl.FRAGMENT_SHADER);
+  gl.shaderSource(shader, str);
+  gl.compileShader(shader);
+
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const info = gl.getShaderInfoLog(shader);
+    console.error('shader bad', fid, info)
+      return false;
+  } else {
+      console.log('shader ok', fid)
+  }
+  return true;
 }

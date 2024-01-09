@@ -8,14 +8,14 @@ var copyFrom;
 var gnumInstances1;
 
 var requestAnimationFrame, W=window, alert, FileReader, posturi ;
-var renderer, scene1, scene2, mcamera, stats, material, canvas, savetext, triScene, triMaterial, sepColor, rawdata;
+var renderer, scene1, scene2, mcamera, stats, material, canvas, savetext, triScene, triGeom, triMesh, triMaterial, sepColor, rawdata;
 var muniforms;
 var mouse = new THREE.Vector2();
 var mousedownobj;
 var mousewhich = 0;  // accumulate mouse button info (needed for Firefox)
 var copyscene, copymaterial;
-var lineScene, lineVertices, lineGeometry;
-var lineVertices2, lineGeometry2;
+var lineScene,  lineGeometry, linePositions; // lineVertices,
+var lineGeometry2, linePositions2; // lineVertices2,
 var lineMaterial, lineMaterial2;
 var rangefac = 2;        // relative scale at each level of zoom, recomputed on load except for very small files
 var zrangefac = 2;        // relative range to use for brighter images at each level of zoom
@@ -60,47 +60,35 @@ if (quickout) return;
     lineScene = new THREE.Scene();
 
     // for red position boxes
-    lineGeometry = new THREE.Geometry();
-    lineVertices = lineGeometry.vertices;
+    lineGeometry = new THREE.BufferGeometry();
+    linePositions=new Float32Array(16*3);
     lineMaterial = new THREE.LineBasicMaterial( { color: 0xff0000, linewidth:1 } );
     var line = new THREE.LineSegments(lineGeometry, lineMaterial);
     lineScene.add(line);
-    for (let i=0; i<16; i++)
-        lineVertices.push(new THREE.Vector3());
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
 
     // for yellow broken matrix lines
-    lineGeometry2 = new THREE.Geometry();
-    lineVertices2 = lineGeometry2.vertices;
+    lineGeometry2 = new THREE.BufferGeometry(); const positions2=[];
+    linePositions2 =new Float32Array(4*3); // , colors=[];
     lineMaterial2 = new THREE.LineBasicMaterial( { color: 0xffff00, linewidth:1 } );
     var line2 = new THREE.LineSegments(lineGeometry2, lineMaterial2);
     lineScene.add(line2);
-    for (let i=0; i<4; i++)
-        lineVertices2.push(new THREE.Vector3());
-
+    lineGeometry2.setAttribute('position', new THREE.BufferAttribute(linePositions2, 3));
 
     // prepare for the lower triangle in each matrix --------------------------------------
     triScene = new THREE.Scene();
 
-    var geom = new THREE.Geometry();
+    triGeom = new THREE.BufferGeometry();
     var k = 9999;
-    var v1 = new THREE.Vector3(k,-k,0);
-    var v2 = new THREE.Vector3(-k,k,0);
-    var v3 = new THREE.Vector3(k,k,0);
-
-    console.log(geom.vertices);
-    geom.vertices.push(v1);
-    geom.vertices.push(v2);
-    geom.vertices.push(v3);
-
-    geom.faces.push( new THREE.Face3( 0, 1, 2 ) );
-    geom.computeFaceNormals();
-
+    const positions3 = [k,-k,0,  -k,k,0,  k,k,0]
+    triGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions3), 3));
+    triGeom.setIndex(new THREE.BufferAttribute(new Int16Array([0,1,2]), 1))
     triMaterial = new THREE.MeshBasicMaterial();
     triMaterial.depthTest = false;
     triMaterial.depthWrite = false;
-    var mesh = new THREE.Mesh( geom, triMaterial);
+    triMesh = new THREE.Mesh( triGeom, triMaterial);
     triMaterial.color = new THREE.Color(0.1,0.1,0.1);
-    triScene.add(mesh);
+    triScene.add(triMesh);
 
     // prepare for the stats -------------------- --------------------------------------
     //stats = new Stats();
@@ -214,6 +202,7 @@ function onDocumentMouseUp( event ) {
     mousewhich &= ~(1 << event.which);
 }
 
+/** show data */
 function showData(vpn, xp, yp) {
     var dist = (yp - xp)/res;
     const xpp = Math.round(xp/res) * res, ypp = Math.round(yp/res) * res;  // pos in base pairs
@@ -268,10 +257,11 @@ function onDocumentMouseMove( event ) {
 
 function bp2i(bp) { return Math.round((bp-gminid) / res); }
 
-/** set the position in view vpn (and higher res views */
+/** set the position in view vpn and higher res views, xp, yp particle numbers */
     function setxyShow(vpn, xp, yp) {
-        setxy(vpn, xp, yp);
-        showData('csynth', xp, yp);
+        const xb = xp * res + gminid, yb = yp * res + gminid;
+        setxy(vpn, xb, yb);
+        showData('csynth', xb, yb);
     }
 
 /** set the position in view vpn (and higher res views */
@@ -424,7 +414,7 @@ function showvp(vp) {
     renderer.autoClear = false;
     renderer.setViewport(vp.x, vp.y, vp.w, vp.h);
     copymaterial.map = vp.renderTarget;
-    copymaterial.uniforms.intex.value = vp.renderTarget;
+    copymaterial.uniforms.intex.value = vp.renderTarget.texture;
     renderer.render(copyscene, mcamera);
 
 
@@ -435,19 +425,21 @@ function showvp(vp) {
     // first yellow lines to show broken pair matrices, if broken
     if (r.z !== r.w) {
         let i = 0;
-        lineVertices2[i++].set(0, -1, 0);
-        lineVertices2[i++].set(0, d, 0);
-        lineVertices2[i++].set(d, 0, 0);
-        lineVertices2[i++].set(-1, 0, 0);
+        // lineVertices2[i++].set(0, -1, 0);
+        // lineVertices2[i++].set(0, d, 0);
+        // lineVertices2[i++].set(d, 0, 0);
+        // lineVertices2[i++].set(-1, 0, 0);
+        linePositions2.set([0,-1,0, 0,d,0,  d,0,0,  -1,0,0])
         // three.js oddity/bug that computes bounding sphere based on first instance seen
         // so we force it to something that can be seen
         lineGeometry2.boundingSphere.center.set(0, 0, 0);
         lineGeometry2.boundingSphere.radius = 1;
     } else {
-        for (let i = 0; i < lineVertices2.length; i++) lineVertices2[i].set(999, 999, 999);
+        linePositions2.fill(0);
+        // for (let i = 0; i < lineVertices2.length; i++) lineVertices2[i].set(999, 999, 999);
     }
-    lineGeometry2.verticesNeedUpdate = true;
-
+    // lineGeometry2.verticesNeedUpdate = true;
+    lineGeometry2.attributes.position.needsUpdate = true
 
     // then red lines to show position of higer res within lower res
     if (vp.id !== vps.length-1) {
@@ -461,30 +453,31 @@ function showvp(vp) {
         window['y' + (vp.id+2) + '2'].innerHTML = r2.z === -1 ? "" : Math.ceil(r2.z).toLocaleString() + '<br>' + Math.floor(r2.w).toLocaleString();
 
         let i = 0;
-        lineVertices[i++].set(x, -z, 0);
-        lineVertices[i++].set(x, -w, 0);
-        lineVertices[i++].set(y, -z, 0);
-        lineVertices[i++].set(y, -w, 0);
+        linePositions.set([x, -z, 0,
+        x, -w, 0,
+        y, -z, 0,
+        y, -w, 0,
 
-        lineVertices[i++].set(x, -x+d, 0);
-        lineVertices[i++].set(x, -y, 0);
-        lineVertices[i++].set(x, -y, 0);
-        lineVertices[i++].set(y+d, -y, 0);
+        x, -x+d, 0,
+        x, -y, 0,
+        x, -y, 0,
+        y+d, -y, 0,
 
-        lineVertices[i++].set(x, -z, 0);
-        lineVertices[i++].set(y, -z, 0);
-        lineVertices[i++].set(x, -w, 0);
-        lineVertices[i++].set(y, -w, 0);
+        x, -z, 0,
+        y, -z, 0,
+        x, -w, 0,
+        y, -w, 0,
 
-        lineVertices[i++].set(z, -z+d, 0);
-        lineVertices[i++].set(z, -w, 0);
-        lineVertices[i++].set(z, -w, 0);
-        lineVertices[i++].set(w+d, -w, 0);
+        z, -z+d, 0,
+        z, -w, 0,
+        z, -w, 0,
+        w+d, -w, 0]);
     } else {
-        for (let i=0; i<lineVertices.length; i++) lineVertices[i].set(999, 999, 999);
+        linePositions.fill(0);
+        //for (let i=0; i<lineVertices.length; i++) lineVertices[i].set(999, 999, 999);
     }
-    lineGeometry.verticesNeedUpdate = true;
-
+    // lineGeometry.verticesNeedUpdate = true;
+    lineGeometry.attributes.position.needsUpdate = true
 
     // and draw them, linewidth does not work on Windows/ANGLE
     var k = (linewidth - 1) / 2;  // linewidth
@@ -1072,7 +1065,7 @@ function plot() {
     for (let n=0; n < a.length; n++) {
         const aa = a[n];
 
-        plotGeometry = new THREE.Geometry();
+        plotGeometry = new THREE.BufferGeometry();
         plotVertices = plotGeometry.vertices;
         plotMaterial = new THREE.LineBasicMaterial( { color: cols[n], linewidth:1, transparent: true} );
         var plotLine = new THREE.Line(plotGeometry, plotMaterial);
@@ -1089,7 +1082,7 @@ function plot() {
     }
 
     /* plot the individual particle distances
-    plotGeometry = new THREE.Geometry();
+    plotGeometry = new THREE.BufferGeometry();
     plotVertices = plotGeometry.vertices;
     plotMaterial = new THREE.LineBasicMaterial( { color: 0xffffff, linewidth:1, transparent: true} );
     var plot = new THREE.LineSegments(plotGeometry, plotMaterial);
@@ -1120,6 +1113,7 @@ CSynth.bc = new BroadcastChannel('csynth');
 CSynth.bc.onmessage = function(ev) {
     const data = ev.data;
     const cmd = data.command;
+    log('csymessage', cmd, ...(ev.data.args ? ev.data.args : ['no args']));
     switch (cmd) {
         case '!windowdata':
             copyFrom(window, data);

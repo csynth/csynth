@@ -14,7 +14,7 @@
 //#    uniform sampler2D rtshapepos;  	// not used, OPOSZ is 1 for edge2
 //#    mat4 rot4;  						// <<< not used, OPOSZ is 1 for edge2
     uniform sampler2D tadprop;			// to get radius for varying pen width, and to get colour; not used by edge2
-    uniform float edgewidth, edgeDensitySearch, baseksize, radkmult, occludedelta, profileksize, edgestyle, occludewidth;
+    uniform float edgewidth, edgeDensitySearch, baseksize, radkmult, occludedelta, profileksize, altstyle, occludewidth;
     uniform float test1, test2, test3;
     uniform vec3 edgecol, occcol, profcol, fillcol, unkcol, backcol, wallcol;
     uniform vec3[8] custcol;
@@ -22,7 +22,7 @@
     float colourid;
     uniform float colby;
     const float MAX_HORNS_FOR_TYPE = 16384.0; // this allows 16384 = 2**14 horns of a single type
-    uniform float _tad_h_ribs;
+    const float _tad_h_ribs = 0.;
 
     uniform mat3 feedbackMatrix;
     uniform mat4 feedbackTintMatrix;
@@ -30,8 +30,13 @@
     uniform vec2 screen;
     uniform float maxfeeddepth, centrerefl, centrereflx, centrerefly, renderBackground, useLanczos; //dead feed scale
     uniform vec3 springCentre;
+    uniform float[30] ribsa;
 #endif
-/**** tfetch and ttest from edge.fs, varied because edge.fs uses special format for rtopos ****/
+
+#define MAXPATHS 30
+uniform float hornvdepth[MAXPATHS];
+
+/**** tfetch and ttest from edge.fs, varied because edge.fs uses special format for rt opos ****/
 /* tfetchx reads the pixel and extracts txx (tadpole number) and dxx (z value) */
 // void tfetchx(sampler2D tex, ivec2 ij, int m, out float txx, out float dxx) {
 //     vec4 v = texelFetch(tex, clamp(ij, ivec2(0,0), textureSize(tex, 0)-1), m);
@@ -84,49 +89,35 @@ vec3 lanczos(sampler2D sampler, vec2 coord, int r) {
 }
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// tfetchm is a macro so it can conveniently declare yxx, dxx
+// tfetchm is a macro so it can conveniently declare txx, dxx
 // floor below means rib number is not part of txx, so ribs of the same tadpole cannot occlude each other
-// it extracts values from rtshapepos or rtopos, depending on OPOSZ
+// it extracts values from rtshapepos or rt opos, depending on OPOSZ
 // 7. is temp pending geting ribnum elsewhere
 
 #define tfetchmx(ij, txx, dxx, qfloor) \
     float txx, dxx; \
-    { vec4 v = texelFetch(rtopos, clamp(ij, ivec2(0,0), textureSize(rtopos, 0)-1), 0); \
+    { vec4 v = texelFetch(rtopos, clamp(ij, ivec2(0,0), textureSize(rtopos, 0)-1), 0); /* v = vec4(0.5, 0.5, 297, 115059); */\
     txx = qfloor(v.w); \
-    dxx = txx == 0. ? 1e20 : v.z; }
-
-// OPOSZ is now forced 1 for edge2
-// #define tfetchmx(ij, txx, dxx, qfloor) \
-//     float txx, dxx; \
-//     if (OPOSZ == 1.) { \
-//         vec4 v = texelFetch(rtopos, clamp(ij, ivec2(0,0), textureSize(rtopos, 0)-1), 0); \
-//         txx = qfloor(v.w); \
-//         dxx = txx == 0. ? 1e20 : v.z; \
-//         } \
-//     else { \
-//         vec4 v = texelFetch(rtshapepos, clamp(ij, ivec2(0,0), textureSize(rtshapepos, 0)-1), 0); \
-//         vec4 vv = vec4(v.xyz, 1) * rot4; \
-//         txx = qfloor(v.w), dxx = txx == 0. ? 1e20 : vv.z; }
+    dxx = txx == 0. ? -1e20 : v.z; }
 
 // NO floor in tfetchmr means rib number is part of txx, so alternate ribs can be shaded
 #define tfetchm(ij, txx, dxx) tfetchmx(ij, txx, dxx, floor)
 #define tfetchmr(ij, txx, dxx) tfetchmx(ij, txx, dxx, )
 
+/** test if point @ bi+(i,j) key tij, dist dij is in front of base point @bi, key t00, dist d00 */
 bool ttest(ivec2 bi, int i, int j, float t00, float txx, float d00) {  // nb i, j are offsets
     //float tij, dij;
     tfetchm( bi + ivec2( i, j), tij, dij);
-    return (tij != t00 && tij != txx && dij+occludedelta < d00);
+    return (tij != t00 && tij != txx && dij > d00+occludedelta);
 }
 
-/** occk is the kernel size for test,
-checkNeighbours is for edgewidth = 1 as we need to test for neighbours as well
-edgewidth = 1 is mainly used for plotter preparation, and possibly never seriously used for standard render ???
+/** occk is the kernel size for test, may be occludewidth or profileksize
+checkNeighbours is only for edges with edge width = 1 as we need to test for neighbours as well, checkNeighboursk = 0 for profile.
+edge width = 1 is mainly used for plotter preparation, and possibly never seriously used for standard render ???
 */
 bool testOcclude(float occk, float checkNeighboursk) {
     /**** below from edge.fs for occlusion */
     if (occk != 0.) {
-        #define tttest(i, j) if (ttest(bi, i, j, t00, txx, d00)) {return true;}
-
         ivec2 bi = ivec2(gl_FragCoord.xy);
         tfetchm( bi, t00, d00);
         float dxx = -1.;    // frontmost neighbour depth, can clean up tests below
@@ -147,15 +138,18 @@ bool testOcclude(float occk, float checkNeighboursk) {
             if (tbb != t00 && dbb > dxx) {dxx = dbb; txx = tbb; }
         }
 
-        // int occk = int(occludewidth * k);
+        // int occk = int(occlude width * k);
         if (edgewidth == 1.) txx = t00;
         int iocc = int(occk);
         if (edgeDensitySearch != -1999.) {   // sample search
+            // search for neightbour points in different object and in front of t00
+            // n.b. txx usually -1 and irrelevant ???
+            #define tttest(i, j) if (ttest(bi, i, j, t00, txx, d00)) {return true;}
             tttest(-iocc, -iocc)
             tttest(-iocc, iocc)
             tttest(iocc, -iocc)
             tttest(iocc, iocc)
-            int o2 = iocc*2/3; // (occludewidth+1)/2;
+            int o2 = iocc*2/3; // (occlude width+1)/2;
             tttest(o2, 0)
             tttest(-o2, 0)
             tttest(0, o2)
@@ -178,12 +172,16 @@ const int edgewall = 4;
 const int edgeback = 5;
 const int edgeunk = 6;
 
+float g_h00;
+vec4 oposfeed;
+
 /** find out edge status; 0: normal */
 int edgeStatus(out bool alt) {
     alt = false;
     // float h00, haa, hab, hba, hbb;
 
     ivec2 bi = ivec2(gl_FragCoord.xy);
+    oposfeed = texelFetch(rtopos, clamp(bi, ivec2(0,0), textureSize(rtopos, 0)-1), 0);
     int k = int(baseksize);
     // for now, radius based width is only supported for tadpoles in non-main mode
     // ??? this radius is not used for radius itslef, just used to to set variable pen width
@@ -191,7 +189,7 @@ int edgeStatus(out bool alt) {
     // NOTE: similar test for colourid below, may common up???
     #if !defined(EDGEMAIN) && defined(RIBS)
         if (radkmult != 0.) {
-            vec4 v = texelFetch(rtopos, clamp(bi, ivec2(0,0), textureSize(rtopos, 0)-1), 0);
+            vec4 v = oposfeed;
             float rad = 1.;
             if (oposHornnum != 0.) {
                 vec4 tprop = texture(tadprop, vec2(v.x, oposHornnum/_tad_h_ribs));
@@ -201,45 +199,52 @@ int edgeStatus(out bool alt) {
         }
     #endif
 
-    tfetchmr(bi,   h00, dxxx); //h00 = t00;
-    tfetchmr((bi + ivec2( k, 0)), haa, dxxxaa); //haa = taa;
-    tfetchmr((bi + ivec2(-k, 0)), hab, dxxxab); //hab = tab;
-    tfetchmr((bi + ivec2( 0, k)), hba, dxxxba); //hba = tba;
-    tfetchmr((bi + ivec2( 0,-k)), hbb, dxxxbb); //hbb = tbb;
-    // edgewidth 2, != gives double width (repeated for each side)
-    // edgewidth 1, < gives single width edges,
-    // edgewidth other (eg 1.5), gives double width edges with single width rib edges
-    float hq00 = floor(h00);
-    bool isedge =
-        edgewidth == 2. ? ((haa != h00) || (hab != h00) || (hba != h00) || (hbb != h00)) :
-        edgewidth == 1. ?  ((haa < h00) || (hab < h00) || (hba < h00) || (hbb < h00)) :
-            fract(h00) == 0. ? ((haa != h00) || (hab != h00) || (hba != h00) || (hbb != h00)) :
-                ((floor(haa) != hq00) || (floor(hab) != hq00) || (floor(hba) != hq00) || (floor(hbb) != hq00));
-
+    // note: tfetchmr defines and sets hoo, dxxxx, haa &c
+    bool isedge;
+    tfetchmr(bi,   h00, dxxx);
+    g_h00 = h00;
+    {   // limited scope to check for variable 'leakage'
+        tfetchmr((bi + ivec2( k, 0)), haa, dxxxaa);
+        tfetchmr((bi + ivec2(-k, 0)), hab, dxxxab);
+        tfetchmr((bi + ivec2( 0, k)), hba, dxxxba);
+        tfetchmr((bi + ivec2( 0,-k)), hbb, dxxxbb);
+        // edge width 2, != gives double width (repeated for each side)
+        // edge width 1, < gives single width edges,
+        // edge width other (eg 1.5), gives double width edges with single width rib edges_tad_h_ribs
+        float hq00 = floor(h00);
+        isedge =
+            edgewidth == 2. ? ((haa != h00) || (hab != h00) || (hba != h00) || (hbb != h00)) :
+            edgewidth == 1. ?  ((haa < h00) || (hab < h00) || (hba < h00) || (hbb < h00)) :
+            // edgewidth == 1. ?  ((dxxxaa < dxxx && haa != h00) || (dxxxab < dxxx && hab != h00) || (dxxxba < dxxx && hba != h00) || (dxxxbb < dxxx && hbb != h00)) :
+                fract(h00) == 0. ? ((haa != h00) || (hab != h00) || (hba != h00) || (hbb != h00)) :
+                    ((floor(haa) != hq00) || (floor(hab) != hq00) || (floor(hba) != hq00) || (floor(hbb) != hq00));
+    }
     int r;
     bool isback = false;
+    // if (isedge) return edgeedge; // this test indicates isedge is correct
+
+    colourid = floor(h00 / MAX_HORNS_FOR_TYPE);  // should work for real horns, but with tadpoles will always give 4?
     #ifdef EDGEMAIN
     {
-        colourid = floor(h00 / MAX_HORNS_FOR_TYPE);  // should work for real horns, but with tadpoles will always give 4?
         if (_tad_h_ribs != 0. && colourid == 4.) {  // ?? is this a reliable test for whether we are in tadpoles
 			// some of this code should be commoned up/factored out
-            vec4 opos = texelFetch(rtopos, clamp(bi, ivec2(0,0), textureSize(rtopos, 0)-1), 0);
-            float w = opos.w;
+            vec4 oposi = texelFetch(rtopos, clamp(bi, ivec2(0,0), textureSize(rtopos, 0)-1), 0);
+            float w = oposi.w;
             float oposHornid = floor(w / MAX_HORNS_FOR_TYPE);
             float oposHornnum = floor(w - oposHornid * MAX_HORNS_FOR_TYPE);
-            vec4 tprop = texture(tadprop, vec2(opos.x, oposHornnum/_tad_h_ribs));
+            vec4 tprop = texture(tadprop, vec2(oposi.x, oposHornnum/_tad_h_ribs));
             colourid = tprop.y;
         }
     }
-
     #endif
+
     if (colourid == WALLID) {isback = true; r = edgewall; }
     if (colourid == 0.)  {isback = true; r = edgeback; }
     if (isback) {      // either wall or background
         if (testOcclude(profileksize, 0.)) r = edgeprofile;
     } else if (edgeidlow <= colourid && colourid <= edgeidhigh) {
         // check for alternation
-        int ee = int(edgestyle);
+        int ee = int(altstyle);
         if (ee != 0) {
             if ((ee&1) == 1) {
                 if (fract(h00) == 0.) alt = !alt;
@@ -248,7 +253,7 @@ int edgeStatus(out bool alt) {
                 if (mod(floor(h00), 2.) == 1.) alt = !alt;
             }
             if ((ee&4) == 4) {
-                if (mod(colourid, 2.) == 1.) alt = !alt;
+                if (mod(hornvdepth[int(colourid)], 2.) == 1.) alt = !alt;
             }
         }
 
@@ -282,15 +287,20 @@ vec4 trifeed(vec3 feedpos, sampler2D map, inout float feeddepth) {
     vec2 smalltri = (y1 - 0.5) * cr + 0.5;
     // smalltri = clamp(smalltri, 0.005, 0.995);  // avoid joint lines in corefixfeed; fix in feedback setup instead (feed.coreuse)
     vec4 fill = texture(map, smalltri);
-    if (test3 == 2.) {
-        fill = texelFetch(map, ivec2(gl_FragCoord.xy), 0);
-    }
-	feeddepth = fill.a + 1./256.;
+    // if (test3 == 2.) {
+    //     fill = texelFetch(map, ivec2(gl_FragCoord.xy), 0);  // special case 1 to 1 feedback
+    // }
+	feeddepth = fill.a - 1./255.;
 
     if (useLanczos != 0.) {
         fill = vec4(lanczos(map, smalltri, int(useLanczos)), texture(map, smalltri).a);
     }
-    if (feeddepth * 256. > maxfeeddepth) return vec4(backcol, 99.);
+    if (feeddepth*255. < 255. - maxfeeddepth - 0.1) {
+        // if this is doubling as alpha channel we need to limit it
+        // There are still compromises with use as alpha (eg in mini version width direct render to canvas) when feedback depth is large.
+        feeddepth = 1. - maxfeeddepth/255.;
+        return vec4(backcol, 1.);
+    }
     fill.a = 1.;
     fill *= feedbackTintMatrix; // ? will gl_FragColor.a = 1 ? NOTE copied in edge.fs
     fill /= fill.a; // not sure what this will do if color 'perspective' is used on feedbackTintMatrix mat3 may be enough
@@ -306,17 +316,26 @@ vec3 screenfeed(vec3 r, inout float feeddepth) {
     return trifeed(feedpos, feedtexture, INOUT feeddepth).rgb;
 }
 
+// note on feeddepth
+// stored value is 1 - feeddepth/255. This means if it is used as alpha channel low feedback areas are not (too) corrupted
 vec4 edgeColour(out bool alt, out int etype) {
     etype = edgeStatus(OUT alt);
-// glFragColor = vec4(etype,colourid,3,4); return;
-    vec3 r; float feeddepth = 0.;
+    // etype = edgeedge; // alt = false; return vec4(0,1,0,1);
+
+    vec3 r; float feeddepth = 1.; //
+    // should be 0, but in mini version it gets used as opacity, to fix.
+    // and does copyFramebufferToTexture lose w ???
     switch (etype) {
         case edgefill: {
-            if (colby == 1.) r = vec3(fract(colourid * 9.78), fract(colourid * 11.34), fract(colourid * 17.917));
+            if (colby == 1.) r = pow(vec3(fract(colourid * 9.78), fract(colourid * 11.34), fract(colourid * 17.917)) * 1.3, vec3(2.2));
             #ifndef EDGEMAIN
                 else if (colby == 2.) r = stdcolY(colourid);
+            #else
+                else if (colby == 2.) r = custcol[int(g_h00) % 6 + 1];
             #endif
-            else if (colby == 3.) r = custcol[int(colourid) % 8];
+            else if (colby == 3.) r = custcol[int(hornvdepth[int(colourid)]) % 6 + 1];
+            else if (colby == 4.) r = custcol[int(oposfeed.x * floor(ribsa[int(colourid)])) % 6 + 1];
+            // else if (colby == 5.) r = custcol[int(g_h00 * 2.) % 6 + 1];
             else r = fillcol;
         } break;
         case edgeedge: r = edgecol; break;
@@ -336,6 +355,8 @@ vec4 edgeColour(out bool alt, out int etype) {
 void main() {
     bool alt; int etype;
     glFragColor = edgeColour(alt, etype);
+
+    // texelFetch(sampler, ibpos, 0).rgb;
 
     // if (alt) r = pow(1. - sqrt(r), vec3(2.2));
     // glFragColor = vec4(r, feeddepth);

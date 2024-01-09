@@ -58,11 +58,6 @@ CSynth.dists = function csynthdists(inputDef, statsres = CSynth.statsres, dres=u
         use = {coords: inputDef, reason: 'points as input'};
     } else if (!isNaN(parseInt(inputDef))) {                      // implicit index into xyzs
         use = cc.xyzs[inputDef];
-    } else if (typeof(inputDef) === 'string' && inputDef[0] === 'x') {  // explict index into xyzs
-        const ssss = + inputDef.substring(1);
-        use = cc.xyzs[ssss];
-    } else if (inputDef.isXyz) {                                  // xyz structure
-        use = inputDef;
     } else if (inputDef.startsWith('cur')) {                       // current positions
         // special caching for current, handle and return
         if (CSynth.dists.framenum === framenum && CSynth.dists.stepsSoFar === springs.getStepsSoFar())
@@ -70,9 +65,14 @@ CSynth.dists = function csynthdists(inputDef, statsres = CSynth.statsres, dres=u
         CSynth.dists.framenum = framenum;
         CSynth.dists.stepsSoFar = springs.getStepsSoFar();
         return CSynth.dists.framedists = [gendists(springs.getpos()), 'current positions']
-    } else if (typeof(inputDef) === 'string' && inputDef[0] === 'c') {  // explicit index into contacts
+    } else if (typeof(inputDef) === 'string' && inputDef[0] === 'x') {  // explict index into xyzs
         const ssss = + inputDef.substring(1);
-        use = cc.contacts[ssss];
+        use = cc.xyzs[ssss];
+    } else if (typeof(inputDef) === 'string' && inputDef.startsWith('cap')) {  // explict index into contacts
+        const ssss = + inputDef.substring(3);
+        return [CSynth.captures[ssss].dists[0], 'capture' + ssss];
+    } else if (inputDef.isXyz) {                                  // xyz structure
+        use = inputDef;
     } else if (inputDef.isContact) {                              // contact structure
         use = inputDef;
     } else {
@@ -187,7 +187,7 @@ CSynth.wrmse = function csynthwrmse (d1, d2) {
     for (let i=0; i<n; i++) {
         const w = 1 / Math.max(d1[i], d2[i]);
         ss += (w * (d1[i]-d2[i])) ** 2;
-        sw += 1; // w;
+        sw += w * w; // was 1, before that w ???
     }
     return Math.sqrt(ss / sw);
 }
@@ -417,12 +417,12 @@ CSynth.statsn = function(opts) {
 
 /** clear the captured data */
 CSynth.clearCaptures = function() {
-    return []; // {sr: [], dists: [], positions: []};
+    return CSynth.captures = []; // {sr: [], dists: [], positions: []};
 };
 CSynth.captures = CSynth.clearCaptures();
 
 /** capture data into a capture set and show stats so far */
-CSynth.capture = function(set = CSynth.captures) {
+CSynth.capture = function({set = CSynth.captures, correl = false} = {}) {
     // const {sr, dists, positions} = set;
     const i = set.length;
     const sr = [];
@@ -430,10 +430,12 @@ CSynth.capture = function(set = CSynth.captures) {
     const dists = CSynth.dists('current'); // collect the distances from the simulated positions
     const genes = Object.assign({}, G);
     set.push({sr, positions, dists, genes})
-    for (let j = 0; j < i; j++) {       // compare run i with previous runs j
-        sr[j] = CSynth.correl(dists, set[j].dists);           // perform correlation
+    if (correl) {
+        for (let j = 0; j < i; j++) {       // compare run i with previous runs j
+            sr[j] = CSynth.correl(dists, set[j].dists, correl);           // perform correlation
+        }
+        CSynth.displayCaptureStats(set);
     }
-    CSynth.displayCaptureStats(set);
 }
 
 /** goto a particular capture, w.i.p. */
@@ -450,9 +452,13 @@ CSynth.gotoCapture = function(n = 0, set = CSynth.captures) {
 CSynth.displayCaptureStats = function(set = CSynth.captures, name = 'captures', msg = 'stats for captured data' ) {
     // const {sr, dists, positions} = CSynth.captures;
     const r = [];
-    for (let i = 0; i < set.length; i++)
-        for (let j = 0; j < i; j++)
-            r.push(`csynth ${i} ${j} ${format(Object.values(set[i].sr[j]), 6)}`);   // and format
+    for (let i = 0; i < set.length; i++) {
+        for (let j = 0; j < i; j++) {
+            let tt = `csynth ${i} ${j} ${format(Object.values(set[i].sr[j]), 6)}`
+            if (j === 0) tt = `'<green>${tt}</green>`
+            r.push(tt);   // and format
+        }
+    }
     msgfix(name, msg + '<br>' + r.join('<br>'));
 }
 
@@ -843,6 +849,8 @@ CSynth.forcetest = function(k = 1.1, errlevel = 1e-10) {
 
 /** align force strengths to put all into same range; e.g. same value for reference distance * 1.1 */
 CSynth.alignForces = function(use = 'lor') {
+
+    for (const gn in CSynth.defvals) G[gn] = G[gn] || CSynth.defvals[gn]; // this should render then necxt few lines unnecessary
     const v = G.contactforce * G.pushapartforce * G.m_force * G.xyzforce;
     if (v === 0 || isNaN(v)) {
         console.error('cannot align forces while one is 0 or NaN');
@@ -923,8 +931,8 @@ CSynth.alignModels = function(type = 'auto') {
     } else if (type === 'csy') {
         x.m_alpha = -1 / (G.pushapartpow - 1);
         x.m_k = G.powBaseDist * Math.pow(G.contactforce/1e6/G.pushapartforce * G.powBaseDist, -G.m_alpha);
-        //if (CSynth.springSettings.contactLor)
-        //    copyFrom(CSynth.springSettings.contactLor, x);
+        //if (CSynth.springSettings.contact Lor)
+        //    copyFrom(CSynth.springSettings.contact Lor, x);
         //else
         //    copyFrom(G, x);
     } else if (type === 'xyz') { //

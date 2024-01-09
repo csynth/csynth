@@ -121,7 +121,7 @@ function TadpoleSystem() {
         TRSV: 1.48
     };
     let events; // = MEvents();
-    me._horncontext = { currentGenes: {}, uniforms: undefined, genedefs: {}, skelbuffer: undefined, currentObjects: {}, slots: [], guigenes: undefined };
+    me._horncontext = { currentGenes: {}, uniforms: undefined, genedefs: undefined, skelbuffer: undefined, currentObjects: {}, slots: [], guigenes: undefined };
     me._savecontext = {};
     me.enterHorncontext = function () {
         // resize while in the horn context really confused things when the standard context was restored.
@@ -129,9 +129,15 @@ function TadpoleSystem() {
         // There may well be other sideeffects that upset the enterHorncontext/leaveHorncontext patter
         // but I can't think of a good general solution to that for now. sjpt 28 Feb 2023
         Object.assign(me._savecontext, { currentGenes, uniforms, genedefs, skelbuffer, currentObjects, slots, guigenes, noresize });
-        // if (!me._horncontext.uniforms) me._horncontext.uniforms = uniforms;  // ??? share unifroms ???
+        // if (!me._horncontext.uniforms) me._horncontext.uniforms = uniforms;  // ??? share uniforms ???
         if (!me._horncontext.uniforms)
-            me._horncontext.uniforms = clone(baseuniforms); // ??? share unifroms ???
+            me._horncontext.uniforms = clone(baseuniforms); // ??? share uniforms ???
+        // we need at least the basif colour genes (red1 etc) so the horn will compile
+        if (!me._horncontext.genedefs) {
+            me._horncontext.genedefs = {};
+            for (const gn in permgenes)
+                me._horncontext.genedefs[gn] = clone(genedefs[gn]);
+        }
         Object.assign(window, me._horncontext);
         noresize = true;
     };
@@ -822,6 +828,7 @@ function TadpoleSystem() {
      * this is the initializer for a Tadpole scheme.
       */
     me.tad = function (n = -1, ribs = searchValues.ribs || 8, skelends = 0, group) {
+        G.OPOSZ = 1; // where should this be??? gets rid of odd bars on the walls. why?
         if (TADS !== -1) {
             console.log('tad+ tad.tad called second time');
             return;
@@ -2122,7 +2129,8 @@ function TadpoleSystem() {
         role.pullStrength = 1; // was 2.5;
         if (role.infdone)
             return endTime(role);
-        role.details.data = CSynth.hilbert(sc, RIBS * numtads, undefined, 'array'); // cen: me.centre, is done by pullSprings
+        const nn = (RIBS * numtads === 9600) ? [30, 20, 16] : RIBS * numtads;
+        role.details.data = CSynth.hilbert(sc, nn, undefined, 'array'); // cen: me.centre, is done by pullSprings
         len = distxyz(role.details.data[0], role.details.data[1]);
         role.numtads = numtads;
         pullSprings(role); // if no .positions file, after data established
@@ -2539,7 +2547,7 @@ function TadpoleSystem() {
     //: {fid: string, k:N, len:N, str:N, pow:N}
     //= {fid: 'test.skelj', k: me.skelscale, len:0, str:0, pow: me.tadpow})
     = {}) {
-        var _a;
+        var _a, _b, _c;
         if (!fid)
             fid = data.fid;
         let role = await makeRole(`tadskel_${fid.replace('.skelj', '')}`);
@@ -2551,7 +2559,7 @@ function TadpoleSystem() {
         role.pullStrength = 1; // was 10 when skeletons seemed to need much fuller pulling; now 1 3/3/23 as other forces more even
         if (typeof data === 'string')
             data = JSON.parse(data);
-        const skel = role.details.skel = data || JSON.parse(await (await fetch('data/' + fid)).text());
+        const skel = role.details.skel = data || JSON.parse(await (await xfetch('data/' + fid)).text());
         const d = role.details.data = skel.data;
         if (skel.colarray) {
             role.details.colarray = new Float32Array(skel.colarray);
@@ -2630,9 +2638,9 @@ function TadpoleSystem() {
             let ribs;
             const tid = Math.floor(i / RIBS); // tadpole #
             if (genes) {
-                while (tid > hrun[hh].cumnum)
-                    hh++;
-                ribs = (_a = genes[hrun[hh].hornname + '_ribs']) !== null && _a !== void 0 ? _a : 99;
+                while (tid > ((_a = hrun[hh]) === null || _a === void 0 ? void 0 : _a.cumnum))
+                    hh++; // ? patches issues where there are not enough horns to fill all particles
+                ribs = (_c = genes[((_b = hrun[hh]) === null || _b === void 0 ? void 0 : _b.hornname) + '_ribs']) !== null && _c !== void 0 ? _c : 99;
             }
             else {
                 ribs = Math.min(me.skelRibMax, me.skelRibFac * lens[Math.floor(i / RIBS)]);
@@ -3563,7 +3571,7 @@ override vec2 makestar(Parpos parpos, vec4 loposuvw) {
 override float makeribdepth(Parpos parpos, vec4 loposuvw) {
     return ribdepth * (0.3 + fract(hhornnum * 1.137));  // everything a bit ribby
 }
-override float makeribs(vec4 loposuvw) {
+override float makeribsraw(vec4 loposuvw) {
     return texture2D(tadprop, vec2(loposuvw.x, hhornnum/HEADS)).w;  // loposuvw.x approximates to rib as 0..1
 }
 
@@ -6426,7 +6434,7 @@ function _animskel() {
         runkeys('K,H,4');
         runkeys('K,,'); // get some interesting lenghts and radii
         // get data
-        const fid = 'gallery/GalaxReflMay9.oao';
+        const fid = 'gallery/GalaxRefl2023Nov03.oao';
         const data = getfiledata(fid);
         ggg = tad.ggg = dstringGenes(data);
         genes = ggg.genes;
@@ -6586,7 +6594,7 @@ tad.baitSkelExtraRot
 
 relatedness as per paper
 r = async function(a,b) {
-    v = await fetch(`https://api.conceptnet.io/relatedness?node1=/c/en/${a}&node2=/c/en/${b}`);
+    v = await xfetch(`https://api.conceptnet.io/relatedness?node1=/c/en/${a}&node2=/c/en/${b}`);
     j = (await v.json()).value;
     return j
 }

@@ -216,15 +216,15 @@ function addgene(gn:string, def:number, min:number, max:number, delta?, step?:nu
     // restore check, we are now cleaning genedefs on load (fileAndCatalog.js loadxobjGetGenes)
     if (genedefs[gn]) {
         var gdef = genedefs[gn];
-        if (tag !== gdef.tag && tag.length > gdef.tag.length) { // this really just matters for texture vs non-texture
-            log("overwrite tag for", gn, gdef.tag, "->", tag);
+        //if (tag !== gdef.tag && tag.length > gdef.tag.length) { // this really just matters for texture vs non-texture
+            //log("overwrite tag for", gn, gdef.tag, "->", tag);
             gdef.tag = tag;
             delete uniforms[gn]; delete uniforms[gn + '_A'];
-        }
-        if (help !== gdef.help && help.length > (gdef.help || '').length) {
-            log("overwrite help for", gn, gdef.help, "->", help);
+        //}
+        //if (help !== gdef.help && help.length > (gdef.help || '').length) {
+            // log("overwrite help for", gn, gdef.help, "->", help);
             gdef.help = help;
-        }
+        //}
         gn= gdef.name; def= gdef.def; min= gdef.min; max= gdef.max; delta= gdef.delta;
                 step= gdef.step; free= gdef.free;
                 gdef.help = help= gdef.help || help;

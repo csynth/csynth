@@ -9,7 +9,7 @@ float ribs = 8.;
 float dribs = 8.;
 float occludedelta = 0.;
 float edgewidth = 0.;
-float edgestyle = 0.;
+float altstyle = 0.;
 float edgeDensitySearch = 0.;
 float baseksize = 0.;
 float profileksize = 0.;
@@ -23,7 +23,8 @@ uniform sampler2D rtopos, rtshapepos, feedtexture;
 
 #endif
 
-const float MAX_HORNS_FOR_TYPE = 16384.0; // this allows 16384 = 2**14 horns of a single type
+// this allows 16384 = 2**14 horns of a single type
+#define MAX_HORNS_FOR_TYPE 16384.0
 // It leaves the possibilty of around 2**(24-14) = 2**10 = 1024 horn types, which should be plenty.
 // Added as name, and increased from 4096, 20/07/2019
 
@@ -297,10 +298,7 @@ float scurve(const float x) { return (3. - 2. * x) * x * x; }
 //////////////// end glslUtils //////////////////////////////////
 
 /** example
-posttranrule = `
-float fh=fhull2(140., 0.01,  gpRmat * vec4(0,0,0,1), gpRmat * vec4(95,0,0, 1));
-r *= fh - 0.11;
-`;
+posttranrule = 'float fh=fhull2(140., 0.01,  gpRmat * vec4(0,0,0,1), gpRmat * vec4(95,0,0, 1)); r *= fh - 0.11;';
 ***/
 $$$extraIncludes$$
 
@@ -380,6 +378,32 @@ mat3 axrot(vec3 axis, float angle)
     return mat3(oc * x * x + c,      oc * x * y - z * s,  oc * z * x + y * s,
                 oc * x * y + z * s,  oc * y * y + c,      oc * y * z - x * s,
                 oc * z * x - y * s,  oc * y * z + x * s,  oc * z * z + c);
+}
+
+gene(randm, 1234456.2, 0,1e8, 0.1, 0.1, distort, frozen) // tweaker for random
+
+/* float=>float 'random' number generator
+see experiments at https://www.desmos.com/calculator/m7ha0xgmvu
+ */
+float randf(float ii, float dist) {
+    return sin(sin((ii + ii*ii)*dist*randm) * randm *1.3);
+    return fract(ii * randm) -0.5;
+
+    int m_w = int(ii * 123456789.);
+    int m_z = 987654321;
+    int mask = 0xffffffff;
+
+    m_z = (36969 * (m_z & 65535) + (m_z >> 16)) & mask;
+    m_w = (18000 * (m_w & 65535) + (m_w >> 16)) & mask;
+    float result = float(((m_z << 16) + m_w) & mask);
+    result /= 4294967296.;
+    return result + 0.5;
+}
+
+float randf(float ii) { return randf(ii, 1.); }
+/** align the random source point with ribs */
+float ribrp(float ii, float ribs) {
+    return round(ii * ribs) / ribs;
 }
 
 // moved from hornmaker to make accessible by OPEDGE

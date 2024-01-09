@@ -8,8 +8,8 @@
 	</head>
 
 	<body>
-		<div id="container">
-		</div>
+		<div id="container"></div>
+		<div id="msgbox"></div>
         <div id="dropinfo">
 			<h1 id="info"><a href="http://threejs.org" target="_blank">three.js</a> webgl - interactive distance matrices </h1>
             <p>Select (see below) one or two <b>RAWobserved</b> files to display its contact matrix.</p>
@@ -74,21 +74,21 @@
 				pane: <span id="pane">?</span><br>
 				id1: <span id="id1">?</span><br>
 				id2: <span id="id2">?</span><br>
-				vals: <span id=value1>?</span> ~~ <span id=value2>?</span><br>
-				avgs: <span id=avg1>?</span> ~~ <span id=avg2>?</span><br>
+				vals: <span id="value1">?</span> ~~ <span id="value2">?</span><br>
+				avgs: <span id="avg1">?</span> ~~ <span id="avg2">?</span><br>
 				dist: <span id="dist">?t</span><br>
 			</div>
 			<div id="sliders">
 				<p>strengths:</p>
-				<p><input id="slider1", type="range", min="0", max="200", step="1", value="100"></p>
-				<p><input id="slider2", type="range", min="0", max="200", step="1", value="100"></p>
+				<p><input id="slider1" type="range" min="0" max="200" step="1" value="100"></p>
+				<p><input id="slider2" type="range" min="0" max="200" step="1" value="100"></p>
 				<p id="slider2val">1/1</p>
 			</div>
 		</div>
 
         <script src="../../startcommit.js"></script>
-		<script src="deps/three.js"></script>
-		<script src="deps/TrackballControls.js"></script>
+		<script src="../../JSdeps/three157.js"></script>
+		<!-- <script src="deps/TrackballControls.js"></script> -->
 		<script src="mutbridge.js"></script>
 		<!-- <script src="springsynth.js"></script> -->
 		<!--

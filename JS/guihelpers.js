@@ -393,15 +393,15 @@ function showzoom(ff) {
             fitCanvasToWindow();
         } else {
             if (keysdown[0] === 'ctrl') {
-                DispobjC.olx = oldlayerX
-                DispobjC.oly = oldlayerY;
+                DispobjC.fixlayerx = oldlayerX
+                DispobjC.fixlayery = oldlayerY;
                 return;
             }
             if (keysdown.length !== 0) return;  // do not get confused, eg after alt-p
             clearObjzoom();  // probably not needed as done immediately after zoom render33
             if (lastDispobj !== NODO) lastDispobj.render(); newmain(); onframe(newmain);
             DispobjC.zoom = 0;
-            DispobjC.olx = DispobjC.oly = undefined;
+            DispobjC.fixlayerx = DispobjC.fixlayery = undefined;
         }
         msgfix('zoom');
         return;
@@ -449,17 +449,18 @@ async function tadbwSetup() {
     G.renderBackground=1;
     shadows(0);
     runkeys('K,J,3');
-    // tad.covidSetScene({aspect: tadbwSetup.aspect});
-    // sethighres(5e9);
-    // new Viewedit({name: 'test'})
-    new Viewedit({name: 'feed', top: "15px", left:"100px"})
-    new Viewedit({name: 'edge', top: "15px", left:"450px"})
-    new Viewedit({name: 'sys', top: "15px", left:"800px"})
+    await setviewedit();
+    // feed.showfeed = true;
+}
+
+async function setviewedit() {
+    new Viewedit({name: 'feed', top: "15px", left:"40%"})
+    new Viewedit({name: 'edge', top: "15px", left:"60%"})
+    new Viewedit({name: 'sys', top: "15px", left:"80%"})
     G._tad_h_ribs = tad.TADS;
     await S.frame(20);
     // sethighres(5e9);
     G._tad_h_ribs = tad.TADS;
-    feed.showfeed = true;
 }
 
 /** set up for potential Manchester exhibition */
@@ -467,14 +468,7 @@ async function tadmanchesterSetup() {
     G.OPOSZ=1;
     G.renderBackground=1;
     shadows(7);
-
-    new Viewedit({name: 'feed', top: "15px", left:"100px"})
-    new Viewedit({name: 'edge', top: "15px", left:"450px"})
-    new Viewedit({name: 'sys', top: "15px", left:"800px"})
-    G._tad_h_ribs = tad.TADS;
-    await S.frame(20);
-    // sethighres(5e9);
-    G._tad_h_ribs = tad.TADS;
+    await setviewedit();
     feed.showfeed = false;
 
 }

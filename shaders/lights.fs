@@ -863,6 +863,7 @@ virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, 
 		// 	£££££ colpos = textureget(rtopos, gl_FragCoord.xy * screen);
 		// #endif
 		if (colourid != WALLID && colourid != 0.) colourid += colribs * colpos.z;
+// w.i.p. colourid = floor(opos.w);
 		colourid = (mod(colourid, 32.));    // <<< COL.NUM
         NONU(})
 

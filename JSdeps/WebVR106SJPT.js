@@ -1,16 +1,17 @@
-var Maestro, log, msgfix, msgfixerror, msgfixerrorlog, renderVR, dockeydowninner, animateNum, nop, WA, renderer, nircmd,
-	cheatxr, W, vpxSceneRenderCamera, startvr, nomess;
+var Maestro, log, msgfix, msgfixerror, msgfixerrorlog, msgfixlog, renderVR, dockeydowninner, animateNum, nop, WA, renderer, nircmd, niractcmd,
+	cheatxr, W, vpxSceneRenderCamera, startvr, nomess, sleep;
 
 var WEBVR = {
 
 	realsetup: function WEBVRsetup( options) {
 		if (!options) {
-			msgfixerrorlog('VR', "NO XR: navigator.xr.isSessionSupported( 'immersive-vr' ) returned false");
+			msgfixlog('VR', '<red style="font-size:200%">NO XR:</red> navigator.xr.isSessionSupported("immersive-vr") returned false)');
 			WEBVR.novr = true;
 			return;
 		}
 		msgfix("VR", 'XR session is supported, F2 or F6 to enter VR, F4 to exit	');
 		if (startvr) nomess('force');
+		WEBVR.novr = false;
 
 
 		if ( options && options.referenceSpaceType ) {
@@ -34,15 +35,16 @@ var WEBVR = {
 		}
 		// WEBVR.onSessionStarted = onSessionStarted;
 
-		function onSessionEnded( event ) {
+		async function onSessionEnded( event ) {
 			renderer.xr.removeEventListener( 'sessionend', onSessionEnded );
 			renderer.xr.setSession( null );
 			if (cheatxr) renderer.xr.enabled = false;
 			currentSession = null;
 			if (renderVR.reenter) {
 				log('session end, restarting')
+				await sleep(1000);
 				// WEBVR.enter();					// won't work coming from controller?
-				nircmd(`sendkey f2 press`);
+				niractcmd(`sendkey f2 press`);
 				renderer.setAnimationLoop(nop);    // don't animate during switch
 			}
 		}
@@ -60,7 +62,7 @@ var WEBVR = {
 		}
 
 		WEBVR.exit = function() {
-			currentSession.end();
+			currentSession?.end();
 		}
 
 		function onRequestError(e) {
@@ -164,7 +166,9 @@ function doinsiderender(prenderer, pscene, pcamera, pgeometry, material, pgroup 
 		const baseLayer = renderer.xr.getBaseLayer()
 		if (baseLayer && srt) {
 			// baseLayer.setViewport()
-			renderer.setRenderTargetFramebuffer( srt, baseLayer.framebuffer );
+			const fb = baseLayer.framebuffer;
+			renderer.setRenderTargetFramebuffer( srt, fb );
+			// msgfixlog('VR res', 'framebuffer', fb.width/2, fb.height, 'rt', fb.width/2*renderVR.ratio, fb.height*renderVR.ratio)
 		}
 	}
 	if (xren) pcamera.copy(vpxSceneRenderCamera);

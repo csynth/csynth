@@ -36,18 +36,29 @@ const sharedStorage = {};
 let lastClient; // last client to use websocketReflector; later allow for multiple clients
 export let allowspecial = true;
 
+let ipasint, maskasint;
+
 function getIPAddress() {
     const interfaces = networkInterfaces();
     for (const devName in interfaces) {
+        if (devName !== 'Ethernet') continue;
         const iface = interfaces[devName];
+        //console.log(iface.)
+        // nb 127.0.0.1 is Loopback (not Ethernet)
         for (const alias of iface) {
-            if (alias.address.startsWith('192.168.') && alias.family === 'IPv4' && alias.address !== '127.0.0.1' && !alias.internal) {
+            // if (alias.address.startsWith('192.168.') && alias.family === 'IPv4' && alias.address !== '127.0.0.1' && !alias.internal) {
+            if (alias.family === 'IPv4') {
+                ipasint = ipint(alias.address);
+                maskasint = ipint(alias.netmask);
                 return alias.address;
             }
         }
     }
     return '0.0.0.0';
 }
+
+function ipint(addr) {return addr.split('.').reduce((c,v) => c*256 + +v, 0)}
+function checklocal(addr) { return (ipint(addr) & maskasint) === (ipasint & maskasint) }
 console.log('IP address:', getIPAddress());
 // // collect clipboard items
  const clipboards = [];
@@ -166,7 +177,8 @@ export function websocketReflector() {
         data = data.trimRight();
         // console.log('in data', data);
         if (data === 'cls') {console.clear(); return; }
-        if (data === 'con') {console.log(JSON.stringify(connections)); return; }
+        // if (data === 'con') {console.log(JSON.stringify(connections)); return; }
+        if (data === 'con') {for (const c in connections) console.log(c, connections[c]); return; }
         if (data === 'special') {allowspecial = true; console.log('allowspecial', allowspecial); return; }
         if (data === 'nospecial') {allowspecial = false; console.log('allowspecial', allowspecial); return; }
 
@@ -452,19 +464,24 @@ export function mainServer() {
             var upath = unescape(requestUrl.pathname);
             upath = upath.split('//').join('/').replace('https:/', 'https://');
             const host = message.headers.host;
-            const client = message.connection.remoteAddress;
-            if (!connections[client]) {
-                log('first connection from', client, 'uses', host);
-                connections[client] = 0;
+            const client = message.socket.remoteAddress;
+            const pair = client + '->' + host;
+            if (!connections[pair]) {
+                log('first connection', pair);
+                connections[pair] = 0;
             }
-            connections[client]++;
+            connections[pair]++;
 
-            if (!(host.startsWith('localhost:')
-                || host.startsWith('127.0.0.1:')
-                || host.includes('.local:')
-                || host.startsWith('192.168.'))) {
+            // host can be spoofed, so use client
+            // if (!(host.startsWith('localhost:')
+            //     || host.startsWith('127.0.0.1:')
+            //     || host.includes('.local:')
+            //     || host.startsWith('192.168.'))) {
+            if (!(client === '::1'
+                || client === '::ffff:127.0.0.1'
+                || client.startsWith('::ffff:') && checklocal(client.split(':')[3]))) {
                     log('rejected connection from', host)
-                    return writeresp(response, 999, `will only serve locally, host '${host}' refused.`);
+                    return writeresp(response, 999, `will only serve locally, client '${client}' to host '${host}' refused.`);
             }
 
             if (allowspecial) {
@@ -763,3 +780,16 @@ try {
 import {broker} from "./broker";
 import { spawnSCSynth } from "./scsynthProcess";
 log('broker imported', broker.config.port, broker);
+
+
+
+// var os = require('os');
+// var networkInterfaces = os.networkInterfaces();
+// var localIP = '';
+// for (var i = 0; i < networkInterfaces['eth0'].length; i++) {
+// if (networkInterfaces['eth0'][i].family === 'IPv4') {
+// localIP = networkInterfaces['eth0'][i].address;
+// break;
+// }
+// }
+// console.log(localIP);

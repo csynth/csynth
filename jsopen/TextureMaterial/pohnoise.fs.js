@@ -1,4 +1,4 @@
-window.THREE.ShaderChunk.O_pohnoise = `
+window.THREE.ShaderChunk.O_pohnoise = /*glsl*/`
 // https://www.shadertoy.com/view/4sfGzS
 // MichaelPohoreski, 2016-Feb-26
 // Changes from Lance, Dec 2016

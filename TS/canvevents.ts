@@ -647,6 +647,14 @@ function vpmousedown(evt, dispobj) {
     lastDownLayerX = oldlayerX = offx(evt);
     lastDownLayerY = oldlayerY = offy(evt);
 
+    // fix a reference point if ctrl down, unfix by mousedown without ctrl
+    if (keysdown[0] === 'ctrl') {
+        DispobjC.fixlayerx = oldlayerX
+        DispobjC.fixlayery = oldlayerY;
+    } else {
+        DispobjC.fixlayerx = DispobjC.fixlayery = undefined;
+    }
+
     var genes = dispobj.genes;
     if (!genes) return;
     if (WA.staticAudio) playStaticAudio(dispobj.vn);

@@ -63,8 +63,8 @@ ${yaml.safeDump(tolog, {skipInvalid: true})}
 var loadStartTime;
 async function checkContext() {
     if (gl) {
-        const rc = gl.getError();
-        await sleep(1);
+        //??const rc = gl.getError();
+        //??await sleep(1);
         if (gl.isContextLost()) {
             clearInterval(checkContext.interval);
             W.seriousbox.style.display = '';

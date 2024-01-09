@@ -14,25 +14,41 @@ function minEleonchange(evt) {
     var uig = getg(this);
     uig.sliderEle.min = this.value*1;
     genedefs[uig.name].min = this.value*1;
+    evt.srcElement.style.background = '';
 }
 function maxEleonchange(evt) {
     var uig = getg(this);
     uig.sliderEle.max = this.value*1;
     genedefs[uig.name].max = this.value*1;
+    evt.srcElement.style.background = '';
 }
 /** setdelta value */
 function deltaEleonchange(evt) {
     var uig = getg(this);
     // uig.sliderEle.delta = this.value*1;
     genedefs[uig.name].delta = this.value*1;
+    evt.srcElement.style.background = '';
 }
 function stepEleonchange(evt) {
     var uig = getg(this);
     uig.sliderEle.step = this.value*1;
     genedefs[uig.name].step = this.value*1;
+    evt.srcElement.style.background = '';
 }
 function nameEleonchange(evt) {
     geneCallbacks();
+}
+function eleoninput(evt) {
+    evt.srcElement.style.background = '#400';
+}
+function eleonkeydown(evt) {
+    const ff = getkey(evt);
+    if (ff === 'Enter') {
+        evt.srcElement.dispatchEvent(new Event('change'))
+        evt.srcElement.style.background = '';
+        killev(evt);
+    }
+    evt.stopPropagation();
 }
 
 
@@ -52,6 +68,8 @@ function geneonkeydown(evt, name) {
             toggleFree(name);
         HW.updateHTMLRules();   // slight overkill, but does not happen too often
         return killev(evt);
+    } else if (ff === 'Enter') {
+        evt.srcElement.dispatchEvent(new Event('change'))
     } else if (keysdown[0] === '#' && ff === 'Tab') {  //test pending future use
         let i = 0;
     } else if (ff === '#') {
@@ -113,7 +131,9 @@ function geneonkeydown(evt, name) {
     return true;
 }
 function currentEleonchange(evt) {
-    getg(this).sliderEle.value = this.value; uset(getg(this)); }
+    getg(this).sliderEle.value = this.value; uset(getg(this));
+    evt.srcElement.style.background = '';
+}
 function sliderEleonchange(evt) {
     const gg = getg(this);
     const v = currentGenes[gg.name] = this.valueAsNumber
@@ -240,14 +260,19 @@ function geneCallback(g, name) {
     g.maxEle.onchange = maxEleonchange;
     g.deltaEle.onchange = deltaEleonchange;
     g.stepEle.onchange = stepEleonchange;
-    g.minEle.oninput = minEleonchange;
-    g.maxEle.oninput = maxEleonchange;
-    g.deltaEle.oninput = deltaEleonchange;
-    g.stepEle.oninput = stepEleonchange;
+    g.minEle.oninput = eleoninput;
+    g.maxEle.oninput = eleoninput;
+    g.deltaEle.oninput = eleoninput;
+    g.currentEle.oninput = eleoninput;
+    g.minEle.onkeydown = eleonkeydown;
+    g.minEle.onkeydown = eleonkeydown;
+    g.maxEle.onkeydown = eleonkeydown;
+    g.deltaEle.onkeydown = eleonkeydown;
+    g.stepEle.onkeydown = eleonkeydown;
     g.nameEle.onchange = nameEleonchange;
     g.onkeydown = geneonkeydown;
     g.currentEle.onchange = currentEleonchange;
-    g.currentEle.oninput = currentEleonchange;
+    g.currentEle.oninput = eleoninput;
     g.currentEle.onclick = currentEleonclick;
     g.currentEle.onfocus = currentEleonfocus;
     g.sliderEle.onchange = sliderEleonchange;

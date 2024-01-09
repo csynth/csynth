@@ -10,10 +10,11 @@ uniform mat4 rot44d;  // 4d viewing transform
 
 uniform float pointSize;
 uniform float OPOSZ;
+uniform float extrahornid;
 
 //attribute vec3 position;
 //#if OPMODE == OPMAKESKELBUFF
-int versionvv = __VERSION__;
+//#int versionvv = __VERSION__;
 //#if __VERSION__ < 300
 //	attribute float instanceID;
 //#else
@@ -372,6 +373,8 @@ void main()	{
                 { float vv = float(instanceID);
                 $$$chooseHornCode$$ }						// make sure xhornid correct in SINGLEMULTI, noop if not SINGLEMULTI
             #endif
+
+            if (xhornid > WALLID) xhornid += extrahornid;  // for multiple CSynth passes
             if (OPOSZ == 1.) {
                 opos.w = MAX_HORNS_FOR_TYPE*xhornid + instanceID;  // ribnum or ribnum2 NOT passed
                 opos.z = trpos.z;                                   // whether wall or not for OPOSZ == 1.
