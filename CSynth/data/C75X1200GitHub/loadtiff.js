@@ -7,7 +7,7 @@ springdemo( {
     ],
 	beds: ['extrude.bed','genes.bed','prom_enh.bed','ctcf.bed'],
     imagetiff: 'STED_example_mouse.tif',
-	etc: ''
+    showLorentzian: false
 });
 
 
