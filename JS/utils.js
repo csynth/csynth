@@ -1562,6 +1562,7 @@ function posturierror(puri, data) {
 var preloaded = {};
 
 function preload(list) {
+    if (location.pathname.endsWith('matrixexplorer.html')) return;
     for (const fn of list)
         fetch(fn).then(r => r.text()).then(d => preloaded[fn] = d)
 }
@@ -4402,9 +4403,10 @@ function checkres() {
     if (!startcommit) return;  // eg used from some small test function
     if (location.href.indexOf('csynthstatic/stephensvn') !== -1) return;    // testing will probably be wrong versions
     if (location.href.contains('csynth.github.io')) return;
+    if (location.href.contains('matrixexplorer.html')) return;
     const current = startcommit.trim();
     let uuu = '../startcommit.txt';
-    if (location.pathname.indexOf('matrixexplorer') !== -1) uuu =  '../../' + uuu;
+    // if (location.pathname.indexOf('matrixexplorer') !== -1) uuu =  '../../' + uuu;
     let latest;
     try {
         latest = posturi(uuu).trim();

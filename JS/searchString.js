@@ -40,6 +40,7 @@ var searchReplace = {
     lorentz: 'startscript=Lorentz/lorentz.js',
     steve: 'startscript=wimm/SteveJan19/test.js',
     covid: 'startscript=covid/spike.js',
+    covidzip: 'startscript=covid/spikezip.js',
     pdb: 'pdb=1GFL',
     triyork: 'startscript=tric/tric.js',
     fano: 'appToUse=Fano',
