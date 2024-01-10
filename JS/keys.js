@@ -647,6 +647,7 @@ function dockeydowninner(kkk, evt) {
         case 'K,F3': mutateForm(); break; // mutate form only
         case 'L,F3': mutateColour(); break; // mutate colours only
         case 'L,W': clearSelected(); break; // wipe selection
+        case 'L,M': CSynth.startLMV(); break;  // start LMV
         // case 'F4 ': randrulemutate(); break;        //# mutate, including structure mutation, currently not supported
         // case 'alt,Meta,R': setInput(W.NOMESS, !inputs.NOMESS); break;
         case 'alt,Meta,Q': setInput(W.NOMESS, !inputs.NOMESS); break;   // toggle nomess
