@@ -2423,12 +2423,13 @@ async function blob2forEach(blob, fid) {
     return info;
 }
 
-async function filesFromDialog(callback) {
+async function filesFromDialog(callback, dir=false) {
     W.fileDialog.onclick = function (evtp) { this.value = null; }
     W.fileDialog.onchange = function (evtp) {
         W.startscreeni.innerHTML = 'preparing files';
         (callback ?? openfiles)(evtp.target.files);
     }
+    W.fileDialog.webkitdirectory = dir
     W.fileDialog.click();
     W.startscreeni.innerHTML = 'choosing files';
     // await S.waitEvent()

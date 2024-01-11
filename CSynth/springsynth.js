@@ -974,7 +974,7 @@ CSynth.handlefileset = async function(evt, data) {
     if (configs.length > 0) {
         let cfile;
         if (configs.length > 1) {
-            const x = prompt('choose config file' + configs.map((v,i) => i + ': ' + v.name).join('\n'), '0');
+            const x = prompt('choose config file<br>' + configs.map((v,i) => i + ': ' + v.name).join('\n'), '0');
             if (x === null) return;
             cfile = configs[x];
         } else {
@@ -983,7 +983,7 @@ CSynth.handlefileset = async function(evt, data) {
         currentLoadingFile = cfile.name;
         currentLoadingDir = 'droppedFiles';
         openfiles.processed = true;  // we've handled the files
-        
+
         // horrid workaround to arrange files ready for sync loading of xyz files
         const sspringdemo = springdemo;
         let lcc;

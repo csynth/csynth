@@ -762,6 +762,7 @@ function dockeydowninner(kkk, evt) {
             renderVR.xrfs(true);
             break;
         case 'ctrl,O': filesFromDialog();  break; // open files
+        case 'ctrl,alt,O': filesFromDialog(undefined, true);  break; // open directory
         case 'ctrl,shift,O':  // reopen last opened files (from drop or ctrl,o)
             openfiles();
             break;
