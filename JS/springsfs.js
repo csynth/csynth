@@ -100,6 +100,7 @@ function getSpringUniforms(springModel = springs) {
     addGenePerm_withID("backboneforce", 0, 0, 1, 0.01, 0.001, "backbone force for regular lengths (pairs style)", "springs", "frozen");
     addGenePerm_withID("contactforce", 0.0, 0, 100, 1, 1, "pairwise contact force", "springs", "frozen");
     addGenePerm_withID("contactforcesc", 0.0, 0, 1, 0.01, 0.001, "pairwise contact force, scaled", "springs", "frozen");
+    addGenePerm_withID("wrongfade", 0.0, 0, 5, 0.01, 0.001, "control of fade for unsatisfied springs", "springs", "frozen");
 
     addGenePerm_withID("pullspringforce", 0, 0, 1, 0.01, 0.001, "pull spring force (to given position)", "springs", "frozen");
     addGenePerm_withID("pullfixdamp", 0, 0, 1, 0.01, 0.001, "damp towards using pull spring as fix (0, no effect, 1 jump to pull", "springs", "frozen");
@@ -233,6 +234,7 @@ ${inps.SMALLPAIRS ? '#define SMALLPAIRS' : ''}
 uniform float roleforces[ROLEFORCESLENGTH];
 uniform float roleforcesFix[ROLEFORCESLENGTH];
 uniform float time;         // for noise
+uniform float test1;
 ${uniformsForTag('springs') //<<---------- probably harmless?
 }
 
@@ -525,11 +527,7 @@ vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float de
     lforce += -tlocalforce * (1. - smoothstep(0.5, 1.0, rellen));
 
     gforce -= pushapartDensityFactor * olddensity * otherdensity * pow(len/powBaseDist, pushapartDensityPow);
-
-    // global pushapart, don't push backbone neighbours apart
-    if ((sameRegion && backbonedistP > 1.5) || ignoreBackbone != 0.)
-        // gforce += -pushapartforce * pow(len/powBaseDist, pushapartpow);
-        gforce += -pushapartforce * pow(max(len,backboneScale)/powBaseDist, pushapartpow);
+    // we used to have global pushapart here, moved to after contact calculation so it can use wrongfade
 
     // fractal force
     // was set to gforce, but that gave issues with -999 special values 21/01/2022
@@ -552,6 +550,8 @@ vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float de
         bforce += (len - backboneScale) * backboneforce;
     }
 
+    float uwrongfade = 1.;
+
     // main 'spring' force from contacts
     if (contactforcesc != 0. && backbonedist < ACTIVERANGE * maxBackboneDist) {
         float contact = texture2D(contactbuff, vec2(part, opart) * SMALLTEXTURE).x;
@@ -560,15 +560,36 @@ vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float de
             // ??? should we cancel gforce ???
         } else {
             if (contact <= -9.) {  // probably == -999., but may not be exactly if using linear interpolation and expand
-                gforce = 0.;
+                uwrongfade = gforce = 0.;
                 if (backbonedistP <= patchwidth) contact = patchval;
                 // else it will be set to 0 below ...
             }
             // replaced by < -1000 above if (contact == 0. && backbonedistP == 1.) bforce = 0.;  // 0 after patch really means no boundary join
             contact = max(0., contact - contactthreshold);
-            gforce += contactforcesc * contact * len * boost(part, opart);
+            if (wrongfade != 0. && pushapartforce != 0.) {  // compute lorenz-like fade off of contact and pushapart
+                // tlen is length where contact and pushapart balance: workings below
+                // pushapartforce * (tlen/powBaseDist) ** pushapartpow = contactforcesc*contact * tlen = contactforcesc*contact*powBaseDist * (tlen/powBaseDist)
+                // pushapartforce * (tlen/powBaseDist) ** (pushapartpow - 1) = contactforcesc*contact*powBaseDist
+                // (tlen/powBaseDist) ** (pushapartpow - 1) = contactforcesc*contact*powBaseDist / pushapartforce
+                // tlen = (contactforcesc*contact*powBaseDist / pushapartforce) ** (1 / (pushapartpow - 1.)) * powBaseDist
+                float tlen = pow(contactforcesc*contact*powBaseDist / pushapartforce, 1. / (pushapartpow - 1.)) * powBaseDist;
+
+                // now compute fade, https://www.desmos.com/calculator/kdmohco1au
+                float c = 1. / wrongfade;
+                float cc = c*c;
+                float q = 1. - len / tlen;
+                float f = cc + q * q;
+                uwrongfade = cc * cc / (f * f);
+            }
+            gforce += contactforcesc * contact * len * boost(part, opart) * uwrongfade;
         }
     }
+
+    // global pushapart, don't push backbone neighbours apart
+    if ((sameRegion && backbonedistP > 1.5) || ignoreBackbone != 0.)
+        // gforce += -pushapartforce * pow(len/powBaseDist, pushapartpow);
+        gforce += -pushapartforce * pow(max(len,backboneScale)/powBaseDist, pushapartpow) * uwrongfade;
+
 
     /** / test contact force
     if (contactforce2 != 0. && backbonedist < ACTIVERANGE * maxBackboneDist) {
@@ -584,14 +605,14 @@ vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float de
 
     // Missouri Lorentzian model
     /*
-    G.pushapartforce = G.contactforce = G.backboneforce = G.pushapartlocalforce = G.xyzforce = 0
+    G.pushapartforce = G.contact force = G.backboneforce = G.pushapartlocalforce = G.xyzforce = 0
     G.m_c = 20; G.m_alpha=1; G.m_force = 1; G.m_k = 10
     */
-    // symbolic differentiation of the forumla from https://academic.oup.com/nar/article/45/3/1049/2605802
+    // symbolic differentiation of the formula from https://academic.oup.com/nar/article/45/3/1049/2605802
     // done by https://www.symbolab.com/solver/step-by-step/%5Cfrac%7Bd%7D%7Bdx%7D%5Cleft(c%5Ccdot%5Cfrac%7Bc%7D%7Bc%5Ccdot%20c%20%2B%20%5Cleft(x-d%5Cright)%5Ccdot%5Cleft(x-d%5Cright)%7D%5Cright)
 
     if (m_force != 0.) {
-        // to decide, how much to share with contactforce path
+        // to decide, how much to share with contact force path
         float contact = texture2D(contactbuff, vec2(part, opart) * SMALLTEXTURE).x;
         if (contact <= -9.) {  // probably == -999., but may not be if using linear interpolation and expand
             gforce = 0.;
@@ -604,6 +625,11 @@ vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float de
             float d = m_k * pow(contact, -m_alpha);     // target distance
             float dd = d - len;
             float dem = m_c * m_c + dd*dd;
+
+            // m_c ** 2 in numerator below corresponds to the the Missuouri paper
+            // m_c ** 4 gives normalized curve (see https://www.desmos.com/calculator/vegcqqatdn)
+            // They are constants so the difference can be compensated by m_force
+            // As this code works with length differences (not relative length differences) m_c needs to be quite high, and m_c**4 leads towards instability with 'ordinary' m_force values
             gforce += m_force * contact * -2. * m_c * m_c * dd / (dem*dem) * boost(part, opart);
         }
     }
@@ -707,7 +733,7 @@ void main() {
         #endif
             if (ii > ACTIVERANGE * maxActive) break;
             if (ii < ACTIVERANGE * minActive) continue;
-            //if (contactforce == 0. && (ii == part-INVPARTICLESP2 || ii == part+INVPARTICLESP2)) {} else // do not handle backbone as pairs for old style forces, do for contactforce
+            //if (contact force == 0. && (ii == part-INVPARTICLESP2 || ii == part+INVPARTICLESP2)) {} else // do not handle backbone as pairs for old style forces, do for contact force
             {
                 // vec4 papart = vec4(ii, 9999 /*not used */, pushapartforce, pushapartpow);  // new pushapart spring, NOT compensated  by INVPARTICLESP2
                 force += pairforces(old, ii, olddensity, density, velold, dirdensity);
@@ -911,7 +937,7 @@ applies to gforce (NOT lforce, bforce)
     pushapartDensityFactor (pushapartDensityPow)
     pushapartforce (pushapartpow)
     xyzforce (xyzpow)
-    contactforce (no contactpow)
+    contact force (no contactpow)
     m_force (m_alpha etc)  Lorentz
 
 

@@ -903,7 +903,7 @@ export class Horn {
                 } else {
                     useribs = this.gn("ribs");
                     userref = this.gn("rref");
-                    msgfixerrorlog(useribs, 'used for branch in', this.name, '. try sub(..., RIBS) style preferred')
+                    console.error(msgfixlog(useribs, 'used for branch in', this.name, '. try sub(..., RIBS) style preferred'))
                 }
 
                 code = code.replace(/RIBS/g, useribs).replace(/RREF/g, userref);

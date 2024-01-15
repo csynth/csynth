@@ -464,14 +464,26 @@ async function setviewedit() {
 }
 
 /** set up for potential Manchester exhibition */
+async function tadchinaSetup() {
+    const me = tadkin;
+    G.OPOSZ=1;
+    G.renderBackground=1;
+    shadows(0);
+    await setviewedit();
+    feed.showfeed = false;
+    runkeys('Insert,P');    // this sets the highlight
+    // me.setDisptype('position')  // this does the work but does not set the gui highlight
+}
+
+/** set up for potential China Creative Machine exhibition */
 async function tadmanchesterSetup() {
     G.OPOSZ=1;
     G.renderBackground=1;
     shadows(7);
     await setviewedit();
     feed.showfeed = false;
-
 }
+
 
 function genfname(base = '', ext) {
     let f = getdesksave() + base +  (new Date().toISOString()).replace(/:/g, ".")

@@ -4734,6 +4734,9 @@ CSynth.sendData = function(max = 2) {
     for (let i = 0; i < max; i++) {
         CSynth.bc.postMessage({command: '!data', positions: ccc[i].data});
     }
+    CSynth.bc.last = -99;  // force reselect
+    CSynth.showpick();
+
 
 }
 

@@ -14,6 +14,7 @@ var searchReplace = {
     orgbw: 'standard & eval3=tadbwSetup();setViewports([0,0])',
     tadbw: 'tadnoaudio & eval1=usemask=1 & eval1=usemask=1 & eval3=tadbwSetup() & canvtop',
     tadmanchester: 'tadnoaudio & eval1=usemask=2 & eval1=usemask=2 & eval3=tadmanchesterSetup() & canvtop',
+    tadchina: 'tadnoaudio & eval1=usemask=2 & eval1=usemask=2 & eval3=tadchinaSetup() & canvtop',
     tadsmall: 'tadkin & ribs=4 & tadnum = 600 & initrolename = tree15 & MAX_DEFS_PER_PARTICLE = 16 & startcam & startobj = tad-cammus',
     tadcam: 'tadkin & startcam',
     kintadmut: 'tadkin & notaddetails & noaudio & eval3=setTimeout(() => mutatetad = new mutateTad(),10000)',

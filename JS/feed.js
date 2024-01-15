@@ -37,7 +37,7 @@ Object.defineProperties(feed, {
         set: v => {
             if (!v) {
                 var fp, ftm
-                [fp, feed.dofeed, G.centrerefl, G.centrereflx, G.centrerefly, G.maxfeeddepth, ftm] = feed.shadsave;
+                if (feed.shadsave) [fp, feed.dofeed, G.centrerefl, G.centrereflx, G.centrerefly, G.maxfeeddepth, ftm] = feed.shadsave;
                 Object.assign(feed.fp, fp);
                 U.feedbackTintMatrix.copy(ftm);
                 feed.shadsave = undefined

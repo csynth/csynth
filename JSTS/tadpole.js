@@ -68,7 +68,7 @@
 //   Originlly spring uniforms.roleforces was used for those different roles, now obsolete
 //import {THREE} from './tomodule.js';    // '.js' needed because of typescript rules we don't understand
 //import HornSet from '../JSTS/horn.js';
-var GUIKey, GUIFinishPanel, GUISubadd, GUINewsub, GUIwallkeys, GUISpacer;
+var GUIKey, GUIFinishPanel, GUISubadd, GUINewsub, GUIwallkeys, GUISpacer, xfetch;
 var sgui; // temp
 var useKinect = searchValues.useKinect;
 msgfixlog('tad+', 'tadpole.ts loaded');

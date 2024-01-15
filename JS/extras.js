@@ -7,7 +7,7 @@ slots, mainvp, distxyz, material, EX, setInput, onframe, setViewports, Director,
 cMap, _boxsize, basescale, searchValues, getdesksave, S, runcommandphp, nircmd, islocalhost, downloadImageGui, Buffer, vec3, SG, substituteExpressions,
 currentHset, gl, showUniformsUsed, arraydiff, saveAs, everyframe, Maestro, msgfixerror, clearPostCache, runkeys, isCSynth, _R, GUIwallkeys,
 shadows, usemask, inps, exportmyshaders, readtext, format, savesystem, centrescalenow, xxxvn, lastDownLayerX, lastDownLayerY, copyXflip, feed, fileExists, niractcmd,
-ofirst
+ofirst, xfetch
 
 
 /** convenient look at uniforms, n.b. uniforms must be mentioned in the proxy else ownKeys does not work */

@@ -669,23 +669,20 @@ CSynth.fastdamp = 0.9999;
 
 
 CSynth.defvals = {xyzforce: 1 , contactforce: 1, pushapartforce: 0.0008, m_force: 1};  // default values if 0 and being used
-CSynth.switchSpringSettings = function(ftype) {
-    const eg = {
-        xyz: ['xyzforce'],
-        csy: ['contactforce', 'contactforcesc', 'pushapartforce', 'pushapartpow'],
-        lor: ['m_force', 'm_alpha', 'm_c', 'm_k']
-    };
+// n.b. contactforcesc should only be a uniform and not visible as a gene?
+CSynth.forcetypes = [['pushapartpow', 'csy'], ['pushapartforce', 'csy'], ['contactforce', 'csy'], ['contactforcesc', 'csy'], ['wrongfade', 'csy'],
+['xyzforce', 'xyz'],
+['m_alpha', 'lor'], ['m_c', 'lor'], ['m_k', 'lor'], ['m_force', 'lor']
+];
 
-    for (let type in eg) {
-        const l = eg[type];
-        l.forEach(gn => {
-            if (type === ftype) {
-                CSynth.enable(gn)
-                if (G[gn] === 0 && CSynth.defvals[gn]) G[gn] = CSynth.defvals[gn];
-            } else {
-                CSynth.disable(gn)
-            }
-        })
+CSynth.switchSpringSettings = function(ftype) {
+    for (const [gn, type] of CSynth.forcetypes) {
+        if (type === ftype) {
+            CSynth.enable(gn)
+            if (G[gn] === 0 && CSynth.defvals[gn]) G[gn] = CSynth.defvals[gn];
+        } else {
+            CSynth.disable(gn)
+        }
     }
     CSynth.springSettings.current = ftype;
     return;

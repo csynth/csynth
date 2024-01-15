@@ -125,6 +125,7 @@ var Springs = function(id = '') {
         //guiFromGene(gui, "pushapartforce", "pushapartforceL");
         guiFromGene(gui, "pushapartforce");
         guiFromGene(gui, "pushapartpow");
+        guiFromGene(gui, "wrongfade");
         if (CSynth.current.showLorentzian) {
             const xxx = {
                 get autoAlign() { return !!meX.alignMaestro; },

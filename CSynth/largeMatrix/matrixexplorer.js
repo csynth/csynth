@@ -61,7 +61,7 @@ if (quickout) return;
 
     // for red position boxes
     lineGeometry = new THREE.BufferGeometry();
-    linePositions=new Float32Array(16*3);
+    linePositions=new Float32Array(20*3);
     lineMaterial = new THREE.LineBasicMaterial( { color: 0xff0000, linewidth:1 } );
     var line = new THREE.LineSegments(lineGeometry, lineMaterial);
     lineScene.add(line);
@@ -275,12 +275,16 @@ function setxy(vpn, xp, yp) {
         r.y = xp + v2.range/4;
         r.z = yp - v2.range/4;
         r.w = yp + v2.range/4;
+        r.zz = r.z;     // these are used for pointers, not 'hidden' when only one range
+        r.ww = r.w;
         if (r.y > r.z || xp > yp) {  // near enough diagonal to merge to one big segment
             var ap = (xp + yp)/2;
             r.x = ap - v2.range/2;
             r.y = ap + v2.range/2;
             r.z = -1;
             r.w = -1;
+            r.zz = r.x;
+            r.ww = r.y;
         }
     }
 }
@@ -444,36 +448,56 @@ function showvp(vp) {
     // then red lines to show position of higer res within lower res
     if (vp.id !== vps.length-1) {
         var r2 = vps[vp.id + 1].r;
-        var x = dpos(r2.x, r);
-        var y = dpos(r2.y, r);
-        var z = dpos(r2.z, r);
-        var w = dpos(r2.w, r);
+        var x = dpos(r2.x, r);   // left
+        var y = dpos(r2.y, r);   // right
+        var z = dpos(r2.z, r);   // bottom
+        var w = dpos(r2.w, r);   // top
+        var zz = dpos(r2.zz, r);   // bottom
+        var ww = dpos(r2.ww, r);   // top
+        var zw = (zz+ww) / 2;
 
         window['y' + (vp.id+2) + '1'].innerHTML = Math.ceil(r2.x).toLocaleString() + '<br>' + Math.floor(r2.y).toLocaleString();
         window['y' + (vp.id+2) + '2'].innerHTML = r2.z === -1 ? "" : Math.ceil(r2.z).toLocaleString() + '<br>' + Math.floor(r2.w).toLocaleString();
 
         let i = 0;
-        linePositions.set([x, -z, 0,
-        x, -w, 0,
-        y, -z, 0,
-        y, -w, 0,
+        linePositions.set([
+        x, -z, 0,  // bot left box left right
+        x, -w, 0,  // top left
+        y, -z, 0,  // bot right
+        y, -w, 0,  // top right
 
-        x, -x+d, 0,
-        x, -y, 0,
-        x, -y, 0,
-        y+d, -y, 0,
-
-        x, -z, 0,
+        x, -z, 0,  // box top bottom
         y, -z, 0,
         x, -w, 0,
         y, -w, 0,
+            
+        x, -x+d, 0,    // bot left left pair
+        x, -y, 0,  // top left
+        x, -y, 0,      // top left
+        y+d, -y, 0,    // top right
 
-        z, -z+d, 0,
+        (x+y)/2, -(x+y)/2, 0,  // vert left pointer
+        (x+y)/2, -(x+y)/2+d, 0,
+        zw, -zw, 0,  // horiz right pointer
+        zw+d, -zw, 0,
+  
+        z, -z+d, 0,  // right pair
         z, -w, 0,
         z, -w, 0,
         w+d, -w, 0]);
     } else {
         linePositions.fill(0);
+        linePositions.set([
+        0,0, 0,  // vert left pointer
+        0,d,0,
+        0,0,0,  // horiz right pointer
+        d,0,0,
+            
+        -0.5, 0.5+d, 0,  // vert left pointer
+        -0.5, 0.5, 0,
+        0.5,-0.5,0,  // horiz right pointer
+        0.5+d,-0.5,0,  // horiz right pointer
+        ]);
         //for (let i=0; i<lineVertices.length; i++) lineVertices[i].set(999, 999, 999);
     }
     // lineGeometry.verticesNeedUpdate = true;

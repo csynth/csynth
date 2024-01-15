@@ -904,7 +904,7 @@ GX.html = function(xx = GX.findSelected()[0]) {
         htmlele = GX.htmlele = document.createElement('div');
         htmlele.style.position = 'fixed';
         htmlele.style.zIndex = 99999;
-        htmlele.style.backgroundColor = 'black';
+        htmlele.style.backgroundColor = 'rgba(0,0,0,0)';
         document.body.append(GX.htmlele);
         const row = n => `
             <tr>
@@ -935,7 +935,7 @@ GX.html = function(xx = GX.findSelected()[0]) {
         }
         GX.htmlele.innerHTML = `
     <div id="_GXname"><b>name</b></div><br>
-    <table>${row('value')} ${row('min')} ${row('max')} ${row('step')}</table>
+    <table style="left: 10em">${row('value')} ${row('min')} ${row('max')} ${row('step')}</table>
     <br>
     Escape: exit box
     <br>
@@ -968,9 +968,11 @@ GX.htmlUpdate = function (xx) {
         GX.htmlgx = xx;
 
         GX.htmlele.style.display = ''
-        GX.htmlele.style.left = (lastdocx+10) + 'px';
-        GX.htmlele.style.top = (lastdocy+10) + 'px';
+        GX.htmlele.style.left = '';
+        GX.htmlele.style.right = (innerWidth - lastdocx + 60) + 'px';
+        GX.htmlele.style.top = (lastdocy+0) + 'px';
         W._GXname.innerHTML = xx.mostName();
+        W._GXname.background = 'black';
         hx.onchange = () => xx.setValue(+hx.value);
         hx.focus();
         W._GXmin.onchange = () => xx.min(hx.min = +W._GXmin.value);

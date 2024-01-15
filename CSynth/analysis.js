@@ -1,7 +1,7 @@
 'use strict';
 
 var CSynth, msgfixlog, springs, spearson, G, format, msgfix, sleep, log, numInstances, distxyz, col3, throws,
-Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S;
+Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S, array2Table, getstats;
 
 var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain, setAllLots, msgfixerrorlog,
     clamp;
@@ -80,7 +80,7 @@ CSynth.dists = function csynthdists(inputDef, statsres = CSynth.statsres, dres=u
     }
     let key = statsres + inputDef;
     if (use.isContact)  // check for changed details that effect contact distances
-        key += 'contactforcesc,patchval,pushapartforce,powBaseDist,pushapartpow,m_k,m_alpha,representativeContact'
+        key += 'contactforcesc,patchval,pushapartforce,powBaseDist,pushapartpow,m_k,m_alpha,representativeContact,wrongfade'
             .split(',').map(k=>GO[k]).join(',');
 
     let result = use.dists && use.dists[key];
@@ -257,7 +257,7 @@ CSynth.contactToDist = function(c, alpha = G.m_alpha, k = G.m_k ) {
     // const pow = (a,b) => a**b;
 
     // use overridden distances, and cache them for efficiency
-    const {contactforcesc, patchval, pushapartforce, powBaseDist, pushapartpow} = GO;
+    const {contactforcesc, patchval, pushapartforce, powBaseDist, pushapartpow, wrongfade} = GO;
     const representativeContact = cc.representativeContact;
     let contactMult, contactPow, path;
     if (contactforcesc !== 0) {
@@ -452,14 +452,23 @@ CSynth.gotoCapture = function(n = 0, set = CSynth.captures) {
 CSynth.displayCaptureStats = function(set = CSynth.captures, name = 'captures', msg = 'stats for captured data' ) {
     // const {sr, dists, positions} = CSynth.captures;
     const r = [];
+    if (set.length < 2) return 'not enough capture data';
+    const tto = ['', ''];
+    tto.push(...Object.keys(set[1].sr[0]))
+    r.push(tto)
     for (let i = 0; i < set.length; i++) {
         for (let j = 0; j < i; j++) {
-            let tt = `csynth ${i} ${j} ${format(Object.values(set[i].sr[j]), 6)}`
-            if (j === 0) tt = `'<green>${tt}</green>`
+            const tt = [i,j]
+            tt.push(...Object.values(set[i].sr[j]).map(c => c.toFixed(3)))
+
+            // let tt = `csynth ${i} ${j} ${format(Object.values(set[i].sr[j]), 6)}`
+            //if (j === 0) tt = `'<green>${tt}</green>`
             r.push(tt);   // and format
+            if (j === 0) r.push( r.pop().map(c => '<green>' + c + '</green>'));
         }
     }
-    msgfix(name, msg + '<br>' + r.join('<br>'));
+    msgfix(name, msg + array2Table(r));
+    //msgfix(name, msg + '<br>' + r.join('<br>'));
 }
 
 /** generate an Array from a definition object (def) and options
@@ -899,10 +908,8 @@ CSynth.alignModels = function(type = 'auto') {
 
     const oal = CSynth.lastAlign;
     // const nal = [G.pushapartpow, G.contactforce, G.m_alpha, G.m_k];
-    const types = [['pushapartpow', 'csy'], ['pushapartforce', 'csy'], ['contactforce', 'csy'],
-        ['xyzforce', 'xyz'],
-        ['m_alpha', 'lor'], ['m_c', 'lor'], ['m_k', 'lor'], ['m_force', 'lor']
-    ];
+    
+    const types = CSynth.forcetypes; // defined CSynth.switchSpringSettings
 
     let forceChanged;
     if (type === 'auto') {
@@ -1372,4 +1379,12 @@ CSynth.alignTransform = function(p1, p2, {
     log('t', t.toString())
     console.timeEnd('aligntr')
     return m;
+}
+
+springs.velstats = function() {
+    const a = springs.getpos()
+    springs.step(1)
+    const b = springs.getpos()
+    const v = a.map((x,i) => x.distanceTo(b[i]));
+    return getstats(v);
 }
