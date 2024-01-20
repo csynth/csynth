@@ -1881,12 +1881,17 @@ CSynth.useBed = function(b, cc = CSynth.current, dir = '') {
         bedparse(b.bedtext);
     } else if (b.filename && !b.filename.startsWith('nofile_')) {
         bedF = dir + b.filename;
-        // this uncontrolled async was giving problems with first bed, 31/07/2019
-        // TODO: allow async bed but ensure settings get in last
-        //const req = posturiasync(bedF, bedparse);
-        //req.onerror = (e) => msgfixerror('cannot read', bedF);
-        const data = posturi(bedF);
-        bedparse(data);
+        // ? TODO omore general async fid using pass1/pass2
+        if (bedF.startsWith('droppedFiles/')) {
+            (async () => {
+                let ddata = await xfetch(bedF); //
+                ddata = await ddata.text();
+                bedparse(ddata);
+            })()
+        } else {
+            const data = posturi(bedF);
+            bedparse(data);
+        }
     } else {
         b.filename = bedF = 'syn' + b.step;
         CSynth.checkRangePair(b, cc);  // make sure minid etc available

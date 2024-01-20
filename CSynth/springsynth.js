@@ -1068,7 +1068,7 @@ CSynth.handlefileset = async function(evt, data) {
         log('handlefileset, auto config generated as no config file');
         springdemo(o);
     } else {
-        log('handlefileset, no special files so handle files individually');
+        log('handlefileset, no contacts or xyz files so handle files individually');
     }
 
     async function readall(ff) {
