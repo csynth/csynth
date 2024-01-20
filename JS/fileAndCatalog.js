@@ -21,7 +21,7 @@ var W, genedefs, mainvp, savedef, keysdown, inputs, fileOpenReadWS, fileReadWS, 
         loadStartTime, genbar, uriclean, S, isNode, mkdir, readdir, readtext, runcommandphp,
         writetextremote, fileExists, remotesave, fileStat, currentLoadingData, target, defaultObj, filterDOMEv, checkoao, msgflash, canvdroppaste,
         searchValues, inps, COL, cMap, setBackgroundColor, addscript, GX, islocalhost, readbinaryasync, HW,
-        msgboxVisible, isCSynth, msgfixerrorlog;
+        msgboxVisible, isCSynth, msgfixerrorlog, canvas;
 
 var _binfiles = ['.tif', '.bintri', '.zip', '.map'];
 var FrameSaver = {};  // psuedo-class
@@ -98,6 +98,12 @@ const chromeMaxString = 536870888;
 /** read and process a single file, given a File object */
 async function openfile(file) {
     log('openfile start ', file.name);
+    if (!(file instanceof Blob)) {
+        const fname = file.name;
+        file = await xfetch(file.name);
+        file = await file.blob();
+        file.name = fname
+    }
     var ext = getFileExtension(file.name);
     var handler = fileTypeHandlers[ext];
     const canonpath = file.canonpath;
@@ -309,25 +315,30 @@ async function _docdroppaste(evt, dt) {
             if (canvdone) return killev(evt);
         }
         const path = Array.from(evt.composedPath());
-        if (W.doEvalOnPaste && (path[0] === document.body || path.includes(W.msgbox))) {
+        if (W.doEvalOnPaste && (path[0] === document.body || path[0] === canvas || path.includes(W.startscreen) || path.includes(W.msgbox))) {
             try {
                 done = true;
                 if (data.startsWith('http:') || data.startsWith('https:')) {  // drag/drop of url
-                    CSynth.handlefileset( {eventParms: [{ canonpath: data}] })
+                    CSynth.handlefileset( {eventParms: [{ canonpath: data, name: data}] })
                 } else {
                     msgfix('evaluate', data);
                     var r = await eval(data);
                     r = format(r)
                     msgfix('evaluate', data, 'result', format(r).substring(0, 100));
+                    msgflash({col: 'darkgreen'});
                 }
             } catch (e) {
                 msgfix('evaluate', data, 'failed', e.message);
+                msgflash({col: 'darkred', time: 2000});
             }
         }
         // Poem.start(data); for now disable poem start by text drop
         // does not work, 5 Mar 2014
     }
     dragOverDispobj = NODO;
+
+    newmain();          // refall could be too slow?
+    updateGuiGenes();   // in case paste changed something
 
     if (done) return killev(evt);
     return;
@@ -362,43 +373,6 @@ function docdragover(evt) {
 function docpaste(evt) {
     const data = evt.clipboardData.getData('Text');
     return _docdroppaste(evt, evt.clipboardData);
-    // debug
-    // msgfixlog ('#files', evt.clipboardData.files.length);
-    // msgfixlog ('target type', evt.target.tagName);
-    // msgfixlog ('target id', evt.target.id);
-    // msgfixlog ('!path', Array.from(evt.path).map(e => [e.tagName, e.id]));
-    // const a = document.activeElement;
-    // msgfixlog ('!act', [a.tagName, a.id]);
-
-    // msgfixlog ('data', data);
-
-    // document.body for when dropped on canvas, not quite sure why not canvas
-    // if (evt.target === document.body)  // todo, consider what drop/copy etc can apply where,
-
-    //PJT:::: Since when does pasting into tranrule box mean we want to immediately eval????
-    //SJPT:::: changed to apply only to body (for some reason canvas.onpaste = does not work)
-    //SJPT, we were using event.target instead of document.activeElement, but that was not reliable
-    //SJPT, 18/8/21 now canvase is 'real' pastableif (W.doEvalOnPaste && document.activeElement === document.body && !evt.target.isContentEditable) {
-    //SJPT, 20/1/22 use evt.path, much more useful than activeElement.
-    // if (W.doEvalOnPaste && document.activeElement === canvas) {
-    const path = Array.from(evt.path);
-    if (W.doEvalOnPaste && (path[0] === document.body || path.includes(W.msgbox))) {
-            if (data.startsWith('http:') || data.startsWith('https:')) {  // drag/drop of url
-            CSynth.handlefileset( {eventParms: [{ canonpath: data}] })
-        } else {
-            try {
-                msgfix('eval');
-                const r = eval(data);
-                msgfix('eval', 'OK =><br>' + (r === undefined ? '' : r));
-                msgflash({col: 'darkgreen'});
-            } catch (e) {
-                msgfixerror('eval', 'error:<br>' + e);
-                msgflash({col: 'darkred', time: 2000});
-            }
-        }
-    }
-    newmain();          // refall could be too slow?
-    updateGuiGenes();   // in case paste changed something
 }
 W.doEvalOnPaste = true;
 

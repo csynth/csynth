@@ -4,7 +4,7 @@ var CSynth, msgfixlog, springs, spearson, G, format, msgfix, sleep, log, numInst
 Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S, array2Table, getstats;
 
 var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain, setAllLots, msgfixerrorlog,
-    clamp;
+    clamp, U;
 
 // get positions for key or ready made positions
 CSynth.pos = function(inputDef) {
@@ -87,7 +87,7 @@ CSynth.dists = function csynthdists(inputDef, statsres = CSynth.statsres, dres=u
     if (result) return result;
 
     if (use.isContact) {
-        result = [CSynth.contactToDist(use), use.shortname];
+        result = [CSynth.contactToDistArray(use), use.shortname];
     } else {
         result = [gendists(use.coords), use.shortname || use.reason];
     }
@@ -229,14 +229,33 @@ function spearmanCorrelation(p1, p2){
     return r;
 }
 
-/** compute target/wish dists for contacts,
+/** compute equivalent wish dist for gien contacts value with current settings */
+CSynth.contact2Dist = function(contact, opts = U) {
+    let {contactforcesc, pushapartforce, powBaseDist, pushapartpow, m_k, m_alpha, representativeContact, patchval} = U;
+    let contactMult, contactPow;
+    // const buff = U.contactbuff.source.data.data;
+    if (contactforcesc !== 0) {
+        contactMult = contactforcesc / pushapartforce * (powBaseDist ** pushapartpow);
+        contactPow = (1 / (pushapartpow - 1));
+    } else {
+        contactMult = m_k ** (1/-m_alpha) / representativeContact;
+        contactPow = -m_alpha;
+    }
+    if (contact < 0) contact = patchval;
+    const d = (contact * contactMult) ** contactPow;  // regular distance
+    return d;
+
+}
+
+
+/** compute complete array of target/wish dists for contacts,
  * input may be number, contact or array
  * if contactforcesc is nonzero assume CSynth implicit distances
  * else assume v **-alpha style
  * see CSynth.alignModels in csynth.js for some workings to deduce formula below
  * and also compare with nval() in matrix.js
  */
-CSynth.contactToDist = function(c, alpha = G.m_alpha, k = G.m_k ) {
+CSynth.contactToDistArray = function(c, alpha = G.m_alpha, k = G.m_k ) {
     const cc = CSynth.current;
     if (typeof(c) === 'number') c = cc.contacts[c];
     const minv = c.minv ? c.minv : 0.00001;  // should usually be minv
@@ -246,7 +265,7 @@ CSynth.contactToDist = function(c, alpha = G.m_alpha, k = G.m_k ) {
         c = c.textureData;
     }
     if (!(c instanceof Float32Array)) {
-        log('CSynth.contactToDist input not array', c);  // not serious may be fixed in a frame or so
+        log('CSynth.contactToDistArray input not array', c);  // not serious may be fixed in a frame or so
         return;
     }
 
@@ -269,7 +288,7 @@ CSynth.contactToDist = function(c, alpha = G.m_alpha, k = G.m_k ) {
         contactPow = -alpha;
         path = 'lor';
     }
-    if (n < 4) log('contactToDist', path, contactMult, contactPow);  // debug
+    if (n < 4) log('contactToDistArray', path, contactMult, contactPow);  // debug
 
     if (n === basen) {      // original quick version
         let p = 0;
@@ -301,7 +320,7 @@ CSynth.contactToDist = function(c, alpha = G.m_alpha, k = G.m_k ) {
 
 /** get and cache mean distances --- WARNING no check on model parameters changing cached values  */
 CSynth.meandists = function(contact) {
-    const dists = CSynth.contactToDist(contact);
+    const dists = CSynth.contactToDistArray(contact);
     const n = contact.numInstances;
     const c = contact.textureData;
     let sv=0, swd = 0, sd = 0, p = 0;
@@ -587,7 +606,7 @@ CSynth.referenceDistances = function refdist() {
     let check=[];
     if (!CSynth._referenceDistances || cc.contacts[0].referenceDistances !== CSynth._referenceDistances
         || G.m_alpha !== check[0] || G.m_k !== check[1]) {
-        cc.contacts[0].referenceDistances = CSynth._referenceDistances = CSynth.contactToDist(0, G.m_alpha, G.m_k);
+        cc.contacts[0].referenceDistances = CSynth._referenceDistances = CSynth.contactToDistArray(0, G.m_alpha, G.m_k);
         check = [G.m_alpha, G.m_k];
     }
     return CSynth._referenceDistances;
@@ -801,7 +820,7 @@ CSynth.orient = function(px = CSynth.orient.right, py = CSynth.orient.up) {
 CSynth.tilt = function() {applyMatop(0,1, Math.atan2(height, width));}
 
 
-/** work out forces for different forces at given distance with current settings:
+/** work out forces for different force styles at given distance with current settings:
 This uses G values without override, so computes forces whether or not they are enabled.
 If no length is provided, use representativeDistance = wish length from Lorentz model based on representativeContact.
 If no contact provided, use representativeContact.
@@ -826,12 +845,12 @@ CSynth.forces = function(len, contact = CSynth.current.representativeContact) {
     const dem = m_c * m_c + dd*dd;
     r.lorforce = m_force * rcontact * -2 * m_c * m_c * dd / (dem*dem);
 
-    // csynth forces
+    // csynth forces, note r._ values just for debug
     const ccontact = max(0, contact - contactthreshold);
     const contactforcesc = G.contactforce * 1e-6 / CSynth.current.representativeContact;
-    const contactforce = contactforcesc * ccontact * len;
+    const contactforce = r._contactforce = contactforcesc * ccontact * len;
 
-    const globalpushapart = pushapartforce * pow(len/powBaseDist, pushapartpow);
+    const globalpushapart = r._globalpushapart = pushapartforce * pow(len/powBaseDist, pushapartpow);
     r.csyforce = contactforce - globalpushapart;
 
     let dlen = len - targlen;
@@ -843,13 +862,12 @@ CSynth.forces = function(len, contact = CSynth.current.representativeContact) {
 
 /** work out forces at representativeDistance to check they all stabalize at 0,
 and at k (default 1.1) times to find effective force from different forces */
-CSynth.forcetest = function(k = 1.1, errlevel = 1e-10) {
-    const len = G.m_k;  // representative length
+CSynth.forcetest = function(k = 1.1, errlevel = 1e-10, len = G.m_k) {
     const r0 = CSynth.forces(len);
     // log(r0);
     const abs = Math.abs;
     for (let f in r0)
-        if (Math.abs(r0[f]) > errlevel)
+        if (f[0] !== '_' && Math.abs(r0[f]) > errlevel)
             console.error(`Force ${f} not balanced ${r0[f]} at representative length ${len}.`);
     const r = CSynth.forces(len*k);
     // log(r);
@@ -859,7 +877,7 @@ CSynth.forcetest = function(k = 1.1, errlevel = 1e-10) {
 /** align force strengths to put all into same range; e.g. same value for reference distance * 1.1 */
 CSynth.alignForces = function(use = 'lor') {
 
-    for (const gn in CSynth.defvals) G[gn] = G[gn] || CSynth.defvals[gn]; // this should render then necxt few lines unnecessary
+    for (const gn in CSynth.defvals) G[gn] = G[gn] || CSynth.defvals[gn]; // set 0 values to defval value, this should render then necxt few lines unnecessary
     const v = G.contactforce * G.pushapartforce * G.m_force * G.xyzforce;
     if (v === 0 || isNaN(v)) {
         console.error('cannot align forces while one is 0 or NaN');
@@ -908,10 +926,10 @@ CSynth.alignModels = function(type = 'auto') {
 
     const oal = CSynth.lastAlign;
     // const nal = [G.pushapartpow, G.contactforce, G.m_alpha, G.m_k];
-    
+
     const types = CSynth.forcetypes; // defined CSynth.switchSpringSettings
 
-    let forceChanged;
+    let forceChanged = true;
     if (type === 'auto') {
         // track the types and find the last one to have changed
         //if (types.every(x => oal[x[1]] === G[x[0]] ))
@@ -937,11 +955,25 @@ CSynth.alignModels = function(type = 'auto') {
         //    copyFrom(G, x);
     } else if (type === 'csy') {
         x.m_alpha = -1 / (G.pushapartpow - 1);
-        x.m_k = G.powBaseDist * Math.pow(G.contactforce/1e6/G.pushapartforce * G.powBaseDist, -G.m_alpha);
-        //if (CSynth.springSettings.contact Lor)
-        //    copyFrom(CSynth.springSettings.contact Lor, x);
-        //else
-        //    copyFrom(G, x);
+        x.m_k = G.powBaseDist * Math.pow(G.contactforce/1e6/G.pushapartforce * G.powBaseDist, -x.m_alpha);
+
+        // // check debug, at distance m_k what are the csy forces
+        // copyFrom(G, x);
+        // var len = x.m_k
+        // var repv = CSynth.current.representativeContact
+        // var backboneScale = 0.00001 // ???
+        // var contactforcesc = G.contactforce * 1e-6 / repv; // === G.contactforcesc
+        // var cforce = repv * contactforcesc  * len
+        // var pforce = G.pushapartforce * Math.pow(Math.max(len,backboneScale)/G.powBaseDist, G.pushapartpow)
+        // log('forces len', CSynth.forces(len))
+        // log('forces len', CSynth.forces(len))
+        // var xx = {cforce, pforce}
+        // log('test', xx)
+        // xx=xx
+        // //if (CSynth.springSettings.contact Lor)
+        // //    copyFrom(CSynth.springSettings.contact Lor, x);
+        // //else
+        // //    copyFrom(G, x);
     } else if (type === 'xyz') { //
 
     } else {
@@ -1204,7 +1236,7 @@ CSynth.draw8 = function() {
     dustbinvp = 99;
 }
 
-var U, skelbuffer, readWebGlFloatDirect;
+var skelbuffer, readWebGlFloatDirect;
 /** make stats from skeleton */
 function skelstats() {
     const d = readWebGlFloatDirect(skelbuffer, {width:U.skelnum+1 + 2*U.skelends, height: U.horncount})

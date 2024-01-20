@@ -23,7 +23,6 @@ const linevisVertMaterial = `
     // Pending use later ???
     //uniform float minActive, maxActive, maxBackboneDist, nonBackboneLen,
     //    representativeContact, m_k, m_alpha, m_force, pushapartforce, pushapartpow, contactforcesc, powBaseDist,
-    //    matrixcontactmin, matrixcontactmult;
     ${' ' || CSynth.colchoice}
 
     void main() {

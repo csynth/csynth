@@ -1,6 +1,6 @@
 var nwfs, posturi, post, uriclean, msgfix, genbar, posturibin, startscript, frametime, S, Maestro, sleep,
 log, saveTextfile, msgfixlog, XMLHttpRequest, File, FormData, $, runcommandphp, WebSocket, throwe, HW, Buffer, islocalhost, getdesksave,
-CSynth, showDirectoryPicker;
+CSynth, showDirectoryPicker, xfetch;
 function readtext(fid, quiet = false) {
     if (nwfs) {
         return nwfs.readFileSync(fid, 'ascii');
@@ -31,7 +31,7 @@ async function fileExistsAsync(fid) {
     if (nwfs)
         return nwfs.existsSync(fid);    // TODO, make sure what nwfs.exists returns
     else {
-        const r = await xfetch('/fileexists/'+fid);
+        const r = await fetch('/fileexists/'+fid);
         const rr = await r.text();
         return rr === 'true';
     }

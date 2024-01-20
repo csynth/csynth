@@ -211,16 +211,16 @@ function showData(vpn, xp, yp) {
     const d = 20;
     const avg = averageForBdist(Math.round(dist));
 
-    const v1 = valueArray[xpk + gnumInstances1 * ypk]; const v1f = (v1 === undefined ) ? '?' : v1.toLocaleString();
-    const v2 = valueArray[xpk * gnumInstances1 + ypk + 1]; const v2f = (v2 === undefined ) ? '?' : v2.toLocaleString();
+    const v1 = valueArray[xpk + gnumInstances1 * ypk]; const v1f = (v1 === undefined ) ? '?' : v1.toFixed(6);
+    const v2 = valueArray[xpk * gnumInstances1 + ypk + 1]; const v2f = (v2 === undefined ) ? '?' : v2.toFixed(6);
     window.info.innerHTML = ""; // vpn + ">" + xpp.toLocaleString() + " " + ypp.toLocaleString() + '  [' + Math.round(dist) + ']';
     window.pane.innerHTML = vpn;
     window.id1.innerHTML = xpp.toLocaleString() + ' ' + xpc + ' ' + xpk;
     window.id2.innerHTML = ypp.toLocaleString() + ' ' + ypc + ' ' + ypk;
     window.value1.innerHTML = v1f;
     window.value2.innerHTML = v2f;
-    window.avg1.innerHTML = avg[0].toLocaleString();
-    window.avg2.innerHTML = avg[1].toLocaleString();
+    window.avg1.innerHTML = avg[0].toFixed(6);
+    window.avg2.innerHTML = avg[1].toFixed(6);
     window.dist.innerHTML = (Math.round(dist) * res).toLocaleString() + " / " + Math.round(dist);
     return {xpp, ypp};
 }
@@ -470,7 +470,7 @@ function showvp(vp) {
         y, -z, 0,
         x, -w, 0,
         y, -w, 0,
-            
+
         x, -x+d, 0,    // bot left left pair
         x, -y, 0,  // top left
         x, -y, 0,      // top left
@@ -480,7 +480,7 @@ function showvp(vp) {
         (x+y)/2, -(x+y)/2+d, 0,
         zw, -zw, 0,  // horiz right pointer
         zw+d, -zw, 0,
-  
+
         z, -z+d, 0,  // right pair
         z, -w, 0,
         z, -w, 0,
@@ -492,7 +492,7 @@ function showvp(vp) {
         0,d,0,
         0,0,0,  // horiz right pointer
         d,0,0,
-            
+
         -0.5, 0.5+d, 0,  // vert left pointer
         -0.5, 0.5, 0,
         0.5,-0.5,0,  // horiz right pointer

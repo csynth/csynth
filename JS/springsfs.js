@@ -177,7 +177,7 @@ function getSpringUniforms(springModel = springs) {
     addGenePerm_withID("patchwidth", 1.5, 0, 50, 0.1, 0.1, "patch width for backbone with missing contacts", "springs", "frozen");
 
     addGenePerm_withID("randvecscale", 1, 0, 2, 0.0001, 0.0001, "scale of random vector (for position of hidden particles", "springs", "frozen");
-    addGenePerm_withID("perturbScale", 50, 0, 100, 0.1, 0.01, "scale of spring position perturbatiuon", "springs", "frozen");
+    addGenePerm_withID("perturbScale", 50, 0, 250, 0.1, 0.01, "scale of spring position perturbatiuon", "springs", "frozen");
 
 
     return [myUniforms, myParms];
@@ -527,7 +527,7 @@ vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float de
     lforce += -tlocalforce * (1. - smoothstep(0.5, 1.0, rellen));
 
     gforce -= pushapartDensityFactor * olddensity * otherdensity * pow(len/powBaseDist, pushapartDensityPow);
-    // we used to have global pushapart here, moved to after contact calculation so it can use wrongfade
+    // we used to have global pushapart here, moved to after contact calculation so it can use uwrongfade
 
     // fractal force
     // was set to gforce, but that gave issues with -999 special values 21/01/2022
@@ -550,20 +550,19 @@ vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float de
         bforce += (len - backboneScale) * backboneforce;
     }
 
-    float uwrongfade = 1.;
+    float uwrongfade = 1.;  // this is the computed fade factor for this particle pair, should be 1 if no fading (wrongfade = 0)
 
     // main 'spring' force from contacts
     if (contactforcesc != 0. && backbonedist < ACTIVERANGE * maxBackboneDist) {
         float contact = texture2D(contactbuff, vec2(part, opart) * SMALLTEXTURE).x;
         if (contact < -1000.) {     // probably -9898, chrom boundary,  but may not be exactly if using linear interpolation and expand
             bforce = 0.;  // means no boundary join, clear bforce and don't add to gforce
-            // ??? should we cancel gforce ???
+            uwrongfade = gforce = 0.;  // ??? should we cancel gforce /uwrongfade ???
+        } else  if (contact <= -9.) {  // probably == -999., but may not be exactly if using linear interpolation and expand
+            uwrongfade = gforce = 0.;
+            if (backbonedistP <= patchwidth) contact = patchval;
+            // else it will be set to 0 below ...
         } else {
-            if (contact <= -9.) {  // probably == -999., but may not be exactly if using linear interpolation and expand
-                uwrongfade = gforce = 0.;
-                if (backbonedistP <= patchwidth) contact = patchval;
-                // else it will be set to 0 below ...
-            }
             // replaced by < -1000 above if (contact == 0. && backbonedistP == 1.) bforce = 0.;  // 0 after patch really means no boundary join
             contact = max(0., contact - contactthreshold);
             if (wrongfade != 0. && pushapartforce != 0.) {  // compute lorenz-like fade off of contact and pushapart
@@ -575,6 +574,7 @@ vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float de
                 float tlen = pow(contactforcesc*contact*powBaseDist / pushapartforce, 1. / (pushapartpow - 1.)) * powBaseDist;
 
                 // now compute fade, https://www.desmos.com/calculator/kdmohco1au
+                // should be 1 if len = tlen => q = 0
                 float c = 1. / wrongfade;
                 float cc = c*c;
                 float q = 1. - len / tlen;

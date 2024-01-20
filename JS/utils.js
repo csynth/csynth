@@ -2083,7 +2083,7 @@ ${k.stack}`;
     if (ak < 1e-7) k = ak = 0;
     if (k % 1 === 0) return k + ""; // (k + '        ') .substring(0,n);
     // below won't give exactly n, but fairly close
-    if (ak < 0.0001) return (k * 1).toExponential(n == undefined ? 3 : n - 3 < 0 ? 0 : n - 3);  /* == intended */ //  eslint-disable-line eqeqeq
+    if (ak < 0.001) return (k * 1).toExponential(n == undefined ? 3 : n - 3 < 0 ? 0 : n - 3);  /* == intended */ //  eslint-disable-line eqeqeq
     if (ak > 1e8) return (k * 1).toExponential(n == undefined ? 3 : n - 3 < 0 ? 0 : n - 3);  /* == intended */ //  eslint-disable-line eqeqeq
     if (n === undefined) {
         if (ak > 10000) n = 0;

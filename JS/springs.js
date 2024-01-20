@@ -7,7 +7,7 @@ ColorKeywords, parseUniforms, log, changeMat, newmain, setval, ugene, trysetele,
 writetextremote, guiFromGene, ffloat, V, setspringshaders, springdemo, CSynth, G, vivepick, pick, nop,
 nomess, msgfix, msgfixlog, guifilter, DNASprings, msgfixerror, scaleDampTarget1, getSpringUniforms, addgeneperm, inworker,
 genedefs, nextpow2, uniforms, GX, gl, onframe, maxTextureSize, EX, format, newTHREE_DataTextureNamed, framedelta, THREESingleChannelFormat,
-testes300, isWebGL2, searchValues, randvec3, GUINewsub, GUISubadd, U, tmat4;
+testes300, isWebGL2, searchValues, randvec3, GUINewsub, GUISubadd, U, tmat4, getstats;
 
 // for mutate
 var mutate, vps, setViewports, slots, setObjUniforms, S, slowMutate;
@@ -191,6 +191,7 @@ var Springs = function(id = '') {
 
 
         CSynth.addSpringSourceGUI(_sgui);
+        guiFromGene('perturbScale');
         guiFromGene("stepsPerStep");
         guiFromGene("damp");
         guiFromGene("powBaseDist");
@@ -215,7 +216,6 @@ var Springs = function(id = '') {
         guiFromGene('boostrad');
         guiFromGene('patchwidth');
         guiFromGene('patchval');
-        guiFromGene('perturbScale');
 
         return gui;
     }
@@ -821,6 +821,7 @@ var Springs = function(id = '') {
     // allow just single spring from ai to bi for each type
     **/
     function setslot(ai, bi, len = 1, str = 1, pow = 0, type = DEFTYPE ) {
+        if (!topologybuff) me.resettopology();
         let s = startslot(ai);
         if (s < 0 || s > topologyarr.length-1) {
             console.error("incorrect slot for spring " + ai + " " + bi);
@@ -1691,6 +1692,15 @@ meX.setHISTLEN(256); meX.repos(); meX.demotopology(); setTimeout(meX.start, 500)
         for (let i = 0; i < me.numInstances; i++)
             me.setfix(i, pp[i].add(randvec3(k)));
         springs.finishFix()
+    }
+
+    /** compute my backbone dists, return either distances or stats */
+    me.backbone = function(stats) {
+        const p = me.getpos();
+        const bb = new Float32Array(me.numInstances-1);
+        for (let i = 0; i < me.numInstances-1; i++)
+            bb[i] = p[i].distanceTo(p[i+1])
+        return stats ? getstats(bb) : bb;
     }
 
     return this;

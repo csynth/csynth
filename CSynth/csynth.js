@@ -1842,10 +1842,10 @@ function bedReader(data, fn) {
     const bed = {filename: fn, shortname: fn, bedtext: data};
     const cc = CSynth.current;
     const obed = cc.beds.filter(b => b.filename === fn && b.shortname === fn)[0];
+    CSynth.useBed(bed, cc, 'DROPPED:');
     if (obed) {
         Object.assign(obed, bed);
     } else {
-        CSynth.useBed(bed, cc, 'DROPPED:');
         cc.beds.push(bed);
     }
     // CSynth.makegui(true);  // TODO, less expensive refresh of bed dropdowns
@@ -1992,7 +1992,6 @@ CSynth.finishLoad = function(cc) {
 
     CSynth.checkone(cc, 'numInstances', numInstances);
 
-    G.matrixcontactmult = -1; // will be updated lazily
     // customSettings();  // may not be ready quite yet
     // for (let i=0; i<=6; i+=3) onframe(customSettings, i);  // why ??? some bits like spheres not quite read?
     Maestro.on('demoready', () => customSettings());  // function needed in case customSettings is redefined
@@ -3066,7 +3065,7 @@ function testworkercorrel() {
     w.onmessage = workermessage;
     const cc = CSynth.current;
     const ccc0 = cc.contacts[0];
-    const cdata = CSynth.contactToDist(ccc0.textureData);
+    const cdata = CSynth.contactToDistArray(ccc0.textureData);
     w.postMessage(['correlCD', cdata, springs.getpos()]); //, G.m_alpha, G.m_k, cc.representativeContact,        {contactforcesc: 0}]);
     w.postMessage(['close']);
 }

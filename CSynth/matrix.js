@@ -252,8 +252,6 @@ CSynth.Matrix = function() {
         guiFromGene(f, 'matDistFar').step(0.1);
         guiFromGene(f, 'matrixTintStrength').step(0.1);
 
-        //guiFromGene(f, 'matrixcontactmin');
-        //guiFromGene(f, 'matrixcontactmult');
         guiFromGene(f, 'matrixbedtint');
         guiFromGene(f, 'matrixbedtriangle');
         guiFromGene(f, 'matrixbededge');
@@ -343,8 +341,6 @@ CSynth.Matrix = function() {
             addgeneperm('matrixgridwidth', 0.005, 0, 0.001,  0.0001, 0.0001, 'matrix grid width', 'matrix', 0);
             addgeneperm('matrixgridsoftw', 0.1, 0, 0.2,  0.01, 0.01, 'matrix grid soft width', 'matrix', 0);
 
-            addgeneperm('matrixcontactmin', 0, 0, 100,  1, 1, 'matrix contact min threshold', 'matrix', 0);
-            addgeneperm('matrixcontactmult', 0, 0, 100,  1, 1, 'matrix contact multiplier; ; <= 0 for no contact test', 'matrix', 0);
             addgeneperm('matgamma', 1, 0, 4,  0.01, 0.01, 'matrix interpolation gamma', 'matrix', 0);
 
             addtaggeduniform('matrix', 'matrixbed', undefined, 't');
@@ -358,8 +354,6 @@ CSynth.Matrix = function() {
             addtaggeduniform('matrix', 'matintypeA', undefined, 'f');
             addtaggeduniform('matrix', 'matintypeB', undefined, 'f');
 
-            //addgeneperm('matintypeA', 2, 0, 4,  1, 1, 'matrix typeA', 'matrix', 0);  // ?? to make more internal
-            //addgeneperm('matintypeB', 4, 0, 4,  1, 1, 'matrix typeA', 'matrix', 0);  // ?? to make more internal
             addgeneperm('matcoltypeA', 4, 0, 4,  1, 1, 'matrix colour input 1', 'matrix', 0);  // 0,1,x,y 4=currentDist, 5=currentSprings, 6... use contact/xyz
             addgeneperm('matcoltypeB', 5, 0, 4,  1, 1, 'matrix colour input 2', 'matrix', 0);  // 0,1,x,y 4=currentDist, 5=currentSprings, 6... use contact/xyz
 
@@ -404,18 +398,6 @@ CSynth.Matrix = function() {
                 if (i < contacts.length) {
                     r = 6;
                     uniforms['matrix2dtex' + n].value = CSynth.contactsToTexture(i);
-                    if (G.matrixcontactmult < 0) { // lazy initialization needed
-                        const c = contacts[i];
-                        if (!c.mean) {
-                            if (!c.stats) c.stats = getstats(c.textureData, {short: true});
-                            c.mean = c.stats.mean;
-                        }
-                        G.matrixcontactmult = 1/(c.mean || 1);  // nb York virus has quatiles 0
-                        const max =  G.matrixcontactmult*4;
-                        const gmax = GX.guidict()['Matrix/Colour/matrixcontactmult']
-                        if (gmax) gmax.max(max);  // being phased out?
-                        genedefs.matrixcontactmult.max = max;
-                    }
                 } else {
                     r = 5;
                     uniforms['matrix2dtex' + n].value = CSynth.xyzToTexture(i - contacts.length);
@@ -635,8 +617,9 @@ CSynth.Matrix = function() {
 
 CSynth.colchoice = /*glsl*/`
     // matintype   0=>0, 1=>1, 2=>x, 3=>y, 4=>currentDist, 5=>dist from texture, 6=>contact from texture
+    // low .. high is typically matDistNear = 0 .. matDistFar
     float nval(in float matintype, in sampler2D tex, in vec2 pos, in float currentDist, in float low, in float high) {
-        float v = 0.;
+        float rd = 0.;      // value as a relative dist (or wish dist)
         if (matintype < 1.5) {   // 1: use matintype as value
             return matintype;
         } else if (matintype < 2.5) {  // 2: use x
@@ -644,30 +627,25 @@ CSynth.colchoice = /*glsl*/`
         } else if (matintype < 3.5) {  // 3: use y
             return pos.y;
         } else if (matintype < 4.5) {  // 4: use currentDist
-            float rd = currentDist / nonBackboneLen;  // relative dist
-            //return 1./rd;
-            return 1. - smoothstep(low, high, rd);     // from 1 with good current contact to 0 with no current contact
-            // return clamp(1. - (rd-low)/(high-low), 0., 1.); // from 1 with good current contact to 0 with no current contact
-        } else if (matintype < 5.5) {    // 5: dist from texture
+            rd = currentDist / nonBackboneLen;  // relative dist
+        } else if (matintype < 5.5) {    // 5: distance, from texture
             float dist = texture2D(tex, pos).x;
-            float rd = dist / nonBackboneLen;  // relative dist
-            //return 1./rd;
-            return 1. - smoothstep(low, high, rd);     // from 1 with good current contact to 0 with no current contact
+            rd = dist / nonBackboneLen;  // relative dist
         } else if (matintype < 6.5) {    // 6: contact from texture, via wish dist
             float contact = max(0., texture2D(tex, pos).x);
-            float dist;
             // see CSynth.alignModels in csynth.js for some workings to deduce formula below
             if (contactforcesc != 0.)
-                dist = pow(contact * contactforcesc / pushapartforce * pow(powBaseDist, pushapartpow), 1. / (pushapartpow - 1.));  // regular distance
+                // OLD dist = pow(contact * contactforcesc / pushapartforce * pow(powBaseDist, pushapartpow), 1. / (pushapartpow - 1.));  // regular distance
+                rd = pow(contactforcesc*contact*powBaseDist / pushapartforce, 1. / (pushapartpow - 1.)) * powBaseDist;  // from springfs wrongfade, === OLD
             else
-                dist = m_k * pow(contact / representativeContact, -m_alpha);  // LorDG distance
-            //return 1./dist;
-            return 1. - smoothstep(low, high, dist);
+                rd = m_k * pow(contact / representativeContact, -m_alpha);  // LorDG distance
         } else {                    // 7: contact from texture, old forumula
-            float r = (texture2D(tex, pos).x - matrixcontactmin)  * matrixcontactmult;
-            //r = clamp(r, 0., 1.);
-            return r;
+            return -999.;
         }
+
+        // fall through for rd = dist(like) value, shape them before return. All use the same shaping code for consistency
+        return 1. - log(rd) / log(high);
+        // return 1. - smoothstep(low, high, rd);  // so rd is in range low .. high, result in range 1 .. 0
     }
 `
 

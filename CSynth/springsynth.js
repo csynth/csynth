@@ -1139,6 +1139,7 @@ CSynth.processSettings = function(s) {
 /** run a springdemo for a new set of definitions/config file */
 async function springdemo(defs) {
     loadTime('model 1 springdemo start');
+    W.csynthexamples.style.display = 'none';
     slowinit.pendend.springgdemo = 'set by springdemo at ' + Date.now();
     if (defs.check === undefined) defs.check = true;
 
@@ -2466,12 +2467,10 @@ CSynth.matrixcontacts = function(flag) {
     if (flag) {
         //uniforms.matrix2dtex1.value = CSynth.contactsToTexture(0);
         //uniforms.matrix2dtex2.value = CSynth.contactsToTexture(1);
-        //if (!G.matrixcontactmult)
         if (CSynth.current.contacts[0]) {
             CSynth.contactsToTexture(0);  // just to get
-            G.matrixcontactmult = 5/CSynth.current.contacts[0].mean;
         } else {
-            G.matrixcontactmult = 1; // any non-0 value
+            //
         }
         G.matcoltype1 = 3;
         G.matcoltype2 = 2;
@@ -2483,7 +2482,6 @@ CSynth.matrixcontacts = function(flag) {
         //uniforms.matrix2dtex1.value = undefined;
         //uniforms.matrix2dtex2.value = undefined;
         copyFrom(currentGenes, CSynth.matrixcontacts.old);
-        G.matrixcontactmult = 0;
         CSynth.maxMatrixSize = 1024;
     }
     CSynth.matrixcontacts.status = flag;
