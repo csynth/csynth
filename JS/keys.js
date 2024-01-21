@@ -495,7 +495,7 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
         case 'M,8':  CSynth.setMarkerFromSelection(7); break; // set marker 7 or marker pair 7,8
         case 'M,Insert':  CSynth.setMarkerFromSelection(-9); break; // set marker(s) in free slots
         case 'alt,Z':  CSynth.setMarkerFromSelection(-9); CSynth.markers2Bed(); break; // set marker(s) in free slots and generate bed from all markers
-        case 'shift,alt,Z':  CSynth.markers2Bed(undefined, true); break; // generate and save bed from all markers
+        case 'alt,shift,Z':  CSynth.markers2Bed(undefined, true); break; // generate and save bed from all markers
         case 'M,C':  CSynth.contactClosest(); break; // move current to closest fixed contact point
 
         case 'M,U':  CSynth.orient('up'); break; // set UP particle for CSynth orientation

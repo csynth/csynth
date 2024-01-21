@@ -1172,6 +1172,8 @@ CSynth.arrayToBed = function(array, name) {
 
 CSynth.markers2Bed = function(name = 'frommarkers', save) {
     const v = Object.values(CSynth.markers).map(x => x.bp).sort((x,y) => x-y);
+    if (v.length < 2) {msgfixlog('bedmarkers', 'not enough markers to make bed'); return; }
+    msgfixlog('bedmarkers', `'bed being made with ${v.length} markers`);
 
     const lines = [];
     for(let i = 0; i < v.length-1; i++) {
