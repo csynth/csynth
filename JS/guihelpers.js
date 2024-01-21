@@ -145,6 +145,7 @@ function guiFromGene(gui, gn, xgn) {
     } else {
         // need intermediate name between var name and description
         gg = gui.add(currentGenes, xgn, gd.min, gd.max);
+        if (!gg?.name) {console.error('222NANANANAA', xgn); return; }
         gg.step(gd.step);
     }
 

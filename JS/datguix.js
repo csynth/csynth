@@ -80,6 +80,10 @@ GX.datGUIVRadd = function(object, propertyName, min, max, step, guiname, tooltip
 //    if (!Viewedit.findobject(object))
 //        log('create gui for unkown object, prop = ', propertyName)
     const xx = this.oldadd(object, propertyName, min, max);
+    if (!xx.name) {
+         console.error('NANANANANAANA', object, propertyName); return;
+         debugger
+    }
     xx.object = object;
     xx.propertyName = propertyName;
     xx.guiName = guiname || propertyName;
