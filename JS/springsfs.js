@@ -100,6 +100,7 @@ function getSpringUniforms(springModel = springs) {
     addGenePerm_withID("backboneforce", 0, 0, 1, 0.01, 0.001, "backbone force for regular lengths (pairs style)", "springs", "frozen");
     addGenePerm_withID("contactforce", 0.0, 0, 100, 1, 1, "pairwise contact force", "springs", "frozen");
     addGenePerm_withID("contactforcesc", 0.0, 0, 1, 0.01, 0.001, "pairwise contact force, scaled", "springs", "frozen");
+    addGenePerm_withID("backboneContactStrength", 1, 0, 5, 0.1, 0.01, "multiplier for backbone contact forces", "springs", "frozen");
     addGenePerm_withID("wrongfade", 0.0, 0, 5, 0.01, 0.001, "control of fade for unsatisfied springs", "springs", "frozen");
 
     addGenePerm_withID("pullspringforce", 0, 0, 1, 0.01, 0.001, "pull spring force (to given position)", "springs", "frozen");
@@ -165,7 +166,7 @@ function getSpringUniforms(springModel = springs) {
     addGenePerm_withID('m_alpha', 1.1, 0,3, 0.01,0.01, 'alpha for Missouri model',  'springs', 'frozen');
     addGenePerm_withID('m_c', 10, 1, 250 , 0.1, 0.1, 'c for Missouri model',  'springs', 'frozen');
     addGenePerm_withID('m_k', 4, 0,50, 0.01,0.01, 'k (scale) for Missouri model',  'springs', 'frozen');
-    addGenePerm_withID('m_force', 0, 0,3, 0.1,0.1, 'force scale for Missouri model',  'springs', 'frozen');
+    addGenePerm_withID('m_force', 0, 0,3, 0.001,0.001, 'force scale for Missouri model',  'springs', 'frozen');
 
 
     addGenePerm_withID("maxBackboneDist", 1, 0, 1, 0.1, 0.01, "max backbone distance to use, on scale 1 for all", "springs", "frozen");
@@ -185,11 +186,12 @@ function getSpringUniforms(springModel = springs) {
 
 /** use of some forces, especially wrt backbone zzz
  *                       pairs    single
- *                                  !nb      |  must be explicitly sepecified as a spring
- * backboneforce           x                 |  strength of backbone force
- * backboneScale           x                 |  used for localPushApart and backboneforce (***)
+ *                                  !nb      |  must be explicitly specified as a spring
+ * backboneforce           x                 |  strength of backbone force, attempt to ensure distance backboneScale
+ * backboneScale           x                 |  expected length between adjacent particles, used for localPushApart and backboneforce (***)
  * nonBackboneLen          x                 |  closest for non-backbone (relative to backboneScale) (***)
- * backboneStrength                  x       |  multiplier of 'standard' force for backbone
+ * backboneStrength                  x       |  multiplier of 'standard' spring force for backbone (does not apply to contacts etc)
+ * backboneContactStrength           x       |  multiplier of contact forces for backbone (does not apply to springs)
  * springforce                       x       |  factor for (almost?) all single springs; also roleforce
  * roleforce                         X       |  allow to scale by role
  * roleforceFix                      X       |  + fixed (nonscaled extra) (springforce*roleforce)+roleforceFix
@@ -565,6 +567,7 @@ vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float de
         } else {
             // replaced by < -1000 above if (contact == 0. && backbonedistP == 1.) bforce = 0.;  // 0 after patch really means no boundary join
             contact = max(0., contact - contactthreshold);
+            if (backbonedistP <= 1.5) contact *= backboneContactStrength;
             if (wrongfade != 0. && pushapartforce != 0.) {  // compute lorenz-like fade off of contact and pushapart
                 // tlen is length where contact and pushapart balance: workings below
                 // pushapartforce * (tlen/powBaseDist) ** pushapartpow = contactforcesc*contact * tlen = contactforcesc*contact*powBaseDist * (tlen/powBaseDist)
@@ -619,8 +622,10 @@ vec3 pairforcesfull(vec3 mypos, float opart, in float olddensity, inout float de
             if (backbonedistP <= patchwidth) contact = patchval;
         }
         contact /= representativeContact;    // normalize, should not change shape, only scale
-        if (backbonedistP < 1.5)        // their special case for |i-j| = 1
+        if (backbonedistP < 1.5) {        // special case for backbone |i-j| = 1
             contact = maxv/representativeContact;      // IFmax somewhat hard coded for now!
+            contact *= backboneContactStrength;   // our special case for backbone
+        }
         if (contact > 0.) {
             float d = m_k * pow(contact, -m_alpha);     // target distance
             float dd = d - len;

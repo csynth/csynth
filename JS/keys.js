@@ -484,6 +484,7 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
 
         case 'alt,D': toggleInput(W.showdirectorrules); break;          //# toggle director rules. PJT: conflicts with standard browser shortcut.
 
+        case 'M,0':  CSynth.clearMarkers(); break;            // clear all markers
         case 'M,1':  CSynth.setMarkerFromSelection(0); break; // set marker 0 or marker pair 0,1
         case 'M,2':  CSynth.setMarkerFromSelection(1); break; // set marker 1 or marker pair 1,2
         case 'M,3':  CSynth.setMarkerFromSelection(2); break; // set marker 2 or marker pair 2,3
@@ -493,6 +494,8 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
         case 'M,7':  CSynth.setMarkerFromSelection(6); break; // set marker 6 or marker pair 6,7
         case 'M,8':  CSynth.setMarkerFromSelection(7); break; // set marker 7 or marker pair 7,8
         case 'M,Insert':  CSynth.setMarkerFromSelection(-9); break; // set marker(s) in free slots
+        case 'alt,Z':  CSynth.setMarkerFromSelection(-9); CSynth.markers2Bed(); break; // set marker(s) in free slots and generate bed from all markers
+        case 'shift,alt,Z':  CSynth.markers2Bed(undefined, true); break; // generate and save bed from all markers
         case 'M,C':  CSynth.contactClosest(); break; // move current to closest fixed contact point
 
         case 'M,U':  CSynth.orient('up'); break; // set UP particle for CSynth orientation

@@ -7,7 +7,7 @@ ColorKeywords, parseUniforms, log, changeMat, newmain, setval, ugene, trysetele,
 writetextremote, guiFromGene, ffloat, V, setspringshaders, springdemo, CSynth, G, vivepick, pick, nop,
 nomess, msgfix, msgfixlog, guifilter, DNASprings, msgfixerror, scaleDampTarget1, getSpringUniforms, addgeneperm, inworker,
 genedefs, nextpow2, uniforms, GX, gl, onframe, maxTextureSize, EX, format, newTHREE_DataTextureNamed, framedelta, THREESingleChannelFormat,
-testes300, isWebGL2, searchValues, randvec3, GUINewsub, GUISubadd, U, tmat4, getstats;
+testes300, isWebGL2, searchValues, randvec3, GUINewsub, GUISubadd, U, tmat4, getstats, genes2uniforms, currentGenes;
 
 // for mutate
 var mutate, vps, setViewports, slots, setObjUniforms, S, slowMutate;
@@ -200,6 +200,8 @@ var Springs = function(id = '') {
         guiFromGene("maxBackboneDist");
         guiFromGene("noiseforce");
         guiFromGene("backboneScale");
+        guiFromGene("backboneStrength");
+        guiFromGene("backboneContactStrength");
 
         GUISubadd(DNASprings,  'stretch').listen();
         guiFromGene("springspreaddist");
@@ -376,7 +378,10 @@ var Springs = function(id = '') {
     let targsteps = 0, donesteps = 0;
     me.steps = [];  // debug log
     me.step = function springstep(steps, logint=me.defaultLogint) {
-        if (!me.id) parms = G; //keeping a ref to G isn't enough to ensure proper buffer swap
+        if (!me.id) {
+            parms = G; //keeping a ref to G isn't enough to ensure proper buffer swap
+             genes2uniforms(currentGenes, uniforms);  // not usually necessary, but sometimes with scripting and no display to force uniforms, for me takes ~0.12ms
+        }
         if (steps === undefined || steps.maestro) {
             console.error('springs .step now expects an explicit steps parameter');
             steps = parms.stepsPerStep; // maestro detects unused maestro parameter

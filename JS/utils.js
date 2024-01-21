@@ -5709,6 +5709,7 @@ function mat4(...e) {
 var debugframedelta, resetDebugstats;
 /** callibrate the GPU using recent from history */
 function callibrateGPU({targtime = 35, repeat = 4} = {}) {
+    if (callibrateGPU.skip) return;
     // if (framenum < 110) debugframedelta = debugframedelta.slice(10); // not needed?
     const slow = debugframedelta.reduce((c,v) => c + (v>targtime), 0 ) / debugframedelta.length;
     if (slow > 0.25) {

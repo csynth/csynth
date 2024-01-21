@@ -1167,8 +1167,27 @@ CSynth.arrayToBed = function(array, name) {
     }
     r.texture.needsUpdate = true;
     CSynth.fixedBeds[name] = r;
-    return r;
+     
 }
+
+CSynth.markers2Bed = function(name = 'frommarkers', save) {
+    const v = Object.values(CSynth.markers).map(x => x.bp).sort((x,y) => x-y);
+
+    const lines = [];
+    for(let i = 0; i < v.length-1; i++) {
+        lines.push(['m' + i, v[i], v[i+1], 'm' + i].join('\t'));
+    }
+    const ll = lines.join('\n');
+    bedReader(ll, name);
+    if (save) 
+        remotesave((CSynth.current.contacts[0]?.filename ?? name) + '.bed', ll);
+    // const bed = {filename: nme, shortname: name, description: 'colours generated from chains', bedtext: lines.join('\n')};  // , colorScheme };
+    // CSynth.current.beds.push(bed);
+    // CSynth.useBed(bed);
+    // CSynth.refreshBedGUIs();
+    // CSynth.chooseBed(name);
+}
+
 
 if (THREE) {    // not if in worker
     CSynth.arrayToBed([255,255,255,0], 'constant');
@@ -3382,6 +3401,8 @@ CSynth.xyzToTexture = function(xyznum) {
 
 // CSynth.markerNames = ['user0', 'user1', 'user2', 'user3', 'user4', 'user5', 'user6', 'user7'];
 CSynth.markers = new Array(PICKNUM-16);
+
+CSynth.clearMarkers = () => {CSynth.markers.forEach((v,i,a) => delete a[i]); uniforms.userPicks.value.fill(999)};
 /** set a marker , id=0..7 -ve to autoassign, bp is base pair number, -ve to remove marker */
 CSynth.setMarker = function(id, bp, name) {
     id = +id;
