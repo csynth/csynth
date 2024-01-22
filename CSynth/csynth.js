@@ -19,11 +19,11 @@ springdemo, yaml, readTextureAsVec3, col3, VEC3, lastdocx, lastdocy, mousewhich,
 GLmolX, tmat4, sleep, BroadcastChannel, hilbertC, Plane, addtarget, runkeys, renderer, viveAnim, S, setExtraKey,
 badshader, lastDispobj, slots, mainvp, pick, CLeap, newTHREE_DataTextureNamed, setBackgroundColor,bigcol,getVal, replaceAt,
 HW, vrcanv, asyncFileReader, lineSplitter, THREESingleChannelFormat, vec3, clone, loadjs, Files, feed, buff2GenStruct, inputType,
-blob2forEach, _binfiles, olength, blob2StringCB, searchReplace, interpretSearchString, readdirAsync, gilbert3d, xfetch, msgfixerrorlog
+blob2forEach, _binfiles, olength, blob2StringCB, searchReplace, interpretSearchString, readdirAsync, gilbert3d, xfetch, msgfixerrorlog, remotesave
 ;
 //, msgbox, serious, slider1, slider2, uniforms, currentGenes, dat; // keep linter happy
 
-var contactsReader, loadMatrix, ima; // allow internal backward ref
+var contactsReader, loadMatrix, ima;   // allow internal backward ref
 
 if (!performance) performance = Date;  // odd for worker???
 
@@ -1167,27 +1167,23 @@ CSynth.arrayToBed = function(array, name) {
     }
     r.texture.needsUpdate = true;
     CSynth.fixedBeds[name] = r;
-     
+
 }
 
 CSynth.markers2Bed = function(name = 'frommarkers', save) {
-    const v = Object.values(CSynth.markers).map(x => x.bp).sort((x,y) => x-y);
-    if (v.length < 2) {msgfixlog('bedmarkers', 'not enough markers to make bed'); return; }
+    const v = Object.values(CSynth.markers).map(x => x.bp);     // find bps for markers
+    v.push(CSynth.current.minid); v.push(CSynth.current.maxid); // add bps for start and end
+    v.sort((x,y) => x-y);                                       // sort
     msgfixlog('bedmarkers', `'bed being made with ${v.length} markers`);
 
-    const lines = [];
+    const lines = [];       // generate the bed lines
     for(let i = 0; i < v.length-1; i++) {
         lines.push(['m' + i, v[i], v[i+1], 'm' + i].join('\t'));
     }
-    const ll = lines.join('\n');
-    bedReader(ll, name);
-    if (save) 
+    const ll = lines.join('\n');    // make complete bed text
+    bedReader(ll, name);            // and use it
+    if (save)
         remotesave((CSynth.current.contacts[0]?.filename ?? name) + '.bed', ll);
-    // const bed = {filename: nme, shortname: name, description: 'colours generated from chains', bedtext: lines.join('\n')};  // , colorScheme };
-    // CSynth.current.beds.push(bed);
-    // CSynth.useBed(bed);
-    // CSynth.refreshBedGUIs();
-    // CSynth.chooseBed(name);
 }
 
 
@@ -1214,6 +1210,31 @@ CSynth.getBed = function(srcName) {
     msgfixlog(srcName, 'Cannot match bed');
     return srcName;
 }
+
+/** set up dynamics for tad bed marking, each new dropped contact file will get this setting */
+CSynth.bedmarkerSetup = async function() {
+    CSynth.globalCustomLoadDone = CSynth.bedmarkerSetup;
+    G.pushapartpow = 0;
+    if (CSynth.cols) CSynth.cols.colA = CSynth.cols.colB = 'current dynamics model'
+    G.matDistFar = 20;
+    GX.setValue(/ribbon.*diameter/, 25);
+    G.springrate = 10
+    G.stepsPerStep = 25
+    springs.step(1000);
+    for (let i=10; i>2; i-=2) {
+        G.springrate = i
+        await sleep(500);
+        CSynth.showEigen(true);
+        CSynth.autoscale();
+    }
+    G.springrate = 2
+
+    GX.setValue(/matrixbedtint/, 1);        // full colour of bed on matrix
+    GX.setValue(/matrixbededge/, 0.002);    // but only narrow lines at bed boundaries
+    GX.setValue(/matrixbedseltint/, 0.002); // and only very slight tinting for selected beds
+
+}
+CSynth.globalCustomLoadDone = nop;
 
 
 /** add a colour dropdown gui.
@@ -3404,7 +3425,8 @@ CSynth.xyzToTexture = function(xyznum) {
 // CSynth.markerNames = ['user0', 'user1', 'user2', 'user3', 'user4', 'user5', 'user6', 'user7'];
 CSynth.markers = new Array(PICKNUM-16);
 
-CSynth.clearMarkers = () => {CSynth.markers.forEach((v,i,a) => delete a[i]); uniforms.userPicks.value.fill(999)};
+// CSynth.clearMarkers = () => {CSynth.markers.forEach((v,i,a) => delete a[i]); uniforms.userPicks.value.fill(999)};
+CSynth.clearMarkers = () => CSynth.markers.forEach((v,i,a) => CSynth.setMarker(i, -1, '???'));
 /** set a marker , id=0..7 -ve to autoassign, bp is base pair number, -ve to remove marker */
 CSynth.setMarker = function(id, bp, name) {
     id = +id;

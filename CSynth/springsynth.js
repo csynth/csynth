@@ -1378,6 +1378,7 @@ async function springdemoinner(defs) {
         CSynth.autoDefaults();          // these are the defaults that depend on details such as numInstances
         CSynth.defsSettings(defs);
         customSettings(defs);
+        CSynth.globalCustomLoadDone(defs);
         customLoadDone(defs);
         updateGuiGenes();  // make sure genes showing right
         const is = settings || searchValues.settings;
