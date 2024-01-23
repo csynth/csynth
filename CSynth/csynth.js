@@ -1170,16 +1170,29 @@ CSynth.arrayToBed = function(array, name) {
 
 }
 
-CSynth.markers2Bed = function(name = 'frommarkers', save) {
-    const v = Object.values(CSynth.markers).map(x => x.bp);     // find bps for markers
-    v.push(CSynth.current.minid); v.push(CSynth.current.maxid); // add bps for start and end
-    v.sort((x,y) => x-y);                                       // sort
-    msgfixlog('bedmarkers', `'bed being made with ${v.length} markers`);
+CSynth.markers2Bed = function markers2Bed(name = 'frommarkers', save) {
+    const m = Object.values(CSynth.markers);    // compact
+    //const v = Object.values(m).map(x => x.bp);     // find bps for markers
+    //v.push(CSynth.current.minid); v.push(CSynth.current.maxid); // add bps for start and end
+    //v.sort((x,y) => x-y);                                       // sort
+    // msgfixlog('bedmarkers', `'bed being made with ${v.length} markers`);
 
     const lines = [];       // generate the bed lines
-    for(let i = 0; i < v.length-1; i++) {
-        lines.push(['m' + i, v[i], v[i+1], 'm' + i].join('\t'));
+    
+    for(let i = 0; i < m.length-1; i++) {     // get the matrix pairs
+        if (m[i].type === 'matrix1' && m[i+1].type === 'matrix2')
+            lines.push(['mat' + i, m[i].bp, m[i+1].bp, 'mat' + i].join('\t'));
     }
+    
+    m.push({bp: CSynth.current.minid}); m.push({bp: CSynth.current.maxid}); // add bps for start and end
+    m.sort((x,y) => x.bp - y.bp);           // sort in base pair order
+    for(let i = 1; i < m.length-1; i++) {   // get the non matrix pairs
+        if (!m[i].type.startsWith('matrix')) {
+            lines.push(['ribl' + i, m[i-1].bp, m[i].bp, 'ribl' + i].join('\t'));
+            lines.push(['ribr' + i, m[i].bp, m[i+1].bp, 'ribr' + i].join('\t'));
+        }
+    }
+    
     const ll = lines.join('\n');    // make complete bed text
     bedReader(ll, name);            // and use it
     if (save)
@@ -1217,7 +1230,7 @@ CSynth.bedmarkerSetup = async function() {
     G.pushapartpow = 0;
     if (CSynth.cols) CSynth.cols.colA = CSynth.cols.colB = 'current dynamics model'
     G.matDistFar = 20;
-    GX.setValue(/ribbon.*diameter/, 25);
+    GX.setValue(/ribbon.*diameter/, 15);
     G.springrate = 10
     G.stepsPerStep = 25
     springs.step(1000);
@@ -1227,11 +1240,12 @@ CSynth.bedmarkerSetup = async function() {
         CSynth.showEigen(true);
         CSynth.autoscale();
     }
-    G.springrate = 2
 
-    GX.setValue(/matrixbedtint/, 1);        // full colour of bed on matrix
-    GX.setValue(/matrixbededge/, 0.002);    // but only narrow lines at bed boundaries
-    GX.setValue(/matrixbedseltint/, 0.002); // and only very slight tinting for selected beds
+    G.springrate = 2
+    // nb prefer direct set of genes rather tahn via gui
+    G.matrixbedtint = 1;        // full colour of bed on matrix
+    G.matrixbededge = 0.002;    // but only narrow lines at bed boundaries
+    G.matrixBedSelTint = 0;     // and no tinting for selected beds
 
 }
 CSynth.globalCustomLoadDone = nop;
@@ -3425,10 +3439,9 @@ CSynth.xyzToTexture = function(xyznum) {
 // CSynth.markerNames = ['user0', 'user1', 'user2', 'user3', 'user4', 'user5', 'user6', 'user7'];
 CSynth.markers = new Array(PICKNUM-16);
 
-// CSynth.clearMarkers = () => {CSynth.markers.forEach((v,i,a) => delete a[i]); uniforms.userPicks.value.fill(999)};
 CSynth.clearMarkers = () => CSynth.markers.forEach((v,i,a) => CSynth.setMarker(i, -1, '???'));
 /** set a marker , id=0..7 -ve to autoassign, bp is base pair number, -ve to remove marker */
-CSynth.setMarker = function(id, bp, name) {
+CSynth.setMarker = function(id, bp, name, type = '?') {
     id = +id;
     if (id < 0) {
         id = CSynth.markers.findIndex(m => m && m.bp === bp);
@@ -3450,7 +3463,7 @@ CSynth.setMarker = function(id, bp, name) {
     const bpn = CSynth.getNormalisedIndex(bp);
     if (bpn < 0 || bpn > 1) log(`warning, bp ${bp} to CSynth.setMarker out of range ${CSynth.current.minid}..${CSynth.current.maxid}`)
     if (uniforms.userPicks) uniforms.userPicks.value[id] = bpn;
-    CSynth.markers[id] = {name, id, bp, bpn};
+    CSynth.markers[id] = {name, id, bp, bpn, type};
     return id;
 }
 
@@ -3490,10 +3503,10 @@ CSynth.setMarkerFromSelection = function(id) {
     const p = CSynth.picks['g-matrix1'];
     const r = CSynth.picks['g-ribbon'];
     if (p) {
-        CSynth.setMarker(id, p);
-        CSynth.setMarker(id+1, CSynth.picks['g-matrix2']);
+        CSynth.setMarker(id, p, undefined, 'matrix1');
+        CSynth.setMarker(id+1, CSynth.picks['g-matrix2'], undefined, 'matrix2');
     } else if (r) {
-        CSynth.setMarker(id, r);
+        CSynth.setMarker(id, r, undefined, 'ribbon');
     } else {
         CSynth.setMarker(id, -1);
         // CSynth.setMarker(id+1, -1);

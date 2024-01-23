@@ -1,10 +1,10 @@
 'use strict';
 
 var CSynth, msgfixlog, springs, spearson, G, format, msgfix, sleep, log, numInstances, distxyz, col3, throws,
-Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S, array2Table, getstats;
+Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S, array2Table, getstats,$;
 
 var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain, setAllLots, msgfixerrorlog,
-    clamp, U;
+    clamp, U, addscript;
 
 // get positions for key or ready made positions
 CSynth.pos = function(inputDef) {
@@ -1419,4 +1419,172 @@ springs.velstats = function() {
     const b = springs.getpos()
     const v = a.map((x,i) => x.distanceTo(b[i]));
     return getstats(v);
+}
+
+/** compute running stats of half width w, eg point i will use values for i-w to i+w, 2*w+1 items */
+CSynth.runningStats = function(w = 10, p = springs.getpos()) {
+    // const stats1 = {sx:0, sy: 0, sz: 0, sxx: 0, syy:0, szz:0, sxy: 0, syz:0, szx: 0, n:0 }
+    const ccx = 1, ccy = 1, ccz = 1;  // ?? not used in a signficant way
+    let sx, sy, sz, sxx, syy, szz, sxy, syz, szx, n=0;
+
+    const zero = () => { sx = 0, sy= 0, sz= 0, sxx= 0, syy=0, szz=0, sxy= 0, syz=0, szx= 0, n=0; }
+    zero();
+    const r = [];
+    const add = pi => {
+        if (!pi) return;
+        const {x, y, z} = pi;
+        sx += x; sy += y; sz += z;
+        sxx += x*x; syy += y*y; szz += z*z;
+        sxy += x*y; syz += y*z; szx += z*x;
+        n++;
+    }
+    const sub = pi => {
+        if (!pi) return;
+        const {x, y, z} = pi;
+        sx -= x; sy -= y; sz -= z;
+        sxx -= x*x; syy -= y*y; szz -= z*z;
+        sxy -= x*y; syz -= y*z; szx -= z*x;
+        n--;
+    }
+    // for (let i = 0; i < w; i++) {
+    //     add(p[i]);
+    // }
+    for (let i = 0; i < p.length+w; i++) {
+        add(p[i]);
+        if (p[i-w]) {
+            const
+            xx = (sxx - sx * sx / n) / n * ccx * ccx,
+            yy = (syy - sy * sy / n) / n * ccy * ccy,
+            zz = (szz - sz * sz / n) / n * ccz * ccz,
+            xy = (sxy - sx * sy / n) / n * ccx * ccy,
+            yz = (syz - sy * sz / n) / n * ccy * ccz,
+            zx = (szx - sz * sx / n) / n * ccz * ccx,
+            cx = sx / n, // * ccx;
+            cy = sy / n, // * ccy;
+            cz = sz / n, // * ccz;
+            tr = (xx + yy + zz) ** 0.5;
+
+            r[i-w] = {i: i-w, x:cx, y:cy,z:cz, tr, xx, yy, zz, xy, yz, zx, n}     // , sx, sy, sz, sxx, syy, szz, sxy, syz, szx, n, }
+        }
+        sub(p[i - 2*w]);
+    }
+
+    const rl = r[0], rh = r[p.length-1];
+    r.forEach((x,i,a) => {
+        x.dw = distxyz(a[i-w] ?? rl, a[i+w] ?? rh);  // inter block dist
+        // x.tr1 = a[i-w]?.tr;           // trace to leftinter block dist
+    });
+
+    return r;
+}
+
+/** generate bed file automatically, w is running width */
+CSynth.genbed = function(w = 10, thresh = 15, peakwidth = 5) {
+    const rs = CSynth.runningStats(w);
+    const r = rs.map(x => x.dw);
+    const tr = rs.map(x => x.tr);  // /20
+    //const tr1 = rs.map(x => x.tr1/20);
+
+    /** max value from i-n to i+n */
+    const mm = (a, i, n) => a.slice(i-n, i+n).reduce((c,v) => Math.max(c,v), -Infinity);
+
+    CSynth.clearMarkers();
+    r.forEach((x,i,a) => {
+        if (x > thresh && x === mm(r, i, peakwidth) && mm(tr, i, peakwidth) < x)
+            CSynth.setMarker(-1, i*5000)
+    });
+    CSynth.markers2Bed();
+
+    CSynth.plot(r, 'dw', tr, 'tr');
+}
+
+
+var Chart;
+CSynth.plotev = function plotev(e) {
+    const chart = CSynth.chart;
+    // coordinates of click relative to canvas
+    const { x, y } = Chart.helpers.getRelativePosition(e, chart);
+    // can also use const x = e.native.offsetX, y = e.native.offsetY;
+
+    // get values relative to chart axes
+    const dataX = chart.scales.x.getValueForPixel(x);
+    // const dataY = chart.scales.y.getValueForPixel(y);
+    CSynth.setMarker(15, CSynth.bp4particle(dataX), 'chart');
+}
+
+CSynth.plot = function(...rlabel) {
+    if (!Chart) {
+        log('adding Chart')
+        addscript("https://cdn.jsdelivr.net/npm/chart.js");
+        setTimeout(() => CSynth.plot(rlabel), 1000);
+        return;
+    }
+    if (!CSynth.plotdiv) {
+        const div = CSynth.plotdiv = document.createElement('div');
+        div.style = 'position:fixed; top:0px; right:0px; z-index:9999; width:600px; height: 400px; background: rgba(0,0,0,0.9)'
+        document.body.appendChild(div);
+        const canvas = CSynth.plotcanvas = document.createElement('canvas');
+        div.appendChild(canvas);
+        div.addEventListener('mousemove', CSynth.plotev);
+    }
+    if (CSynth.chart) CSynth.chart.destroy();
+
+    let chart;
+    const datasets = [];
+    for (let i=0; i<rlabel.length; i+=2)
+        datasets.push({
+            data: rlabel[i],
+            label: rlabel[i+1],
+            borderWidth: 1,  // borderWidth is lineWidth
+            pointRadius: 0,
+        })
+
+    const cfg = {
+        type: 'line',
+        data: {
+            datasets,
+            labels: new Array(rlabel[0].length).fill(''), // labels needed otherwise it collapses x, to give a vertical line
+        },
+        options: {
+            responsive: true,
+            aspectRatio: CSynth.plotdiv.clientWidth / CSynth.plotdiv.clientHeight,
+            onClick: CSynth.plotev,
+            onMousemove: CSynth.plotev,
+            onMouseMove: CSynth.plotev,
+        }
+        // labels: r,
+    }
+
+    chart = CSynth.chart = new Chart(CSynth.plotcanvas, cfg);
+    // chart corrupts the size, so reset it
+
+    //await sleep(500)
+    //CSynth.plotdiv.style.width = '600px'; // = 'position:fixed; top:0px; right:0px; z-index:9999; width:600px; height: 400px;'
+    //CSynth.plotdiv.style.height = '400px';
+    //log(cfg)
+}
+
+/** compute medial filter for near diagonal elements */
+CSynth.medial = function({c = U.contactbuff.source.data.data, h = 50, hstep = 5, w = 5, wstep = 1, perc = 0.9} = {}) {
+    console.time('medial');
+    const n = Math.round(c.length ** 0.5);
+    const r = new Float32Array(n);                   // to collect result
+    const xy = new Float32Array(h * (2*w + 1));      // to collect contributing elements, reuse each i
+    for (let i=0; i < n; i++) {  // for each particle
+        if (c[i*n + i] < 0) {r[i] = r[i-1] ?? 0; continue; }    // to handle blank regions
+        let p = 0;
+        for (let x = i-w; x <= i+w; x += wstep) {          // for neighbours
+            if (x < 0 || x >= n) continue;
+            for (let y = x+2; y < x+2+h; y += hstep) {
+                if (y < 0 || y >= n) continue;
+                const v = c[y*n + x];
+                if (v < 0) continue;       // eg -999
+                xy[p++] = v;
+            }
+        }
+        const ss = xy.subarray(0,p).sort((x,y) => x-y);
+        r[i] = p === 0 ? 0 : xy[Math.floor(p * perc)];
+    }
+    console.timeEnd('medial');
+    return r;
 }

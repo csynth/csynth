@@ -335,7 +335,7 @@ CSynth.Matrix = function() {
             addgeneperm('matrixbedtint', 0, 0, 1,  0.001, 0.001, 'matrix bed tint', 'matrix', 0);
             addgeneperm('matrixbedtriangle', 0, 0, 1,  1, 1, 'if 1, bed tint only triangles', 'matrix', 0);
             addgeneperm('matrixbededge', 0, 0, 0.05,  0.0001, 0.0001, 'if non-0 only tint the edges ', 'matrix', 0);
-            addgeneperm('matrixBedSelTint', 0.2, 0, 0.5,  0.001, 0.001, 'highlight selected bed region on matrix', 'matrix', 0);
+            addgeneperm('matrixBedSelTint', 0.0, 0, 0.5,  0.001, 0.001, 'highlight selected bed region on matrix', 'matrix', 0);
 
             addgeneperm('matrixgridres', 0, 0, 100,  1, 1, 'matrix grid resolution', 'matrix', 0);
             addgeneperm('matrixgridwidth', 0.005, 0, 0.001,  0.0001, 0.0001, 'matrix grid width', 'matrix', 0);

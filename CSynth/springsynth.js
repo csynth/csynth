@@ -1191,6 +1191,8 @@ async function springdemo(defs) {
     defs.currentLoadingFile = currentLoadingFile;
     // if (defs.extraPDB) for (const x of defs.extraPDB) defs.extraPDB[x.shortname] = x;
 
+    CSynth.clearMarkers();
+
     await CSynth.springdemoinner(defs);
 
     /***
