@@ -513,9 +513,9 @@ var hsv2rgb = '\nvec3 hsv2rgb(vec3 c) {\n    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 /
 
 var VertShader = '\nvarying vec2 vUv;\n\nvoid main() {\n    vUv = uv;\n    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);\n}\n';
 
-var SVFragShader = '\nuniform vec3 selectedHSV;\nvarying vec2 vUv;\n' + hsv2rgb + '\n\nvoid main() {\n    vec3 hsv = vec3(selectedHSV.x, vUv);\n\n    // draw a black circle around selected SV.\n    // might look better via separate three object, but shader is less housekeeping\n    // need to know aspect ratio if I want it to be a proper circle, though.\n    float d = length(selectedHSV.yz - vUv);\n    if (d < 0.015 && d > 0.01) hsv.z = 0.;\n    gl_FragColor.rgb = hsv2rgb(hsv);\n}\n';
+var SVFragShader = '\nuniform vec3 selectedHSV;\nvarying vec2 vUv;\n' + hsv2rgb + '\n\nvoid main() {\n    vec3 hsv = vec3(selectedHSV.x, vUv);\n\n    // draw a black circle around selected SV.\n    // might look better via separate three object, but shader is less housekeeping\n    // need to know aspect ratio if I want it to be a proper circle, though.\n    float d = length(selectedHSV.yz - vUv);\n    if (d < 0.015 && d > 0.01) hsv.z = 0.;\n    gl_FragColor.rgb = hsv2rgb(hsv); gl_FragColor.w = 1.;\n}\n';
 
-var HSliderFragShader = '\nuniform vec3 selectedHSV;\nvarying vec2 vUv;\n' + hsv2rgb + '\n\nvoid main() {\n    // draw a rectangular indicator around selected H\n    // might look better via separate three object, but shader is simpler\n    float dist = abs(selectedHSV.x - vUv.x);\n    bool indicator = dist < 0.01 && dist > 0.005;\n    float v = indicator ? 0. : 1.;\n    gl_FragColor.rgb = hsv2rgb(vec3(vUv.x, 1., v));\n    \n}\n';
+var HSliderFragShader = '\nuniform vec3 selectedHSV;\nvarying vec2 vUv;\n' + hsv2rgb + '\n\nvoid main() {\n    // draw a rectangular indicator around selected H\n    // might look better via separate three object, but shader is simpler\n    float dist = abs(selectedHSV.x - vUv.x);\n    bool indicator = dist < 0.01 && dist > 0.005;\n    float v = indicator ? 0. : 1.;\n    gl_FragColor.rgb = hsv2rgb(vec3(vUv.x, 1., v)); gl_FragColor.w = 1.;\n    \n}\n';
 
 // http://stackoverflow.com/questions/17242144/javascript-convert-hsb-hsv-color-to-rgb-accurately
 //why not use THREE.Color methods?

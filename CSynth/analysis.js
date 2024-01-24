@@ -1495,7 +1495,7 @@ CSynth.genbed = function(w = 10, thresh = 15, peakwidth = 5) {
     });
     CSynth.markers2Bed();
 
-    CSynth.plot(r, 'dw', tr, 'tr');
+    CSynth.plot({data: r, label: 'dw'}, {data:tr, label: 'tr'});
 }
 
 
@@ -1512,7 +1512,7 @@ CSynth.plotev = function plotev(e) {
     CSynth.setMarker(15, CSynth.bp4particle(dataX), 'chart');
 }
 
-CSynth.plot = function(...rlabel) {
+CSynth.plot = function(rlabel) {
     if (!Chart) {
         log('adding Chart')
         addscript("https://cdn.jsdelivr.net/npm/chart.js");
@@ -1531,10 +1531,10 @@ CSynth.plot = function(...rlabel) {
 
     let chart;
     const datasets = [];
-    for (let i=0; i<rlabel.length; i+=2)
+    for (let i=0; i<rlabel.length; i++)
         datasets.push({
-            data: rlabel[i],
-            label: rlabel[i+1],
+            data: rlabel[i].data,
+            label: rlabel[i].label,
             borderWidth: 1,  // borderWidth is lineWidth
             pointRadius: 0,
         })
@@ -1543,7 +1543,7 @@ CSynth.plot = function(...rlabel) {
         type: 'line',
         data: {
             datasets,
-            labels: new Array(rlabel[0].length).fill(''), // labels needed otherwise it collapses x, to give a vertical line
+            labels: new Array(rlabel[0].data.length).fill(''), // labels needed otherwise it collapses x, to give a vertical line
         },
         options: {
             responsive: true,
@@ -1569,14 +1569,15 @@ CSynth.medial = function({c = U.contactbuff.source.data.data, h = 50, hstep = 5,
     console.time('medial');
     const n = Math.round(c.length ** 0.5);
     const r = new Float32Array(n);                   // to collect result
+    const dr = new Float32Array(n);                   // to collect result
     const xy = new Float32Array(h * (2*w + 1));      // to collect contributing elements, reuse each i
     for (let i=0; i < n; i++) {  // for each particle
         if (c[i*n + i] < 0) {r[i] = r[i-1] ?? 0; continue; }    // to handle blank regions
         let p = 0;
         for (let x = i-w; x <= i+w; x += wstep) {          // for neighbours
             if (x < 0 || x >= n) continue;
-            for (let y = x+2; y < x+2+h; y += hstep) {
-                if (y < 0 || y >= n) continue;
+            for (let y = x-h; y < x+h; y += hstep) {
+                if (y < 0 || y >= n || Math.abs(x-y) <= 1) continue;
                 const v = c[y*n + x];
                 if (v < 0) continue;       // eg -999
                 xy[p++] = v;
@@ -1586,5 +1587,10 @@ CSynth.medial = function({c = U.contactbuff.source.data.data, h = 50, hstep = 5,
         r[i] = p === 0 ? 0 : xy[Math.floor(p * perc)];
     }
     console.timeEnd('medial');
-    return r;
+
+    const rl = r[0], rh = r.slice(-1)[0];
+    for (let i=0; i < n; i++) {
+        dr[i] = (r[i+w]??rh) - (r[i-w]??rl)
+    }
+    return [{data: r, label: 'medial'}, {data: dr, label: 'dmedial'}];
 }

@@ -220,10 +220,28 @@ CSynth.Matrix = function() {
         guiFromGene(gui, 'matMinD').name('Minimum distance value').step(0.1);
         guiFromGene(gui, 'matMaxD').name('Maximum distance value').step(0.1);
         guiFromGene(gui, 'matpow').step(0.1);
+
+        const clX = 4;  // number of items shifted to end
+        CSynth.cols = {
+            get colA() { return colourList[(G.matcoltypeA + clLen - clX) % clLen]},
+            set colA(v) { G.matcoltypeA = (colourList.indexOf(v) + clX) % clLen; CSynth._colsnames(); },
+            get colB() { return colourList[(G.matcoltypeB + clLen - clX) % clLen]},
+            set colB(v) { G.matcoltypeB = (colourList.indexOf(v) + clX) % clLen; CSynth._colsnames(); }
+        }
+
+        const ccol = CSynth.cols, cm = 'current dynamics model', cd = 'current distances', cb = 'colour by:\n'
+        CSynth.matrixOpts = [4,
+            { func: () => {ccol.colA = cm, ccol.colB= cm},  tip: cb+cm, text: 'model'},
+            { func: () => {ccol.colA = cd, ccol.colB= cd},  tip: cb+cm, text: 'distances'},
+            { func: () => {ccol.colA = cm, ccol.colB= cd},  tip: cb+cm + '\n' + cd, text: 'mix'},
+            { func: () => {ccol.colA = cd, ccol.colB= cm},  tip: cb+cd + '\n' + cm, text: 'mix~'}
+        ];
+        gui.addImageButtonPanel.apply(gui, CSynth.matrixOpts).setRowHeight(0.075); // .highlightLastPressed();
+
+
         const f = dat.GUIVR.createX("Colour");
 
         setColourList();
-        const clX = 4;  // number of items shifted to end
         CSynth._colsnames = function() {
             const va = CSynth.cols.colA, vb = CSynth.cols.colB;
             if (va === vb) {
@@ -237,12 +255,6 @@ CSynth.Matrix = function() {
                 colours.c10.gui.name(va);
                 colours.c01.gui.name(vb);
             }
-        }
-        CSynth.cols = {
-            get colA() { return colourList[(G.matcoltypeA + clLen - clX) % clLen]},
-            set colA(v) { G.matcoltypeA = (colourList.indexOf(v) + clX) % clLen; CSynth._colsnames(); },
-            get colB() { return colourList[(G.matcoltypeB + clLen - clX) % clLen]},
-            set colB(v) { G.matcoltypeB = (colourList.indexOf(v) + clX) % clLen; CSynth._colsnames(); }
         }
 
         f.add(CSynth.cols, 'colA', colourList).name('input A').listen();
