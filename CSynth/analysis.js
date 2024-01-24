@@ -1495,7 +1495,7 @@ CSynth.genbed = function(w = 10, thresh = 15, peakwidth = 5) {
     });
     CSynth.markers2Bed();
 
-    CSynth.plot({data: r, label: 'dw'}, {data:tr, label: 'tr'});
+    CSynth.plot([{data: r, label: 'dw'}, {data:tr, label: 'tr'}]);
 }
 
 
