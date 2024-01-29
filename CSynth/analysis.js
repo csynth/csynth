@@ -1519,6 +1519,9 @@ CSynth.plot = function(rlabel) {
         setTimeout(() => CSynth.plot(rlabel), 1000);
         return;
     }
+    if (Array.isArray(rlabel) && typeof rlabel[0] === 'number') rlabel = [{data: rlabel, label: '?'}]
+    if (!Array.isArray(rlabel)) rlabel = [rlabel];
+
     if (!CSynth.plotdiv) {
         const div = CSynth.plotdiv = document.createElement('div');
         div.style = 'position:fixed; top:0px; right:0px; z-index:9999; width:600px; height: 400px; background: rgba(0,0,0,0.9)'
@@ -1532,12 +1535,9 @@ CSynth.plot = function(rlabel) {
     let chart;
     const datasets = [];
     for (let i=0; i<rlabel.length; i++)
-        datasets.push({
-            data: rlabel[i].data,
-            label: rlabel[i].label,
-            borderWidth: 1,  // borderWidth is lineWidth
-            pointRadius: 0,
-        })
+        datasets.push(Object.assign(
+        {   borderWidth: 1,  // borderWidth is lineWidth
+            pointRadius: 0}, rlabel[i]))
 
     const cfg = {
         type: 'line',
@@ -1551,6 +1551,7 @@ CSynth.plot = function(rlabel) {
             onClick: CSynth.plotev,
             onMousemove: CSynth.plotev,
             onMouseMove: CSynth.plotev,
+            animation: false
         }
         // labels: r,
     }
@@ -1565,7 +1566,7 @@ CSynth.plot = function(rlabel) {
 }
 
 /** compute medial filter for near diagonal elements */
-CSynth.medial = function({c = U.contactbuff.source.data.data, h = 50, hstep = 5, w = 5, wstep = 1, perc = 0.9} = {}) {
+CSynth.medial = function({c = U.contactbuff.source.data.data, h = 50, hstep = 5, w = 5, wstep = 1, perc = 0.9, maxr = Infinity} = {}) {
     console.time('medial');
     const n = Math.round(c.length ** 0.5);
     const r = new Float32Array(n);                   // to collect result
@@ -1584,7 +1585,7 @@ CSynth.medial = function({c = U.contactbuff.source.data.data, h = 50, hstep = 5,
             }
         }
         const ss = xy.subarray(0,p).sort((x,y) => x-y);
-        r[i] = p === 0 ? 0 : xy[Math.floor(p * perc)];
+        r[i] = p === 0 ? 0 : Math.min(maxr, xy[Math.floor(p * perc)]);
     }
     console.timeEnd('medial');
 

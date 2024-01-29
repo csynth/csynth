@@ -36,6 +36,10 @@ CSynth.defaultExpand = 1;
 
 CSynth.files = {}; // loaded/loading files
 var PICKNUM = 32;  // really const, var for easier sharing, 16 pick, 16 user markers
+var PICKRES = 16;  // really const, reserved pick slots (first)
+var PICKUSER = PICKNUM - PICKRES
+var allpicks = new Float32Array(PICKNUM);       // array of all pick and marker slots
+var userpicks = allpicks.subarray(PICKRES);     // just the user set markers
 
 var usecache = FIRST(searchValues.usecache, false);
 var writecache = FIRST(searchValues.writecache, false);
@@ -468,7 +472,7 @@ async function bintriReader(bintri, fidd, details = {}, usetext = false) {
             serious('wrong total length in file', fidd);
         tt = new Float32Array(bintri.slice(dstart));          // triangle data
     }
-    const td = details.textureData = new Float32Array(n * n);   // square matrix data
+    const td /** = details.textureData **/ = new Float32Array(n * n);   // square matrix data
     function tri2sq() {
         let ip = 0;
         consoleTime('bintri triToSquare ' + fidd);
@@ -1178,12 +1182,12 @@ CSynth.markers2Bed = function markers2Bed(name = 'frommarkers', save) {
     // msgfixlog('bedmarkers', `'bed being made with ${v.length} markers`);
 
     const lines = [];       // generate the bed lines
-    
+
     for(let i = 0; i < m.length-1; i++) {     // get the matrix pairs
         if (m[i].type === 'matrix1' && m[i+1].type === 'matrix2')
             lines.push(['mat' + i, m[i].bp, m[i+1].bp, 'mat' + i].join('\t'));
     }
-    
+
     m.push({bp: CSynth.current.minid}); m.push({bp: CSynth.current.maxid}); // add bps for start and end
     m.sort((x,y) => x.bp - y.bp);           // sort in base pair order
     for(let i = 1; i < m.length-1; i++) {   // get the non matrix pairs
@@ -1192,7 +1196,7 @@ CSynth.markers2Bed = function markers2Bed(name = 'frommarkers', save) {
             lines.push(['ribr' + i, m[i].bp, m[i+1].bp, 'ribr' + i].join('\t'));
         }
     }
-    
+
     const ll = lines.join('\n');    // make complete bed text
     bedReader(ll, name);            // and use it
     if (save)
@@ -1834,8 +1838,20 @@ async function loadData (cc, fid=cc.key) {
     //??? numInstances = cc.numInstances = cc.numInstances || 128;  // until defined or deduced #'#'#'
 
     // cc.contacts.forEach(c => await CSynth.getContacts(c, dir));  // is its own function so no await allowed!
-    for (let i=0; i<cc.contacts.length; i++)
-        await CSynth.getContacts(cc.contacts[i], dir);
+    const proms = [];
+    for (let i=0; i<cc.contacts.length; i++) {
+        const contact = cc.contacts[i];
+        Object.defineProperty(contact, 'texture', {
+            get: () => CSynth.contactsToTexture(contact), // contact. _ texture,
+            set: v => {console.error('attempt to set contact.texture')}
+        })
+        Object.defineProperty(contact, 'textureData', {
+            get: () => contact.texture.source.data.data, // contact. _ texture,
+            set: v => {console.error('attempt to set contact.textureData')}
+        })
+        proms.push(CSynth.getContacts(contact, dir));
+    }
+    await Promise.all(proms);
     cc.maxv = cc.contacts.reduce((c,v) => Math.max(c, v.maxv), 0);
     cc.representativeContact = FIRST(cc.representativeContact,
         cc.contacts.reduce((c,v) => Math.max(c, v.meannzv), 0));
@@ -3137,18 +3153,68 @@ function testworkers(files = lastopenfiles) {
     }
 }
 
-/** get a texture for contacts */
-CSynth.contactsToTexture = function(contactnum) {
-    const c = CSynth.getContactsZZ(contactnum);
-    if (!c) return undefined;
-    return c.texture;
+CSynth._patch = false;
+Object.defineProperty(CSynth, 'patch', {
+    get: () => CSynth._patch,
+    set: v => {if (v) CSynth._patch2 = false; CSynth._patch = v; CSynth.applyContacts();}
+});
+CSynth._patch2 = false;
+Object.defineProperty(CSynth, 'patch2', {
+    get: () => CSynth._patch2,
+    set: v => {if (v) CSynth._patch = false; CSynth._patch2 = v; CSynth.applyContacts();}
+});
+CSynth._normalize = false;
+Object.defineProperty(CSynth, 'normalize', {
+    get: () => CSynth._normalize,
+    set: v => {CSynth._normalize = v; CSynth.applyContacts();}
+});
+CSynth._normalizeAvoid = 1; CSynth._normalizeLoops = 3;
+Object.defineProperty(CSynth, 'normalizeAvoid', {
+    get: () => CSynth._normalizeAvoid,
+    set: v => {const z = CSynth._normalizeAvoid !== v; if (z) {CSynth._normalizeAvoid = v; CSynth.clearTextureVersions(); CSynth.applyContacts();} }
+});
+Object.defineProperty(CSynth, 'normalizeLoops', {
+    get: () => CSynth._normalizeLoops,
+    set: v => {const z = CSynth._normalizeLoops !== v; if (z) { CSynth._normalizeLoops = v; CSynth.clearTextureVersions(); CSynth.applyContacts();} }
+});
+
+CSynth.clearTextureVersions = function() {
+    if (CSynth.current?.contacts) for (const c of CSynth.current.contacts) if (typeof c === 'object') c.textureVersions = {}
 }
-/** get a contact structure */
+
+
+/** get a texture for contacts, allowing for variants (such as patch) */
+CSynth.contactsToTexture = function(contactnum) {
+    const contact = CSynth.getContactsZZ(contactnum);
+    if (!contact) return undefined;
+    if (!contact.textureVersions) {contact.textureVersions = {}; contact.dataVersions = {};}
+    const ver = (CSynth._patch ? 'p' : '') + (CSynth._normalize ? 'n' : '') + (CSynth._patch2 ? 'q' : '')
+    if (!ver) {
+        contact.textureVersions[0] = contact.rawTexture;
+        contact.dataVersions[0] = contact.rawTexture.source.data.data;
+        return contact.rawTexture;  // original direct path
+    }
+
+    // this path allows for patching
+    if (contact.textureVersions[ver]) return contact.textureVersions[ver];
+
+    let td = contact.dataVersions[ver] = contact.rawData.slice();
+    if (CSynth._patch) td = CSynth.patchmissing(td);
+    if (CSynth._normalize) td = CSynth.donormalize(td);
+    if (CSynth._patch2) td = CSynth.patchmissing(td);
+    const tt = contact.textureType;
+    const rn = contact.rn;
+    const nt = contact.textureVersions[ver] = newTHREE_DataTextureNamed('contactversion' + ver, td, rn, rn, THREESingleChannelFormat, tt);
+    nt.magFilter = nt.minFilter = contact.rawTexture.minFilter;
+    nt.needsUpdate = true;
+    return nt;
+}
+/** get a contact structure, make sure the rawTexture is set */
 CSynth.getContactsZZ = function(contactnum) {
     const contact = (typeof contactnum === 'number') ? CSynth.current.contacts[contactnum] : contactnum;
     if (!contact) {msgfixerror('getContacts called with no contacts for number', contactnum); return; }
     if (!contact.datad) { log('getContacts called before contact ready'); return; }
-    if (contact.texture) return contact;
+    if (contact.rawTexture) return contact;
     let td;
     let n = contact.datad.numInstances;
     if (n > springs.MAXPARTICLES) {
@@ -3158,9 +3224,9 @@ CSynth.getContactsZZ = function(contactnum) {
     const tt = contact.textureType = contact.textureType || THREE.FloatType;
     const r = contact.reduce;
     const irr = 1/(r*r);
-    const rn = Math.round(n / r);
+    const rn = contact.rn = Math.round(n / r);
 
-    if (contact.textureData) {
+    if (contact.rawTexture) {  // was if (contact.textureData) {
         td = contact.textureData;
     } else {
         if (!contact.data) return;  // data not ready yet
@@ -3197,7 +3263,7 @@ CSynth.getContactsZZ = function(contactnum) {
             }
             // nn[a]++; nn[b]++;
         }
-        contact.textureData = td;
+        // contact.texture Data = td;
         contact.datad.numInstances = n = rn; // now we have reduced the data the original n is irrelevant
     }
 
@@ -3263,7 +3329,7 @@ CSynth.getContactsZZ = function(contactnum) {
             if (y <= thresh) td[b*n+a] = v;
             // if (x !== y) console.error('warning, asymmetric backbone', a, a+1, x, y);
         }
-        contact.texture.needsUpdate = true;
+        contact.rawTexture.needsUpdate = true;
     }
 
 
@@ -3284,6 +3350,8 @@ CSynth.getContactsZZ = function(contactnum) {
         contact.noNeighbour.forEach(a => contact.setRowCol(a,-999));
         msgfixlog('noNeighbour', `set disconnected particles to zombies: ${contact.noNeighbour.length} of ${contact.numInstances}`)
     }
+    // if (contact.patch) CSynth.patchmissing(td); // use CSynth.patch flag instead
+
     // contact.zombies = [];
 
     // use groups here to prevent joins over boundaries
@@ -3323,12 +3391,13 @@ CSynth.getContactsZZ = function(contactnum) {
     /****/
 
     contact.meanv = contact.mean = td.reduce((c,v)=>c+Math.max(v,0), 0) / td.length;
-    contact.texture = newTHREE_DataTextureNamed('contact', td, rn, rn, THREESingleChannelFormat, tt);
+    contact.rawTexture = newTHREE_DataTextureNamed('contactraw', td, rn, rn, THREESingleChannelFormat, tt);
+    contact.rawData = td;
     // added sjpt 12/11/18 for expand !== 1, and 4 feb 19 for check
     // Also will be reset to linear retrospectively if CSynth.setParticlesDyn used.
     const f = contact.expand !== 1 || !CSynth.current.check ? THREE.LinearFilter : THREE.NearestFilter;
-    contact.texture.magFilter = contact.texture.minFilter = f;
-    contact.texture.needsUpdate = true;
+    contact.rawTexture.magFilter = contact.rawTexture.minFilter = f;
+    contact.rawTexture.needsUpdate = true;
     return contact;
 }
 // note sjpt 12/11/18
@@ -3353,7 +3422,7 @@ CSynth.patchBoundaryNeedsMoreStats = function(contact, start) {
                     td[a + n*b] = td[n*a + b] = v;
                 }
             }
-            if (contact.texture) contact.texture.needsUpdate = true;
+            if (contact. _ texture) contact. _ texture.needsUpdate = true;
             return;
         }
     }
@@ -3437,7 +3506,7 @@ CSynth.xyzToTexture = function(xyznum) {
 }
 
 // CSynth.markerNames = ['user0', 'user1', 'user2', 'user3', 'user4', 'user5', 'user6', 'user7'];
-CSynth.markers = new Array(PICKNUM-16);
+CSynth.markers = new Array(PICKUSER);
 
 CSynth.clearMarkers = () => CSynth.markers.forEach((v,i,a) => CSynth.setMarker(i, -1, '???'));
 /** set a marker , id=0..7 -ve to autoassign, bp is base pair number, -ve to remove marker */
@@ -3450,10 +3519,10 @@ CSynth.setMarker = function(id, bp, name, type = '?') {
         if (id < 0)
             {msgfixerror('marker', 'no space to allocate marker in CSynth.setMarker', bp, name); return; }
     }
-    if (id < 0 || id > PICKNUM-16 || isNaN(id)) {msgfixerror('marker', 'bad id to CSynth.setMarker', id); return; }
+    if (id < 0 || id > PICKUSER || isNaN(id)) {msgfixerror('marker', 'bad id to CSynth.setMarker', id); return; }
 
     if (bp < 0) {
-        uniforms.userPicks.value[id] = 999;
+        userpicks[id] = 999;
         delete CSynth.markers[id];
         return;
     }
@@ -3462,7 +3531,7 @@ CSynth.setMarker = function(id, bp, name, type = '?') {
     if (name === undefined)  name = 'bp_' + bp;
     const bpn = CSynth.getNormalisedIndex(bp);
     if (bpn < 0 || bpn > 1) log(`warning, bp ${bp} to CSynth.setMarker out of range ${CSynth.current.minid}..${CSynth.current.maxid}`)
-    if (uniforms.userPicks) uniforms.userPicks.value[id] = bpn;
+    userpicks[id] = bpn;
     CSynth.markers[id] = {name, id, bp, bpn, type};
     return id;
 }
@@ -4907,7 +4976,7 @@ CSynth.contactsWithBP = async function(data, fid, contact, [chr1C, bp1C, chr2C, 
     llog('groups processed', olength(groups), 'numInstances', n);
 
     //now create the textureArrray
-    const td = contact.textureData = new Float32Array(n*n);
+    const td = /** contact.textureData = **/ new Float32Array(n*n);
     td.fill(-999);
     let minv = 0, maxv = 0, rmaxv = 0, sumv = 0, sumv2 = 0, nonz = good.length, setx = 9999, diagset = 0, setz = 0,
     minid = 0, maxid = (n-1) * res;  // maxid is a pseudo maxid, based on what it would have been like with one chr
@@ -4942,6 +5011,79 @@ CSynth.contactsWithBP = async function(data, fid, contact, [chr1C, bp1C, chr2C, 
             grp.endbp = Math.max(bp, grp.endbp);
         }
     }
+}
+
+/** patch missing values in array, in place
+works badly at start of mcgill test???
+z=-999; CSynth.patchmissing([0,3,3,3, 3,z,3,3, 3,3,z,3, 3,3,3, 9])
+*/
+CSynth.patchmissing = function (a, m=-999, dv = -999.25) {
+    const n = Math.round(a.length ** 0.5);
+    let leftv, rightv, endgap;
+    // scan along at given diagonal offset d to the right till we hit a good value, or end if bad value at end
+    const scan = (d, ii) => {
+        while (true) {
+            const v = a[ii*n + d + ii];
+            if (v !== m) return [v, ii];        // good value
+            if (ii === n-1) return [leftv, ii]; // end
+            ii++;
+        }
+    }
+
+    for (let d = 0; d < n; d++) {
+        endgap = -1;
+        for (let i = 0; i < n - d; i++) {
+            const p = i*n + i+d
+            if (a[p] !== m) {leftv = a[p]; continue; }
+            if (i >= endgap) {
+                [rightv, endgap] = scan(d, i);
+            }
+            leftv = a[p] = a[i + (i+d)*n] = ((endgap-i) * leftv + rightv) / (endgap - i + 1);
+            if (isNaN(leftv) || leftv === m)
+                i=i+0
+        }  // i
+    } // d
+    return a;
+}  // patchmissing
+
+// CSynth.normalizeAvoid = 0; CSynth.normalizeLoops = 5; ccc0.textureVersions = []; await S.frame(2); ccc0.texture.needsUpdate = true; U.contactbuff = ccc0.texture
+// k = 2225; a = ccc0.dataVersions[0]; r=[]; for(let i = 0; i<numInstances; i++) r[i] = a[k + i*numInstances]; r = r.map(x => x === -999? NaN :  Math.log(x*1000)); getstats(r); CSynth.plot(r); r.slice(k-10, k+10)
+// CSynth.matrixMesh.position.set(-0,0,0); CSynth.matrixMesh.scale.set(4,4,4); CSynth.matrixMesh.updateMatrix()
+CSynth.normalizeAvoid = 1; CSynth.normalizeLoops = 3;
+/** normalize a in place */
+CSynth.donormalize = function(a, loops = CSynth.normalizeLoops, avoid = CSynth.normalizeAvoid, m=-999, plot = true) {
+    console.time('donormalize')
+    const n = Math.round(a.length ** 0.5);
+    ss = new Float32Array(n);
+    const pp = [];
+    for (let r=0; r < loops; r++) {
+        ss.fill(0);
+        for (let i = 0; i < n; i++) {
+            let s = 0;
+            for (let j = 0; j < n; j++) {
+                const v = a[i + j*n];
+                if (v !== m && Math.abs(i-j) > avoid) s += v;
+            }
+            ss[i] = s;
+        }
+        if (plot && r === 0) pp.unshift({data: ss.map(x => x || NaN), label: 'ss'+r })
+        for (let i = 0; i < n; i++) ss[i] = (ss[i] || 1) **-0.5;
+        // log('post', ss.subarray(2215, 2235))
+
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j < n; j++) {
+                const v = a[i + j*n];
+                if (v !== m) a[i + j*n] *= ss[i] * ss[j];
+            }
+        }
+    } // loops
+    if (plot) {
+        pp.unshift({data: ss.map(x => x || NaN), label: 'ssfinal', borderWidth: 2})
+        CSynth.plot(pp);
+    }
+
+    console.timeEnd('donormalize')
+    return a;
 }
 
 /** highest common factor */

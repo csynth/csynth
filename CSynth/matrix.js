@@ -297,6 +297,7 @@ CSynth.Matrix = function() {
     this.newRender = function(rt) {
         if (searchValues.nohorn) return;
         if (!CSynth.current.ready) return;
+        if (!this.visible) return;  // sjpt 27 Jan 2024, check safe
 
         if (CSynth.Matrix.forcenewsave && CSynth.matrixScene) {  // restore state lost by forcenew
             GX.restoreGuiFromObject(CSynth.Matrix.forcenewsave);
@@ -535,96 +536,96 @@ CSynth.Matrix = function() {
 
 
 
-    /****
-    function createPickDebugGUI() {
-        const pickrt = window.uniforms.pickrt.value;
-        var g = V.PickDebugGui = dat.GUIVR.createX("pick debug");
-        g.name = 'createPickDebugGUI';
-        const fn = (x, y)=>{
-            //'left' should be normalised rather than in pixel coordinates.
-            const i = Math.floor(x*pickrt.width)
-            const d = readWebGlFloat(pickrt, { left: x, width: 1 });
-            log(`pickrt value(${i}): ${d}`);
-        };
-        g.addImageButton(fn, pickrt, true, 0.3);
+    // /****
+    // function createPickDebugGUI() {
+    //     const pickrt = window.uniforms.pickrt.value;
+    //     var g = V.PickDebugGui = dat.GUIVR.createX("pick debug");
+    //     g.name = 'createPickDebugGUI';
+    //     const fn = (x, y)=>{
+    //         //'left' should be normalised rather than in pixel coordinates.
+    //         const i = Math.floor(x*pickrt.width)
+    //         const d = readWebGlFloat(pickrt, { left: x, width: 1 });
+    //         log(`pickrt value(${i}): ${d}`);
+    //     };
+    //     g.addImageButton(fn, pickrt, true, 0.3);
 
-        const vertd = `
-        varying vec2 vUv;
+    //     const vertd = `
+    //     varying vec2 vUv;
 
-        void main() {
-            vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }`;
-        const fragd = `
-        ${CSynth.CommonShaderCode()}
-        varying vec2 vUv;
+    //     void main() {
+    //         vUv = uv;
+    //         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    //     }`;
+    //     const fragd = `
+    //     ${CSynth.CommonShaderCode()}
+    //     varying vec2 vUv;
 
-        //copied from common.vfs
-        uniform float userPicks[${PICKNUM-16}];
-        float getPickM(int i) {  // for createPickDebugGUI
-            #define ppick(k) if (i == 16+k) return userPicks[k];
-            ppick( 0); ppick( 1); ppick( 2); ppick( 3);
-            ppick( 4); ppick( 5); ppick( 6); ppick( 7);
-            ppick( 8); ppick( 9); ppick(10); ppick(11);
-            ppick(12); ppick(13); ppick(14); ppick(15);
-            float fslot = float(i) / 4.;
-            float slot = floor(fslot);
-            vec4 v = texture2D(pickrt, vec2(slot / 4. + 0.125, 0.5));
-            int e = int(floor((fslot - slot) * 4.));
-            return e == 0 ? v.x : e == 1 ? v.y : e == 2 ? v.z : e == 3 ? v.w : 999.;
-        }
+    //     //copied from common.vfs
+    //     uniform float user Picks[${PICKUSER}];
+    //     float getPickM(int i) {  // for createPickDebugGUI
+    //         #define ppick(k) if (i == 16+k) return user Picks[k];
+    //         ppick( 0); ppick( 1); ppick( 2); ppick( 3);
+    //         ppick( 4); ppick( 5); ppick( 6); ppick( 7);
+    //         ppick( 8); ppick( 9); ppick(10); ppick(11);
+    //         ppick(12); ppick(13); ppick(14); ppick(15);
+    //         float fslot = float(i) / 4.;
+    //         float slot = floor(fslot);
+    //         vec4 v = texture2D(pickrt, vec2(slot / 4. + 0.125, 0.5));
+    //         int e = int(floor((fslot - slot) * 4.));
+    //         return e == 0 ? v.x : e == 1 ? v.y : e == 2 ? v.z : e == 3 ? v.w : 999.;
+    //     }
 
-        float newPick(vec2 uv) {  //for createPickDebugGUI
-            // first, let's work out what 'e' and 'slot' we want, then turn it back into int
-            // and look up with getPickM.
-            int e = int(floor(uv.y * 4.));
-            int slot = int(floor(uv.x * 4.));
-            int i = e + 4*slot;
-            return getPickM(i);    //for createPickDebugGUI
-        }
+    //     float newPick(vec2 uv) {  //for createPickDebugGUI
+    //         // first, let's work out what 'e' and 'slot' we want, then turn it back into int
+    //         // and look up with getPickM.
+    //         int e = int(floor(uv.y * 4.));
+    //         int slot = int(floor(uv.x * 4.));
+    //         int i = e + 4*slot;
+    //         return getPickM(i);    //for createPickDebugGUI
+    //     }
 
-        void main() {
-            // float p = getPick(int(vUv.x * 16.));
-            // if (vUv.y < 0.5) {
-            //     float y = 2. * vUv.y;
-            //     vec4 v = texture2D(pickrt, vec2(floor(vUv.x * 4.), 0.5));
-            //     int e = int(floor(4. * y));
-            //     p = e == 0 ? v.x : e == 1 ? v.y : e == 2 ? v.z : e == 3 ? v.w : 999.;
-            //     gl_FragColor = vec4(p, p, p, 1.);
-            // } else gl_FragColor = vec4(p, p, p, 1.);
-            float p = newPick(vUv); //for createPickDebugGUI
-            gl_FragColor = vec4(p, p, p, 1);
-        }`;
+    //     void main() {
+    //         // float p = getPick(int(vUv.x * 16.));
+    //         // if (vUv.y < 0.5) {
+    //         //     float y = 2. * vUv.y;
+    //         //     vec4 v = texture2D(pickrt, vec2(floor(vUv.x * 4.), 0.5));
+    //         //     int e = int(floor(4. * y));
+    //         //     p = e == 0 ? v.x : e == 1 ? v.y : e == 2 ? v.z : e == 3 ? v.w : 999.;
+    //         //     gl_FragColor = vec4(p, p, p, 1.);
+    //         // } else gl_FragColor = vec4(p, p, p, 1.);
+    //         float p = newPick(vUv); //for createPickDebugGUI
+    //         gl_FragColor = vec4(p, p, p, 1);
+    //     }`;
 
-        let shader = new THREE.RawShaderMaterial({
-            vertexShader: vertd, fragmentShader: fragd, uniforms: { pickrt: window.uniforms.pickrt }
-        });
+    //     let shader = new THREE.RawShaderMaterial({
+    //         vertexShader: vertd, fragmentShader: fragd, uniforms: { pickrt: window.uniforms.pickrt }
+    //     });
 
-        g.addImageButton(fn, shader, true, 0.3);
+    //     g.addImageButton(fn, shader, true, 0.3);
 
-        const testData = new Float32Array(16);
-        // I would expect this to make top row have 4 * 4 ascending shades of gray.
-        for (var i=0; i<16; i++) {
-            testData[i] = i/16;//(i%4)/4;
-        }
-        const testTex = newTHREE_DataTextureNamed('?', testData, 4, 1, THREE.RGBAFormat,
-            THREE.FloatType, undefined,
-            THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping,
-            THREE.NearestFilter, THREE.NearestFilter
-        );
-        testTex.needsUpdate = true;
-        shader = new THREE.RawShaderMaterial({
-            vertexShader: vertd, fragmentShader: fragd, uniforms: { pickrt: { value: testTex } }
-        });
-        g.addImageButton(fn, testTex, true, 0.3);
-        g.addImageButton(fn, shader, true, 0.3);
+    //     const testData = new Float32Array(16);
+    //     // I would expect this to make top row have 4 * 4 ascending shades of gray.
+    //     for (var i=0; i<16; i++) {
+    //         testData[i] = i/16;//(i%4)/4;
+    //     }
+    //     const testTex = newTHREE_DataTextureNamed('?', testData, 4, 1, THREE.RGBAFormat,
+    //         THREE.FloatType, undefined,
+    //         THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping,
+    //         THREE.NearestFilter, THREE.NearestFilter
+    //     );
+    //     testTex.needsUpdate = true;
+    //     shader = new THREE.RawShaderMaterial({
+    //         vertexShader: vertd, fragmentShader: fragd, uniforms: { pickrt: { value: testTex } }
+    //     });
+    //     g.addImageButton(fn, testTex, true, 0.3);
+    //     g.addImageButton(fn, shader, true, 0.3);
 
 
 
-        V.rawscene.add(g);
-        VH.positionGUI(0, 0, 1000, g);
-    }
-    /************  end createPickDebugGUI */
+    //     V.rawscene.add(g);
+    //     VH.positionGUI(0, 0, 1000, g);
+    // }
+    // /************  end createPickDebugGUI */
 }  // end CSynth.Matrix
 
 CSynth.colchoice = /*glsl*/`
@@ -644,7 +645,8 @@ CSynth.colchoice = /*glsl*/`
             float dist = texture2D(tex, pos).x;
             rd = dist / nonBackboneLen;  // relative dist
         } else if (matintype < 6.5) {    // 6: contact from texture, via wish dist
-            float contact = max(0., texture2D(tex, pos).x);
+            float contact = texture2D(tex, pos).x;
+            if (contact < 0.) return -999.;
             // see CSynth.alignModels in csynth.js for some workings to deduce formula below
             if (contactforcesc != 0.)
                 // OLD dist = pow(contact * contactforcesc / pushapartforce * pow(powBaseDist, pushapartpow), 1. / (pushapartpow - 1.));  // regular distance
@@ -652,7 +654,7 @@ CSynth.colchoice = /*glsl*/`
             else
                 rd = m_k * pow(contact / representativeContact, -m_alpha);  // LorDG distance
         } else {                    // 7: contact from texture, old forumula
-            return -999.;
+            return -9.;
         }
 
         // fall through for rd = dist(like) value, shape them before return. All use the same shaping code for consistency
@@ -767,10 +769,11 @@ function heightMatrixMaterial() {
 
 
         vec2 tp = (texpos.xy * numSegs + 0.5) / numInstances;
-        float v1 = clamp( nval(matintypeA, matrix2dtexA, tp, dist, matDistNear, matDistFar), 0., 1.);
+        float vv = nval(matintypeA, matrix2dtexA, tp, dist, matDistNear, matDistFar);
+        float v1 = clamp( vv, 0., 1.);
         if (matintypeA + matintypeB == 0.) {    // old code
         } else if (matcoltypeA == matcoltypeB) {
-             c.col.rgb = mix(col1, col2, v1);
+            c.col.rgb = (vv == -999.) ? vec3(1,0,0) : mix(col1, col2, v1);
         } else {
             float v2 = clamp(nval(matintypeB, matrix2dtexB, tp, dist, matDistNear, matDistFar), 0., 1.);
             /**

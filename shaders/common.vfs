@@ -37,14 +37,12 @@ uniform sampler2D rtopos, rtshapepos, feedtexture;
     // pickrt has 4 points, with 4 values each
     // the x,y position of the first point is the raw opos position
     // the z position of first point is the useful value for single horn
-    uniform float userPicks[16];  // <<<< PICKNUM-16
+    #define PICKRES 16
+    #define PICKNUM 32
+    uniform float  allpicks[PICKNUM];
     float getPickC(int i) {
-        if (!(i==0 || i==4 || i==5 || i==8 || i==12 || i==13 || i >= 16 ) ) return 999.5;
-        #define ppick(k) if (i == 16+k) return userPicks[k];
-        ppick( 0); ppick( 1); ppick( 2); ppick( 3);
-        ppick( 4); ppick( 5); ppick( 6); ppick( 7);
-        ppick( 8); ppick( 9); ppick(10); ppick(11);
-        ppick(12); ppick(13); ppick(14); ppick(15);
+        if (i >= 16) return allpicks[i];
+        if (!(i==0 || i==4 || i==5 || i==8 || i==12 || i==13) ) return 999.5;
         float fslot = float(i) / 4.;
         float slot = floor(fslot);
         vec4 v = texture2D(pickrt, vec2((slot + 0.5) / 4., 0.5));
@@ -52,7 +50,7 @@ uniform sampler2D rtopos, rtshapepos, feedtexture;
         //TODO: make this match CSynth.CommonShaderCode() version.
         return e == 0 ? v.x : e == 1 ? v.y : e == 2 ? v.z : e == 3 ? v.w : 999.;
     }
-    vec3 getPickColor(int i) {
+    vec3 getPickColor(int i) { //?@?@?@
         if (i < 8)  return vec3(1., 0., 0.);
         if (i < 16) return vec3(0., 1., 0.);
         if (i == 16) return vec3(0., 1., 1.);

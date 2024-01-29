@@ -8,7 +8,7 @@ var V, HW, THREE, getBody, renderer, init, currentGenes, uniforms, springs, CSyn
     target, remakeShaders, simpleset, setInput, usemask, VH, dat, camera, inputs, pickGPU, renderMainObject, inmutator,
     adduniform, addtaggeduniform, oxcsynth, S, currentLoadingFile, msgfixerror, copyFrom, trimstrings, getFileExtension, getFileName,
     customLoadDone, nop, guiFromGene, otraverse, canvas, setAllLots, settings, initialSettings,
-    searchValues, currentLoadingData, PICKNUM, readdir,
+    searchValues, currentLoadingData, PICKNUM, PICKRES, PICKUSER, allpicks, userpicks, readdir,
     scaleDampTarget1, nomess, posturi, GX, msgfixlog, objfilter, geneOverrides, col3, inworker, loadTime,
     currentLoadingDir, resetMat, slowinit, GO, renderVR, sleep, myRequestAnimationFrame, htmlDefines, maxTextureSize,
     Gldebug, startWsListener, distxyz, downloadImage, downloadImageHigh, FIRST, writeBintri, runkeys, STL, islocalhost, fxaa, filesFromDialog,
@@ -174,17 +174,11 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
     #define NormalisedToTexCo 1. // (numSegs/numInstancesP2)
 	//copied from common.vfs
     //PJT: considering implementing 'pickedness' buffer...
-    uniform float userPicks[${PICKNUM-16}];
+    uniform float allpicks[${PICKNUM}];
     float getPick(int i) {  // return value in 0 .. 1
         float r;
-        if (!(i==0 || i==4 || i==5 || i==8 || i==12 || i==13 || i >= 16 ) ) return 999.5;
-        #define ppick(k) else if (i == 16+k) r = userPicks[k];
-        if (i == 16) r = userPicks[0];
-        ppick( 1) ppick( 2) ppick( 3)
-        ppick( 4) ppick( 5) ppick( 6) ppick( 7)
-        ppick( 8) ppick( 9) ppick(10) ppick(11)
-        ppick(12) ppick(13) ppick(14) ppick(15)
-
+        if (i >= 16) return allpicks[i];
+        if (!(i==0 || i==4 || i==5 || i==8 || i==12 || i==13) ) return 999.5;
         else {
             float fslot = float(i) / 4.;
             float slot = floor(fslot);
@@ -195,7 +189,7 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
         return r * NormalisedToTexCo; //XXX: ended up dividing by this again in HistoryTrace; careful now.
     }
     ${CSynth.pickAndColCode()}
-    vec3 getPickColor(const in int i) {
+    vec3 getPickColor(const in int i) {  //?@?@?@
         if (i < 8)  return vec3(1., 0., 0.);
         if (i < 16) return vec3(0., 1., 0.);
         if (i == 16) return vec3(0., 1., 1.);
@@ -367,7 +361,7 @@ CSynth.CommonShaderCode = () => /*glsl*/`
 `;
 CSynth.getCommonUniforms = () => {
     const u = window.uniforms;
-    adduniform('userPicks', new Array(PICKNUM-16).fill(999), 'fv');
+    adduniform('allpicks', allpicks.fill(999), 'fv');
 
     return {
         scaleFactor: u.scaleFactor,
@@ -381,7 +375,7 @@ CSynth.getCommonUniforms = () => {
         t_ribboncol: u.t_ribboncol,
         t_ribbonrad: u.t_ribbonrad,
         numSegs : u.numSegs, numInstancesP2 : u.numInstancesP2,
-        userPicks : u.userPicks,
+        allpicks : u.allpicks,
         HISTLEN : u.HISTLEN,
         USELOGDEPTH : u.USELOGDEPTH
     }
@@ -579,8 +573,12 @@ CSynth.applyContacts = (contacts, pftype = CSynth.springSettings.contactFtype) =
     //PJT rather than pass texture directly to uniforms.contactbuff.value, pass contacts object
     //allowing methods etc to be accessed from a springs instance.
     //....of course, this method isn't even being used... need to ook at applyXyzs
-    //if (G.contactforce) uniforms.contactbuff.value = CSynth.contactsToTexture(contacts);
-    if (G.contactforce) springs.contacts = CSynth.getContactsZZ(contacts);
+    //if (G.contactforce) uniforms.contactbuff.value = CSynth.contactsToTexture(contacts); // side effect of springs.contacts =
+    //if (G.contactforce) springs.contacts = CSynth.getContactsZZ(contacts);
+    if (G.contactforce) {
+        CSynth.contactsToTexture(contacts);
+        springs.contacts = contacts;
+    }
 
     //G.pushapartforce *= 10;
     //setTimeout(()=> G.pushapartforce /= 10, 4000);
@@ -1191,7 +1189,12 @@ async function springdemo(defs) {
     defs.currentLoadingFile = currentLoadingFile;
     // if (defs.extraPDB) for (const x of defs.extraPDB) defs.extraPDB[x.shortname] = x;
 
+    // ??? should below be in defaults.js ???,  use _ to avoid the side effect during initialization
     CSynth.clearMarkers();
+    CSynth._normalize = false;
+    CSynth._patch = CSynth._patch2 = false;
+    CSynth._normalizeLoops = 3;
+    CSynth._normalizeAvoid = 0;
 
     await CSynth.springdemoinner(defs);
 
@@ -1503,8 +1506,8 @@ CSynth.showpick = function (callback) {
     if (cc.contacts[0]) pnames = cc.contacts[0].particleNames; // ?? promote particleNames to cc level?
 
     if (CSynth.guidetail >= 2) var pos = springs.getpos();
-    for (let i = 0; i < pick.array.length; i++) {
-        let p = pick.array[i];
+    for (let i = 0; i < allpicks.length; i++) {
+        let p = allpicks[i];
         const partidf = p * (numInstances - 1);
         let partid = Math.floor(partidf);
         // let bp = p * cc.range + cc.minid;
@@ -1526,10 +1529,10 @@ CSynth.showpick = function (callback) {
         }
         r.push(CSynth.pickslots[i] + ': ' + pname + '/' + format(partidf) + '   ' + bedt);
     }
-    let m1 = pick.array[4], m2 = pick.array[5];   // preselect matrix
-    if (m1 > 998 ) { m1 = pick.array[12]; m2 = pick.array[13]; }  // select matrix
-    if (m1 > 998 ) { m1 = pick.array[0]; m2 = pick.array[8]; }  // select and preselect on ribbon
-    if (m1 > 998 ) { m1 = pick.array[16]; m2 = pick.array[17]; }  // pair of user slots
+    let m1 = allpicks[4], m2 = allpicks[5];   // preselect matrix
+    if (m1 > 998 ) { m1 = allpicks[12]; m2 = allpicks[13]; }  // select matrix
+    if (m1 > 998 ) { m1 = allpicks[0]; m2 = allpicks[8]; }  // select and preselect on ribbon
+    if (m1 > 998 ) { m1 = allpicks[16]; m2 = allpicks[17]; }  // pair of user slots
     if (m1 > 998 || m2 > 998) { m1 = m2 = 999; }  // no sensible pair
 
     const dist = m2-m1;
@@ -1572,7 +1575,7 @@ CSynth.showpick = function (callback) {
     }
 
 
-    if (callback) callback(pick.array, bedts);
+    if (callback) callback(allpicks, bedts);
 }
 if (CSynth.bc) CSynth.bc.last = {};
 
@@ -1596,8 +1599,8 @@ CSynth.showPickDist = function() {
     const pos = readWebGlFloat(springs.posNewvals);
     let index;
     // collect the selection data
-    for (let i = 0; i < pick.array.length; i++) {
-        let p = pick.array[i];
+    for (let i = 0; i < allpicks.length; i++) {
+        let p = allpicks[i];
         let v = p * cc.range + cc.minid;
         if (!CSynth.pickslots[i]) continue;   // this pick slot not used
         if (!(0 < p && p < 1)) continue;      // this slots indicates no pick
@@ -2046,6 +2049,11 @@ R key, or K,R keys`, text: 'Random'
     } else {
         serious('attempt to use old code???');
     }
+    modes.add(CSynth, 'patch').setToolTip('used patched contacts, unset values set from nearby set ones.');
+    modes.add(CSynth, 'normalize').setToolTip('used normalized contacts');
+    modes.add(CSynth, 'patch2').setToolTip('used patched contacts after normalize');
+    modes.add(CSynth, 'normalizeAvoid', -1, 4).step(1).setToolTip('avoid near diagonal elements in normalize, -1, no avoid, 0 avoid self, 1 avoid neighbours, etc')
+    modes.add(CSynth, 'normalizeLoops', 1, 8).step(1).setToolTip('number of normalize loops to use')
     // ??? todo consider how nohorn should get going
     if (searchValues.nohorn)
         myRequestAnimationFrame();
@@ -2441,7 +2449,7 @@ CSynth.viewall = function() {
 tracks matrix selection if there, or preselection if not */
 CSynth.boostspringsframe = function() {
     const R = numInstances/numInstancesP2;
-    const pp = pick.array;
+    const pp = allpicks;
     const sa = pp[12], sb = pp[13], pa = pp[4], pb = pp[5];
     const a = sa < 998 ? sa : pa;
     const b = sb < 998 ? sb : pb;
@@ -2578,7 +2586,7 @@ CSynth.extrudeDouble = async function(a, b, t = 2000, marker = 0) {
 }
 
 // R=numInstances/numInstancesP2
-// Maestro.on('preframe', () => {G.boostx = pick.array[4]*R; G.boosty = pick.array[5]*R; })
+// Maestro.on('preframe', () => {G.boostx = allpicks[4]*R; G.boosty = allpicks[5]*R; })
 
 
 /**

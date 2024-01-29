@@ -13,7 +13,8 @@ var W, THREE, badshader, inputs, Shadows, renderer, BLACK,
     G, log, newmain, renderObjsInner, skelbuffer, getstats, Director, searchValues, renderskelbuff,
     readWebGlFloatDirect, prerender, nop, Maestro, xxxhset, WALLID, rendertargets, isCSynth, readTextureAsVec4,
     readWebGlFloatAsync, S, clone, copyFrom, resolveFilter, onframe, deferRender, inps, msgfixerror, copyXflip,
-    xxxvn, resetCamera, VEC3, mutateOrientation
+    xxxvn, resetCamera, VEC3, mutateOrientation,
+    PICKNUM, PICKRES, PICKUSER, allpicks, userpicks
 ;
 
 var basescale = 655;
@@ -675,7 +676,7 @@ function pickGPU(dispobj, x,y, slotoff=0, slotoffmat=-1, doclear=true) {
     // if (camera !== render_camera) serious('unexpected camera mismatch');
 
     if (pickRenderTarget) {
-        if (slotoffmat > 0) {
+        if (slotoffmat > 0) { //?@?@?@ slotoff > 0?
             pickRenderTarget.scissorTest = true;
             pickRenderTarget.scissor.set(slotoff/4,0,2,1);
         } else {
@@ -734,7 +735,8 @@ function pickGPU(dispobj, x,y, slotoff=0, slotoffmat=-1, doclear=true) {
         // calling renderPass is adequate  for horn, but makes extra options complicated with matrix pick etc
         uniforms.pickxslot.value = slotoff;
         //renderPass(dispobj.genes, uniforms, pickRenderTarget);
-        if (renderMainObject) renderObjPipe(scene, renderPass, dispobj.genes, uniforms, pickRenderTarget, 0, "pick");
+
+        if (renderMainObject)  renderObjPipe(scene, renderPass, dispobj.genes, uniforms, pickRenderTarget, 0, "pick");
 
         // handle matrix if present
         if (VH.matrix && VH.matrix.visible && slotoffmat >= 0) {
@@ -777,7 +779,7 @@ function pickGPU(dispobj, x,y, slotoff=0, slotoffmat=-1, doclear=true) {
 }
 
 pick.sillycol = col3(999,999,999);
-pick.array = new Array(20).fill(999);  // will be filled with 16 GPU values and 4 program values
+// now all picks all picks = new Float32Array(32); // new Array(20).fill(999);  // will be filled with 16 GPU values and 16 program marker values
 /** perform pick on gpu and read back and display and return result, see pickGPU for details */
 //PJT::: passing in an extra argument so that we can respond appropriately to different sources of event...
 //
@@ -848,26 +850,10 @@ function showpick(dispobj, callback, pickenv) {
 
         if (pickRenderTarget) {
             // get pick data from gpu
-            // let vv = pick.array = Array.from(readWebGlFloat(pickRenderTarget, {rtout: pickRenderTarget.byteversion, channels: 4}, 'pick'));
-            // let vv = pick.array = Array.from(readWebGlFloatDirect(pickRenderTarget));
-            if (!pickRenderTarget.farr) {   // save recreating buffers
-                const size = pickRenderTarget.width * 4;    // 4 as always rgba
-                pickRenderTarget.farr = new Float32Array(size);
-                pickRenderTarget.arr = new Array(size);
-            }
-            await readWebGlFloatAsync(pickRenderTarget, {buffer: pickRenderTarget.farr});
+            const vv = allpicks;
+            let p = PICKRES; // entries already filled in allpicks
+            await readWebGlFloatAsync(pickRenderTarget, {buffer: vv.subarray(0,PICKRES), width:PICKRES/4});
             renderer.setRenderTarget(pickRenderTarget);
-            pickRenderTarget.arr.set(pickRenderTarget.farr);
-            const vv = pickRenderTarget.arr;
-            pick.array.set(vv); // not sure the distinction between pickRenderTarget.arr and pick array, CSynth pick was broken 16July2022 without this
-
-            // add user pick data if any (? CSynth only)
-            let p = 16; // entries already filled in pick.array
-            if (uniforms.userPicks) {
-                for (let i = 0; i < uniforms.userPicks.value.length; i++) {
-                    vv[p++] = uniforms.userPicks.value[i];
-                }
-            }
 
             // display pick data fairly raw (mainly debug)
             let vvs = [];

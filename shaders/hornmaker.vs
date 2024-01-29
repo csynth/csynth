@@ -34,23 +34,25 @@ float lribdepth;
     #if (VERTEX == 1)
     // set a value into a slot to pass from vertex shader to fragment shader
     void slot(int num, float v) {
-		num += pickxslot;
-        if (num == 0) pickVary0.x = v;
-        if (num == 1) pickVary0.y = v;
-        if (num == 2) pickVary0.z = v;
-        if (num == 3) pickVary0.w = v;
-        if (num == 4) pickVary1.x = v;
-        if (num == 5) pickVary1.y = v;
-        if (num == 6) pickVary1.z = v;
-        if (num == 7) pickVary1.w = v;
-        if (num == 8) pickVary2.x = v;
-        if (num == 9) pickVary2.y = v;
-        if (num == 10) pickVary2.z = v;
-        if (num == 11) pickVary2.w = v;
-        if (num == 12) pickVary3.x = v;
-        if (num == 13) pickVary3.y = v;
-        if (num == 14) pickVary3.z = v;
-        if (num == 15) pickVary3.w = v;
+		num += pickxslot;               // eg +4 for matrix, +8 for select (red->green)
+        switch (num) {
+            case 0: pickVary0.x = v; break;
+            case 1: pickVary0.y = v; break;
+            case 2: pickVary0.z = v; break;
+            case 3: pickVary0.w = v; break;
+            case 4: pickVary1.x = v; break;
+            case 5: pickVary1.y = v; break;
+            case 6: pickVary1.z = v; break;
+            case 7: pickVary1.w = v; break;
+            case 8: pickVary2.x = v; break;
+            case 9: pickVary2.y = v; break;
+            case 10: pickVary2.z = v; break;
+            case 11: pickVary2.w = v; break;
+            case 12: pickVary3.x = v; break;
+            case 13: pickVary3.y = v; break;
+            case 14: pickVary3.z = v; break;
+            case 15: pickVary3.w = v; break;
+        }
     }
     #endif
 

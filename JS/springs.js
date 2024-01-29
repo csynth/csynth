@@ -7,7 +7,7 @@ ColorKeywords, parseUniforms, log, changeMat, newmain, setval, ugene, trysetele,
 writetextremote, guiFromGene, ffloat, V, setspringshaders, springdemo, CSynth, G, vivepick, pick, nop,
 nomess, msgfix, msgfixlog, guifilter, DNASprings, msgfixerror, scaleDampTarget1, getSpringUniforms, addgeneperm, inworker,
 genedefs, nextpow2, uniforms, GX, gl, onframe, maxTextureSize, EX, format, newTHREE_DataTextureNamed, framedelta, THREESingleChannelFormat,
-testes300, isWebGL2, searchValues, randvec3, GUINewsub, GUISubadd, U, tmat4, getstats, genes2uniforms, currentGenes;
+testes300, isWebGL2, searchValues, randvec3, GUINewsub, GUISubadd, U, tmat4, getstats, genes2uniforms, currentGenes, allpicks;
 
 // for mutate
 var mutate, vps, setViewports, slots, setObjUniforms, S, slowMutate;
@@ -768,7 +768,7 @@ var Springs = function(id = '') {
                 //TODO: more robust type check etc.
                 contacts = v;
                 if (!v) return;
-                me.uniforms.contactbuff.value = v.texture;
+                me.uniforms.contactbuff.value = CSynth.contactsToTexture(v); // v.texture; NO allow for patchTexture etc
             }
         }
     });
@@ -1400,7 +1400,7 @@ meX.setHISTLEN(256); meX.repos(); meX.demotopology(); setTimeout(meX.start, 500)
         let pos = new THREE.Vector3();
         const poss = me.getpos();  // all positions
         if (n === undefined) {
-            const p = pick.array;
+            const p = allpicks;
             let nn = 0;
             for (let i=0; i < 15; i++) {
                 if (!(i===0 || i===4 || i===5 || i===8 || i===12 || i===13 ) ) continue;
