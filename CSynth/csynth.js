@@ -68,7 +68,7 @@ CSynth.init = function CSynth_init(quickout) {
     fileTypeHandlers['.txt'] = contactsReader;  // allow .txt files for contacts
 
     W.fileDialog.multiple = true;
-    W.fileDialog.accept = '.txt,.contacts,.xyz,.bed,.wig,.config,.js,.zip,.rawobserved,.rawObserved,.csv,.mat';
+    W.fileDialog.accept = '.txt,.contacts,.xyz,.bed,.wig,.config,.js,.zip,.rawobserved,.rawObserved,.csv,.mat,.bintri';
 
     addgeneperm('nmPerUnit', 11, 0, 100, 1,1, 'number on nm per modelling unit', 'csynth', 'frozen');
 
@@ -164,7 +164,8 @@ contactsReader = async function contactsReaderF(dataStr, fid, contact = {}, isSu
             blob = fff.blob ? await fff.blob() : fff;   // <<<< TO VERIFY TODO
         }
         if (_binfiles.includes(ext) ) {
-            dataStr = new Uint8Array( await blob.arrayBuffer() );
+            //dataStr = new Uint8Array( await blob.arrayBuffer() );
+            dataStr = await blob.arrayBuffer();
             // msgfix(urik, '<br>pending<br>' + genbar(0));
         } else {
             log(`file ${fid} length ${blob.size} to be read`)
@@ -438,7 +439,7 @@ async function bintriReader(bintri, fidd, details = {}, usetext = false) {
         details.minid = p0.id;
         details.res = p0.res;
         let oldp = p0;
-        const groups = details.groups = {};
+        const groups = {};
         let g = groups[p0.chr] = {startid: 0, startbp: p0.id, res: p0.res} ;
         let p;
         for (let i = 1; i < n; i++) {
@@ -454,8 +455,11 @@ async function bintriReader(bintri, fidd, details = {}, usetext = false) {
         }
         g.endid = n - 1;
         g.endbp = p.id;
-        CSynth.applySchemesToGroups(groups);
-        CSynth.breakGroups(groups);
+        if (olength(groups) > 1) {
+            CSynth.applySchemesToGroups(groups);
+            CSynth.breakGroups(groups);
+            details.groups = groups;
+        }
     } else {  // can't parse header usefully, just guess
         if (details.minid === undefined) details.minid = 0;
         if (details.res === undefined) details.res = 1;
@@ -470,7 +474,9 @@ async function bintriReader(bintri, fidd, details = {}, usetext = false) {
         var left = bintri.byteLength - dstart;
         if (left/4 !== n*(n+1)/2)
             serious('wrong total length in file', fidd);
-        tt = new Float32Array(bintri.slice(dstart));          // triangle data
+        let ttb = bintri.slice(dstart);                      // allow for bintri being ArrayBuffer or ? Unit8Array
+        if (!(ttb instanceof ArrayBuffer)) ttb = ttb.buffer;
+        tt = new Float32Array(ttb);          // triangle data
     }
     const td /** = details.textureData **/ = new Float32Array(n * n);   // square matrix data
     function tri2sq() {
@@ -484,6 +490,7 @@ async function bintriReader(bintri, fidd, details = {}, usetext = false) {
         const ttt1 = consoleTimeEnd('bintri triToSquare ' + fidd, n);  // , msgfixlog
     }
     tri2sq();
+    details.rawData = td;
 
     const datad = { minid: details.minid, maxid: details.maxid,
         res: details.res, numInstances: details.numInstances};
@@ -538,10 +545,11 @@ CSynth.parseHeaderLine = function(headerLine, doreorder = false) {
     let headerStruct = [];
     if (!header.some(x => isNaN(x))) {
         headerLine = '';
-        header = header.filter(x=>x).map((x,ii) => 'h' + ii);
+        const res = header.reduce((c,x,i,a) => Math.min(c, i === 0 ? Infinity : (Math.abs(x - a[i-1]) || Infinity)), Infinity); 
+        header = header.filter(x=>x).map((x,ii) => 'h' + x);
         for (let hi=0; hi < header.length; hi++) {
             reorder[hi] = hi;
-            headerStruct[hi] = {chr: '?', id: hi, res: 1, h: hi, l: hi, str: 'h' + hi, oi: hi };
+            headerStruct[hi] = {chr: '?', id: hi, res, h: hi, l: hi, str: 'h' + hi, oi: hi };
         }
     } else {
         // parse and reorder header
@@ -2696,9 +2704,8 @@ CSynth.bedParser = function CSynth_bedParser(data, fn, bed) {
         const i = bb.length;
         bb.push(d);
         let s, e;
-        if (groups && chr !== '!') {  // ! special case for older beds
-            const g = groups[chr];
-            if (!g) continue;
+        const g = groups?.[chr];
+        if (g && chr !== '!') {  // ! special case for older beds
             startBp = Math.max(startBp, g.startbp);
             endBp = Math.min(endBp, g.endbp);
             const startid = (startBp - g.startbp) / g.res + g.startid;
@@ -2706,8 +2713,8 @@ CSynth.bedParser = function CSynth_bedParser(data, fn, bed) {
             s = startid / (numInstances - 1);
             e = endid / (numInstances - 1);
         } else {
-            s = Math.max(d.startbp - minId, 0) / range;  // ?? should it be (bedLen-1) ?
-            e = Math.min(d.endbp - minId, range)/ range;
+            s = s ?? Math.max(d.startbp - minId, 0) / range;  // ?? should it be (bedLen-1) ?
+            e = e ?? Math.min(d.endbp - minId, range)/ range;
         }
         d.startfract = s;
         d.endfract = e;
@@ -3226,8 +3233,8 @@ CSynth.getContactsZZ = function(contactnum) {
     const irr = 1/(r*r);
     const rn = contact.rn = Math.round(n / r);
 
-    if (contact.rawTexture) {  // was if (contact.textureData) {
-        td = contact.textureData;
+    if (contact.rawData) {  // was if (contact.textureData) {
+        td = contact.rawData;
     } else {
         if (!contact.data) return;  // data not ready yet
         const ttdata = tt === THREE.UnsignedByteType ? Uint8Array :
