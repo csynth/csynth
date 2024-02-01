@@ -545,7 +545,7 @@ CSynth.parseHeaderLine = function(headerLine, doreorder = false) {
     let headerStruct = [];
     if (!header.some(x => isNaN(x))) {
         headerLine = '';
-        const res = header.reduce((c,x,i,a) => Math.min(c, i === 0 ? Infinity : (Math.abs(x - a[i-1]) || Infinity)), Infinity); 
+        const res = header.reduce((c,x,i,a) => Math.min(c, i === 0 ? Infinity : (Math.abs(x - a[i-1]) || Infinity)), Infinity);
         header = header.filter(x=>x).map((x,ii) => 'h' + x);
         for (let hi=0; hi < header.length; hi++) {
             reorder[hi] = hi;
@@ -3160,6 +3160,8 @@ function testworkers(files = lastopenfiles) {
     }
 }
 
+CSynth._unit = true;
+
 CSynth._patch = false;
 Object.defineProperty(CSynth, 'patch', {
     get: () => CSynth._patch,
@@ -3194,8 +3196,8 @@ CSynth.clearTextureVersions = function() {
 CSynth.contactsToTexture = function(contactnum) {
     const contact = CSynth.getContactsZZ(contactnum);
     if (!contact) return undefined;
-    if (!contact.textureVersions) {contact.textureVersions = {}; contact.dataVersions = {};}
-    const ver = (CSynth._patch ? 'p' : '') + (CSynth._normalize ? 'n' : '') + (CSynth._patch2 ? 'q' : '')
+    if (!contact.textureVersions) contact.textureVersions = {}; if (!contact.dataVersions) contact.dataVersions = {};
+    const ver = (CSynth._unit ? 'u' : '') + (CSynth._patch ? 'p' : '') + (CSynth._normalize ? 'n' : '') + (CSynth._patch2 ? 'q' : '')
     if (!ver) {
         contact.textureVersions[0] = contact.rawTexture;
         contact.dataVersions[0] = contact.rawTexture.source.data.data;
@@ -3205,7 +3207,17 @@ CSynth.contactsToTexture = function(contactnum) {
     // this path allows for patching
     if (contact.textureVersions[ver]) return contact.textureVersions[ver];
 
+    log('real texture work', ver, CSynth.normalizeLoops, Object.keys(contact.textureVersions), contact.shortname);
+
+    // todo, more control over representativeContact, or even set it here
+    // control over whether we do dounit
+    // if (!contact.unitData) contact.unitData = CSynth.tounit(contact.rawData.slice());
+
     let td = contact.dataVersions[ver] = contact.rawData.slice();
+    if (CSynth._unit) {
+        if (!contact.unitData) contact.unitData = CSynth.tounit(contact.rawData.slice());
+        td = contact.dataVersions[ver] = contact.unitData.slice();
+    }
     if (CSynth._patch) td = CSynth.patchmissing(td);
     if (CSynth._normalize) td = CSynth.donormalize(td);
     if (CSynth._patch2) td = CSynth.patchmissing(td);
@@ -3214,6 +3226,7 @@ CSynth.contactsToTexture = function(contactnum) {
     const nt = contact.textureVersions[ver] = newTHREE_DataTextureNamed('contactversion' + ver, td, rn, rn, THREESingleChannelFormat, tt);
     nt.magFilter = nt.minFilter = contact.rawTexture.minFilter;
     nt.needsUpdate = true;
+    CSynth.current.representativeContact = getstats(td.filter(x => x !== -999)).mean;
     return nt;
 }
 /** get a contact structure, make sure the rawTexture is set */
@@ -5053,17 +5066,32 @@ CSynth.patchmissing = function (a, m=-999, dv = -999.25) {
     return a;
 }  // patchmissing
 
+/** CSynth.toUnit does an overall scaling in place */
+CSynth.tounit = function(a, m=-999) {
+    console.time('tounit')
+    const n = Math.round(a.length ** 0.5);
+    const tot = a.reduce((c,v) => c + (v === m ? 0 : v), 0);
+    // let tot = 0; for(const v of a) if (v !== m) tot += v;
+    console.timeEnd('tounit')
+    console.time('tounit')
+    const s1 = n / tot;
+    a.forEach((v,i) => a[i] = v<0 ? v : v * s1);
+    console.timeEnd('tounit')
+    return a;
+}
+
 // CSynth.normalizeAvoid = 0; CSynth.normalizeLoops = 5; ccc0.textureVersions = []; await S.frame(2); ccc0.texture.needsUpdate = true; U.contactbuff = ccc0.texture
 // k = 2225; a = ccc0.dataVersions[0]; r=[]; for(let i = 0; i<numInstances; i++) r[i] = a[k + i*numInstances]; r = r.map(x => x === -999? NaN :  Math.log(x*1000)); getstats(r); CSynth.plot(r); r.slice(k-10, k+10)
 // CSynth.matrixMesh.position.set(-0,0,0); CSynth.matrixMesh.scale.set(4,4,4); CSynth.matrixMesh.updateMatrix()
-CSynth.normalizeAvoid = 1; CSynth.normalizeLoops = 3;
+CSynth.normalizeAvoid = 1; CSynth.normalizeLoops = 3; CSynth.normalizePow = -1
 /** normalize a in place */
-CSynth.donormalize = function(a, loops = CSynth.normalizeLoops, avoid = CSynth.normalizeAvoid, m=-999, plot = true) {
-    console.time('donormalize')
+CSynth.donormalize = function(a, loops = CSynth.normalizeLoops, avoid = CSynth.normalizeAvoid, pow = CSynth.normalizePow, m=-999, plot = true) {
+    console.time('donormalize ' + loops)
     const n = Math.round(a.length ** 0.5);
     ss = new Float32Array(n);
     const pp = [];
-    for (let r=0; r < loops; r++) {
+
+    const makess = () => {
         ss.fill(0);
         for (let i = 0; i < n; i++) {
             let s = 0;
@@ -5073,8 +5101,13 @@ CSynth.donormalize = function(a, loops = CSynth.normalizeLoops, avoid = CSynth.n
             }
             ss[i] = s;
         }
-        if (plot && r === 0) pp.unshift({data: ss.map(x => x || NaN), label: 'ss'+r })
-        for (let i = 0; i < n; i++) ss[i] = (ss[i] || 1) **-0.5;
+    }
+
+    for (let r=0; r < loops; r++) {
+        makess();
+
+        if (plot && r === 0) pp.unshift({data: ss.map(x => Math.log10(x) || NaN), label: 'ss'+r })
+        for (let i = 0; i < n; i++) ss[i] = (ss[i] || 1) **pow;
         // log('post', ss.subarray(2215, 2235))
 
         for (let i = 0; i < n; i++) {
@@ -5084,12 +5117,16 @@ CSynth.donormalize = function(a, loops = CSynth.normalizeLoops, avoid = CSynth.n
             }
         }
     } // loops
+    console.timeEnd('donormalize ' + loops)
+    
     if (plot) {
-        pp.unshift({data: ss.map(x => x || NaN), label: 'ssfinal', borderWidth: 2})
+        console.time('donormalize plot')
+        makess();
+        pp.unshift({data: ss.map(x => Math.log10(x) || NaN), label: 'ssfinal', borderWidth: 2})
         CSynth.plot(pp);
+        console.timeEnd('donormalize plot')
     }
 
-    console.timeEnd('donormalize')
     return a;
 }
 

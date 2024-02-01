@@ -27,17 +27,23 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left, right
             <textarea class="vieweditfilter" placeholder="... filter here ..."></textarea>
             <div class="fieldbody viewedit" tabIndex="1"></div>
         </div>`
+    const topdiv = hh.children[1];
+    const maindiv = topdiv.children[1];
     me.calcloop = everyframe(() => me.calc())
     hh.style.top = top ?? (innerHeight * 0.1)+'px';
     hh.style.left = left ?? 'unset';
     hh.style.right = right ?? 'unset';
-    if (makeDraggable) makeDraggable(hh, false)
+    if (makeDraggable) makeDraggable(hh, {usesize: false, button: 1, movecallback: outerresize})
     // not yet window.addEventListener('beforeunload', () => me.remove())
 
     const ee = me.gui = hh.getElementsByClassName('viewedit')[0];
     const filtbox = hh.getElementsByClassName('vieweditfilter')[0];
 
     filtbox.onchange = filtbox.oninput = evt => me.filter(filtbox.value)
+
+    function outerresize() {
+        maindiv.style.height = (hh.clientHeight - maindiv.offsetTop - topdiv.offsetTop) + 'px'
+    }
 
     // special values control classes control display details, held on the key and value fields
     // mytype: number, string, function, boolean, myoneof, myoneofsummary, myfolder, myerror
@@ -137,7 +143,7 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left, right
             h = Viewedit.hover = document.createElement('DIV');
             document.body.append(h);
             // h.style = 'position: fixed; zindex:9999; background: white; color: black; font-size: 125%';
-            h.style = 'position: fixed; z-index:999999; background: white; color: black; font-size: 150%; border: 2px solid red; paddng:0.25em' 
+            h.style = 'position: fixed; z-index:999999; background: white; color: black; font-size: 150%; border: 2px solid red; paddng:0.25em'
         }
         const dds = me.dds = Array.from(ee.childNodes);
         const tt = evt.target;
@@ -285,7 +291,7 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left, right
                         f.step = gd.step;
                         f.help = gd.help;
                     }
-                }                
+                }
             } catch (e) {
                 dds[i].getter = me.makefun('"???  ' + e + '"');
                 // console.error('???', dds[i].value)

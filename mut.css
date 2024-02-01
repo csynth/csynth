@@ -1054,7 +1054,7 @@ html-gl { display: inline-block; transform: translateZ(0);}
 	/* font-size: 120%; */
 	overflow: auto;
 	max-height: 80vh;
-	resize: both;
+	/* resize: both; */
 	left: 0;
 	/* height: 60em; */
 	min-width: 20em;

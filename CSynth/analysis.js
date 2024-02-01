@@ -4,7 +4,7 @@ var CSynth, msgfixlog, springs, spearson, G, format, msgfix, sleep, log, numInst
 Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S, array2Table, getstats,$;
 
 var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain, setAllLots, msgfixerrorlog,
-    clamp, U, addscript;
+    clamp, U, addscript, makeDraggable;
 
 // get positions for key or ready made positions
 CSynth.pos = function(inputDef) {
@@ -1522,15 +1522,27 @@ CSynth.plot = function(rlabel) {
     if (Array.isArray(rlabel) && typeof rlabel[0] === 'number') rlabel = [{data: rlabel, label: '?'}]
     if (!Array.isArray(rlabel)) rlabel = [rlabel];
 
-    if (!CSynth.plotdiv) {
-        const div = CSynth.plotdiv = document.createElement('div');
-        div.style = 'position:fixed; top:0px; right:0px; z-index:9999; width:600px; height: 400px; background: rgba(0,0,0,0.9)'
+    let div = CSynth.plotdiv, canvas = CSynth.plotcanvas;
+    if (!div) {
+        div = CSynth.plotdiv = document.createElement('div');
+        div.style = 'position:fixed; top:0px; right:0px; z-index:9999; width:600px; height: 400px; background: rgba(0,0,0,0.9); border: 1px green solid'
         document.body.appendChild(div);
-        const canvas = CSynth.plotcanvas = document.createElement('canvas');
+        canvas = CSynth.plotcanvas = document.createElement('canvas');
         div.appendChild(canvas);
         div.addEventListener('mousemove', CSynth.plotev);
+        makeDraggable(div, {button: 1, movecallback: canvsize, upcallback: sizechange});
     }
     if (CSynth.chart) CSynth.chart.destroy();
+    function canvsize() {  // size so you can see what is happening
+        canvas.style.width = div.style.width;
+        canvas.style.height = div.style.height;
+    }
+    function sizechange() {   // proper redraw for decent quality
+        const h = +div.style.height.pre('px'), w = +div.style.width.pre('px');
+        if (canvas.width === w && canvas.height === h) return;
+        CSynth.chart.options.aspectRatio = w/h;
+        CSynth.chart.resize(w, h);
+    }
 
     let chart;
     const datasets = [];
@@ -1546,7 +1558,7 @@ CSynth.plot = function(rlabel) {
             labels: new Array(rlabel[0].data.length).fill(''), // labels needed otherwise it collapses x, to give a vertical line
         },
         options: {
-            responsive: true,
+            responsive: false,      // we'll handle in makeDraggable
             aspectRatio: CSynth.plotdiv.clientWidth / CSynth.plotdiv.clientHeight,
             onClick: CSynth.plotev,
             onMousemove: CSynth.plotev,
@@ -1557,6 +1569,7 @@ CSynth.plot = function(rlabel) {
     }
 
     chart = CSynth.chart = new Chart(CSynth.plotcanvas, cfg);
+    sizechange();
     // chart corrupts the size, so reset it
 
     //await sleep(500)

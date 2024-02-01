@@ -2336,8 +2336,8 @@ Maestro.on('preframe', () => {  // monitor each frame to ensure appropriate atta
 // todo: make part of generic code
 CSynth.pressFixed = function(i) { CSynth.press(2*i + CSynth.numContactsButtons+1)}
 CSynth.pressDist = function(i) { CSynth.press(2*i + CSynth.numContactsButtons)}
-CSynth.pressCsynth = function() { CSynth.press(0)}
-CSynth.pressLorDG = function() { CSynth.press(1)}
+CSynth.pressCsynth = function(i) { CSynth.press(2 * i)}
+CSynth.pressLorDG = function(i) { CSynth.press(2 * i + 1)}
 
 // press (and highlight) a button, prevent mutual recursion with CSynth.applyContacts etc
 CSynth.press = function(ii) {

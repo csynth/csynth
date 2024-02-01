@@ -4119,6 +4119,16 @@ function objectChanged(a, b) {
     return diff;
 }
 
+/*** select given elements from object **/
+function objEles(o, list) {
+    if (Array.isArray(list)) {/**/}
+    else if (typeof list === 'string') list = list.split(' ');
+    else if (typeof list === 'object') list = Object.keys(list);
+    const r = {};
+    for (const n of list) r[n] = o[n];
+    return r
+}
+
 /** apply changes */
 function applyChanges(t = window, ch) {
     // if (typeof ch === 'object')
@@ -4633,8 +4643,9 @@ function findDraggable(todrag) {
     }
 }
 
+makeDraggable.cursors = {t: 'n-resize', }
 // make an object draggable
-function makeDraggable(ptodrag, usesize=true, button = 2, callback) {
+function makeDraggable(ptodrag, {usesize=true, button = 2, movecallback, upcallback, sizemargin = 8, safeedge = 16} = {}) {
     let todrag = findDraggable(ptodrag) ?? ptodrag;
     if (!todrag) return;
 
@@ -4662,35 +4673,101 @@ function makeDraggable(ptodrag, usesize=true, button = 2, callback) {
     document.body.appendChild(todrag);
 
     todrag.addEventListener('mousedown', dragmousedown);
+    todrag.addEventListener('mousemove', dragmousemove);
+    todrag.addEventListener('mouseup', dragmouseup);
+    todrag.addEventListener('mouseleave', dragmouseleave);
+
+    let ox, oy, ocx, ocy, oleft, otop, owidth, oheight, mousedownbuttons, xst, yst, st;
+    let sleft, stop, swidth, sheight;
+
 
     function dragmousedown(evt) {
+        mousedownbuttons = evt.buttons;
         if (evt.buttons !== button) return;
-        todrag.ox = evt.clientX - s.left.replace('px','');
-        todrag.oy = evt.clientY - s.top.replace('px','');
-        document.addEventListener('mousemove', dragmousemove);
-        document.addEventListener('mouseup', dragmouseup);
+        ox = offx(evt); // evt.clientX - s.left.replace('px','');  // offsetX is good, but offx allows a bit for touch
+        oy = offy(evt); // evt.clientY - s.top.replace('px','');
+        ocx = evt.clientX;
+        ocy = evt.clientY;
+        sleft = oleft = +s.left.pre('px');
+        swidth = owidth = +s.width.pre('px');
+        sheight = oheight = +s.height.pre('px');
+        stop = otop = +s.top.pre('px');
         canvas.style.pointerEvents = 'none';
         // enable context on the individual parts, but not on dragging the fieldbody
         ptodrag.oncontextmenu = (evt.target.className.contains('fieldbody')) ? _=>false : null
+
+        document.addEventListener('mousemove', dragmousemove, true);
+        document.addEventListener('mouseup', dragmouseup, true);
+    }
+    function dragmouseleave(evt) {
+        s.borderWidth = '1px';
+        s.padding = (sizemargin-1) + 'px';
     }
     function dragmousemove(evt) {
-        if (evt.buttons !== button) return;
-        msgfix('ddrag', 'x', offx(evt) , todrag.clientWidth, 'y', offy(evt) , todrag.clientHeight);
-        // if (offx(evt) > todrag.clientWidth - 50
-        //     && offy(evt) > todrag.clientHeight - 50)
-        //     return killev(evt);
-        s.left = (evt.clientX - todrag.ox) + 'px';
-        const dtop = evt.clientY - todrag.oy;
-        s.top = dtop + 'px';
+        // log('', evt.buttons, !mousedownbuttons, offx(evt))
+        if (evt.buttons !== button || !mousedownbuttons) {
+            // xst = offx(evt) < sizemargin ? 'w' : offx(evt) > +s.width.pre('px')-sizemargin ? 'e' : '';
+            // yst = offy(evt) < sizemargin ? 'n' : offy(evt) > +s.height.pre('px')-sizemargin ? 's' : '';
+            xst = offx(evt) < sizemargin ? 'w' : offx(evt) > todrag.clientWidth-sizemargin ? 'e' : '';
+            yst = offy(evt) < sizemargin ? 'n' : offy(evt) > todrag.clientHeight-sizemargin ? 's' : '';
+            st = yst + xst;
+            s.cursor = st === '' ? 'grab' : st + '-resize';
+            // log('movedrag x', offx(evt), st, s.cursor);
+
+            const sw = '1px', bw = (sizemargin-1) + 'px';
+            const barr = new Array(4).fill(sw);
+            if (st.endsWith('w')) barr[3] = bw;
+            else if (st.endsWith('e')) barr[1] = bw;
+            if (st[0]=='n') barr[0] = bw;
+            else if (st[0]=='s') barr[2] = bw;
+            s.borderWidth = barr.join(' ');
+            s.padding = barr.map(x => x === bw ? sw : bw).join(' ');
+            // if (st.endsWith('w')) {s.borderWidth = `${sw} ${sw} ${sw} ${bw}`; s.padding=`${bw} ${bw} ${bw} ${sw}`
+            return;
+        }
+        msgfix('ddrag', 'x', offx(evt) , todrag.clientWidth, 'y', offy(evt) , todrag.clientHeight, '>'+st+'<');
+        const dx = evt.clientX - ocx, dy = evt.clientY - ocy;  // diff since mousedown
+
+        if (st.endsWith('w')) {
+            sleft = (oleft + dx);
+            swidth = (owidth - dx);
+        } else if (st.endsWith('e')) {
+            swidth = (owidth + dx);
+        } else if(st === '') {
+            sleft = (oleft + dx);
+        }
+
+        if (st.startsWith('n')) {
+            stop = (otop + dy);
+            sheight = (oheight - dy);
+        } else if (st.startsWith('s')) {
+            sheight = (oheight + dy);
+        } else if(st === '') {
+            stop = (otop + dy);
+        }
+
+        sleft = Math.min(sleft, document.body.clientWidth - safeedge);
+        sleft = Math.max(sleft, safeedge - swidth);
+        stop = Math.min(stop, document.body.clientHeight - safeedge);
+        stop = Math.max(stop, safeedge - sheight);
+        s.left = sleft+'px', s.top = stop+'px', s.width = swidth+'px', s.height = sheight+'px';
+
+        // log('.', s.width, todrag.clientWidth, evt.clientX, evt.screenX)
+        const dtop = evt.clientY - oy;
+        // s.top = dtop + 'px';
         const de = ptodrag.getElementsByClassName('fieldbody')[0]
         if (de) de.style.maxHeight = (innerHeight - dtop - 70) + 'px';
-        if (callback) callback(evt, s)
+        if (movecallback) movecallback(evt, s)
         return killev(evt);
     }
+
     function dragmouseup(evt) {
-        document.removeEventListener('mousemove', dragmousemove);
-        document.removeEventListener('mouseup', dragmouseup);
+        document.removeEventListener('mousemove', dragmousemove, true);
+        document.removeEventListener('mouseup', dragmouseup, true);
         canvas.style.pointerEvents = '';
+        todrag.mousedownbuttons = undefined;
+        killev(evt); // .preventDefault();
+        if (upcallback) upcallback(evt, s)
         // if (evt.target.className.contains('fieldbody')) return killev(evt);
     }
 }   // makeDraggable

@@ -9,7 +9,7 @@ var V, VH, THREE, CSynth, sharedgeo, addgeneperm, extraRender, rrender, dat,
     currentGenes, onframe, remakeShaders, newscene, camera, baseTrancodeForTranrule, usemask,
     material, genedefs, setval, readWebGlFloat, log, copyFrom, guiFromGene, W, numInstances, HW, processFile, updateMat,
     customSettings, msgfix, addtaggeduniform, uniforms, uniformsForTag, copyFromSel, G, setKeyRgb, hsv2rgb,
-    getstats, GX, PICKNUM, searchValues;
+    getstats, GX, PICKNUM, searchValues, setExtraKey;
 
 CSynth.maxMatrixSize = 1024;
 CSynth.Matrix = function() {
@@ -17,7 +17,8 @@ CSynth.Matrix = function() {
         matC00r: 0, matC00g: 0, matC00b: 0,
         matC01r: 1, matC01g: 0, matC01b: 0,
         matC10r: 0, matC10g: 0, matC10b: 1,
-        matC11r: 1, matC11g: 1, matC11b: 1
+        matC11r: 1, matC11g: 1, matC11b: 1,
+        matCxxr: 0, matCxxg: 0.05, matCxxb: 0
     };
 
     // see also addfragment
@@ -25,18 +26,22 @@ CSynth.Matrix = function() {
     //and is simpler than the code would suggest. Left stuff around just in case...
     const vert2d = /*glsl*/`
         //2d matrix vertex
+        #define texture2D texture
+        #define attribute in
+
 
         ${CSynth.CommonShaderCode()}
-        varying vec2 vUv;
-        //varying float d;
+        out vec2 vUv;
+        //vary ing float d;
 
         //https://machinesdontcare.wordpress.com/2008/03/10/glsl-cosh-sinh-tanh/
-        float tanh(float val)
-        {
-            float tmp = exp(val);
-            float tanH = (tmp - 1.0 / tmp) / (tmp + 1.0 / tmp);
-            return tanH;
-        }
+        // not wanted for glsl 3
+        // float tanh(float val)
+        // {
+        //     float tmp = exp(val);
+        //     float tanH = (tmp - 1.0 / tmp) / (tmp + 1.0 / tmp);
+        //     return tanH;
+        // }
 
         void main() {
             vUv = uv;
@@ -54,6 +59,7 @@ CSynth.Matrix = function() {
     `;
 
     const frag2d = /*glsl*/`
+    #define texture2D texture
         // 2d matrix fragment for flat 2d matrix
         ${CSynth.CommonFragmentShaderCode()}
         //color uniforms equivalent to 3d matrix
@@ -63,7 +69,7 @@ CSynth.Matrix = function() {
         //##uniform float mathotr;
         //##uniform float mathotg;
         //##uniform float mathotb;
-        uniform float matC00r, matC00g, matC00b, matC11r, matC11g, matC11b;
+        uniform float matC00r, matC00g, matC00b, matC11r, matC11g, matC11b, matCxxr, matCxxg, matCxxb;
         //uniforms for controlling range for colour map
         uniform float matMinD;
         uniform float matMaxD;
@@ -73,9 +79,10 @@ CSynth.Matrix = function() {
             return min2 + (v - min1) * (max2 - min2) / (max1 - min1);
         }
 
-        varying vec2 vUv;   // in colour style coords, 1 for last particle
+        in vec2 vUv;   // in colour style coords, 1 for last particle
 
         uniform float distFactor;
+        out vec4 glFragColor;
         void main() { // matrix fragment for flat matrix
             //TODO: quantise. Fix range to particles representing DNA
             vec2 uv = vUv * numSegs/numInstancesP2; // for spring lookup coords
@@ -113,18 +120,20 @@ CSynth.Matrix = function() {
                 //pickCol += pow(clamp(1.0-10.*min(dx,dy), 0.0, 1.0), width_exp) * getPickColor(i);
             }
 
-            gl_FragColor = vec4(col, 1.);
-            gl_FragColor.rgb += pickCol;
+            glFragColor = vec4(col, 1.);
+            glFragColor.rgb += pickCol;
 //;#endif
         }
     `;
 
     const colkeyfrag = /*glsl*/`
         // matrix fragment for flat matrix
+        #define texture2D texture
         ${CSynth.CommonFragmentShaderCode()}
         uniform float matC00r, matC00g, matC00b, matC11r, matC11g, matC11b,  matC10r, matC10g, matC10b, matC01r, matC01g, matC01b;
         uniform float matgamma;
-        varying vec2 vUv;
+        in vec2 vUv;
+        out vec4 glFragColor;
 
         void main() { // matrix fragment for flat matrix
             vec2 uv = vUv;
@@ -134,7 +143,7 @@ CSynth.Matrix = function() {
             vec3 col = mix(cent, tint, abs(v1-v2));
             col = pow(col, vec3(matgamma));  // better perceptual range
 
-            gl_FragColor = vec4(col, 1.);
+            glFragColor = vec4(col, 1.);
         }
     `;
 
@@ -144,7 +153,8 @@ CSynth.Matrix = function() {
         c00: new THREE.Color(),
         c01: new THREE.Color(),
         c10: new THREE.Color(),
-        c11: new THREE.Color()
+        c11: new THREE.Color(),
+        cxx: new THREE.Color(),
     };
     CSynth.Matrix.colours = colours;  // for debug
 
@@ -165,7 +175,8 @@ CSynth.Matrix = function() {
     const colkeyMaterial = new THREE.RawShaderMaterial({
         vertexShader: vert2d,
         fragmentShader: colkeyfrag,
-        uniforms: uniforms
+        uniforms: uniforms,
+        glslVersion: "300 es"
     });
 
     function handleHover2d(p) {
@@ -277,6 +288,7 @@ CSynth.Matrix = function() {
         colours.c11.gui = f.add(colours, 'c11').name('both').listen().onChange(updateColourGenes);
         colours.c10.gui = f.add(colours, 'c10').name('A').listen().onChange(updateColourGenes);
         colours.c01.gui = f.add(colours, 'c01').name('B').listen().onChange(updateColourGenes);
+        colours.cxx.gui = f.add(colours, 'cxx').name('missing').listen().onChange(updateColourGenes);
         CSynth._colsnames();
 
         const fkey = dat.GUIVR.createX("colour key");
@@ -323,6 +335,7 @@ CSynth.Matrix = function() {
             //addgeneperm('heightFactor2', 20, 1, 80,  1, 0.1, 'flatten for matrix', 'matrix', 0);  // above 85 stops working completely
             addgeneperm('matsize', 10000, 100, 15000,  100, 10, 'matrix size', 'matrix', 0);
             addgeneperm('matheight', -4000, -7000, 0,  100, 10, 'matrix height', 'matrix', 0);
+            addgeneperm('matcentre', 0.5, 0, -1, 0.001,  0.001, 'matrix height', 'matrix', 0);
             addgeneperm('matskipdiag', 0, 0, 10, 1,1, 'matrix skip render diagonal', 'matrix', 0);
             addgeneperm('matX', 0, -1, 1, 0.1, 0.01, 'matrix x position', 'matrix', 0);
             addgeneperm('matY', 0, -1, 1, 0.01, 0.001, 'matrix y position', 'matrix', 0);
@@ -386,6 +399,7 @@ CSynth.Matrix = function() {
         colours.c01.setRGB(g.matC01r, g.matC01g, g.matC01b);
         colours.c10.setRGB(g.matC10r, g.matC10g, g.matC10b);
         colours.c11.setRGB(g.matC11r, g.matC11g, g.matC11b);
+        colours.cxx.setRGB(g.matCxxr, g.matCxxg, g.matCxxb);
     }
 
     /** set the matrix colours, textures, etc
@@ -469,8 +483,10 @@ CSynth.Matrix = function() {
 
 
         var mats = currentGenes.matsize;
-        var hd = mats/2; // half size of matrix
+        var cen = currentGenes.matcentre;
+        var hd = mats * cen; // half size of matrix
         var math = currentGenes.matheight; // height of matrix
+
         var rot4 = [mats,0,0,-hd,  0,0,mats,math,  0,-mats,0,hd,  0,0,0,1];
         var options = {
             tranrule: 'matrix', rendertarget: rt, genes: currentGenes, scene: CSynth.matrixScene,
@@ -550,7 +566,7 @@ CSynth.Matrix = function() {
     //     g.addImageButton(fn, pickrt, true, 0.3);
 
     //     const vertd = `
-    //     varying vec2 vUv;
+    //     varyi ng vec2 vUv;
 
     //     void main() {
     //         vUv = uv;
@@ -558,7 +574,7 @@ CSynth.Matrix = function() {
     //     }`;
     //     const fragd = `
     //     ${CSynth.CommonShaderCode()}
-    //     varying vec2 vUv;
+    //     varyi ng vec2 vUv;
 
     //     //copied from common.vfs
     //     uniform float user Picks[${PICKUSER}];
@@ -570,7 +586,7 @@ CSynth.Matrix = function() {
     //         ppick(12); ppick(13); ppick(14); ppick(15);
     //         float fslot = float(i) / 4.;
     //         float slot = floor(fslot);
-    //         vec4 v = texture2D(pickrt, vec2(slot / 4. + 0.125, 0.5));
+    //         vec4 v = texture(pickrt, vec2(slot / 4. + 0.125, 0.5));
     //         int e = int(floor((fslot - slot) * 4.));
     //         return e == 0 ? v.x : e == 1 ? v.y : e == 2 ? v.z : e == 3 ? v.w : 999.;
     //     }
@@ -588,13 +604,13 @@ CSynth.Matrix = function() {
     //         // float p = getPick(int(vUv.x * 16.));
     //         // if (vUv.y < 0.5) {
     //         //     float y = 2. * vUv.y;
-    //         //     vec4 v = texture2D(pickrt, vec2(floor(vUv.x * 4.), 0.5));
+    //         //     vec4 v = texture(pickrt, vec2(floor(vUv.x * 4.), 0.5));
     //         //     int e = int(floor(4. * y));
     //         //     p = e == 0 ? v.x : e == 1 ? v.y : e == 2 ? v.z : e == 3 ? v.w : 999.;
-    //         //     gl_FragColor = vec4(p, p, p, 1.);
-    //         // } else gl_FragColor = vec4(p, p, p, 1.);
+    //         //     glFragColor = vec4(p, p, p, 1.);
+    //         // } else glFragColor = vec4(p, p, p, 1.);
     //         float p = newPick(vUv); //for createPickDebugGUI
-    //         gl_FragColor = vec4(p, p, p, 1);
+    //         glFragColor = vec4(p, p, p, 1);
     //     }`;
 
     //     let shader = new THREE.RawShaderMaterial({
@@ -642,10 +658,10 @@ CSynth.colchoice = /*glsl*/`
         } else if (matintype < 4.5) {  // 4: use currentDist
             rd = currentDist / nonBackboneLen;  // relative dist
         } else if (matintype < 5.5) {    // 5: distance, from texture
-            float dist = texture2D(tex, pos).x;
+            float dist = texture(tex, pos).x;
             rd = dist / nonBackboneLen;  // relative dist
         } else if (matintype < 6.5) {    // 6: contact from texture, via wish dist
-            float contact = texture2D(tex, pos).x;
+            float contact = texture(tex, pos).x;
             if (contact < 0.) return -999.;
             // see CSynth.alignModels in csynth.js for some workings to deduce formula below
             if (contactforcesc != 0.)
@@ -693,7 +709,7 @@ function heightMatrixMaterial() {
         // for example, while rendering 'p', should it be considered in range of 'pr' which is a picked particle?
         // returns 0 or 1 (areas within 'smooth' range will fade)
         float isInPickRange(float p, float pr, float psmooth) { // nb 'smooth' does not compile under webgl2
-            vec4 r = texture2D(matrixbed, vec2(pr, 0.75));
+            vec4 r = texture(matrixbed, vec2(pr, 0.75));
             // !!! NOTE this is almost duplicate of cod ein springsynth.js
             // Next lines prevent the end spheres failing to reduce near the ends.
             // As beds are just Unit8Array (22 May 2020) ranges beyond the ends are truncated.
@@ -773,7 +789,7 @@ function heightMatrixMaterial() {
         float v1 = clamp( vv, 0., 1.);
         if (matintypeA + matintypeB == 0.) {    // old code
         } else if (matcoltypeA == matcoltypeB) {
-            c.col.rgb = (vv == -999.) ? vec3(1,0,0) : mix(col1, col2, v1);
+            c.col.rgb = mix(col1, col2, v1);
         } else {
             float v2 = clamp(nval(matintypeB, matrix2dtexB, tp, dist, matDistNear, matDistFar), 0., 1.);
             /**
@@ -792,6 +808,7 @@ function heightMatrixMaterial() {
             vec3 tint = v1 > v2 ? vec3(matC10r, matC10g, matC10b) : vec3(matC01r, matC01g, matC01b);
             c.col.rgb = mix(cent, tint, clamp(matrixTintStrength*abs(v1-v2), 0.,1.));
         }
+        if (vv == -999.) c.col.rgb += vec3(matCxxr, matCxxg, matCxxb);
         c.col.rgb = pow(c.col.rgb, vec3(matgamma));  // better perceptual range
         c.fluoresc.rgb = rgb2hsv(c.col.rgb);
 
@@ -822,7 +839,7 @@ function heightMatrixMaterial() {
         //if (matrixbedtint != 0.) {
             // TODO account for pick selected-nes here, controlled via extra uniform.
             // probably move some bed var to outer scope so it can be used in pick related code below.
-            vec4 bed = texture2D(matrixbed, vec2(mtp.x, 0.25));
+            vec4 bed = texture(matrixbed, vec2(mtp.x, 0.25));
             float t = bed.w;  // t_ribboncol is bed texture, small 'integer' values for now, but mapped to range 0..1
             float ti = t * 255. - 0.0;
             // when BED doesn't have explicit colour, then all elements will be same... that doesn't make this logic right
@@ -830,14 +847,14 @@ function heightMatrixMaterial() {
             bedrgb = bed.r != t || bed.g != t ? bed.rgb : t == 0. ? vec3(0) : stdcolY(ti);
 
             // TODO factor bed colour option and use for x and y (and ribbon)
-            vec4 bedy = texture2D(matrixbed, vec2(mtp.y, 0.25));
+            vec4 bedy = texture(matrixbed, vec2(mtp.y, 0.25));
             float ty = bedy.w;  // t_ribboncol is bed texture, small 'integer' values for now, but mapped to range 0..1
             float tiy = ty * 255. - 0.0;
             bedrgby = bedy.r != ty || bedy.g != ty ? bedy.rgb : ty == 0. ? vec3(0) : stdcolY(tiy);
             bool tintx = true, tinty = true;
             if (matrixbededge != 0.) {
-                tintx = texture2D(matrixbed, vec2(mtp.x - matrixbededge, 0.25)).w != t;
-                tinty = texture2D(matrixbed, vec2(mtp.y + matrixbededge, 0.25)).w != ty;
+                tintx = texture(matrixbed, vec2(mtp.x - matrixbededge, 0.25)).w != t;
+                tinty = texture(matrixbed, vec2(mtp.y + matrixbededge, 0.25)).w != ty;
             }
             if (t == ty || matrixbedtriangle == 0.) {
                 if (tintx) c.col.rgb += bedrgby * matrixbedtint;
@@ -910,6 +927,32 @@ function heightMatrixMaterial() {
     // onframe(remakeShaders, 2);   // should not be necessary, it should just do this one
     // onframe(()=>oneside(THREE.DoubleSide), 5);
 }
+
+CSynth.matScale = 8;
+CSynth.zoomMatrix = () => {
+    let cen;
+    if (CSynth.picks['g-matrix1']) cen = (CSynth.picks['g-matrix1'].partid + CSynth.picks['g-matrix2'].partid) * 0.5
+    else if (CSynth.picks['g-ribbon']) cen = CSynth.picks['g-ribbon'].partid
+    else if (CSynth.picks.matrix1) cen = (CSynth.picks.matrix1.partid + CSynth.picks.matrix2.partid) * 0.5
+    else if (CSynth.picks.ribbon) cen = CSynth.picks.ribbon.partid
+
+    if (cen === undefined || CSynth.matScale === 1) {
+        G.matsize = 1;
+        G.matcentre = 0.5;
+    } else {
+        G.matsize = CSynth.matScale;
+        G.matcentre = cen / numInstances;
+    }
+};
+setExtraKey('M,Z', 'zoom matrix', CSynth.zoomMatrix);
+
+for (let i=1; i<9; i++) {
+    setExtraKey('M,Z,' + i, 'zoom matrix scale', () => {
+        CSynth.matScale = i;
+        CSynth.zoomMatrix();
+    })
+}
+
 
 /** set 01 and 10 quad colours with two opposing hues, 00,11 black/white */
 CSynth.Matrix.colsetpair = function(h=0, s=1, v=1) {
