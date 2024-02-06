@@ -81,7 +81,8 @@ vec4 col(vec2 uv) {
 }
 `;
     // see also addfragment
-    const vert = /*glsl*/ `
+    const vert = /*glsl*/ `${CSynth.vert300}
+
         // historyTrace vertex Shader
         ${CSynth.CommonShaderCode()}
         uniform vec3 travelDir;
@@ -164,7 +165,6 @@ vec4 col(vec2 uv) {
             ${vertcol ? 'vCol = col(xuv);' : ' vUv = xuv;'}
 
             gl_Position = logdepth(projectionMatrix * modelViewMatrix * pos);
-
             // killrads in particles, this is used to create breaks between chains/chroms, eg in full yeast example
             // we need killradwidth to take out all details
             for (int i=0; i < KILLRADLEN; i++) {
@@ -176,7 +176,8 @@ vec4 col(vec2 uv) {
             if (xuv.y < ribbonStart || xuv.y > ribbonEnd) gl_Position = vec4(NaN);
         }
     `;
-    const frag = /*glsl*/ `
+    const frag = /*glsl*/ `${CSynth.frag300}
+
         // historyTrace fragmentShader
         ${CSynth.CommonFragmentShaderCode()}
         // uniform float normalViz;
@@ -251,7 +252,8 @@ vec4 col(vec2 uv) {
     const mat = new THREE.RawShaderMaterial({
         uniforms: htuniforms,
         vertexShader: vert,
-        fragmentShader: frag
+        fragmentShader: frag,
+        // glslVersion: THREE.GLSL3
     });
     mat.transparent = !CSynthFast;
     mat.blending = THREE.AdditiveBlending; //was this not here before?? not going to test this change just now, must get back to it soon...

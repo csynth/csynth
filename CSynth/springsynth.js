@@ -334,6 +334,24 @@ CSynth.CommonFragmentShaderCode = () => /*glsl*/`
         //CSynth.CommonFragmentShaderCode() --------------
 `;
 
+// ???? why is code below included here ???
+CSynth.vert300 = /*glsl*/`#version 300 es
+precision mediump sampler2DArray;
+#define attribute in
+#define varying out
+#define texture2D texture
+`
+
+CSynth.frag300 = /*glsl*/`#version 300 es
+precision mediump sampler2DArray;
+#define attribute in
+#define varying in
+#define texture2D texture
+out highp vec4 pc_fragColor;
+#define gl_FragColor pc_fragColor
+`
+
+
 CSynth.CommonShaderCode = () => /*glsl*/`
     //CSynth.CommonShaderCode() --------------
     #define VERTEX 1
@@ -1472,7 +1490,7 @@ function nearint(i) {
 CSynth.picks = {};
 
 /** show used part of pick in CSynth units */
-CSynth.showpick = function (callback) {
+CSynth.showpick = function CSynthshowpick(callback) {
     if (!CSynth.current || !CSynth.current.ready) return;
     // ??? if (!renderMainObject && !VH.matrix.visible) return;   // don't pick if no
     const markers = CSynth.markers;
@@ -1507,14 +1525,14 @@ CSynth.showpick = function (callback) {
 
     if (CSynth.guidetail >= 2) var pos = springs.getpos();
     for (let i = 0; i < allpicks.length; i++) {
+        CSynth.picks[i] = CSynth.picks[CSynth.pickslots[i]] = undefined;
+        if (!CSynth.pickslots[i]) continue;   // this pick slot not used
         let p = allpicks[i];
         const partidf = p * (numInstances - 1);
         let partid = Math.floor(partidf);
         // let bp = p * cc.range + cc.minid;
         let bp = CSynth.getBPFromNormalisedIndex(p);
         let pname = (pnames ? pnames[partid] : typeof bp === 'number' ? Number(Math.round(bp)).toLocaleString() : bp)+'bp';
-        CSynth.picks[i] = CSynth.picks[CSynth.pickslots[i]] = undefined;
-        if (CSynth.pickslots[i] === undefined) continue;   // this pick slot not used
         if (!(0 < p && p < 1)) continue;      // this slots indicates no pick
         let bedh = CSynth.bedhitsForFract(p).map(b => b.key);
         let bedt = 'no bed';
@@ -1533,7 +1551,7 @@ CSynth.showpick = function (callback) {
     if (m1 > 998 ) { m1 = allpicks[12]; m2 = allpicks[13]; }  // select matrix
     if (m1 > 998 ) { m1 = allpicks[0]; m2 = allpicks[8]; }  // select and preselect on ribbon
     if (m1 > 998 ) { m1 = allpicks[16]; m2 = allpicks[17]; }  // pair of user slots
-    if (m1 > 998 || m2 > 998) { m1 = m2 = 999; }  // no sensible pair
+    if (m1 > 998 || m1 < 0 || m2 < 0 || m2 > 998 || m1 > 1 || m2 > 1) { m1 = m2 = 999; }  // no sensible pair
 
     const dist = m2-m1;
     let xdist = '';
@@ -1581,7 +1599,7 @@ if (CSynth.bc) CSynth.bc.last = {};
 
 
 /** show used part of pick in CSynth units */
-CSynth.showPickDist = function() {
+CSynth.showPickDist = function CSynthshowPickDist () {
     const markers = CSynth.markers;
 
     if (!startvr) {
@@ -1592,10 +1610,12 @@ CSynth.showPickDist = function() {
         markers.forEach(m => CSynth.pickslots.push(m.name));
     }
 
-    if (!CSynth.current.contacts[0] && !CSynth.current.xyzs[0]) return;
+    const cc = CSynth.current;
+    if (!cc.contacts[0] && !cc.xyzs[0]) return;  // no contacts and no xyzs
+    const cccx = cc.contacts[cc.selectedSpringSource];
+    const contactData = cccx.textureData;
     let r = [];
     let hits = [];
-    const cc = CSynth.current;
     const pos = readWebGlFloat(springs.posNewvals);
     let index;
     // collect the selection data
@@ -1619,7 +1639,7 @@ CSynth.showPickDist = function() {
 
     // output the pairs, but not TOO many, but make sure all with target distance displayed
     const topi = hits.length > 3 ? 1 : hits.length;
-    const thead = '<table class="simpletable"><tr><th>' + 'bpa,bpb,dist<br>units,dist<br>nm,dampd<br>nm,targd<br>nm,bbdist<br>beads,bbdist<br>k bps'.split(',').join('</th><th>') + '</th></tr>';
+    const thead = '<table class="simpletable"><tr><th>' + 'bpa,bpb,dist<br>units,dist<br>nm,dampd<br>nm,targd<br>nm,contact,bbdist<br>beads,bbdist<br>k bps'.split(',').join('</th><th>') + '</th></tr>';
     let sdistu = 0, stargd = 0, sdampd = 0;
     for (let i = 0; i < hits.length; i++) {
         for (let j = i+1; j < hits.length; j++) {
@@ -1642,12 +1662,20 @@ CSynth.showPickDist = function() {
                 stargd += targd;
                 sdampd += dampd;
             }
+            let contact = '';
+            if (contactData) {
+                const v = contactData[hits[i].index + numInstances*hits[j].index];
+                if (v === undefined) contact = '<red>..????..</red>'
+                else if (v === -999) contact = '<red>..-999..</red>'
+                else contact = v.toExponential(3);
+            }
             r.push('<tr><td>' + [
                 Number(namei).toLocaleString(), Number(namej).toLocaleString(),
                 format(distu),
                 format(G.nmPerUnit * distu),
                 format(CSynth.pairdist[pairkey] * G.nmPerUnit),
                 targdf,
+                contact,
                 (hits[j].index - hits[i].index),
                 (hits[j].index - hits[i].index)*cc.res/1000
             ].join('</td><td>') + '</td></tr>');
@@ -1899,7 +1927,7 @@ CSynth.makegui = async function(force) {
 
     //## changes made for Crick demo, we may want to keep them afterwards
     //## stretch out button now first and dynamics button removed
-    function ctype(ftype) {
+    const ctype = CSynth.ctype = function ctype(ftype) {
         CSynth.springSettings.contactFtype = ftype;
         const src = cc.selectedSpringSource < cc.contacts.length ? cc.selectedSpringSource : 0;
         CSynth.applyContacts(src);
@@ -1920,7 +1948,7 @@ CSynth.makegui = async function(force) {
             desc = cc.contacts[i].shortname;
 
         const cci = cc.contacts[i];
-        cc.showLorentzian = cc.showLorentzian ?? true;
+        cc.showLorentzian = cc.showLorentzian ?? false;
         if (cc.showLorentzian) {
             buttonsc.push({
                 func: () => {ctype('contact'); CSynth.applyContacts( cc.contacts[i]);},
@@ -2336,8 +2364,8 @@ Maestro.on('preframe', () => {  // monitor each frame to ensure appropriate atta
 // todo: make part of generic code
 CSynth.pressFixed = function(i) { CSynth.press(2*i + CSynth.numContactsButtons+1)}
 CSynth.pressDist = function(i) { CSynth.press(2*i + CSynth.numContactsButtons)}
-CSynth.pressCsynth = function(i) { CSynth.press(2 * i)}
-CSynth.pressLorDG = function(i) { CSynth.press(2 * i + 1)}
+CSynth.pressCsynth = function(i) { CSynth.press(CSynth.showLorentzian ? 2 * i : i)}
+CSynth.pressLorDG = function(i) { CSynth.press(CSynth.showLorentzian ? 2 * i + 1 : i)}
 
 // press (and highlight) a button, prevent mutual recursion with CSynth.applyContacts etc
 CSynth.press = function(ii) {

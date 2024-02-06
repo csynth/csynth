@@ -3160,7 +3160,7 @@ function testworkers(files = lastopenfiles) {
     }
 }
 
-CSynth._unit = true;
+CSynth._unit = true;  // we need 2 different representativeContacts at once for matrix if false
 
 CSynth._patch = false;
 Object.defineProperty(CSynth, 'patch', {
@@ -3199,13 +3199,17 @@ CSynth.contactsToTexture = function(contactnum) {
     if (!contact.textureVersions) contact.textureVersions = {}; if (!contact.dataVersions) contact.dataVersions = {};
     const ver = (CSynth._unit ? 'u' : '') + (CSynth._patch ? 'p' : '') + (CSynth._normalize ? 'n' : '') + (CSynth._patch2 ? 'q' : '')
     if (!ver) {
-        contact.textureVersions[0] = contact.rawTexture;
-        contact.dataVersions[0] = contact.rawTexture.source.data.data;
+        contact.textureVersions[ver] = contact.rawTexture;
+        contact.dataVersions[ver] = contact.rawData; // contact.rawTexture.source.data.data;
+        repcon();
         return contact.rawTexture;  // original direct path
     }
 
     // this path allows for patching
-    if (contact.textureVersions[ver]) return contact.textureVersions[ver];
+    if (contact.textureVersions[ver]) {
+        CSynth.current.representativeContact = contact.dataVersions[ver].representativeContact;
+        return contact.textureVersions[ver];
+    }
 
     log('real texture work', ver, CSynth.normalizeLoops, Object.keys(contact.textureVersions), contact.shortname);
 
@@ -3226,8 +3230,19 @@ CSynth.contactsToTexture = function(contactnum) {
     const nt = contact.textureVersions[ver] = newTHREE_DataTextureNamed('contactversion' + ver, td, rn, rn, THREESingleChannelFormat, tt);
     nt.magFilter = nt.minFilter = contact.rawTexture.minFilter;
     nt.needsUpdate = true;
-    CSynth.current.representativeContact = getstats(td.filter(x => x !== -999)).mean;
+    repcon();
     return nt;
+
+    // lazy compute and use representativeContact
+    function repcon() {
+        let dv = contact.dataVersions[ver];
+        let rc = dv.representativeContact;
+        if (!rc) {
+            let n = 0, s = 0; for (let x of dv) if (x !== -999) {n++, s += x;}
+            rc = dv.representativeContact = s / n; // getstats(td.filter(x => x !== -999)).mean;
+        }
+        CSynth.current.representativeContact = rc; // getstats(td.filter(x => x !== -999)).mean;
+    }
 }
 /** get a contact structure, make sure the rawTexture is set */
 CSynth.getContactsZZ = function(contactnum) {
@@ -5080,6 +5095,24 @@ CSynth.tounit = function(a, m=-999) {
     return a;
 }
 
+/** compute an ss array, reusing old one if ss given */
+CSynth.makess = function(a, sss, avoid = CSynth.normalizeAvoid, m=-999) {
+    console.time('makess')
+    const n = Math.round(a.length ** 0.5);
+    sss = sss ?? new Float32Array(n);
+    sss.fill(0);
+    for (let i = 0; i < n; i++) {
+        let s = 0;
+        for (let j = 0; j < n; j++) {
+            const v = a[i + j*n];
+            if (v !== m && Math.abs(i-j) > avoid) s += v;
+        }
+        sss[i] = s;
+    }
+    console.timeEnd('makess')
+    return sss;
+}
+
 // CSynth.normalizeAvoid = 0; CSynth.normalizeLoops = 5; ccc0.textureVersions = []; await S.frame(2); ccc0.texture.needsUpdate = true; U.contactbuff = ccc0.texture
 // k = 2225; a = ccc0.dataVersions[0]; r=[]; for(let i = 0; i<numInstances; i++) r[i] = a[k + i*numInstances]; r = r.map(x => x === -999? NaN :  Math.log(x*1000)); getstats(r); CSynth.plot(r); r.slice(k-10, k+10)
 // CSynth.matrixMesh.position.set(-0,0,0); CSynth.matrixMesh.scale.set(4,4,4); CSynth.matrixMesh.updateMatrix()
@@ -5092,15 +5125,7 @@ CSynth.donormalize = function(a, loops = CSynth.normalizeLoops, avoid = CSynth.n
     const pp = [];
 
     const makess = () => {
-        ss.fill(0);
-        for (let i = 0; i < n; i++) {
-            let s = 0;
-            for (let j = 0; j < n; j++) {
-                const v = a[i + j*n];
-                if (v !== m && Math.abs(i-j) > avoid) s += v;
-            }
-            ss[i] = s;
-        }
+        CSynth.makess(a, ss);
     }
 
     for (let r=0; r < loops; r++) {
@@ -5118,7 +5143,7 @@ CSynth.donormalize = function(a, loops = CSynth.normalizeLoops, avoid = CSynth.n
         }
     } // loops
     console.timeEnd('donormalize ' + loops)
-    
+
     if (plot) {
         console.time('donormalize plot')
         makess();

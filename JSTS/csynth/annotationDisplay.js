@@ -627,6 +627,32 @@ CSynthAnnotation.nextGroupID = 0;
     };
 })();
 WA.uuulist = {};
+/** make sure position has 3d coords else later version of three break */
+CSynth.geometry23d = function (geometry) {
+    var _a;
+    const pos = geometry.attributes.position;
+    if (!pos) {
+        log('geometry no position attribute');
+        return;
+    }
+    const isize = pos.itemSize;
+    if (isize === 3)
+        return;
+    if (isize !== 2) {
+        console.error('cannot make geometry 3d, unexpected position attribute', isize);
+        return;
+    }
+    const oa = pos.array;
+    const na = new oa.constructor(oa.length * 3 / 2);
+    let j = 0;
+    for (let i = 0; i < oa.length; i += 2) {
+        na[j++] = oa[i];
+        na[j++] = oa[i + 1];
+        na[j++] = 0;
+    }
+    geometry.setAttribute('position', new THREE.BufferAttribute(na, 3));
+    log('geometry corrected from 2d to 3d position', (_a = geometry.name) !== null && _a !== void 0 ? _a : 'unnamed');
+};
 CSynth.consolidateTextBuffers = (group = CSynth.annotationGroup) => {
     //are we reprocessing (after altering for springs?)
     const unmerged = group.userData.unmergedAnnotations || group.children;
@@ -636,9 +662,11 @@ CSynth.consolidateTextBuffers = (group = CSynth.annotationGroup) => {
     const mergedMeshes = keys.map(i => {
         const geometries = unmerged.map(c => c.children[i].geometry);
         const geometry = THREE.BufferGeometryUtils.mergeBufferGeometries(geometries);
+        CSynth.geometry23d(geometry); // patch geometry in place
         const mat = unmerged[0].children[i].material;
         const mergedMesh = new THREE.Mesh(geometry, mat);
-        mergedMesh.frustumCulled = false;
+        // mergedMesh.frustumCulled = false; // no need now we have proper 3d position
+        mergedMesh.name = 'merged annotation display';
         return mergedMesh;
     });
     group.userData.unmergedAnnotations = unmerged;

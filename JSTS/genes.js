@@ -623,7 +623,7 @@ var SG = new Proxy(currentGenes, {
             }
         }
         else if (name.indexOf('rgb') !== -1) {
-            if (!(name.replace('rgb', 'x') in g)) {
+            if (!(name.replace('rgb', 'r') in g)) {
                 log('attempt to set invalid structured gene', name, 'No gene', name.replace('rgb', 'r'));
                 return false;
             }
@@ -632,7 +632,7 @@ var SG = new Proxy(currentGenes, {
                 g[name.replace('rgb', 'g')] = v[1];
                 g[name.replace('rgb', 'b')] = v[2];
             }
-            else if ('x' in v) {
+            else if ('r' in v) {
                 g[name.replace('rgb', 'r')] = v.r;
                 g[name.replace('rgb', 'g')] = v.g;
                 g[name.replace('rgb', 'b')] = v.b;

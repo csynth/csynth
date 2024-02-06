@@ -18,7 +18,8 @@ CSynth.Matrix = function() {
         matC01r: 1, matC01g: 0, matC01b: 0,
         matC10r: 0, matC10g: 0, matC10b: 1,
         matC11r: 1, matC11g: 1, matC11b: 1,
-        matCxxr: 0, matCxxg: 0.05, matCxxb: 0
+        matCx0r: 0, matCx0g: 0.05, matCx0b: 0,
+        matCx1r: 0.05, matCx1g: 0, matCx1b: 0
     };
 
     // see also addfragment
@@ -69,7 +70,7 @@ CSynth.Matrix = function() {
         //##uniform float mathotr;
         //##uniform float mathotg;
         //##uniform float mathotb;
-        uniform float matC00r, matC00g, matC00b, matC11r, matC11g, matC11b, matCxxr, matCxxg, matCxxb;
+        uniform float matC00r, matC00g, matC00b, matC11r, matC11g, matC11b, matCx0r, matCx0g, matCx0b, matCx1r, matCx1g, matCx1b;
         //uniforms for controlling range for colour map
         uniform float matMinD;
         uniform float matMaxD;
@@ -154,7 +155,8 @@ CSynth.Matrix = function() {
         c01: new THREE.Color(),
         c10: new THREE.Color(),
         c11: new THREE.Color(),
-        cxx: new THREE.Color(),
+        cx0: new THREE.Color(),
+        cx1: new THREE.Color(),
     };
     CSynth.Matrix.colours = colours;  // for debug
 
@@ -288,7 +290,8 @@ CSynth.Matrix = function() {
         colours.c11.gui = f.add(colours, 'c11').name('both').listen().onChange(updateColourGenes);
         colours.c10.gui = f.add(colours, 'c10').name('A').listen().onChange(updateColourGenes);
         colours.c01.gui = f.add(colours, 'c01').name('B').listen().onChange(updateColourGenes);
-        colours.cxx.gui = f.add(colours, 'cxx').name('missing').listen().onChange(updateColourGenes);
+        colours.cx0.gui = f.add(colours, 'cx0').name('missing A').listen().onChange(updateColourGenes);
+        colours.cx1.gui = f.add(colours, 'cx1').name('missing B').listen().onChange(updateColourGenes);
         CSynth._colsnames();
 
         const fkey = dat.GUIVR.createX("colour key");
@@ -379,6 +382,8 @@ CSynth.Matrix = function() {
 
             addtaggeduniform('matrix', 'matintypeA', undefined, 'f');
             addtaggeduniform('matrix', 'matintypeB', undefined, 'f');
+            addtaggeduniform('matrix', 'representativeContactA', undefined, 'f');
+            addtaggeduniform('matrix', 'representativeContactB', undefined, 'f');
 
             addgeneperm('matcoltypeA', 4, 0, 4,  1, 1, 'matrix colour input 1', 'matrix', 0);  // 0,1,x,y 4=currentDist, 5=currentSprings, 6... use contact/xyz
             addgeneperm('matcoltypeB', 5, 0, 4,  1, 1, 'matrix colour input 2', 'matrix', 0);  // 0,1,x,y 4=currentDist, 5=currentSprings, 6... use contact/xyz
@@ -399,7 +404,8 @@ CSynth.Matrix = function() {
         colours.c01.setRGB(g.matC01r, g.matC01g, g.matC01b);
         colours.c10.setRGB(g.matC10r, g.matC10g, g.matC10b);
         colours.c11.setRGB(g.matC11r, g.matC11g, g.matC11b);
-        colours.cxx.setRGB(g.matCxxr, g.matCxxg, g.matCxxb);
+        colours.cx0.setRGB(g.matCx0r, g.matCx0g, g.matCx0b);
+        colours.cx1.setRGB(g.matC10r, g.matCx1g, g.matCx1b);
     }
 
     /** set the matrix colours, textures, etc
@@ -425,6 +431,7 @@ CSynth.Matrix = function() {
                 if (i < contacts.length) {
                     r = 6;
                     uniforms['matrix2dtex' + n].value = CSynth.contactsToTexture(i);
+                    uniforms['representativeContact' + n].value = CSynth.current.representativeContact;
                 } else {
                     r = 5;
                     uniforms['matrix2dtex' + n].value = CSynth.xyzToTexture(i - contacts.length);
@@ -451,6 +458,8 @@ CSynth.Matrix = function() {
         setKeyRgb(g, 'matC01', colours.c01);
         setKeyRgb(g, 'matC10', colours.c10);
         setKeyRgb(g, 'matC11', colours.c11);
+        setKeyRgb(g, 'matCx0', colours.cx0);
+        setKeyRgb(g, 'matCx1', colours.cx1);
     }
 
     if (!CSynth.matrixScene)
@@ -647,7 +656,7 @@ CSynth.Matrix = function() {
 CSynth.colchoice = /*glsl*/`
     // matintype   0=>0, 1=>1, 2=>x, 3=>y, 4=>currentDist, 5=>dist from texture, 6=>contact from texture
     // low .. high is typically matDistNear = 0 .. matDistFar
-    float nval(in float matintype, in sampler2D tex, in vec2 pos, in float currentDist, in float low, in float high) {
+    float nval(in float matintype, in sampler2D tex, in vec2 pos, in float currentDist, in float low, in float high, float repcon) {
         float rd = 0.;      // value as a relative dist (or wish dist)
         if (matintype < 1.5) {   // 1: use matintype as value
             return matintype;
@@ -664,11 +673,13 @@ CSynth.colchoice = /*glsl*/`
             float contact = texture(tex, pos).x;
             if (contact < 0.) return -999.;
             // see CSynth.alignModels in csynth.js for some workings to deduce formula below
-            if (contactforcesc != 0.)
+            if (contactforce != 0.) {
                 // OLD dist = pow(contact * contactforcesc / pushapartforce * pow(powBaseDist, pushapartpow), 1. / (pushapartpow - 1.));  // regular distance
-                rd = pow(contactforcesc*contact*powBaseDist / pushapartforce, 1. / (pushapartpow - 1.)) * powBaseDist;  // from springfs wrongfade, === OLD
-            else
-                rd = m_k * pow(contact / representativeContact, -m_alpha);  // LorDG distance
+                float cfsc = contactforce * 1e-6 / repcon;
+                rd = pow(cfsc*contact*powBaseDist / pushapartforce, 1. / (pushapartpow - 1.)) * powBaseDist;  // from springfs wrongfade, === OLD
+            } else {
+                rd = m_k * pow(contact / repcon, -m_alpha);  // LorDG distance
+            }
         } else {                    // 7: contact from texture, old forumula
             return -9.;
         }
@@ -694,7 +705,8 @@ function heightMatrixMaterial() {
         highp float radius=1., gscale=1., nstar=4., stardepth=0., ribs=1., ribdepth=0.;  // temp, to move to better place
         ${uniformsForTag('matrix')}
         uniform float minActive, maxActive, maxBackboneDist, nonBackboneLen,
-        representativeContact, m_k, m_alpha, m_force, pushapartforce, pushapartpow, contactforcesc, powBaseDist;
+        // representativeContactA, representativeContactB,
+        m_k, m_alpha, m_force, pushapartforce, pushapartpow, contactforce, powBaseDist;
 
         ${CSynth.colchoice}
         // to shape the matrix to exaggerate diagonal
@@ -785,13 +797,16 @@ function heightMatrixMaterial() {
 
 
         vec2 tp = (texpos.xy * numSegs + 0.5) / numInstances;
-        float vv = nval(matintypeA, matrix2dtexA, tp, dist, matDistNear, matDistFar);
-        float v1 = clamp( vv, 0., 1.);
+        float vv1;
+        float vv0 = nval(matintypeA, matrix2dtexA, tp, dist, matDistNear, matDistFar, representativeContactA);
+        float v1 = clamp( vv0, 0., 1.);
         if (matintypeA + matintypeB == 0.) {    // old code
         } else if (matcoltypeA == matcoltypeB) {
             c.col.rgb = mix(col1, col2, v1);
+            vv1 = vv0;
         } else {
-            float v2 = clamp(nval(matintypeB, matrix2dtexB, tp, dist, matDistNear, matDistFar), 0., 1.);
+            vv1 = nval(matintypeB, matrix2dtexB, tp, dist, matDistNear, matDistFar, representativeContactB);
+            float v2 = clamp(vv1, 0., 1.);
             /**
             c.col.rgb = bimix(
                 vec3(matC00r, matC00g, matC00b),
@@ -808,7 +823,8 @@ function heightMatrixMaterial() {
             vec3 tint = v1 > v2 ? vec3(matC10r, matC10g, matC10b) : vec3(matC01r, matC01g, matC01b);
             c.col.rgb = mix(cent, tint, clamp(matrixTintStrength*abs(v1-v2), 0.,1.));
         }
-        if (vv == -999.) c.col.rgb += vec3(matCxxr, matCxxg, matCxxb);
+        if (vv0 == -999.) c.col.rgb += vec3(matCx0r, matCx0g, matCx0b);
+        if (vv1 == -999.) c.col.rgb += vec3(matCx1r, matCx1g, matCx1b);
         c.col.rgb = pow(c.col.rgb, vec3(matgamma));  // better perceptual range
         c.fluoresc.rgb = rgb2hsv(c.col.rgb);
 
@@ -948,7 +964,7 @@ setExtraKey('M,Z', 'zoom matrix', CSynth.zoomMatrix);
 
 for (let i=1; i<9; i++) {
     setExtraKey('M,Z,' + i, 'zoom matrix scale', () => {
-        CSynth.matScale = i;
+        CSynth.matScale = (20**((i-1)/8));
         CSynth.zoomMatrix();
     })
 }

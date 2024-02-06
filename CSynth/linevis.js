@@ -4,9 +4,12 @@
 var THREE, numInstancesP2, numInstances, renderer, CSynth, uniforms, log, W, V, dat, guiFromGene,
 addgeneperm, copyFrom, CSynthFast, G;
 
+// addgeneperm('linevisalpha', 1, 0, 1, 0.01,0.01, 'alpha for line vis', 'csynth', 'frozen');
+
+
 /** simplified rendering for non-organic use, do not bother with overwriting three.js line material, just make new */
 CSynth.LineVis = function() {
-const linevisVertMaterial = `
+const linevisVertMaterial = /*glsl*/`${CSynth.vert300}
     // linevis vertex
     ${CSynth.CommonShaderCode()}
     //#define SHADER_NAME vertMaterial
@@ -16,7 +19,7 @@ const linevisVertMaterial = `
     // We may change later to use CSynth.colchoice and nval()
     // so that it can handle distances and other details (as in matrix).
 
-    uniform float ifmax;
+    uniform float ifmax, linevisalpha;
     uniform sampler2D contactbuff;
     varying vec4 col;
 
@@ -34,12 +37,13 @@ const linevisVertMaterial = `
         // IF buffer uses numInstances x numInstances
         float v = texture2D(contactbuff, vec2(position.xy) / numInstances + 0.5).x /  ifmax;
         v = clamp(v, 0., 1.);
-        col = vec4(v , 1.-v, 0.2, 1);
+        col = vec4(v , 1.-v, 0.2, linevisalpha);
         if (v == 0.) gl_Position.w = sqrt(-1.); // force NaN and the line won't be drawn, no discard in vertex shader
     }
 `
 
-const linevisFragMaterial = `
+const linevisFragMaterial = /*glsl*/`${CSynth.frag300}
+
     // linevis fragment
     ${CSynth.CommonFragmentShaderCode()}
     //#define SHADER_NAME fragMaterial
@@ -51,7 +55,7 @@ const linevisFragMaterial = `
 `
 
     var me = this;
-    var uniformsC = { ifmax: {value: 1} };
+    var uniformsC = { ifmax: {value: 1}, linevisalpha: {value: 0.1} };
     //this doesn't do a deep clone, which I believe to be what we want.
     //Are there any uniforms that *should* remain related?
     copyFrom(uniformsC, CSynth.getCommonUniforms());
@@ -59,7 +63,10 @@ const linevisFragMaterial = `
     var material = V.linevismat = new THREE.RawShaderMaterial( {
         uniforms: uniformsC,
         vertexShader: linevisVertMaterial,
-        fragmentShader: linevisFragMaterial
+        fragmentShader: linevisFragMaterial,
+        transparent: true,      // ?? not used by RawShaderMaterial ?? it's up to the shader
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
     });
 
     var res;
@@ -102,3 +109,14 @@ const linevisFragMaterial = `
         return gui;
     }
 }   // lineParticles
+
+/**
+lvmat = V.rawscene.lineSegs.material
+lvmat.transparent = true;
+lvmat.blending = THREE.AdditiveBlending;
+lvmat.depthTest = true;
+lvmat.depthWrite = false;
+lvmat.needsUpdate = true
+G.linevisalpha = 0.1
+lvmat.uniforms.linevisaplha = {value: 0.1}
+**/

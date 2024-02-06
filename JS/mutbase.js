@@ -657,7 +657,7 @@ function doCtrlContext(evt) {
 }
 
 /** for setting values in all objects, and get from currentGenes */
-var GGG = new Proxy(currentGenes, {
+var GGG = new Proxy(currentGenes ?? {}, {
     get: (o, n) => currentGenes[n],
     set: (o, n, v) => {
         for (const oo of Object.values(currentGenes)) {
@@ -671,7 +671,7 @@ var GGG = new Proxy(currentGenes, {
 
 
 /** for setting values in all objects, and ramp on currentGenes */
-var RGG = new Proxy(currentGenes, {
+var RGG = new Proxy(currentGenes ?? {}, {
     get: (o, n) => currentGenes[n],
     set: (o, n, v) => {
         for (const oo of Object.values(currentObjects)) {

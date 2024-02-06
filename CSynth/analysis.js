@@ -1512,6 +1512,7 @@ CSynth.plotev = function plotev(e) {
     CSynth.setMarker(15, CSynth.bp4particle(dataX), 'chart');
 }
 
+// xx=(data,label) => ({data:CSynth.makess(data).map(x=>Math.log10(x)), label}); CSynth.plot([xx(ccc1.unitData, 'raw'), xx(ccc1.textureData, 'csynorm'),xx(ccc0.unitData, 'xnorm'), xx(ccc0.textureData, 'xnorm,csynorm')] )
 CSynth.plot = function(rlabel) {
     if (!Chart) {
         log('adding Chart')
@@ -1579,7 +1580,7 @@ CSynth.plot = function(rlabel) {
 }
 
 /** compute medial filter for near diagonal elements */
-CSynth.medial = function({c = U.contactbuff.source.data.data, h = 50, hstep = 5, w = 5, wstep = 1, perc = 0.9, maxr = Infinity} = {}) {
+CSynth.medial = function({c = U.contactbuff.source.data.data, h = 50, hstep = 5, w = 5, wstep = 1, perc = 0.9, maxr = Infinity, avoid = 1} = {}) {
     console.time('medial');
     const n = Math.round(c.length ** 0.5);
     const r = new Float32Array(n);                   // to collect result
@@ -1591,7 +1592,7 @@ CSynth.medial = function({c = U.contactbuff.source.data.data, h = 50, hstep = 5,
         for (let x = i-w; x <= i+w; x += wstep) {          // for neighbours
             if (x < 0 || x >= n) continue;
             for (let y = x-h; y < x+h; y += hstep) {
-                if (y < 0 || y >= n || Math.abs(x-y) <= 1) continue;
+                if (y < 0 || y >= n || Math.abs(x-y) <= avoid) continue;
                 const v = c[y*n + x];
                 if (v < 0) continue;       // eg -999
                 xy[p++] = v;

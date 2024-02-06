@@ -126,7 +126,7 @@ var Springs = function(id = '') {
         guiFromGene(gui, "pushapartforce");
         guiFromGene(gui, "pushapartpow");
         guiFromGene(gui, "wrongfade");
-        if (CSynth.current.showLorentzian) {
+        if (true || CSynth.current.showLorentzian) {
             const xxx = {
                 get autoAlign() { return !!meX.alignMaestro; },
                 set autoAlign(b) {
@@ -139,11 +139,15 @@ var Springs = function(id = '') {
                     } else if (!b && meX.alignMaestro) {
                         meX.alignMaestro = Maestro.remove('postframe', meX.alignMaestro);
                     }
-                }
+                },
+                get useLor() { return CSynth?.springSettings?.contactFtype === 'lor' },
+                set useLor(b) {CSynth.ctype(b ? 'lor' : 'csy')}
             }
 
             gui.add(xxx, 'autoAlign').listen()
                 .setToolTip(`Keep parameters for CSynth and Lorenz models aligned.\nChanges to either will force corresponding changes to the other.`);
+            gui.add(xxx, 'useLor').listen()
+                .setToolTip('Use the Lorentz model');
             guiFromGene(gui, "m_force");
             guiFromGene(gui, "m_alpha");
             guiFromGene(gui, "m_c");

@@ -46,6 +46,7 @@ type Vtype = {skip?, render?, currentdb?, masterdb?,
     gpx?: GPX,
     buttons?:string[],
     usePrecamTexture?: boolean,
+    sortObjects?: boolean,
     precamRT?: THREE.WebGLRenderTarget
     }
 
@@ -1226,6 +1227,7 @@ function initControllerRenderingScene(gp){
 
 
 V.usePrecamTexture = false;
+V.sortObjects = true;
 V.render = function vrender(rt) {
     //// make sure scale factor change recentres, probably better to do elsewhere, csynth specific on frame ...???
 	// This was very bad with mouse wheel to change dynamically. Why was it ever needed?
@@ -1269,7 +1271,7 @@ V.render = function vrender(rt) {
     // below so it shows clearly as rendercamscene on performance profiles
     (function rendercamscene() {
         const s = renderer.sortObjects;
-        renderer.sortObjects = true;
+        renderer.sortObjects = V.sortObjects;
 
         // force menu to be visible if pointed at
         // this could be optimized if necessary, but probably very minor cost
@@ -1328,7 +1330,7 @@ V.renderNocam = function(rt = null) {
     const st = performance.now();
     (function rendernocam() {  // so it shows up in profiler
         const s = renderer.sortObjects;
-        renderer.sortObjects = true;
+        renderer.sortObjects = V.sortObjects;
         rendererSetViewportCanv(0,0,width,height);
         if (V.nocamscene?.visible) rrender('nocam', V.nocamscene, V.nocamcamera, rt);
         renderer.sortObjects = s;

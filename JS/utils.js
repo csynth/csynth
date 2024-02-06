@@ -5,7 +5,7 @@ var screens, W = window, opmode, HTMLElement, HTMLDocument, HTMLTextAreaElement,
     UICom, require, process, lastdocx, lastdocy, framedelta, Maestro, loadStartTime, oplist, frametime, currentGenes,
     THREE, slots, mainvp, rendertargets, oldlayerX, oldlayerY, height, width, yaml, jsyaml, detectWebGL, confirm, uniforms, evalIfPoss,
     framenum, XMLHttpRequest, setval, location, isNode, savedef, localStorage, FileReader, onWindowResize,
-    refreshGal, domtoimage, Image, readWebGlFloat, refall, vps, setViewports, Audio, newframe,
+    refreshGal, domtoimage, Image, readWebGlFloat, refall, vps, setViewports, newframe,
     setSize, CSynth, screen, exportmyshaders, Math,
     genedefs, framelog, dockeydowninner, setAllLots, usesavedglsl, remakeShaders, Shadows,
     throwq, oxcsynth, performance, setshowstats, showControls, VUMeter2, DispobjC, orginit, requestAnimationFrame,
@@ -90,10 +90,11 @@ console.error = function () {
         showErrors(arguments);
         return;
     }
-    if (emsg.startsWith('THREE.')) {
-        serious('THREE error', arguments);
-        badshader = 'three error';
-    }
+    // 6 Feb 2024 no, three.js does print errors that are not bad enough for 'serious'
+    // if (emsg.startsWith('THREE.')) {
+    //     serious('THREE error', arguments);
+    //     badshader = 'three error';
+    // }
 
     if (emsg === null || emsg === "") {
         var es = stack();
@@ -4702,16 +4703,17 @@ function makeDraggable(ptodrag, {usesize=true, button = 2, movecallback, upcallb
     function dragmouseleave(evt) {
         s.borderWidth = '1px';
         s.padding = (sizemargin-1) + 'px';
+        dragmouseup(evt); // ????
     }
     function dragmousemove(evt) {
         // log('', evt.buttons, !mousedownbuttons, offx(evt))
-        if (evt.buttons !== button || !mousedownbuttons) {
+        if (evt.buttons !== button || evt.buttons !== mousedownbuttons) {
             // xst = offx(evt) < sizemargin ? 'w' : offx(evt) > +s.width.pre('px')-sizemargin ? 'e' : '';
             // yst = offy(evt) < sizemargin ? 'n' : offy(evt) > +s.height.pre('px')-sizemargin ? 's' : '';
             xst = offx(evt) < sizemargin ? 'w' : offx(evt) > todrag.clientWidth-sizemargin ? 'e' : '';
             yst = offy(evt) < sizemargin ? 'n' : offy(evt) > todrag.clientHeight-sizemargin ? 's' : '';
             st = yst + xst;
-            s.cursor = st === '' ? 'grab' : st + '-resize';
+            s.cursor = st === '' ? 'crosshair' : st + '-resize';
             // log('movedrag x', offx(evt), st, s.cursor);
 
             const sw = '1px', bw = (sizemargin-1) + 'px';
@@ -4765,7 +4767,7 @@ function makeDraggable(ptodrag, {usesize=true, button = 2, movecallback, upcallb
         document.removeEventListener('mousemove', dragmousemove, true);
         document.removeEventListener('mouseup', dragmouseup, true);
         canvas.style.pointerEvents = '';
-        todrag.mousedownbuttons = undefined;
+        mousedownbuttons = undefined;
         killev(evt); // .preventDefault();
         if (upcallback) upcallback(evt, s)
         // if (evt.target.className.contains('fieldbody')) return killev(evt);
