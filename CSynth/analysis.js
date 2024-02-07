@@ -1580,32 +1580,56 @@ CSynth.plot = function(rlabel) {
 }
 
 /** compute medial filter for near diagonal elements */
-CSynth.medial = function({c = U.contactbuff.source.data.data, h = 50, hstep = 5, w = 5, wstep = 1, perc = 0.9, maxr = Infinity, avoid = 1} = {}) {
+CSynth.medial = function({c = U.contactbuff.source.data.data, h = 250, hstep = 5, w = 15, wstep = 1, perc = 0.6, maxr = Infinity, avoid = 1, plot = true, deadends = 0} = {}) {
     console.time('medial');
     const n = Math.round(c.length ** 0.5);
-    const r = new Float32Array(n);                   // to collect result
-    const dr = new Float32Array(n);                   // to collect result
-    const xy = new Float32Array(h * (2*w + 1));      // to collect contributing elements, reuse each i
-    for (let i=0; i < n; i++) {  // for each particle
-        if (c[i*n + i] < 0) {r[i] = r[i-1] ?? 0; continue; }    // to handle blank regions
-        let p = 0;
-        for (let x = i-w; x <= i+w; x += wstep) {          // for neighbours
-            if (x < 0 || x >= n) continue;
-            for (let y = x-h; y < x+h; y += hstep) {
-                if (y < 0 || y >= n || Math.abs(x-y) <= avoid) continue;
-                const v = c[y*n + x];
-                if (v < 0) continue;       // eg -999
-                xy[p++] = v;
+    const res = []
+    for (const neg of [false, true]) {
+        const r = new Float32Array(n);                   // to collect result
+        const dr = new Float32Array(n);                   // to collect result
+        const xy = new Float32Array(h * (2*w + 1));      // to collect contributing elements, reuse each i
+        for (let i=deadends; i < n-deadends; i++) {  // for each particle
+            if (c[i*n + i] < 0) {r[i] = r[i-1] ?? 0; continue; }    // to handle blank regions
+            let p = 0;
+            for (let x = i-w; x <= i+w; x += wstep) {          // for neighbours
+                if (x < 0 || x >= n) continue;
+                let [st, et] = neg ? [x+avoid, x+h] : [x-h, x-avoid]
+                for (let y = st; y < et; y += hstep) {
+                    if (y < 0 || y >= n || Math.abs(x-y) <= avoid) continue;
+                    const v = c[y*n + x];
+                    if (v < 0) continue;       // eg -999
+                    xy[p++] = v;
+                }
             }
+            const ss = xy.subarray(0,p).sort((x,y) => x-y);
+            r[i] = p === 0 ? 0 : Math.min(maxr, xy[Math.floor(p * perc)]);
         }
-        const ss = xy.subarray(0,p).sort((x,y) => x-y);
-        r[i] = p === 0 ? 0 : Math.min(maxr, xy[Math.floor(p * perc)]);
-    }
-    console.timeEnd('medial');
 
-    const rl = r[0], rh = r.slice(-1)[0];
-    for (let i=0; i < n; i++) {
-        dr[i] = (r[i+w]??rh) - (r[i-w]??rl)
+        const rl = r[0], rh = r.slice(-1)[0];
+        for (let i = deadends+w; i < n - deadends-w; i++) {
+            dr[i] = (r[i+w]??rh) - (r[i-w]??rl)
+        }
+        res.push({data: r, label: 'medial'}, {data: dr, label: 'dmedial'});
+    }  // neg
+    console.timeEnd('medial');
+    if (plot) CSynth.plot(res)
+    return res;
+}
+
+var ccc0;
+/** test that missing values always go in complete rows/cols */
+CSynth.testMissingRows = function(a = ccc0.rawData, m = -999, n = numInstances) {
+    const ra=[], rb=[];
+    for (let i=0; i<n;i++) {
+        for (let j=0; j<n;j++) {
+            const v = a[i+j*n];
+            const vi = a[i+i*n];
+            const vj = a[j+j*n];
+            if (v < 0 && vi >= 0 && vj >= 0)
+                ra.push([i,j]);
+            if (v >= 0 && (vi < 0 ||vj < 0))
+                rb.push([i,j]);
+        }
     }
-    return [{data: r, label: 'medial'}, {data: dr, label: 'dmedial'}];
+    return [ra, rb];
 }

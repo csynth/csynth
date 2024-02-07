@@ -543,6 +543,9 @@ CSynth.parseHeaderLine = function(headerLine, doreorder = false) {
     let header = headerLine.split(/[ \r\t,]/);
     const reorder = [];
     let headerStruct = [];
+    const nheader = header.map(x => x.match(/^h(\d*)$/)?.[1]);  // allow for header entries hddd for digits d
+    if (nheader.every(x => x !== undefined)) header = nheader;
+
     if (!header.some(x => isNaN(x))) {
         headerLine = '';
         const res = header.reduce((c,x,i,a) => Math.min(c, i === 0 ? Infinity : (Math.abs(x - a[i-1]) || Infinity)), Infinity);
@@ -3238,10 +3241,10 @@ CSynth.contactsToTexture = function(contactnum) {
         let dv = contact.dataVersions[ver];
         let rc = dv.representativeContact;
         if (!rc) {
-            let n = 0, s = 0; for (let x of dv) if (x !== -999) {n++, s += x;}
-            rc = dv.representativeContact = s / n; // getstats(td.filter(x => x !== -999)).mean;
+            let n = 0, s = 0; for (let x of dv) if (x > -999) {n++, s += x;}
+            rc = dv.representativeContact = s / n;
         }
-        CSynth.current.representativeContact = rc; // getstats(td.filter(x => x !== -999)).mean;
+        CSynth.current.representativeContact = rc;
     }
 }
 /** get a contact structure, make sure the rawTexture is set */
@@ -5085,8 +5088,8 @@ CSynth.patchmissing = function (a, m=-999, dv = -999.25) {
 CSynth.tounit = function(a, m=-999) {
     console.time('tounit')
     const n = Math.round(a.length ** 0.5);
-    const tot = a.reduce((c,v) => c + (v === m ? 0 : v), 0);
-    // let tot = 0; for(const v of a) if (v !== m) tot += v;
+    const tot = a.reduce((c,v) => c + (v <= m ? 0 : v), 0);
+    // let tot = 0; for(const v of a) if (v > m) tot += v;
     console.timeEnd('tounit')
     console.time('tounit')
     const s1 = n / tot;
@@ -5114,7 +5117,7 @@ CSynth.makess = function(a, sss, avoid = CSynth.normalizeAvoid, m=-999) {
 }
 
 // CSynth.normalizeAvoid = 0; CSynth.normalizeLoops = 5; ccc0.textureVersions = []; await S.frame(2); ccc0.texture.needsUpdate = true; U.contactbuff = ccc0.texture
-// k = 2225; a = ccc0.dataVersions[0]; r=[]; for(let i = 0; i<numInstances; i++) r[i] = a[k + i*numInstances]; r = r.map(x => x === -999? NaN :  Math.log(x*1000)); getstats(r); CSynth.plot(r); r.slice(k-10, k+10)
+// k = 2225; a = ccc0.dataVersions[0]; r=[]; for(let i = 0; i<numInstances; i++) r[i] = a[k + i*numInstances]; r = r.map(x => x <= -999? NaN :  Math.log(x*1000)); getstats(r); CSynth.plot(r); r.slice(k-10, k+10)
 // CSynth.matrixMesh.position.set(-0,0,0); CSynth.matrixMesh.scale.set(4,4,4); CSynth.matrixMesh.updateMatrix()
 CSynth.normalizeAvoid = 1; CSynth.normalizeLoops = 3; CSynth.normalizePow = -1
 /** normalize a in place */

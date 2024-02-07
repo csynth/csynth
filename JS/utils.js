@@ -4651,6 +4651,7 @@ function makeDraggable(ptodrag, {usesize=true, button = 2, movecallback, upcallb
     if (!todrag) return;
 
     if (todrag.save) return;  // already draggable
+    let isDragging = false;
     const s = todrag.style;
     const rr = todrag.getBoundingClientRect();
     todrag.save = [s.position, s.left, s.top, s.bottom, s.width, s.height, dragmousedown, dragmousemove, dragmouseup, todrag.parentNode];
@@ -4697,16 +4698,28 @@ function makeDraggable(ptodrag, {usesize=true, button = 2, movecallback, upcallb
         // enable context on the individual parts, but not on dragging the fieldbody
         ptodrag.oncontextmenu = (evt.target.className.contains('fieldbody')) ? _=>false : null
 
-        document.addEventListener('mousemove', dragmousemove, true);
-        document.addEventListener('mouseup', dragmouseup, true);
+        document.addEventListener('mousemove', docmousemove, true);
+        document.addEventListener('mouseup', docmouseup, true);
+        isDragging = true;
     }
     function dragmouseleave(evt) {
+        if (isDragging) return;
         s.borderWidth = '1px';
         s.padding = (sizemargin-1) + 'px';
         dragmouseup(evt); // ????
     }
+
+    function docmousemove(evt) {
+        // log('docmousemove')
+        return dragmousemove(evt)
+    }
+    function docmouseup(evt) {
+        // log('docmouseup')
+        return dragmouseup(evt)
+    }
+    
     function dragmousemove(evt) {
-        // log('', evt.buttons, !mousedownbuttons, offx(evt))
+        // log('dragmousemove', evt.buttons, !mousedownbuttons, offx(evt))
         if (evt.buttons !== button || evt.buttons !== mousedownbuttons) {
             // xst = offx(evt) < sizemargin ? 'w' : offx(evt) > +s.width.pre('px')-sizemargin ? 'e' : '';
             // yst = offy(evt) < sizemargin ? 'n' : offy(evt) > +s.height.pre('px')-sizemargin ? 's' : '';
@@ -4764,8 +4777,9 @@ function makeDraggable(ptodrag, {usesize=true, button = 2, movecallback, upcallb
     }
 
     function dragmouseup(evt) {
-        document.removeEventListener('mousemove', dragmousemove, true);
-        document.removeEventListener('mouseup', dragmouseup, true);
+        document.removeEventListener('mousemove', docmousemove, true);
+        document.removeEventListener('mouseup', docmouseup, true);
+        isDragging = false;
         canvas.style.pointerEvents = '';
         mousedownbuttons = undefined;
         killev(evt); // .preventDefault();

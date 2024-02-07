@@ -1560,7 +1560,7 @@ CSynth.showpick = function CSynthshowpick(callback) {
         const mid1 = Math.floor(m1 * (numInstances)), mid2 = Math.floor(m2 * (numInstances));
         xdist = format(pos[mid1].distanceTo(pos[mid2])) + ' units';
     }
-    if (dist) r.push('dist:' + (dist * CSynth.current.range).toLocaleString() + ' bp,  ' + xdist);
+    if (dist) r.push(`dist: ${(dist * CSynth.current.range).toLocaleString()}bp/${Math.floor(dist*cc.numInstances)} ${xdist}`);
     msgfix('>pickq', r.length === 0 ? 'none' : '<br>' + r.join('<br>'));
 
     if (CSynth.guidetail >= 3) {
@@ -1666,7 +1666,7 @@ CSynth.showPickDist = function CSynthshowPickDist () {
             if (contactData) {
                 const v = contactData[hits[i].index + numInstances*hits[j].index];
                 if (v === undefined) contact = '<red>..????..</red>'
-                else if (v === -999) contact = '<red>..-999..</red>'
+                else if (v <= -999) contact = '<red>..-999..</red>'
                 else contact = v.toExponential(3);
             }
             r.push('<tr><td>' + [

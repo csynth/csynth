@@ -405,7 +405,7 @@ CSynth.Matrix = function() {
         colours.c10.setRGB(g.matC10r, g.matC10g, g.matC10b);
         colours.c11.setRGB(g.matC11r, g.matC11g, g.matC11b);
         colours.cx0.setRGB(g.matCx0r, g.matCx0g, g.matCx0b);
-        colours.cx1.setRGB(g.matC10r, g.matCx1g, g.matCx1b);
+        colours.cx1.setRGB(g.matCx1r, g.matCx1g, g.matCx1b);
     }
 
     /** set the matrix colours, textures, etc
