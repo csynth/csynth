@@ -349,7 +349,7 @@ function TadpoleSystem() {
             const rats = 4 * RIBS; // # properties per tadpole
             const rmap = t.map.raw;
             for (let i = 0; i < rmap.length; i++) { // i index into rats entries in roleprops
-                const tid = rmap[i]; // tid index into rats entries in tadprop
+                const tid = rmap[i]; // tid index into rads entries in tadprop
                 const rp = t.role.roleprops;
                 if (tid !== undefined) {
                     if (me.dyncols || t.role.id === 'tadCovid2') {
@@ -3554,12 +3554,12 @@ function TadpoleSystem() {
         me.propTexture.needsUpdate = true;
     };
     // note: 2 Dec 2019.  All tadpole springs have strength = 1 and pow = 0 except for the attractor springs.
-    me.gtranrule = /*glsl*/ `//tadpoleTranrule
+    me.gtranrule = /*glsl*/ `// start tadpoleTranrule
 horn('_tad_s').ribs(8).radius(0.005)
 .code(\`//gl
   vec4 q=(ppos(floor(_tad_h_rp * _tad_h_ribs + 0.5)/HEADS + (_tad_s_rp * 7. + 0.5)/(8. * HEADS)));
   setxyz(q);
-  r *= texture2D(tadprop, vec2(_tad_s_rp, _tad_h_rp)).x;  // will have been set to _tad_s_radius
+  r *= texture2D(tadprop, vec2(_tad_s_rp, _tad_h_rp)).x;  // initial r will have been set to radius = _tad_s_radius
 ///gl\`);
 
 horn('_tad_h').ribs(1023).sub('_tad_s').code('y-=springCentre.y').scale({k:1}).code('y+=springCentre.y'); mainhorn ='_tad_h';
@@ -3601,6 +3601,7 @@ override void getPosNormalColid(out vec3 xmnormal, out vec4 shapepos, out float 
 // so refreshed after new tranrule, defer, and named intermediate function to help debug
 // deferred because of suspicious issues when NOT deferred (or just 1 frame)
 onframe(function tranrule_tadpoleSystem_randcols() {COL.applyGui()}, 15);
+// end tadpoleSystem.gtranrule
 `;
     const oldbpr = VEC3(); // old bait pos
     const oldbpl = VEC3();
@@ -4408,6 +4409,41 @@ forGp uses these from gp: raymatrix, baitPosition, axesbias, pad, trigger
         `;
         springs.setOverrides(codeOverrides, codePrepend);
     };
+    //     WA.specialShader = function(opname) {  // specialShader disabled, did not have pulse
+    //         if (opname !== 'makeskelbuff') return [undefined, undefined];
+    //     me.skelvert = /*glsl*/`
+    // // custom shader to take spring positions and tadprop radius and build skelbuffer
+    // uniform vec2 skelbufferRes;  // eg 8, 2048
+    // uniform highp sampler2D posNewvals;
+    // uniform float _tad_s_radius;
+    // uniform float RIBS;
+    // uniform highp sampler2D tadprop;
+    // uniform mat4 rot44d;
+    // out vec4 objpos;
+    // void main()
+    // {
+    //     int hnum = gl_InstanceID; // 0..1199
+    //     int pnum = gl_VertexID;   // 0..7
+    //     int tnum = hnum*int(RIBS) + pnum;
+    //     vec4 pos = texelFetch(posNewvals, ivec2(0, tnum), 0);
+    //     pos.w = 1.;
+    //     pos *= rot44d;
+    //     float r = _tad_s_radius * texelFetch(tadprop, ivec2(pnum, hnum), 0).x;
+    //     objpos = vec4(pos.xyz, r);
+    //     gl_PointSize = 1.0;
+    //     gl_Position = vec4( (vec2(pnum, hnum) + 0.5) / skelbufferRes * 2. - 1., 0., 1.);
+    // }
+    // `
+    //     me.skelfrag = /*glsl*/`
+    // precision highp float;
+    // out vec4 glFragColor;
+    // in vec4 objpos;
+    // void main() {
+    //     glFragColor = objpos;
+    // }
+    // `
+    //     return [me.skelvert, me.skelfrag];
+    //     }
     /**
      * V.gpL.baitPosition: vec3 (same as raymatrix)
      * V.gpL.poseMatrix matrix (same as raymatrix?)
@@ -4779,10 +4815,10 @@ forGp uses these from gp: raymatrix, baitPosition, axesbias, pad, trigger
         const fix = (i, x, y, z, pull) => (pull ? springs.addpull : springs.setfix)(i, x, y, z, pull);
         fix(ti * RIBS, x, y, z, pull); // for tad display of bait position
         const f = orb ? fix : springs.removefix;
-        if (wavy !== false && wavy >= 0) { // wavy could well be tadkin.wavyhair
+        if (wavy !== false && wavy >= 0) { // wavy could well be tadkin.wavyhair, just
             const ei = RIBS - 1;
             f(ti * RIBS + ei, x + dx * ei, y + dy * ei, z + dz * ei, pullend);
-            const len = Math.sqrt(dx * dx + dy * dy + dz * dz) * +wavy;
+            let len = Math.sqrt(dx * dx + dy * dy + dz * dz) * +wavy; // let to allow experiment
             for (let i = 1; i < RIBS; i++) {
                 springs.addspring(ti * RIBS + i, ti * RIBS + i - 1, len, str); // str may be tadkin.hairstr
             }
@@ -4822,8 +4858,9 @@ forGp uses these from gp: raymatrix, baitPosition, axesbias, pad, trigger
         //         me.tadprop[(ti*RIBS + i)*4 + 1] = colends;
         // }
         if (typeof ribs === 'number') {
-            for (let i = 0; i < RIBS; i++)
-                me.tadprop[(ti * RIBS + i) * 4 + 3] = ribs;
+            for (let i = 0; i < RIBS; i++) {
+                me.tadprop[(ti * RIBS + i) * 4 + 3] = ribs; // * (dx*dx+dy*dy+dz*dz)**0.5;
+            }
         }
     };
     /** use the captured trackers in _monitorTrackerGPS to create effects  */
@@ -5646,7 +5683,7 @@ forGp uses these from gp: raymatrix, baitPosition, axesbias, pad, trigger
         // if (TADS > 0) for (let i = TADS*RIBS; i < (TADS + CONTROLS)*RIBS; i++) tad.displayControl();
         if (TADS > 0)
             for (let i = 0; i < CONTROLS; i++)
-                tad.displayControl(i);
+                tad.displayControl(i, 'hide');
     };
     /** setup and then save positions for the current role,
      * especially for forms with some pullsprings but not enough (eg some virus's) */

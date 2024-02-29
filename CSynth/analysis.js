@@ -4,7 +4,7 @@ var CSynth, msgfixlog, springs, spearson, G, format, msgfix, sleep, log, numInst
 Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S, array2Table, getstats,$;
 
 var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain, setAllLots, msgfixerrorlog,
-    clamp, U, addscript, makeDraggable;
+    clamp, U, addscript, makeDraggable, W;
 
 // get positions for key or ready made positions
 CSynth.pos = function(inputDef) {
@@ -229,23 +229,38 @@ function spearmanCorrelation(p1, p2){
     return r;
 }
 
-/** compute equivalent wish dist for gien contacts value with current settings */
-CSynth.contact2Dist = function(contact, opts = U) {
+/** get simple values for computing contact<=>dist relationship for current settings  */
+CSynth._getContactMultPow = function() {
     let {contactforcesc, pushapartforce, powBaseDist, pushapartpow, m_k, m_alpha, representativeContact, patchval} = U;
-    let contactMult, contactPow;
+    let contactMult, contactPow, path;
     // const buff = U.contactbuff.source.data.data;
     if (contactforcesc !== 0) {
         contactMult = contactforcesc / pushapartforce * (powBaseDist ** pushapartpow);
         contactPow = (1 / (pushapartpow - 1));
+        path = 'csy';
     } else {
         contactMult = m_k ** (1/-m_alpha) / representativeContact;
         contactPow = -m_alpha;
+        path = 'lor';
     }
-    if (contact < 0) contact = patchval;
+    return [contactMult, contactPow, path];
+}
+
+/** compute equivalent wish dist for given contacts value with current settings */
+CSynth.contact2Dist = CSynth.contact2dist = function(contact, opts = U) {
+    const [contactMult, contactPow] = CSynth._getContactMultPow();
+    if (contact < 0) contact = U.patchval;
+    // else if (contact < minv) contact = minv;
     const d = (contact * contactMult) ** contactPow;  // regular distance
     return d;
-
 }
+
+/** compute equivalent wish dist for given contacts value with current settings */
+CSynth.dist2contact = function(dist, opts = U) {
+    const [contactMult, contactPow] = CSynth._getContactMultPow();
+    return dist ** (1/contactPow) / contactMult;
+}
+
 
 
 /** compute complete array of target/wish dists for contacts,
@@ -278,16 +293,7 @@ CSynth.contactToDistArray = function(c, alpha = G.m_alpha, k = G.m_k ) {
     // use overridden distances, and cache them for efficiency
     const {contactforcesc, patchval, pushapartforce, powBaseDist, pushapartpow, wrongfade} = GO;
     const representativeContact = cc.representativeContact;
-    let contactMult, contactPow, path;
-    if (contactforcesc !== 0) {
-        contactMult = contactforcesc / pushapartforce * (powBaseDist ** pushapartpow);
-        contactPow = (1 / (pushapartpow - 1));
-        path = 'csynth';
-    } else {
-        contactMult = k ** (1/-alpha) / representativeContact;
-        contactPow = -alpha;
-        path = 'lor';
-    }
+    const [contactMult, contactPow, path] = CSynth._getContactMultPow();
     if (n < 4) log('contactToDistArray', path, contactMult, contactPow);  // debug
 
     if (n === basen) {      // original quick version
@@ -1510,6 +1516,10 @@ CSynth.plotev = function plotev(e) {
     const dataX = chart.scales.x.getValueForPixel(x);
     // const dataY = chart.scales.y.getValueForPixel(y);
     CSynth.setMarker(15, CSynth.bp4particle(dataX), 'chart');
+
+    // TODO 8 is to allow for standard margin+padding when dragable
+    W.plothr.style.left = (x+8) + 'px'; // e.clientX + 'px'
+    // log({x, dataX, off: offx(e)})
 }
 
 // xx=(data,label) => ({data:CSynth.makess(data).map(x=>Math.log10(x)), label}); CSynth.plot([xx(ccc1.unitData, 'raw'), xx(ccc1.textureData, 'csynorm'),xx(ccc0.unitData, 'xnorm'), xx(ccc0.textureData, 'xnorm,csynorm')] )
@@ -1526,6 +1536,16 @@ CSynth.plot = function(rlabel) {
     let div = CSynth.plotdiv, canvas = CSynth.plotcanvas;
     if (!div) {
         div = CSynth.plotdiv = document.createElement('div');
+        div.innerHTML = `<hr id="plothr" style="
+            width:1px;
+            height:100%;
+            left: 80%;
+            display: block;
+            position: absolute;
+            background: white;
+            opacity: 0.3;
+            border: none;
+        ">`
         div.style = 'position:fixed; top:0px; right:0px; z-index:9999; width:600px; height: 400px; background: rgba(0,0,0,0.9); border: 1px green solid'
         document.body.appendChild(div);
         canvas = CSynth.plotcanvas = document.createElement('canvas');
@@ -1564,7 +1584,9 @@ CSynth.plot = function(rlabel) {
             onClick: CSynth.plotev,
             onMousemove: CSynth.plotev,
             onMouseMove: CSynth.plotev,
-            animation: false
+            animation: false,
+            //scales: {yAxes: [{ticks: {max: 440.2}, {ticks: {max: 0.0002}]}}
+            scales: {y: {max: 0.002, min:-0.002 }}
         }
         // labels: r,
     }
@@ -1606,10 +1628,12 @@ CSynth.medial = function({c = U.contactbuff.source.data.data, h = 250, hstep = 5
         }
 
         const rl = r[0], rh = r.slice(-1)[0];
+        const negi = neg ? -1 : 1;
+        const negs = neg ? 'start' : 'end'
         for (let i = deadends+w; i < n - deadends-w; i++) {
-            dr[i] = (r[i+w]??rh) - (r[i-w]??rl)
+            dr[i] = ((r[i+w]??rh) - (r[i-w]??rl)) * negi
         }
-        res.push({data: r, label: 'medial'}, {data: dr, label: 'dmedial'});
+        res.push({data: r, label: 'medial ' + negs}, {data: dr, label: 'dmedial ' + negs});
     }  // neg
     console.timeEnd('medial');
     if (plot) CSynth.plot(res)

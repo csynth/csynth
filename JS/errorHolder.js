@@ -42,6 +42,13 @@ function exeIfPoss(f) {
 /** quiet version of eval, less likely to break on error if this file is bloackboxed */
 function evalq(x) { return eval(x); }
 
+// var realeval = eval;
+// var neval = 0;
+// function eval(x) {
+//     neval++;
+//     return Function('return ' + x);
+// }
+
 //XXXXX introducing require in browser environment, so we'd better check environment some other way...
 // https://www.npmjs.com/package/detect-node
 // rather than install this as a package, I'm going to implement something similar.

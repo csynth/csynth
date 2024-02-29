@@ -1448,7 +1448,9 @@ async function genmini({all = true, exclude = excludeUniforms, shorten=4} = {}) 
     // For some reason showUniformsUsed() doesn't find lennum, but that is easily fixed.
 
     // generate the uniforms file
-    const r = ['/* eslint-disable no-sparse-arrays */', 'var R, v2, v3, v4, m3, m4, CAM, W=window', `var sourcename='${inps.savename || G.name}'`];
+    const r = ['/* eslint-disable no-sparse-arrays */', 
+               'import {R, V, v2, v3, v4, m3, m4} from "./miniorganics.js"',
+               `var sourcename='${inps.savename || G.name}'`];
     for (let gn in uu) {
         const gd = genedefs[gn];
         if (gd && gd.free && !gn.endsWith('_num') && !gn.endsWith('_ribs'))
@@ -1457,15 +1459,17 @@ async function genmini({all = true, exclude = excludeUniforms, shorten=4} = {}) 
             r.push(`R.${gn}=[${f(uu[gn])}]`)
     }
     for (let p in feed.fp) {
-        r.push(`W.${p}=${feed.fp[p]}`)
+        r.push(`V.${p}=${feed.fp[p]}`)
     }
-    r.push(`W.feed=${feed.dofeed}`)
+    r.push(`V.feed=${feed.dofeed}`)
     //r.push('CAM.proj=[' + camera.projectionMatrix.elements + ']')
     //r.push('CAM.pos=[' + camera.position + ']')
-    r.push("CAM=" + JSON.stringify(camera));
+    r.push("var CAM=" + JSON.stringify(camera));
+    r.push("export {CAM}")
 
-    const miniuniforms = r.join('\n');
+    let miniuniforms = r.join('\n');
     writetextremote('minicode\\miniuniforms.js', miniuniforms);
+    miniuniforms = miniuniforms.replace('import', '// import');
 
 
     collectmini({exclude, shorten, uu, miniuniforms});
@@ -1497,7 +1501,7 @@ async function collectmini(opts = {}) {
 
     let sizes = {}, totsize = 0;
 
-    const miniuniforms = readtext('minicode\\miniuniforms.js');
+    const miniuniforms = opts.miniuniforms; // modified a little readtext('minicode\\miniuniforms.js'); 
     totsize+= sizes.miniuniforms = miniuniforms.length;
 
     // use the optimized versions to find uniforms actually used
@@ -1547,14 +1551,15 @@ async function collectmini(opts = {}) {
     }
 
     // prepare total text
-    const code = readtext('minicode\\' + maincode + '.js');
+    let code = readtext('minicode\\' + maincode + '.js');
+    code = code.replace('import {CAM}', '// import {CAM}')
     totsize+= sizes.code = code.length;
     let html = readtext('minicode\\miniorganic.html');
     totsize+= sizes.html = html.length;
 
-    html = html.replace('<script src="miniorganics.js"></script>', '');
-    html = html.replace('<script src="miniuniforms.js"></script>',
-`     <script type="text/javascript">
+    // html = html.replace('<script src="miniorganics.js"></script>', '');
+    html = html.replace('<script src="miniuniforms.js" type="module"></script>',
+`     <script type="module">
      ${code}
      ${await glsl('opos')}
      ${await glsl('edge2')}

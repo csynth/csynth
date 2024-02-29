@@ -174,13 +174,18 @@ var Springs = function(id = '') {
                 }
             });
         }
+        return gui;
 
         //guiFromGene(gui, "nonBackboneLen");
         //guiFromGene(gui, "backbonetorsionspringforce");
         //gui.add(parms, "gravity", -0.001, 0.001);
+    }
 
+    me.createGUIVRMore = function() {
+        if (!CSynth) return;  // CSynth specific for now
 
-        const _sgui = GUINewsub("More ...");
+        // const _sgui = GUINewsub("More ..."); //  undefined, gui); // when it was sub Simulation settings,
+        const gui = dat.GUIVR.createX("More ...");
         // gui.add(W, 'threshold', 0, 150).listen().name("Spring threshold").onChange(setthresh);
 
         const bb = [3,
@@ -191,37 +196,37 @@ var Springs = function(id = '') {
             { func: ()=>springs.step(100), tip: '100 spring steps', text: 'step 100' },
             { func: ()=>springs.step(1000), tip: '1000 spring steps', text: 'step 1000' },
         ];
-        _sgui.addImageButtonPanel.apply(_sgui, bb).setRowHeight(0.100);
+        gui.addImageButtonPanel.apply(gui, bb).setRowHeight(0.100);
 
 
-        CSynth.addSpringSourceGUI(_sgui);
-        guiFromGene('perturbScale');
-        guiFromGene("stepsPerStep");
-        guiFromGene("damp");
-        guiFromGene("powBaseDist");
-        guiFromGene("minActive");
-        guiFromGene("maxActive");
-        guiFromGene("maxBackboneDist");
-        guiFromGene("noiseforce");
-        guiFromGene("backboneScale");
-        guiFromGene("backboneStrength");
-        guiFromGene("backboneContactStrength");
+        CSynth.addSpringSourceGUI(gui);
+        guiFromGene(gui, 'perturbScale');
+        guiFromGene(gui, "stepsPerStep");
+        guiFromGene(gui, "damp");
+        guiFromGene(gui, "powBaseDist");
+        guiFromGene(gui, "minActive");
+        guiFromGene(gui, "maxActive");
+        guiFromGene(gui, "maxBackboneDist");
+        guiFromGene(gui, "noiseforce");
+        guiFromGene(gui, "backboneScale");
+        guiFromGene(gui, "backboneStrength");
+        guiFromGene(gui, "backboneContactStrength");
 
-        GUISubadd(DNASprings,  'stretch').listen();
-        guiFromGene("springspreaddist");
-        guiFromGene("fractforce");
-        guiFromGene("fractpow");
-        guiFromGene("pullspringforce");
+        gui.add(DNASprings,  'stretch').listen();
+        guiFromGene(gui, "springspreaddist");
+        guiFromGene(gui, "fractforce");
+        guiFromGene(gui, "fractpow");
+        guiFromGene(gui, "pullspringforce");
 
         const yy = { get boosting() {return !!CSynth.boostsprings.mid}, set boosting(v) { CSynth.boostsprings(v);} }
-        GUISubadd(yy, 'boosting').name('boost springs').listen()
+        gui.add(yy, 'boosting').name('boost springs').listen()
             .setToolTip('boost springs by moving mouse over matrix\nset strengh and boostrad  below to tailor');
 
         const zz = { get strength() {return G.boostfac < 1 ? 0 : Math.log10(G.boostfac)}, set strength(v) { G.boostfac = v <= 0 ? 0 : Math.pow(v, 10);} }
-        GUISubadd(zz, 'strength',0, 10).step(0.1).name('strength').listen();
-        guiFromGene('boostrad');
-        guiFromGene('patchwidth');
-        guiFromGene('patchval');
+        gui.add(zz, 'strength',0, 10).step(0.1).name('strength').listen();
+        guiFromGene(gui, 'boostrad');
+        guiFromGene(gui, 'patchwidth');
+        guiFromGene(gui, 'patchval');
 
         return gui;
     }
@@ -436,7 +441,7 @@ var Springs = function(id = '') {
 
             // render posNewvals into new slice of posWorkhist
             saveworkhist();
-
+            Maestro.trigger('postspringsubstep' + me.id);  // this allows normal register/deregister
         }
         opmode = sopmode;
 
@@ -963,7 +968,7 @@ var Springs = function(id = '') {
     }
 
     /** remove all springs from one or more particles: does NOT remove opposite pairs */
-    me.removeAllSprings = function sremovespring(ai, n=1) {
+    me.removeAllSprings = function sremoveallsprings(ai, n=1) {
         topologyarr.fill(NOSPRING, ai * PARTSTEP, (ai+n) * PARTSTEP);
     }
 

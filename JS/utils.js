@@ -3563,6 +3563,7 @@ function showrts(a, b, c, d, e) {
     function sqf(v) {
         return format(Math.sqrt(v) * 255, 0);
     }
+
     function readrt(rt, showhhh = true) {
         var k = 3; var k2 = k * 2 + 1;
         var ll = Math.floor((copyXflip>0 ? oldlayerX : width - oldlayerX)/ inputs.renderRatioUi);
@@ -3624,6 +3625,27 @@ function showrts(a, b, c, d, e) {
 
 }
 var preg;
+
+function hornatcursor() {
+    var s = slots[mainvp];
+    var ww = s.width / inputs.renderRatioUi, hh = s.height / inputs.renderRatioUi;
+
+    var rtn = 'rtopos' + Math.ceil(ww) + 'x' + Math.ceil(hh);
+    var rt = rendertargets[rtn];
+
+    var ll = Math.floor((copyXflip>0 ? oldlayerX : width - oldlayerX)/ inputs.renderRatioUi);
+    var tt = Math.floor((height - oldlayerY) / inputs.renderRatioUi);
+    msgfix('lltt', ll, tt);
+    const rr = readWebGlFloatDirect(rt, { left: ll, top: tt, width: 1, height: 1 });
+
+    const hh3 = rr[3];
+    const hornid = Math.floor(hh3/MAX_HORNS_FOR_TYPE);
+    const hornnum = Math.floor(hh3 - hornid*MAX_HORNS_FOR_TYPE);
+    return hornnum;
+    //const ribnum2 = hh3 % 1 ? '~~~' : '.';
+    //return hhh = ' id' + hornid + '#' + hornnum + '~' + ribnum2;
+}
+
 
 /** make a regexp from a string or gui element */
 function makeRegexp(input) {
@@ -4717,7 +4739,7 @@ function makeDraggable(ptodrag, {usesize=true, button = 2, movecallback, upcallb
         // log('docmouseup')
         return dragmouseup(evt)
     }
-    
+
     function dragmousemove(evt) {
         // log('dragmousemove', evt.buttons, !mousedownbuttons, offx(evt))
         if (evt.buttons !== button || evt.buttons !== mousedownbuttons) {
@@ -4726,7 +4748,7 @@ function makeDraggable(ptodrag, {usesize=true, button = 2, movecallback, upcallb
             xst = offx(evt) < sizemargin ? 'w' : offx(evt) > todrag.clientWidth-sizemargin ? 'e' : '';
             yst = offy(evt) < sizemargin ? 'n' : offy(evt) > todrag.clientHeight-sizemargin ? 's' : '';
             st = yst + xst;
-            s.cursor = st === '' ? 'crosshair' : st + '-resize';
+            s.cursor = st === '' ? '' : st + '-resize';   // crosshair sometimes disappears
             // log('movedrag x', offx(evt), st, s.cursor);
 
             const sw = '1px', bw = (sizemargin-1) + 'px';
@@ -5808,8 +5830,8 @@ function callibrateGPU({targtime = 35, repeat = 4} = {}) {
     if (slow > 0.25) {
         inps.renderRatioUi = 1;
         inps.renderRatioUiProj =  inps.renderRatioUiMain = 0;
-        resoverride.lennum = Math.max(U.lennum * 0.5, 25);
-        resoverride.radnum = Math.max(U.radnum * 0.5, 4);
+        resoverride.lennum = Math.max(Math.ceil(U.lennum * 0.5), 25);
+        resoverride.radnum = Math.max(Math.ceil(U.radnum * 0.5), 4);
         resetDebugstats();
         msgfixlog('callibrateGPU', resoverride, 'rr', inps.renderRatioUi);
         if (repeat > 0) onframe(() => callibrateGPU({targtime, repeat: repeat-1}), 25);
@@ -6090,6 +6112,27 @@ function* generate3d(x, y, z,
 }
 }
 
+/** combined filter and map, prtv # operation */
+function filtmap(a, ff) {
+    const arr = Array.isArray(a) || a.buffer instanceof ArrayBuffer;
+    if (arr) {
+        const r = [];
+        for (const k in a) {
+            const v = a[+k];
+            const fv = ff(v,+k,a);
+            if (fv !== undefined) r.push(fv);
+        }
+        return r;   
+    } else {
+        const r = {};
+        for (const k in a) {
+            const v = a[k];
+            const fv = ff(v,k,a);
+            if (fv !== undefined) r[k] = fv;
+        }
+        return r;
+    }
+}
 // function testgilbert3d(width, height, depth)
 // const args = process.argv.slice(2);
 // const width = parseInt(args[0]);

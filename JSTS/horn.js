@@ -3329,6 +3329,8 @@ function multiScene(genes, num, key, dummy, hset, hornid) {
         dlennum = HW.resoverride.lennum;
     if (HW.resoverride.radnum)
         dradnum = HW.resoverride.radnum;
+    dlennum = Math.ceil(dlennum);
+    dradnum = Math.ceil(dradnum);
     //dradnum = 3;    // for lots of particle spring experiments
     //dlennum = 15000; // 4096*2;
     rb = "_" + dlennum + "_" + dradnum;

@@ -439,6 +439,7 @@ function shaderdef(k, b) { shaderdefs[k] = b; }
 var precision = 'highp';
 /** set the main material : todo neaten up issues when using file: and no shaders yet available */
 function getMaterial(matvariant, genes, quickout) {
+    var _a, _b;
     let opname = oplist[opmode];
     // if (matvariant.tranrule) {  // matvariant is (probably?) genes
     //     matvariant = genes.tranrule;
@@ -694,16 +695,22 @@ function getMaterial(matvariant, genes, quickout) {
                 ffuse = 'standard';
             msgfixlog('usesavedglsl', `${usesavedglsl} opname=${opname} kname=${kname} ffuse=${ffuse} vvuse=${vvuse}`);
         }
+        if (WA.specialShader) { // override complete shader, or just vertex or fragment
+            const [vs, fs] = WA.specialShader(opname);
+            vertexShader = vs !== null && vs !== void 0 ? vs : vertexShader;
+            fragmentShader = fs !== null && fs !== void 0 ? fs : fragmentShader;
+        }
         try {
-            // define the material using the matvariant
+            // define the material using the matvariant, patch (once only) if requested
             mat = new THREE.RawShaderMaterial({
                 uniforms: uniforms,
-                vertexShader: vertexShader,
-                fragmentShader: fragmentShader,
+                vertexShader: (_a = WA.patchvertex) !== null && _a !== void 0 ? _a : vertexShader,
+                fragmentShader: (_b = WA.patchfragment) !== null && _b !== void 0 ? _b : fragmentShader,
                 side: THREE.FrontSide
             });
             if (glver)
                 mat.glslVersion = glver;
+            WA.patchvertex = WA.patchfragment = undefined;
             mat.genes = clone(matcodes.genenames);
             mat.opmode = oplist[opmode];
             // renderer.initMaterial(mat,[]);  // might help debug ???

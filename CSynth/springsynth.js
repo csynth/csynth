@@ -2082,6 +2082,7 @@ R key, or K,R keys`, text: 'Random'
     modes.add(CSynth, 'patch2').setToolTip('used patched contacts after normalize');
     modes.add(CSynth, 'normalizeAvoid', -1, 4).step(1).setToolTip('avoid near diagonal elements in normalize, -1, no avoid, 0 avoid self, 1 avoid neighbours, etc')
     modes.add(CSynth, 'normalizeLoops', 1, 8).step(1).setToolTip('number of normalize loops to use')
+    modes.addButton(()=>CSynth.medial({w:15, h:500, perc: 0.9}), 'plot medial')
     // ??? todo consider how nohorn should get going
     if (searchValues.nohorn)
         myRequestAnimationFrame();
@@ -2089,6 +2090,7 @@ R key, or K,R keys`, text: 'Random'
     gui.addFolder(modes);
     if (!searchValues.nohorn) {
         gui.addFolder(springs.createGUIVR());
+        gui.addFolder(springs.createGUIVRMore());
 
         VH.cartoon = new CSynth.Ribbon();
         gui.addFolder(VH.cartoon.createGUIVR());

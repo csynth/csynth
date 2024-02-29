@@ -804,17 +804,23 @@ function getMaterial(matvariant: string, genes:Genes, quickout?: boolean) {
             msgfixlog('usesavedglsl', `${usesavedglsl} opname=${opname} kname=${kname} ffuse=${ffuse} vvuse=${vvuse}`);
         }
 
+        if (WA.specialShader) { // override complete shader, or just vertex or fragment
+            const [vs, fs] = WA.specialShader(opname);
+            vertexShader = vs ?? vertexShader;
+            fragmentShader = fs ?? fragmentShader;
+        }
+
 
         try {
-            // define the material using the matvariant
+            // define the material using the matvariant, patch (once only) if requested
             mat = new THREE.RawShaderMaterial({
                 uniforms: uniforms as any,
-                vertexShader: vertexShader,
-                fragmentShader: fragmentShader,
+                vertexShader: WA.patchvertex ?? vertexShader,
+                fragmentShader: WA.patchfragment ?? fragmentShader,
                 side: THREE.FrontSide
             });
             if (glver) mat.glslVersion = glver;
-
+            WA.patchvertex = WA.patchfragment = undefined;
 
             mat.genes = clone(matcodes.genenames);
             mat.opmode = oplist[opmode];

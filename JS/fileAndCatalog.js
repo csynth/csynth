@@ -21,7 +21,7 @@ var W, genedefs, mainvp, savedef, keysdown, inputs, fileOpenReadWS, fileReadWS, 
         loadStartTime, genbar, uriclean, S, isNode, mkdir, readdir, readtext, runcommandphp,
         writetextremote, fileExists, remotesave, fileStat, currentLoadingData, target, defaultObj, filterDOMEv, checkoao, msgflash, canvdroppaste,
         searchValues, inps, COL, cMap, setBackgroundColor, addscript, GX, islocalhost, readbinaryasync, HW,
-        msgboxVisible, isCSynth, msgfixerrorlog, canvas;
+        msgboxVisible, isCSynth, msgfixerrorlog, canvas, patchvertex, patchfragment, material
 
 var _binfiles = ['.tif', '.bintri', '.zip', '.map'];
 var FrameSaver = {};  // psuedo-class
@@ -320,6 +320,13 @@ async function _docdroppaste(evt, dt) {
                 done = true;
                 if (data.startsWith('http:') || data.startsWith('https:')) {  // drag/drop of url
                     CSynth.handlefileset( {eventParms: [{ canonpath: data, name: data}] })
+                } else if (data.contains('//^^^^^')) {
+                    if (data.contains('//^^^^^ vertpre')) patchvertex = data;
+                    else if (data.contains('//^^^^^ fragpre')) patchfragment = data;
+                    else throwe('unexpected //^^^ without vertpre/fragpre')
+                    const opmode = data.match(/ubershader variant for (.*)/)[1]
+                    material[opmode] = {}
+                    log ('generate patched data for', opmode, '##########################################')
                 } else {
                     msgfix('evaluate', data);
                     var r = await eval(data);
@@ -371,7 +378,7 @@ function docdragover(evt) {
 
 /** document paste, works for strings but not files? */
 function docpaste(evt) {
-    const data = evt.clipboardData.getData('Text');
+    // const data = evt.clipboardData.getData('Text');
     return _docdroppaste(evt, evt.clipboardData);
 }
 W.doEvalOnPaste = true;
@@ -690,7 +697,7 @@ function refreshGal(op) {
         if (entry.name === "")
             entry.name = name;
         if (entry.name !== name) {
-            var debug=0;
+            var debugxx=0;
         }
         if (isNaN(Date.parse(entry.date)))
             entry.date = new Date('2013-1-1');

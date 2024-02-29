@@ -18,8 +18,10 @@ CSynth.Matrix = function() {
         matC01r: 1, matC01g: 0, matC01b: 0,
         matC10r: 0, matC10g: 0, matC10b: 1,
         matC11r: 1, matC11g: 1, matC11b: 1,
-        matCx0r: 0, matCx0g: 0.05, matCx0b: 0,
-        matCx1r: 0.05, matCx1g: 0, matCx1b: 0
+        matCx0r: 0, matCx0g: 0, matCx0b: 0,
+        matCx1r: 0, matCx1g: 0, matCx1b: 0
+        // matCx0r: 0, matCx0g: 0.05, matCx0b: 0,
+        // matCx1r: 0.05, matCx1g: 0, matCx1b: 0
     };
 
     // see also addfragment
@@ -197,7 +199,7 @@ CSynth.Matrix = function() {
     var colourList, clLen;
     /** */
     function setColourList() {
-        colourList = ['current distances', 'current dynamics model'];
+        colourList = ['current distances', 'current dynamics model', 'average', 'smootha', 'smoothb', 'observed contacts'];
         CSynth.current.contacts.forEach(b => colourList.push('C_' + b.shortname));
         CSynth.current.xyzs.forEach(b => colourList.push('X_' + b.shortname));
         colourList.push('0', '1', 'x', 'y');
@@ -275,6 +277,7 @@ CSynth.Matrix = function() {
 
         // guiFromGene(f, 'matDistNear').step(0.1);
         guiFromGene(f, 'matDistFar').step(0.1);
+        guiFromGene(f, 'matDistBalance').step(0.01);
         guiFromGene(f, 'matrixTintStrength').step(0.1);
 
         guiFromGene(f, 'matrixbedtint');
@@ -358,6 +361,7 @@ CSynth.Matrix = function() {
             addgeneperm('matMaxD', 0, 0, 50, 0.01, 0.001, 'matrix "cold" threshold for height', 'matrix', 0);
             addgeneperm('matDistFar', 3.0, 1, 20, 0.01, 0.001, 'matrix far threshold for colour', 'matrix', 0);
             addgeneperm('matDistNear', 1.0, 0, 2, 0.01, 0.001, 'matrix near threshold for colour', 'matrix', 0);
+            addgeneperm('matDistBalance', 1, 0, 2, 0.01, 0.001, 'matrix balance between a and b, 0.5 equal', 'matrix', 0);
 
             // TODO; formalize and generalize gene/sampler patterns below
             // extra uniforms added in 'common.vfs'; not sure I'm happy about that.
@@ -413,19 +417,24 @@ CSynth.Matrix = function() {
     function setmatrix() {
         // dropdownlist --indexOf()--> matcoltype --setone()--> matintype --nval()--> 0..1
         //
-        // matcoltype, 0=>0, 1=>1, 2=>x, 3=>y, 4=>currentDist, 5=>currentSprings, 6... use contact/xyz
-        // matintype   0=>0, 1=>1, 2=>x, 3=>y, 4=>currentDist, 5=>dist from texture, 6=>contact from texture
+        // matcoltype, 0=>0, 1=>1, 2=>x, 3=>y, 4=>currentDist, 5=>currentSprings, 6,7,8,9=>smooth, 10... use contact/xyz
+        // matintype   0=>0, 1=>1, 2=>x, 3=>y, 4=>currentDist, 5=>dist from texture, 6=>contact from texture, 7,8,9,10=>smooth
         function setone(n) {
             const type = G['matcoltype' + n];  // input type
-            let r;
-            if (type <= 4) {            // handles 0,1,x,y,currentDist
-                r = type;
+            let r = type; // unless proved otherwise
+            let rest = 10;
+            if (type <= 4) {            // handles 0,1,x,y,currentDist; and 7..10 for smoothed
+                // r = type;
+            } else if (6 <= type && type <= 9) {            // handles 0,1,x,y,currentDist; and 7..10 for smoothed
+                r = type + 1;
             } else {                    // some sort of texture needed
                 let i;                  // index into source
                 if (type === 5) {       // use texture for current spring source
                     i = CSynth.current.selectedSpringSource || 0;
+                } else if (type === 6) {       // use texture for current spring source
+                    i = 0;
                 } else {
-                    i = type - 6;
+                    i = type - rest;
                 }
                 const {contacts, xyzs} = CSynth.current;
                 if (i < contacts.length) {
@@ -521,136 +530,7 @@ CSynth.Matrix = function() {
         return tc;
     }
 
-    // experiment with highlight edges.
-    // increasing the matrix size with grey edges seems to have done the trick
-    // and works regardless of transformations, G.matX, etc.
-    // var matboxmat, matboxmesh, matboxgeo;
-    // var matbox = function(extra = 0.005) {
-    //     if (matboxmesh)
-    //         V.camscene.remove(matboxmesh);
 
-    //     matboxmesh = new THREE.Mesh();
-    //     V.camscene.add(matboxmesh);
-    //     matboxmat = matboxmesh.material = new THREE.MeshBasicMaterial();
-    //     matboxmat.wireframe = false;
-    //     matboxmat.fog = false;
-    //     // matboxmat.side = 2;
-    //     matboxgeo = matboxmesh.geometry = new THREE. Geometry();
-    //     var vv = matboxgeo.vert ices;
-    //     const m = -0.5 - extra;
-    //     const p = 0.5 + 2*extra;
-
-    //     vv.push(new THREE.Vector3(m,0,p));
-    //     vv.push(new THREE.Vector3(p,0,m));
-    //     vv.push(new THREE.Vector3(m,0,m));
-    //     matboxgeo.faces.push(new THREE.Face3(0, 1, 2, new THREE.Vector3(0,1,0)));
-    //     //matboxgeo = matboxmesh.geometry = new THREE.BoxGeometry(1,1e-5,1);
-
-    //     matboxmesh.material.color.setRGB(0.25, 0.25,0.25)
-    //     matboxmesh.updateMatrix(); matboxmesh.updateMatrixWorld()
-    //     window.assert = window.nop
-    // }
-    // matbox();
-    // function matboxpos() {
-    //     matboxmesh.quaternion.copy(CSynth.matrixScene.quaternion)
-    //     matboxmesh.position.copy(CSynth.matrixScene.position)
-    //     matboxmesh.position.y -= 0.1
-    //     var k=CSynth.matrixScene.scale.x; matboxmesh.scale.set(k,k,k);
-    // }
-
-
-
-
-    // /****
-    // function createPickDebugGUI() {
-    //     const pickrt = window.uniforms.pickrt.value;
-    //     var g = V.PickDebugGui = dat.GUIVR.createX("pick debug");
-    //     g.name = 'createPickDebugGUI';
-    //     const fn = (x, y)=>{
-    //         //'left' should be normalised rather than in pixel coordinates.
-    //         const i = Math.floor(x*pickrt.width)
-    //         const d = readWebGlFloat(pickrt, { left: x, width: 1 });
-    //         log(`pickrt value(${i}): ${d}`);
-    //     };
-    //     g.addImageButton(fn, pickrt, true, 0.3);
-
-    //     const vertd = `
-    //     varyi ng vec2 vUv;
-
-    //     void main() {
-    //         vUv = uv;
-    //         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    //     }`;
-    //     const fragd = `
-    //     ${CSynth.CommonShaderCode()}
-    //     varyi ng vec2 vUv;
-
-    //     //copied from common.vfs
-    //     uniform float user Picks[${PICKUSER}];
-    //     float getPickM(int i) {  // for createPickDebugGUI
-    //         #define ppick(k) if (i == 16+k) return user Picks[k];
-    //         ppick( 0); ppick( 1); ppick( 2); ppick( 3);
-    //         ppick( 4); ppick( 5); ppick( 6); ppick( 7);
-    //         ppick( 8); ppick( 9); ppick(10); ppick(11);
-    //         ppick(12); ppick(13); ppick(14); ppick(15);
-    //         float fslot = float(i) / 4.;
-    //         float slot = floor(fslot);
-    //         vec4 v = texture(pickrt, vec2(slot / 4. + 0.125, 0.5));
-    //         int e = int(floor((fslot - slot) * 4.));
-    //         return e == 0 ? v.x : e == 1 ? v.y : e == 2 ? v.z : e == 3 ? v.w : 999.;
-    //     }
-
-    //     float newPick(vec2 uv) {  //for createPickDebugGUI
-    //         // first, let's work out what 'e' and 'slot' we want, then turn it back into int
-    //         // and look up with getPickM.
-    //         int e = int(floor(uv.y * 4.));
-    //         int slot = int(floor(uv.x * 4.));
-    //         int i = e + 4*slot;
-    //         return getPickM(i);    //for createPickDebugGUI
-    //     }
-
-    //     void main() {
-    //         // float p = getPick(int(vUv.x * 16.));
-    //         // if (vUv.y < 0.5) {
-    //         //     float y = 2. * vUv.y;
-    //         //     vec4 v = texture(pickrt, vec2(floor(vUv.x * 4.), 0.5));
-    //         //     int e = int(floor(4. * y));
-    //         //     p = e == 0 ? v.x : e == 1 ? v.y : e == 2 ? v.z : e == 3 ? v.w : 999.;
-    //         //     glFragColor = vec4(p, p, p, 1.);
-    //         // } else glFragColor = vec4(p, p, p, 1.);
-    //         float p = newPick(vUv); //for createPickDebugGUI
-    //         glFragColor = vec4(p, p, p, 1);
-    //     }`;
-
-    //     let shader = new THREE.RawShaderMaterial({
-    //         vertexShader: vertd, fragmentShader: fragd, uniforms: { pickrt: window.uniforms.pickrt }
-    //     });
-
-    //     g.addImageButton(fn, shader, true, 0.3);
-
-    //     const testData = new Float32Array(16);
-    //     // I would expect this to make top row have 4 * 4 ascending shades of gray.
-    //     for (var i=0; i<16; i++) {
-    //         testData[i] = i/16;//(i%4)/4;
-    //     }
-    //     const testTex = newTHREE_DataTextureNamed('?', testData, 4, 1, THREE.RGBAFormat,
-    //         THREE.FloatType, undefined,
-    //         THREE.ClampToEdgeWrapping, THREE.ClampToEdgeWrapping,
-    //         THREE.NearestFilter, THREE.NearestFilter
-    //     );
-    //     testTex.needsUpdate = true;
-    //     shader = new THREE.RawShaderMaterial({
-    //         vertexShader: vertd, fragmentShader: fragd, uniforms: { pickrt: { value: testTex } }
-    //     });
-    //     g.addImageButton(fn, testTex, true, 0.3);
-    //     g.addImageButton(fn, shader, true, 0.3);
-
-
-
-    //     V.rawscene.add(g);
-    //     VH.positionGUI(0, 0, 1000, g);
-    // }
-    // /************  end createPickDebugGUI */
 }  // end CSynth.Matrix
 
 CSynth.colchoice = /*glsl*/`
@@ -666,12 +546,17 @@ CSynth.colchoice = /*glsl*/`
             return pos.y;
         } else if (matintype < 4.5) {  // 4: use currentDist
             rd = currentDist / nonBackboneLen;  // relative dist
-        } else if (matintype < 5.5) {    // 5: distance, from texture
+        } else if (matintype < 5.5) {    // 5: distance, from xyz dist texture
             float dist = texture(tex, pos).x;
             rd = dist / nonBackboneLen;  // relative dist
-        } else if (matintype < 6.5) {    // 6: contact from texture, via wish dist
-            float contact = texture(tex, pos).x;
-            if (contact < 0.) return -999.;
+        } else if (matintype < 6.5 || matintype == 10.) {    // 6: contact from texture, via wish dist
+            float contact;
+            if (matintype == 10.) {
+                contact = texture(lastSpringSmooth, pos).w;
+            } else {
+                contact = texture(tex, pos).x;  // 'standard' contact
+                if (contact < 0.) return -999.;
+            }
             // see CSynth.alignModels in csynth.js for some workings to deduce formula below
             if (contactforce != 0.) {
                 // OLD dist = pow(contact * contactforcesc / pushapartforce * pow(powBaseDist, pushapartpow), 1. / (pushapartpow - 1.));  // regular distance
@@ -680,11 +565,16 @@ CSynth.colchoice = /*glsl*/`
             } else {
                 rd = m_k * pow(contact / repcon, -m_alpha);  // LorDG distance
             }
+        } else if (matintype < 7.5) { rd = texture(lastSpringSmooth, pos).x / nonBackboneLen;
+        } else if (matintype < 8.5) { rd = texture(lastSpringSmooth, pos).y / nonBackboneLen;
+        } else if (matintype < 9.5) { rd = texture(lastSpringSmooth, pos).z / nonBackboneLen;
+        // } else if (matintype < 10.5) { rd = texture(lastSpringSmooth, pos).w;
         } else {                    // 7: contact from texture, old forumula
             return -9.;
         }
 
         // fall through for rd = dist(like) value, shape them before return. All use the same shaping code for consistency
+        // nb with the log version, low and hence matDistNear are not used
         return 1. - log(rd) / log(high);
         // return 1. - smoothstep(low, high, rd);  // so rd is in range low .. high, result in range 1 .. 0
     }
@@ -705,8 +595,9 @@ function heightMatrixMaterial() {
         highp float radius=1., gscale=1., nstar=4., stardepth=0., ribs=1., ribdepth=0.;  // temp, to move to better place
         ${uniformsForTag('matrix')}
         uniform float minActive, maxActive, maxBackboneDist, nonBackboneLen,
-        // representativeContactA, representativeContactB,
-        m_k, m_alpha, m_force, pushapartforce, pushapartpow, contactforce, powBaseDist;
+            // representativeContactA, representativeContactB,
+            m_k, m_alpha, m_force, pushapartforce, pushapartpow, contactforce, powBaseDist;
+        uniform sampler2D lastSpringSmooth;
 
         ${CSynth.colchoice}
         // to shape the matrix to exaggerate diagonal
@@ -798,14 +689,14 @@ function heightMatrixMaterial() {
 
         vec2 tp = (texpos.xy * numSegs + 0.5) / numInstances;
         float vv1;
-        float vv0 = nval(matintypeA, matrix2dtexA, tp, dist, matDistNear, matDistFar, representativeContactA);
+        float vv0 = nval(matintypeA, matrix2dtexA, tp, dist, matDistNear, matDistFar * matDistBalance, representativeContactA);
         float v1 = clamp( vv0, 0., 1.);
         if (matintypeA + matintypeB == 0.) {    // old code
         } else if (matcoltypeA == matcoltypeB) {
             c.col.rgb = mix(col1, col2, v1);
             vv1 = vv0;
         } else {
-            vv1 = nval(matintypeB, matrix2dtexB, tp, dist, matDistNear, matDistFar, representativeContactB);
+            vv1 = nval(matintypeB, matrix2dtexB, tp, dist, matDistNear, matDistFar * (2.-matDistBalance), representativeContactB);
             float v2 = clamp(vv1, 0., 1.);
             /**
             c.col.rgb = bimix(

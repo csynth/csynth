@@ -2288,11 +2288,11 @@ CSynth.getBPFromNormalisedIndex = i => {
     }
 }
 
-CSynth.particle4bp = bp => (bp - CSynth.current.minid) / CSynth.current.res;
-CSynth.bp4particle = part => part * CSynth.current.res + CSynth.current.minid;
+CSynth.bp2particle = CSynth.particle4bp = bp => (bp - CSynth.current.minid) / CSynth.current.res;
+CSynth.particle2bp = CSynth.bp4particle = part => part * CSynth.current.res + CSynth.current.minid;
 
-CSynth.ni4bp = CSynth.getNormalisedIndex;
-CSynth.bp4ni = CSynth.getBPFromNormalisedIndex;
+CSynth.bp2ni = CSynth.ni4bp = CSynth.getNormalisedIndex;
+CSynth.ni2bp = CSynth.bp4ni = CSynth.getBPFromNormalisedIndex;
 
 /// below not used, and may be wrong (??? the -1)
 // CSynth.ni4particle = part => part / (CSynth.current.numInstances - 1);
@@ -5829,8 +5829,8 @@ CSynth.xtooltips = {
     //"SphereParticles/Colour source:": "",
     "Simulation settings/dynamics running": "Toggle dynamics to run or not.",
     "Simulation settings/normalize scaling": "CSynth attempts to normalize the scaling for different models.\nChoose measure to use for normalization.",
-    "Simulation settings/More .../stretch": "Select for 'skewer' effect moving ends of ribbon outwards.",
-    "Simulation settings/More .../strength": "Strength of the spring boosting effect.",
+    "More .../stretch": "Select for 'skewer' effect moving ends of ribbon outwards.",
+    "More .../strength": "Strength of the spring boosting effect.",
     "Ribbon/visible": "Toggle ribbon visibility.",
     "Ribbon/Colour source:": "Choose source for ribbon colouring.",
     "Ribbon/diameter": "Set diameter for ribbon.",

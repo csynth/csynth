@@ -20,8 +20,8 @@ function _rtData(rtin, options) {
     const format = formats[channels];
     
     if (!format) return serious('readWebGlFloatDirect bad number of channels: ' + channels);
-    const l = FIRSTV(v.left, (imw - w)/2);  // centre if not explicit
-    const t = FIRSTV(v.top, (imh - h)/2);  // centre if not explicit
+    const l = FIRSTV(v.l, v.left, (imw - w)/2);  // centre if not explicit
+    const t = FIRSTV(v.t, v.top, (imh - h)/2);  // centre if not explicit
     const size = w * h * channels;
     const bufferType = v.bufferType || Float32Array;
 

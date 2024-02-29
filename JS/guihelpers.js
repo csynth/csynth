@@ -6,7 +6,7 @@ GUIwallgui, G, cMap, RGXX, useKinect, RGG, setInput, WA, runkeys, updateGuiGenes
 mainvp, NODO, lastDispobj, saveimage1high, onframe, evalq, S, home, keysdown, imageOpts, ml, msgfix, DispobjC, clearObjzoom,
 lastdocx, lastdocy, oldlayerX, oldlayerY, newmain, framenum, springs, xxxgenes, camera, xxxrt, copyXflip, width, height, fitCanvasToWindow,
 usemask, ops, ctrl, alt, shift, right, left, middle, renderer, xxxdispobj, setExtraKey, getdesksave,
-fixfeed, unfixfeed, canvas, everyframe, fixfeedcoreprep, fixfeedcoreend, shadows, sethighres, Viewedit, guinewbw, feed, renderVR
+fixfeed, unfixfeed, canvas, everyframe, fixfeedcoreprep, fixfeedcoreend, shadows, sethighres, Viewedit, guinewbw, feed, renderVR, setAllLots
 
 var tad
 
@@ -108,11 +108,15 @@ function GUISubaddlog(...x) {
 }
 
 /** add new submenu and make  'active' (sgui) */
-function GUINewsub(sname, msg = sname) {
-    GUIEndsub();
+function GUINewsub(sname, msg = sname, parent) {
     sgui = dat.GUIVR.createX(sname);
-    V.gui.addFolder(sgui);
-    return sgui;    // not generally needed, set by side-effect above
+	if (parent) {
+		parent.addFolder(sgui);
+	} else {
+        //??? this kills sgui GUIEndsub();
+        V.gui.addFolder(sgui);
+	}
+	return sgui;    // not generally needed, set by side-effect above
 }
 
 /** end a sub but don't start a new one; in particular clean up  */
@@ -458,22 +462,10 @@ async function setviewedit() {
     new Viewedit({name: 'feed', top: "15px", left:"40%"})
     new Viewedit({name: 'edge', top: "15px", left:"60%"})
     new Viewedit({name: 'sys', top: "15px", left:"80%"})
-    G._tad_h_ribs = tad.TADS;
+    G._tad_h_ribs = tad.HEADS - 1;
     await S.frame(20);
     // sethighres(5e9);
-    G._tad_h_ribs = tad.TADS;
-}
-
-/** set up for potential Manchester exhibition */
-async function tadchinaSetup() {
-    const me = tadkin;
-    G.OPOSZ=1;
-    G.renderBackground=1;
-    shadows(0);
-    await setviewedit();
-    feed.showfeed = false;
-    runkeys('Insert,P');    // this sets the highlight
-    // me.setDisptype('position')  // this does the work but does not set the gui highlight
+    G._tad_h_ribs =  tad.HEADS - 1;
 }
 
 /** set up for potential China Creative Machine exhibition */

@@ -15,11 +15,11 @@ const linevisVertMaterial = /*glsl*/`${CSynth.vert300}
     //#define SHADER_NAME vertMaterial
     // 'position' attribute is not really a position, but three.js likes to see position to decide count
     // position contains two integer indices into line ends, x for 'this' end and y for other end.
-    // x is used to lookup position, and x,y to lookup in IF map for strenght/colour.
+    // x is used to lookup position, and x,y to lookup in IF map for strength/colour.
     // We may change later to use CSynth.colchoice and nval()
     // so that it can handle distances and other details (as in matrix).
 
-    uniform float ifmax, linevisalpha;
+    uniform float ifmax, linevisalpha, proportion;
     uniform sampler2D contactbuff;
     varying vec4 col;
 
@@ -55,7 +55,7 @@ const linevisFragMaterial = /*glsl*/`${CSynth.frag300}
 `
 
     var me = this;
-    var uniformsC = { ifmax: {value: 1}, linevisalpha: {value: 0.1} };
+    var uniformsC = { ifmax: {value: 1}, linevisalpha: {value: 0.01}, proportion: {value: 0.1} };
     //this doesn't do a deep clone, which I believe to be what we want.
     //Are there any uniforms that *should* remain related?
     copyFrom(uniformsC, CSynth.getCommonUniforms());
@@ -70,7 +70,7 @@ const linevisFragMaterial = /*glsl*/`${CSynth.frag300}
     });
 
     var res;
-    var geometry;
+    var geometry = new THREE.BufferGeometry();
     var lineSegs = new THREE.LineSegments(geometry, material);
     lineSegs.name = 'lineVis';
     lineSegs.visible = false;  // initially, for now
@@ -79,31 +79,34 @@ const linevisFragMaterial = /*glsl*/`${CSynth.frag300}
     V.rawscene.add(lineSegs);
     V.rawscene.lineSegs = lineSegs;
 
-    this.setres = function(n) {
-        geometry = new THREE.BufferGeometry();
+    this.setres = function(n = numInstances) {
         const nl = n * (n-1)/2;  // number of lines
         var pairs = new Uint16Array(4 * nl);
         let k = 0;
         for (let i = 0; i < n; i++) {
             for (let j = i+1; j < n; j++) {
+                if (Math.random() >= uniformsC.proportion.value) continue;
                 pairs[k++] = i;
                 pairs[k++] = j;
                 pairs[k++] = j;
                 pairs[k++] = i;
             }
         }
+        pairs = pairs.slice(0, k);
         const att = new THREE.BufferAttribute( pairs, 2, false );
         geometry.setAttribute( 'position', att ); // per mesh instance
-        geometry.instanceCount = nl;
+        geometry.instanceCount = k/4;
         if (lineSegs) lineSegs.geometry = geometry;
     }
 
-    this.setres(numInstances);
+    this.setres();
 
     this.createGUIVR = function() {
         var gui = dat.GUIVR.createX("linevis");
         gui.add(lineSegs, 'visible').listen().showInFolderHeader();
         gui.add(uniformsC.ifmax, 'value', 0, 50).name('ifmax').step(0.1).listen();
+        gui.add(uniformsC.linevisalpha, 'value', 0, 1).name('linevisalpha').step(0.001).listen();
+        gui.add(uniformsC.proportion, 'value', 0, 1).name('proportion').step(0.001).listen().onChange(() => this.setres());
 
         // CSynth.addColourGUI(gui, uniformsC);
         return gui;

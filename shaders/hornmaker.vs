@@ -932,7 +932,7 @@ vec4 tr_i(const vec4 p, const float ppx, const Parpos parpos, out float xrscale,
         ss *= rrrr;
         x = ss.x; y = ss.y; z = ss.z; w = ss.w;
     }
-#else
+#else  // NOT DEFINED REPEATTRAN
     //<< tranrule, automatically generated from user defined tranrule into glsl
     $$$trancode$$;
 #endif

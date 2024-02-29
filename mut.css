@@ -238,6 +238,8 @@ fieldset			for 'normal' collapse, including gene groups
 In each case, the top level may be marked by the tag .hidebelow;
 which is added/removed dynamically by Javascript on click of the first child.
 */
+.hidebelow {height: 0px !important;width:  0px !important;}
+
 .hidebelow:not(:hover) > :not(:first-child) {display : none;/* right:  0px; *//* overflow: visible; *//* width: 10em; */} /* hidden except for legend, until hover */
 
 

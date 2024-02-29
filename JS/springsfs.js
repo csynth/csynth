@@ -84,6 +84,9 @@ function getSpringUniforms(springModel = springs) {
     addTaggedUniform_withID('springs', 'gradtran', new THREE.Matrix4(), "m4", false);
     addTaggedUniform_withID('springs', 'pullspringmat', new THREE.Matrix4(), "m4", false);
 
+    addTaggedUniform_withID('springs', 'lastSpringSmooth', undefined, "t", false);
+
+
     // name, def, min, max, delta, step, help, tag, free, internal
     addGenePerm_withID("damp", 0.995, 0,1, 0.01, 0.001, "damping factor", "springs", "frozen");
     addGenePerm_withID("visc", 0, 0,1, 0.01, 0.001, "viscocity factor", "springs", "frozen");

@@ -70,8 +70,15 @@ GX.addToDict = function(xx) {
     GX.guilist.push(xx);
 }
 
+GX.addButton = function addButton(func, propertyName, tip = propertyName) {
+    return this.addImageButtonPanel(3,
+        {},
+        {text: propertyName,  func, tip}
+        ).setRowHeight(0.075);
+}
+
 /** add an item to a folder on the gui, mark up the item with its functional aspects, and keep track of added item */
-GX.datGUIVRadd = function(object, propertyName, min, max, step, guiname, tooltip, listen=true) {
+GX.datGUIVRadd = function datGUIVRadd(object, propertyName, min, max, step, guiname, tooltip, listen=true) {
     if (object.isFolder) return this.addFolder(object);
     if (object[propertyName] === undefined) return console.log('cannot find property', propertyName, 'on', object);
     if (min === undefined) min = 0;
@@ -277,6 +284,7 @@ dat.GUIVR.createX = function(guiName) {
     xx.name(xx.guiName);
     xx.oldadd = xx.add;
     xx.add = GX.datGUIVRadd;
+    xx.addButton = GX.addButton;
     xx.addlog = (obj, prop, ...args) => xx.add(makeLogval(obj, prop), prop, ...args);
     //xx.oldaddDropdown = xx.addDropdown;
     //xx.addDropdown = GX.datGUIVRaddDropdown;
