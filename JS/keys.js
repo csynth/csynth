@@ -23,7 +23,7 @@ flatten, format, lastTouchedDispobj, debugKey, setHolo, Holo, GX, makevr, tadpol
 OrganicSpeech, bigimprep, feedbacktests, mutateVisibleGenes, fxaa, shangbig, currentHset, xxxhset, HornSet, resolveFilter, clearSelected,
 xxxgenes, hoverDispobj, resetCamera, slots, mainvp, nop, isCSynth, fullscreen, transferView, mutateColour, mutateForm, BrightonStyle, GUIInit, GUIwallkeys,
 niractcmd, randmuts, genmini, setBackgroundColor, home, toggleFullscreen, enterFullscreen, exitFullscreen, showzoom, showzoomfix,
-saveLots, edge, genwinsom, filesFromDialog, WEBVR
+saveLots, edge, genwinsom, filesFromDialog, WEBVR, Viewedit, reloadDevtools
 
 var extrakeys = {}; // var for sharing
 var keysEmulateVR = false;     // set to true if we want to emulate some VT button experiences
@@ -640,6 +640,8 @@ function dockeydowninner(kkk, evt) {
         // Need to review to clean all gui folder when in VR, or if nocamscene gets used for something other than guis TODO
         case 'Insert,A': GX.savegui(); break;  // save gui
         case 'alt,F1': V.nocamscene.visible = !V.nocamscene.visible; break;  //# toggle gui menu (nocamscene)
+        case 'alt,F2': Viewedit.toggle(); break;  //# toggle viewedit menu
+        // ca se 'alt,F12': reloadDevtools(); break;  //# reload devtools (broken?)
         case 'alt,F3': mutate(); break;  //# mutate all free (old style)
         case 'F3': mutateXX(); break;  //# mutate, free as checked in boxes
         case 'Insert,F3': randmuts({k: 0.5, tag:'*'}); break;   //# random very widely (not mutate)

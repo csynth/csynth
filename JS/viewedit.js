@@ -35,7 +35,7 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left, right
     hh.style.right = right ?? 'unset';
     hh.style.width = width + 'px'
     hh.style.height = height + 'px'
-    if (makeDraggable) 
+    if (makeDraggable)
         makeDraggable(hh, {usesize: false, button: 1, movecallback: outerresize})
     else
         hh.style.position = 'fixed'
@@ -379,6 +379,9 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left, right
     me.restoreset;
     me.restore(initstring, me.restoreset); // will restore from file or localStorage if no initstring
 
+    // Object.values(_vieweditlist)[0].topgui.style.display
+    // me.visible =
+
     me.calc()
     //for (let i=100; i < 1000; i++) setTimeout(()=>outerresize(), i);
 
@@ -436,6 +439,11 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left, right
                 me.addfromgx(k, values)
         }
     }
+
+    Object.defineProperty(me, 'visible', {
+        get: () => me.topgui.style.display !== 'none',
+        set: v => {me.topgui.style.display = v ? '' : 'none'}
+    })
 } // Viewedit
 
 /** find a 'holder' of this object so we can generate a string for it */
@@ -508,6 +516,12 @@ Viewedit.mapobjects = function() {
         }
     }
 return r;
+}
+
+// change display of all viewedit meus, h undefined, toggle, else true or false
+Viewedit.toggle = function(h) {
+    if (h === undefined) h = !Object.values(_vieweditlist)[0].visible;
+    for (const v of Object.values(_vieweditlist)) v.visible = h;
 }
 
 /** find all places where this name happens */

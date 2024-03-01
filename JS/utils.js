@@ -6122,7 +6122,7 @@ function filtmap(a, ff) {
             const fv = ff(v,+k,a);
             if (fv !== undefined) r.push(fv);
         }
-        return r;   
+        return r;
     } else {
         const r = {};
         for (const k in a) {
@@ -6143,4 +6143,57 @@ function filtmap(a, ff) {
 //     console.log(x, y, z);
 // }
 
+// // dodgy function to reload devtools (in case of restart memoryleak)
+// pending reliable dev tools open
+// async function reloadDevtools() {
+//     log('reloadDevtools')
+//     if (!isDevToolsOpen()) return log('no devtools open, return');
+//     niractcmd('sendkey f12 press');
+//     await sleep(500);
+//     if (isDevToolsOpen()) {
+//         log('still open, need second F12')
+//         niractcmd('sendkey f12 press');
+//         await sleep(500);
+//     }
+//     log('f12 to reopen devtools')
+//     niractcmd('sendkey f12 press');
+//     await sleep(500);
+//     log(isDevToolsOpen() ? 'now reopened' : 'NOT reopened')
+// }
 
+// test if devtools open, only works if in separate window
+// NO does not work right even then,
+// with main window focussed the devtools window keeps its title,
+// but the process/task does not show as devtools, but rather title from main window
+// function isDevToolsOpen() {
+//     const r = runcommandphp('tasklist /fi "WINDOWTITLE eq DevTools - ' + location.href.post('://') + '"')
+//     return !r.startsWith('INFO: No tasks')
+// }
+
+// a function that returns true if devtools is likely open, false otherwise
+// // fround from Bing
+// function isDevToolsOpen() {
+//     // start a performance profile with a unique name
+//     var profileName = "devtools-detect-" + Date.now();
+//     console.profile(profileName);
+
+//     // stop the performance profile
+//     console.profileEnd(profileName);
+
+//     // get the performance entries of type "profile"
+//     var profiles = performance.getEntriesByType("profile");
+
+//     // loop through the profiles and check if the name matches the profile name
+//     for (var i = 0; i < profiles.length; i++) {
+//     if (profiles[i].name === profileName) {
+//     // the profile was recorded, devtools is likely open
+//     return true;
+//     }
+//     }
+
+//     // the profile was not recorded, devtools is likely closed
+//     return false;
+//     }
+
+    // test the function
+    // console.log(isDevToolsOpen()); // true or false

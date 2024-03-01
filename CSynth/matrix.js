@@ -689,14 +689,14 @@ function heightMatrixMaterial() {
 
         vec2 tp = (texpos.xy * numSegs + 0.5) / numInstances;
         float vv1;
-        float vv0 = nval(matintypeA, matrix2dtexA, tp, dist, matDistNear, matDistFar * matDistBalance, representativeContactA);
+        float vv0 = nval(matintypeA, matrix2dtexA, tp, dist, matDistNear, matDistFar, representativeContactA) * matDistBalance;
         float v1 = clamp( vv0, 0., 1.);
         if (matintypeA + matintypeB == 0.) {    // old code
         } else if (matcoltypeA == matcoltypeB) {
             c.col.rgb = mix(col1, col2, v1);
             vv1 = vv0;
         } else {
-            vv1 = nval(matintypeB, matrix2dtexB, tp, dist, matDistNear, matDistFar * (2.-matDistBalance), representativeContactB);
+            vv1 = nval(matintypeB, matrix2dtexB, tp, dist, matDistNear, matDistFar, representativeContactB) * (2.-matDistBalance);
             float v2 = clamp(vv1, 0., 1.);
             /**
             c.col.rgb = bimix(
