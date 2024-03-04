@@ -220,7 +220,15 @@
                 <dt><a href="threek.html?${x[0]}">${x[0]}</a></dt>${x[1]}
             `)
             window.regr.innerHTML = s;
-            window.serverdir.innerHTML = islocalhost ? await runcmd('cd') : location.hostname;
+            const hr = location.href;
+            let xr = ''
+            let bcol = '#fff'
+            if (!islocalhost)  { bcol = '#fcc'; xr = 'public';}
+            else if (hr.includes('/gdrive/')) {bcol = '#ffc'; xr = 'local gdrive' }
+            else if (hr.includes('/gitProjects/')) {bcol = '#cff'; xr = 'local git'}
+            else {bcol = '#fff'; xr = 'local working'}
+            window.serverdir.innerHTML = xr + ': ' + hr;
+            document.body.style.backgroundColor = bcol;
         }
 
         async function nircmd(str) {

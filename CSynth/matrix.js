@@ -15,8 +15,8 @@ CSynth.maxMatrixSize = 1024;
 CSynth.Matrix = function() {
     const crcols = {
         matC00r: 0, matC00g: 0, matC00b: 0,
-        matC01r: 1, matC01g: 0, matC01b: 0,
-        matC10r: 0, matC10g: 0, matC10b: 1,
+        matCB1r: 1, matCB1g: 0, matCB1b: 0,
+        matCA1r: 0, matCA1g: 0, matCA1b: 1,
         matC11r: 1, matC11g: 1, matC11b: 1,
         matCx0r: 0, matCx0g: 0, matCx0b: 0,
         matCx1r: 0, matCx1g: 0, matCx1b: 0
@@ -24,9 +24,18 @@ CSynth.Matrix = function() {
         // matCx1r: 0.05, matCx1g: 0, matCx1b: 0
     };
 
-    // see also addfragment
-    //nb, as of this writing, this vert is used only for 2d matrix,
-    //and is simpler than the code would suggest. Left stuff around just in case...
+    const colours = {
+        //##cold: new THREE.Color(),
+        //##hot: new THREE.Color(),
+        c00: new THREE.Color(),
+        cA1: new THREE.Color(),
+        cB1: new THREE.Color(),
+        c11: new THREE.Color(),
+        cx0: new THREE.Color(),
+        cx1: new THREE.Color(),
+    };
+    CSynth.Matrix.colours = colours;  // for debug
+
     const vert2d = /*glsl*/`
         //2d matrix vertex
         #define texture2D texture
@@ -60,22 +69,20 @@ CSynth.Matrix = function() {
             gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
     `;
+    //{ // 2d view, broken commented out for now
+    // see also addfragment
+    //nb, as of this writing, this vert is used only for 2d matrix,
+    //and is simpler than the code would suggest. Left stuff around just in case...
+
 
     const frag2d = /*glsl*/`
     #define texture2D texture
         // 2d matrix fragment for flat 2d matrix
         ${CSynth.CommonFragmentShaderCode()}
         //color uniforms equivalent to 3d matrix
-        //##uniform float r;
-        //##uniform float g;
-        //##uniform float b;
-        //##uniform float mathotr;
-        //##uniform float mathotg;
-        //##uniform float mathotb;
         uniform float matC00r, matC00g, matC00b, matC11r, matC11g, matC11b, matCx0r, matCx0g, matCx0b, matCx1r, matCx1g, matCx1b;
         //uniforms for controlling range for colour map
-        uniform float matMinD;
-        uniform float matMaxD;
+        uniform float matDistNear, matDistFar; // matMinD, matMaxD
 
 
         float map(const float v, const float min1, const float max1, const float min2, const float max2) {
@@ -93,13 +100,13 @@ CSynth.Matrix = function() {
             vec3 p2 = partpos(uv.y).xyz;
 
             float d = length(p2 - p1);
-            float c = clamp(map(d, matMinD, matMaxD, 0., 1.), 0., 1.); //TODO control contrast curve
+            float c = clamp(map(d, matDistNear, matDistFar, 0., 1.), 0., 1.); //TODO control contrast curve
 
-            //##vec3 col1 = vec3(matcoldr, matcoldg, matcoldb);
-            //##vec3 col2 = vec3(mathotr, mathotg, mathotb);
-            vec3 col1 = vec3(matC00r, matC00g, matC00b);
-            vec3 col2 = vec3(matC11r, matC11g, matC11b);
-            vec3 col = mix(col2, col1, c);  // << reverse for consistent host/cold with new version of 3d matrix
+            //##vec3 col00 = vec3(matcoldr, matcoldg, matcoldb);
+            //##vec3 col11 = vec3(mathotr, mathotg, mathotb);
+            vec3 col00 = vec3(matC00r, matC00g, matC00b);
+            vec3 col11 = vec3(matC11r, matC11g, matC11b);
+            vec3 col = mix(col11, col00, c);  // << reverse for consistent host/cold with new version of 3d matrix
 //;#if OPMODE != OPPICK  // minor optimization
             vec3 pickCol = vec3(0.);
 
@@ -129,44 +136,11 @@ CSynth.Matrix = function() {
         }
     `;
 
-    const colkeyfrag = /*glsl*/`
-        // matrix fragment for flat matrix
-        #define texture2D texture
-        ${CSynth.CommonFragmentShaderCode()}
-        uniform float matC00r, matC00g, matC00b, matC11r, matC11g, matC11b,  matC10r, matC10g, matC10b, matC01r, matC01g, matC01b;
-        uniform float matgamma;
-        in vec2 vUv;
-        out vec4 glFragColor;
-
-        void main() { // matrix fragment for flat matrix
-            vec2 uv = vUv;
-            float v1 = uv.x, v2 = uv.y;
-            vec3 cent = mix(vec3(matC00r, matC00g, matC00b), vec3(matC11r, matC11g, matC11b), max(v1, v2));
-            vec3 tint = v1 > v2 ? vec3(matC10r, matC10g, matC10b) : vec3(matC01r, matC01g, matC01b);
-            vec3 col = mix(cent, tint, abs(v1-v2));
-            col = pow(col, vec3(matgamma));  // better perceptual range
-
-            glFragColor = vec4(col, 1.);
-        }
-    `;
-
-    const colours = {
-        //##cold: new THREE.Color(),
-        //##hot: new THREE.Color(),
-        c00: new THREE.Color(),
-        c01: new THREE.Color(),
-        c10: new THREE.Color(),
-        c11: new THREE.Color(),
-        cx0: new THREE.Color(),
-        cx1: new THREE.Color(),
-    };
-    CSynth.Matrix.colours = colours;  // for debug
-
     initGenes();
 
     const uniformsm = {};  // uniforms for 2d
     copyFromSel(uniformsm, window.uniforms, Object.keys(crcols).join(' ') + `
-        matMinD matMaxD nonBackboneLen matgamma
+        matMinD matMaxD matDistFar nonBackboneLen matgamma
         `);
     //## also used above    matcoldr matcoldg matcoldb mathotr mathotg mathotb
     copyFrom(uniformsm, CSynth.getCommonUniforms());
@@ -174,14 +148,11 @@ CSynth.Matrix = function() {
     const flatMaterial = new THREE.RawShaderMaterial({
         vertexShader: vert2d,
         fragmentShader: frag2d,
-        uniforms: uniformsm
-    });
-    const colkeyMaterial = new THREE.RawShaderMaterial({
-        vertexShader: vert2d,
-        fragmentShader: colkeyfrag,
-        uniforms: uniforms,
+        uniforms: uniformsm,
         glslVersion: "300 es"
     });
+
+// } // 2d view, broken commented out for now
 
     function handleHover2d(p) {
         //write to pickrt with data from p.point (at a position relevant to source of p)
@@ -191,6 +162,36 @@ CSynth.Matrix = function() {
         //get slotOffset for p
         //setPick(slotOffset, p.localPoint);
     }
+
+    const colkeyfrag = /*glsl*/`
+        // matrix fragment for flat matrix
+        #define texture2D texture
+        ${CSynth.CommonFragmentShaderCode()}
+        uniform float matC00r, matC00g, matC00b, matC11r, matC11g, matC11b,  matCA1r, matCA1g, matCA1b, matCB1r, matCB1g, matCB1b;
+        uniform float matgamma;
+        in vec2 vUv;
+        out vec4 glFragColor;
+
+        void main() { // matrix fragment for flat matrix
+            vec2 uv = vUv;
+            float qvA = uv.x, qvB = uv.y;
+            vec3 cent = mix(vec3(matC00r, matC00g, matC00b), vec3(matC11r, matC11g, matC11b), max(qvA, qvB));
+            vec3 tint = qvA > qvB ? vec3(matCA1r, matCA1g, matCA1b) : vec3(matCB1r, matCB1g, matCB1b);
+            vec3 col = mix(cent, tint, abs(qvA-qvB));
+            col = pow(col, vec3(matgamma));  // better perceptual range
+
+            glFragColor = vec4(col, 1.);
+        }
+    `;
+
+
+    const colkeyMaterial = new THREE.RawShaderMaterial({
+        vertexShader: vert2d,
+        fragmentShader: colkeyfrag,
+        uniforms: uniforms,
+        glslVersion: "300 es"
+    });
+
 
     function handlePress2d(p) {
         //console.log(`press at ${p.point.x}, ${p.point.y}`);
@@ -209,6 +210,7 @@ CSynth.Matrix = function() {
 
     this.createGUIVR = function() {
         const gui = VH.matrixGui = dat.GUIVR.createX("Matrix");
+
         const f2d = dat.GUIVR.createX("2D view");
 
         const mat2d = f2d.addImageButton(handlePress2d, flatMaterial, true);
@@ -235,6 +237,7 @@ CSynth.Matrix = function() {
         guiFromGene(gui, 'matMinD').name('Minimum distance value').step(0.1);
         guiFromGene(gui, 'matMaxD').name('Maximum distance value').step(0.1);
         guiFromGene(gui, 'matpow').step(0.1);
+    //??? }
 
         const clX = 4;  // number of items shifted to end
         CSynth.cols = {
@@ -262,23 +265,26 @@ CSynth.Matrix = function() {
             if (va === vb) {
                 colours.c00.gui.name('0');
                 colours.c11.gui.name(va);
-                colours.c10.gui.name('unused');
-                colours.c01.gui.name('unused');
+                colours.cA1.gui.name('unused');
+                colours.cB1.gui.name('unused');
             } else {
                 colours.c00.gui.name('neither');
                 colours.c11.gui.name('both');
-                colours.c10.gui.name(va);
-                colours.c01.gui.name(vb);
+                colours.cA1.gui.name(va);
+                colours.cB1.gui.name(vb);
             }
         }
 
         f.add(CSynth.cols, 'colA', colourList).name('input A').listen();
+
+        guiFromGene(f, 'matDistBalance').name('A <- balance -> B').step(0.01);
         f.add(CSynth.cols, 'colB', colourList).name('input B').listen();
 
         // guiFromGene(f, 'matDistNear').step(0.1);
+        guiFromGene(f, 'matDistNear').step(0.1);
         guiFromGene(f, 'matDistFar').step(0.1);
-        guiFromGene(f, 'matDistBalance').step(0.01);
         guiFromGene(f, 'matrixTintStrength').step(0.1);
+        guiFromGene(f, 'matrixMixType').step(1);
 
         guiFromGene(f, 'matrixbedtint');
         guiFromGene(f, 'matrixbedtriangle');
@@ -291,8 +297,8 @@ CSynth.Matrix = function() {
         //##colours.hot.gui = f.add(colours, 'hot').onChange(updateColourGenes);
         colours.c00.gui = f.add(colours, 'c00').name('neither').listen().onChange(updateColourGenes);
         colours.c11.gui = f.add(colours, 'c11').name('both').listen().onChange(updateColourGenes);
-        colours.c10.gui = f.add(colours, 'c10').name('A').listen().onChange(updateColourGenes);
-        colours.c01.gui = f.add(colours, 'c01').name('B').listen().onChange(updateColourGenes);
+        colours.cA1.gui = f.add(colours, 'cA1').name('A').listen().onChange(updateColourGenes);
+        colours.cB1.gui = f.add(colours, 'cB1').name('B').listen().onChange(updateColourGenes);
         colours.cx0.gui = f.add(colours, 'cx0').name('missing A').listen().onChange(updateColourGenes);
         colours.cx1.gui = f.add(colours, 'cx1').name('missing B').listen().onChange(updateColourGenes);
         CSynth._colsnames();
@@ -361,6 +367,7 @@ CSynth.Matrix = function() {
             addgeneperm('matMaxD', 0, 0, 50, 0.01, 0.001, 'matrix "cold" threshold for height', 'matrix', 0);
             addgeneperm('matDistFar', 3.0, 1, 20, 0.01, 0.001, 'matrix far threshold for colour', 'matrix', 0);
             addgeneperm('matDistNear', 1.0, 0, 2, 0.01, 0.001, 'matrix near threshold for colour', 'matrix', 0);
+            addgeneperm('matrixMixType', 1, 0, 1, 1, 1, 'mix type, simple:0, cent/off: 1', 'matrix', 0);
             addgeneperm('matDistBalance', 1, 0, 2, 0.01, 0.001, 'matrix balance between a and b, 0.5 equal', 'matrix', 0);
 
             // TODO; formalize and generalize gene/sampler patterns below
@@ -405,8 +412,8 @@ CSynth.Matrix = function() {
         //##colours.cold.setRGB(g.matcoldr, g.matcoldg, g.matcoldb);
         //##colours.hot.setRGB(g.mathotr, g.mathotg, g.mathotb);
         colours.c00.setRGB(g.matC00r, g.matC00g, g.matC00b);
-        colours.c01.setRGB(g.matC01r, g.matC01g, g.matC01b);
-        colours.c10.setRGB(g.matC10r, g.matC10g, g.matC10b);
+        colours.cB1.setRGB(g.matCB1r, g.matCB1g, g.matCB1b);
+        colours.cA1.setRGB(g.matCA1r, g.matCA1g, g.matCA1b);
         colours.c11.setRGB(g.matC11r, g.matC11g, g.matC11b);
         colours.cx0.setRGB(g.matCx0r, g.matCx0g, g.matCx0b);
         colours.cx1.setRGB(g.matCx1r, g.matCx1g, g.matCx1b);
@@ -464,8 +471,8 @@ CSynth.Matrix = function() {
         //##setKeyRgb(g, 'mathot', colours.hot);
 
         setKeyRgb(g, 'matC00', colours.c00);
-        setKeyRgb(g, 'matC01', colours.c01);
-        setKeyRgb(g, 'matC10', colours.c10);
+        setKeyRgb(g, 'matCB1', colours.cB1);
+        setKeyRgb(g, 'matCA1', colours.cA1);
         setKeyRgb(g, 'matC11', colours.c11);
         setKeyRgb(g, 'matCx0', colours.cx0);
         setKeyRgb(g, 'matCx1', colours.cx1);
@@ -533,7 +540,7 @@ CSynth.Matrix = function() {
 
 }  // end CSynth.Matrix
 
-CSynth.colchoice = /*glsl*/`
+CSynth.colchoice = () => /*glsl*/`
     // matintype   0=>0, 1=>1, 2=>x, 3=>y, 4=>currentDist, 5=>dist from texture, 6=>contact from texture
     // low .. high is typically matDistNear = 0 .. matDistFar
     float nval(in float matintype, in sampler2D tex, in vec2 pos, in float currentDist, in float low, in float high, float repcon) {
@@ -574,8 +581,13 @@ CSynth.colchoice = /*glsl*/`
         }
 
         // fall through for rd = dist(like) value, shape them before return. All use the same shaping code for consistency
-        // nb with the log version, low and hence matDistNear are not used
-        return 1. - log(rd) / log(high);
+        // low = sqrt(-1.);
+        float rr = 1. - (log(rd) - log(low)) / (log(high) - log(low));
+        return clamp(rr, 0., 1.);
+
+        // nb with this simple log version, low and hence matDistNear are not used
+        // return 1. - log(rd) / log(high);  // simple log version
+
         // return 1. - smoothstep(low, high, rd);  // so rd is in range low .. high, result in range 1 .. 0
     }
 `
@@ -585,10 +597,9 @@ CSynth.colchoice = /*glsl*/`
 // This uses a distorted version of the Organic pipeline to harness normal calculation etc.
 // As tr is overridden it uses almost no horn code.
 // Called initially or if CSynth.Matrix.forcenew is set
+CSynth.heightMatrixMaterial = heightMatrixMaterial;
 function heightMatrixMaterial() {
     const cc = CSynth.current;
-
-
 
     CSynth.Matrix.extradefines = /*glsl*/`
         #define NOHORNMAKER
@@ -599,7 +610,7 @@ function heightMatrixMaterial() {
             m_k, m_alpha, m_force, pushapartforce, pushapartpow, contactforce, powBaseDist;
         uniform sampler2D lastSpringSmooth;
 
-        ${CSynth.colchoice}
+        ${CSynth.colchoice()}
         // to shape the matrix to exaggerate diagonal
         void shapepow(inout vec2 p, in float power) {
             float d = p.y - p.x, c = (p.x + p.y) * 0.5, s = sign(d);
@@ -679,45 +690,57 @@ function heightMatrixMaterial() {
         //''if (texpos.x - texpos.y > (-matskipdiag - 2.)/numSegs) distForCol = 0.;
 
         //TODO: more structured colour genes
-        //##vec3 col1 = vec3(matcoldr, matcoldg, matcoldb);
-        //##vec3 col2 = vec3(mathotr, mathotg, mathotb);
-        vec3 col1 = vec3(matC00r, matC00g, matC00b);
-        vec3 col2 = vec3(matC11r, matC11g, matC11b);
-    //''c.col.rgb = mix(col1, col2, distForCol);
+        //##vec3 col00 = vec3(matcoldr, matcoldg, matcoldb);
+        //##vec3 col11 = vec3(mathotr, mathotg, mathotb);
+        vec3 col00 = vec3(matC00r, matC00g, matC00b);
+        vec3 colB1 = vec3(matCB1r, matCB1g, matCB1b);
+        vec3 colA1 = vec3(matCA1r, matCA1g, matCA1b);
+        vec3 col11 = vec3(matC11r, matC11g, matC11b);
+
+    //''c.col.rgb = mix(col00, col11, distForCol);
         //''c.fluoresc.rgb = rgb2hsv(c.col.rgb);
 
 
         vec2 tp = (texpos.xy * numSegs + 0.5) / numInstances;
-        float vv1;
-        float vv0 = nval(matintypeA, matrix2dtexA, tp, dist, matDistNear, matDistFar, representativeContactA) * matDistBalance;
-        float v1 = clamp( vv0, 0., 1.);
+        float baseA = nval(matintypeA, matrix2dtexA, tp, dist, matDistNear, matDistFar, representativeContactA), baseB = baseA;;
+        float vvA = baseA * (2. - matDistBalance);
+        float qvA = clamp( vvA, 0., 1.);
         if (matintypeA + matintypeB == 0.) {    // old code
         } else if (matcoltypeA == matcoltypeB) {
-            c.col.rgb = mix(col1, col2, v1);
-            vv1 = vv0;
+            c.col.rgb = mix(col00, col11, clamp( baseA, 0., 1.));
         } else {
-            vv1 = nval(matintypeB, matrix2dtexB, tp, dist, matDistNear, matDistFar, representativeContactB) * (2.-matDistBalance);
-            float v2 = clamp(vv1, 0., 1.);
+            baseB = nval(matintypeB, matrix2dtexB, tp, dist, matDistNear, matDistFar, representativeContactB);
+            float vvB = baseB * matDistBalance;
+            float qvB = clamp(vvB, 0., 1.);
             /**
             c.col.rgb = bimix(
                 vec3(matC00r, matC00g, matC00b),
-                vec3(matC01r, matC01g, matC01b),
-                vec3(matC10r, matC10g, matC10b),
+                vec3(matCB1r, matCB1g, matCB1b),
+                vec3(matCA1r, matCA1g, matCA1b),
                 vec3(matC11r, matC11g, matC11b),
-                clamp(v1, 0., 1.), clamp(v2, 0., 1.));
+                clamp(qvA, 0., 1.), clamp(qvB, 0., 1.));
             **/
            // cent is the color down the diagonal
            // tint is the colour at the off-diagonal corner
            // overall colour uses amount off-diagonal
-            vec3 cent = mix(vec3(matC00r, matC00g, matC00b), vec3(matC11r, matC11g, matC11b), max(v1, v2));
+           if (matrixMixType == 1.) {
+               float maxab = max(qvA, qvB);
+                vec3 cent = mix(col00, vec3(col11), maxab);
 
-            vec3 tint = v1 > v2 ? vec3(matC10r, matC10g, matC10b) : vec3(matC01r, matC01g, matC01b);
-            c.col.rgb = mix(cent, tint, clamp(matrixTintStrength*abs(v1-v2), 0.,1.));
+                vec3 tint = qvA > qvB ? colA1 : colB1;
+                // c.col.rgb = mix(cent, tint, clamp(matrixTintStrength*abs(qvA-qvB)/maxab, 0.,1.));
+                c.col.rgb = mix(cent, tint, clamp(matrixTintStrength*abs(qvA-qvB), 0.,1.));  // experiment with divide / maxab
+           } else {
+                vec3 cA = mix(col00, colA1, qvA);
+                vec3 cB = mix(col00, colB1, qvB);
+                c.col.rgb = cA + cB;
+           }
         }
-        if (vv0 == -999.) c.col.rgb += vec3(matCx0r, matCx0g, matCx0b);
-        if (vv1 == -999.) c.col.rgb += vec3(matCx1r, matCx1g, matCx1b);
+        if (baseA == -999.) c.col.rgb += vec3(matCx0r, matCx0g, matCx0b);
+        if (baseB == -999.) c.col.rgb += vec3(matCx1r, matCx1g, matCx1b);
         c.col.rgb = pow(c.col.rgb, vec3(matgamma));  // better perceptual range
-        c.fluoresc.rgb = rgb2hsv(c.col.rgb);
+//        c.fluoresc.rgb = rgb2hsv(c.col.rgb);
+        c.fluoresc.rgb  = vec3(0);
 
 
         //TODO uniforms for gridline presentation parameters.
@@ -865,8 +888,8 @@ for (let i=1; i<9; i++) {
 CSynth.Matrix.colsetpair = function(h=0, s=1, v=1) {
     const c = CSynth.Matrix.colours;
     copyFrom(c.c00, hsv2rgb(h,s,0));
-    copyFrom(c.c01, hsv2rgb(h,s,v));
-    copyFrom(c.c10, hsv2rgb(h+0.5,s,v));
+    copyFrom(c.cB1, hsv2rgb(h,s,v));
+    copyFrom(c.cA1, hsv2rgb(h+0.5,s,v));
     copyFrom(c.c11, hsv2rgb(h,0,v));
     CSynth.Matrix.colUpdateGui();
 }
@@ -875,8 +898,8 @@ CSynth.Matrix.colsetpair = function(h=0, s=1, v=1) {
 CSynth.Matrix.colsettriple = function(h=0, s=1, v=1) {
     const c = CSynth.Matrix.colours;
     copyFrom(c.c00, hsv2rgb(h,s,0));
-    copyFrom(c.c01, hsv2rgb(h,s,v));
-    copyFrom(c.c10, hsv2rgb(h+2/3,s,v));
+    copyFrom(c.cB1, hsv2rgb(h,s,v));
+    copyFrom(c.cA1, hsv2rgb(h+2/3,s,v));
     copyFrom(c.c11, hsv2rgb(h+1/3,s,v));
     CSynth.Matrix.colUpdateGui();
 }

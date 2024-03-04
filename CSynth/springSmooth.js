@@ -123,6 +123,8 @@ CSynth.SpringSmooth = function springSmooth() {
         ssg.add(guidamp, 'y', 0, 5, 0.1, 'a_damp', 'damping for smootha');
         ssg.add(guidamp, 'z', 0, 5, 0.1, 'b_damp', 'damping for smoothb');
         ssg.add(U, 'springSmoothHitDist', 0, 20, 0.1, 'contact dist', 'distance for two particles to count as contact');
+        guiFromGene(ssg, 'pushapartpow');
+
 
         genedefs.noiseforce.max = 2; guiFromGene(ssg, 'noiseforce');
         genedefs.noisefieldforce.max = 10; guiFromGene(ssg, 'noisefieldforce');
