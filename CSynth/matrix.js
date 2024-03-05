@@ -429,6 +429,8 @@ CSynth.Matrix = function() {
         function setone(n) {
             const type = G['matcoltype' + n];  // input type
             let r = type; // unless proved otherwise
+            // auto start just once, eg not if user explicitly sets running off
+            if (6 <= r && r <= 9 && !setmatrix.runningdone) setmatrix.runningdone = CSynth.springSmooth.running = true; 
             let rest = 10;
             if (type <= 4) {            // handles 0,1,x,y,currentDist; and 7..10 for smoothed
                 // r = type;

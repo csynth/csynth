@@ -663,7 +663,7 @@ function TadpoleSystem() {
         setgr(me.restPos.left);
         setgr(me.restPos.right);
     };
-    /** on each frame set up the reserved slots for controllers/pseudo-controllers */
+    /** on each frame set up the control and reserved slots for controllers/pseudo-controllers */
     function doReserved() {
         if (CONTROLS === 0)
             return; // todo check doReserved vs tad.showbait()
@@ -714,8 +714,11 @@ function TadpoleSystem() {
                 //v.x += tadlen; springs.set fix(k+h*RIBS, v);
             }
         }
-        const sr = (TADS + CONTROLS) * RIBS; // first special fixed, not rendered, point, e.i.p
-        springs.setfix(sr, me.centre); // fixed origin, w.i.p beyond reserved
+        const sr = (TADS + CONTROLS) * RIBS; // first reserved, not rendered, point, e.i.p
+        for (let h = sr; h < sr + FIXED * RIBS; h++) {
+            springs.setfix(h, NaN, NaN, NaN);
+        }
+        springs.setfix(sr, me.centre); // fixed origin
     }
     function endTime(role) {
         console.timeEnd('[][]' + role.id);
@@ -828,6 +831,8 @@ function TadpoleSystem() {
      * this is the initializer for a Tadpole scheme.
       */
     me.tad = function (n = -1, ribs = searchValues.ribs || 8, skelends = 0, group) {
+        if (searchValues.tadnum === '?')
+            searchValues.tadnum = +prompt('how many tadpoles', '2000');
         G.OPOSZ = 1; // where should this be??? gets rid of odd bars on the walls. why?
         if (TADS !== -1) {
             console.log('tad+ tad.tad called second time');
@@ -1113,7 +1118,7 @@ function TadpoleSystem() {
                 msgfix('_trackerUse', 'pending');
                 setTimeout(tad.monitorTrackersCentre, 2000);
             });
-            GUIKey('Insert,0', 'clear object', 'clear object', () => tad.tadprop.fill(0, 0, 1200 * 4 * 8));
+            GUIKey('Insert,0', 'clear object', 'clear object', () => tad.tadprop.fill(0, 0, tad.tadnum * 4 * 8));
             GUIKey('Insert,1', 'show object', 'show object', () => tad.TESTapplyProps());
             GUIKey('Insert,W', 'wide trackers', 'expand tracker range (for testing)', () => tad.trackerScaling = 1.5);
             GUIKey('Insert,N', 'normal trackers', 'standard tracker range', () => tad.trackerScaling = 1);
@@ -4778,7 +4783,7 @@ forGp uses these from gp: raymatrix, baitPosition, axesbias, pad, trigger
         me.taillen = len = clamp(len, 0, RIBS - 1);
         me.tailcol = tcol;
         const start = RIBS - len;
-        for (let t = 0; t < 1200; t++) { // t is tadpole
+        for (let t = 0; t < me.tadnum; t++) { // t is tadpole
             const c = me.getCols(t * RIBS);
             for (let i = 1; i < start; i++) {
                 if (me.getCols(t * RIBS + i) === tcol)
