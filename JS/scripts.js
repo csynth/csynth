@@ -69,6 +69,8 @@ S.rampPV = function SrampP(obj, target, time, options = {}) {
     return Promise.all(a);
 }
 
+S.noramp = false;
+
 /** add a ramp to process, if first char is ! resolveFilter is used to fill it out, return promise */
 S.rampP = function SrampP(obj, fieldPattern, target, time, options = {}) {
     // if (fieldPattern === '*') {
@@ -76,6 +78,7 @@ S.rampP = function SrampP(obj, fieldPattern, target, time, options = {}) {
     //     for (let f in obj) a.push(S.rampP(obj, f, target[f], time, options)); // too many f
     //     return Promise.all(a);
     // }
+    if (S.noramp) { obj[fieldPattern] = target; return true; } // ? is true as good as a promise?
 
     const {next=undefined, dolog = true, fun = undefined, scurve = false} = options;
     if (!S.started) { Maestro.on('postframe', () => S.process()); S.started = true; } // indirect S.process in case changed in debug

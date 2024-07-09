@@ -514,10 +514,10 @@ button.tranname {
 
 #trancontextmenu, #horncontextmenu {
     position: fixed;
-
     z-index: 5000;
     font-size: 140%;
     background-color: white;
+    color: black;
     padding:  4px;
     border: solid 1px blue;
     border-radius:  5px;
@@ -1040,6 +1040,7 @@ html-gl { display: inline-block; transform: translateZ(0);}
 	font-size: 150%;
 	background-color: white;
 	top: -0.6em;
+	height: 0px; /* helps stop viewedit jitter up/down, legend now jitters but that is less bad */
 }
 
 .viewedit {

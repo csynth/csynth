@@ -17,6 +17,10 @@ var MAXPATHS = 28;
 // ??? so if this limit is set > 400 bits go missing anyway
 var MAXRIBS = 2000; // to limit toal number of ribs, especially with recursion
 
+addgene("maxInstanceCount", Infinity, 0, 2000, 1, 1, "max instance count", "system", "frozen");
+addgene("instanceOffset", 0, 0, 2000, 1, 1, "instance offset for reduced render", "system", "frozen");
+
+
 COL.bounds = undefined;
 COL.boundchange = function() {
     COL.bounds = [];
@@ -61,7 +65,7 @@ COL.genes2col = function(genes, low=0, high=undefined, bounds: [RegExp, number, 
 }
 
 /** from COL array into genes */
-COL.col2genes = function(genes = currentGenes) {
+COL.col2genes = function(genes = currentGenes || xxxgenes()) {
     const hset = getHornSet(genes);
     const gns = hset.colgenenames;
     if (!gns) return;
@@ -162,6 +166,7 @@ export function setWallColours(genes: Genes) {
 
 /** set colours in COL array from horn definitions/genes */
 export function setHornColours(genes: Genes) {
+    // if (!HornSet.useColGenes) return;  // no, too extreme
     if (tad && genes.tranrule.startsWith('//tadpoleTranrule')) {
         setWallColours(genes);
         return tad.useCOL(); //
@@ -178,11 +183,14 @@ export function setHornColours(genes: Genes) {
         }
     } else {  // establish mapping for the current horn
         hset.colgenenames = [];
+        COL.setx(COL.defaultDef, WALLID);       // set up walls in case genes[wgn] never makes it
+        COL.setx('white', WALLID);              // set up walls in case genes[wgn] never makes it
         for (let gn in COL.num) {
             if (!(gn in genes)) genes[gn] = genedefs[gn].def;
             COL.setG(gn, -1, genes[gn], gn, hset);
             const wgn = 'wall_' + gn;
             if (!(wgn in genes) && wgn in genedefs) genes[wgn] = genedefs[wgn].def;
+            if (!genes[wgn]) genes[wgn] = COL.get(gn, WALLID);
             COL.setG(gn, WALLID, genes[wgn], wgn, hset);
         }
         // set up colours for hornruns
@@ -448,6 +456,8 @@ type HornRunItem = {
     //parents: number,
     subtype: Subtype,
     ribs: number,
+    refl: number,
+    item: object,
     //defribs: number,
     //sribs: string,
     //code: string
@@ -455,7 +465,7 @@ type HornRunItem = {
 type ProcessTranOpt = [] | [string, OptType, N,N,N,N,string,string?, NS?, string?];
 type Subtype = '_sub' | '_head' | '_tail' | '_none';
 
-type _parseret = {pretranrule, posttranrule, mainhorn, luniforms, overrides, endoverrides, extraIncludes} & {error}
+type _parseret = {pretranrule, posttranrule, postautoscale, mainhorn, luniforms, overrides, endoverrides, extraIncludes} & {error}
 
 var u; // = undefined;      // convenient shorthand
 var INACTIVE = 9999.0;
@@ -838,55 +848,57 @@ export class Horn {
                 }
                 if (toshow) genecodel.push(this._show(xp));
             }
-            if (sq.start !== undefined) {
-                const xps = this._expr(fun + "S", sq.start, min, max, delta, step, help, tag, free, genes);
-                const xpe = this._expr(fun + "E", sq.end, min, max, delta, step, help, tag, free, genes);
-                repl.push("cubicmix(" + xps + "," + xpe + ",!RP)");
-                if (toshow) genecodel.push("start:" + this._show(xps) + ", end:" + this._show(xpe));
+            if (typeof s === 'object') {
+                if (sq.start !== undefined) {
+                    const xps = this._expr(fun + "S", sq.start, min, max, delta, step, help, tag, free, genes);
+                    const xpe = this._expr(fun + "E", sq.end, min, max, delta, step, help, tag, free, genes);
+                    repl.push("cubicmix(" + xps + "," + xpe + ",!RP)");
+                    if (toshow) gc.push("start:" + this._show(xps) + ", end:" + this._show(xpe));
+                }
+                if (sq.k !== undefined) {
+                    xp = this._expr(fun + "K", sq.k, min, max, delta, step, help, tag, free, genes);
+                    repl.push(xp);
+                    if (toshow) gc.push("k:" + this._show(xp));
+                }
+                if (sq.rand !== undefined) {
+                    xp = this._expr(fun + "_R", sq.rand, (min??0)/10, (max??1)/10, (delta??0.1)/10, (step??0.1)/10, help + ' random me based', tag, free, genes);
+                    const xpp = `(randf(ribrp(rp,dribs),${rr()})*${xp})`;
+                    repl.push(xpp);
+                    if (toshow) gc.push("rand:" + this._show(xp));
+                }
+                if (sq.randb !== undefined) {
+                    xp = this._expr(fun + "_RB", sq.randb, (min??0)/10, (max??1)/10, (delta??0.1)/10, (step??0.1)/10, help + ' random me/parent based', tag, free, genes);
+                    const xpp = `((randf(SUBP_rp - ribrp(rp,dribs),${rr()}))*${xp})`;
+                    repl.push(xpp);
+                    if (toshow) gc.push("randb:" + this._show(xp));
+                }
+                if (sq.randp !== undefined) {
+                    xp = this._expr(fun + "_RP", sq.randp, (min??0)/10, (max??1)/10, (delta??0.1)/10, (step??0.1)/10, help + ' random parent based', tag, free, genes);
+                    const xpp = `(randf(SUBP_rp,${rr()})*${xp})`;
+                    repl.push(xpp);
+                    if (toshow) gc.push("randp:" + this._show(xp));
+                }
+                if (sq.randc !== undefined) {
+                    xp = this._expr(fun + "_RC", sq.randc, (min??0)/10, (max??1)/10, (delta??0.1)/10, (step??0.1)/10, help + ' random cumulative', tag, free, genes);
+                    const xpp = `(randf(crp,${rr()})*${xp})`;
+                    repl.push(xpp);
+                    if (toshow) gc.push("randc:" + this._show(xp));
+                }
+                if (sq.randx !== undefined) {
+                    xp = this._expr(fun + "_RX", sq.randx, (min??0)/10, (max??1)/10, (delta??0.1)/10, (step??0.1)/10, help + ' random xyz', tag, free, genes);
+                    const xpp = `(randf(x,${rr('x')})*${xp} + randf(y,${rr('y')})*${xp} + randf(z,${rr('z')})*${xp})`;
+                    repl.push(xpp);
+                    if (toshow) gc.push("randx:" + this._show(xp));
+                }
+                // if (sq.vvv !== undefined) {
+                //     xp = this._expr(fun + 'H' + s.horn, sq.v, min, max, delta, step, help, tag, free, genes);
+                //     repl.push("(GG * " + sq.horn + "_rp)");
+                //     if (toshow) genecodel.push("v:" + this._show(xp) + ", horn:'" + sq.horn + "'");
+                // }
+                genecodel.push('{' + gc.join(', ') + '}');
             }
-            if (sq.k !== undefined) {
-                xp = this._expr(fun + "K", sq.k, min, max, delta, step, help, tag, free, genes);
-                repl.push(xp);
-                if (toshow) genecodel.push("k:" + this._show(xp));
-            }
-            if (sq.rand !== undefined) {
-                xp = this._expr(fun + "_R", sq.rand, (min??0)/10, (max??1)/10, (delta??0.1)/10, (step??0.1)/10, help + ' random me based', tag, free, genes);
-                const xpp = `(randf(ribrp(rp,dribs),${rr()})*${xp})`;
-                repl.push(xpp);
-                if (toshow) genecodel.push("rand:" + this._show(xp));
-            }
-            if (sq.randb !== undefined) {
-                xp = this._expr(fun + "_RB", sq.randb, (min??0)/10, (max??1)/10, (delta??0.1)/10, (step??0.1)/10, help + ' random me/parent based', tag, free, genes);
-                const xpp = `((randf(SUBP_rp - ribrp(rp,dribs),${rr()}))*${xp})`;
-                repl.push(xpp);
-                if (toshow) genecodel.push("randb:" + this._show(xp));
-            }
-            if (sq.randp !== undefined) {
-                xp = this._expr(fun + "_RP", sq.randp, (min??0)/10, (max??1)/10, (delta??0.1)/10, (step??0.1)/10, help + ' random parent based', tag, free, genes);
-                const xpp = `(randf(SUBP_rp,${rr()})*${xp})`;
-                repl.push(xpp);
-                if (toshow) genecodel.push("randp:" + this._show(xp));
-            }
-            if (sq.randc !== undefined) {
-                xp = this._expr(fun + "_RC", sq.randc, (min??0)/10, (max??1)/10, (delta??0.1)/10, (step??0.1)/10, help + ' random cumulative', tag, free, genes);
-                const xpp = `(randf(crp,${rr()})*${xp})`;
-                repl.push(xpp);
-                if (toshow) genecodel.push("randc:" + this._show(xp));
-            }
-            if (sq.randx !== undefined) {
-                xp = this._expr(fun + "_RX", sq.randx, (min??0)/10, (max??1)/10, (delta??0.1)/10, (step??0.1)/10, help + ' random xyz', tag, free, genes);
-                const xpp = `(randf(x,${rr('x')})*${xp} + randf(y,${rr('y')})*${xp} + randf(z,${rr('z')})*${xp})`;
-                repl.push(xpp);
-                if (toshow) genecodel.push("randx:" + this._show(xp));
-            }
-            // if (sq.vvv !== undefined) {
-            //     xp = this._expr(fun + 'H' + s.horn, sq.v, min, max, delta, step, help, tag, free, genes);
-            //     repl.push("(GG * " + sq.horn + "_rp)");
-            //     if (toshow) genecodel.push("v:" + this._show(xp) + ", horn:'" + sq.horn + "'");
-            // }
             const repls = '((' + repl.join(')+(') + '))';
             code = code.replace(mmmmr, repls);
-            genecodel.push('{' + gc.join(', ') + '}');
 
             if (code.includes('RIBS')) {  // tran === 'branch' etc
 	    	// current code (16 Dec 2023) does the sub calls firts even if later in tranrule.
@@ -897,7 +909,7 @@ export class Horn {
                 let useribs, userref;
                 if (lastsub?.num !== undefined) {
                     useribs = userref = this.gn('S_' + lastsub.subname + '_num');
-                    log(useribs, 'use for branch in ', this.name);
+                    // log(useribs, 'use for branch in ', this.name);
                     // if (this._genenames[this.gn("ribs")]) msgfixerrorlog('ribs() in' + this.name, 'probably not used') // no, rib genename is created implicitly
                     if (this._genenames[this.gn("radius")]) msgfixerrorlog('radius() in' + this.name, 'probably not used')
                 } else {
@@ -1251,7 +1263,7 @@ export class Horn {
             hs = { subname: h, num: num, start, end, depth };
         }
         if (hs.depth !== undefined)
-            hs.depth += ''; // force it to be a fixed value; matcodes gets confused otherwise???
+            hs.depth += ''; // force it to be a fixed (nongene) value; matcodes gets confused otherwise???
         else
             hs.depth = '2';
         this._sub.push(hs);
@@ -1444,7 +1456,7 @@ export class Horn {
         // total depth limit applies whether explict or recursive
         var me = this;
         var medepth = parents.reduce(function(p,n) { return p + (n === me.name ? 1 : 0); }, 0);
-        this._addgene('cutoffset', 0, -4000, 4000, 1, 1, 'cut offset for this horn, 999999 means uncut', 'geom', 'frozen', true, currentGenes);
+        this._addgene('cutoffset', 0, -4000, 4000, 1, 1, 'cut offset for this horn, 999999 means uncut', 'geom', 'frozen', true, genes);
 
         // if (this.hset && this.hset !== hset && this.hset !== cloneCircle) throwe("attempt to reuse horn in different hset");
         this.hset = hset;
@@ -1455,7 +1467,7 @@ export class Horn {
         var pretrancode  = (parents.length === 0) ? '{ // ' + this.gn('always active') + '\n' : " if (" + this.gn("active", medepth) + " != 9999.){\n";
         pretrancode += "float level = " + medepth + ".0;\n";
         pretrancode += "float myrp = " + this.gn("rp", medepth) + ";\n";
-        if (this.trans.length > 0 && this.trans[0].name !== 'branch') // ??? check for ANY is branch
+        if (this.trans.length > 0) // 22Mar2024 we want crp to make pulse sweep in branch && this.trans[0].name !== 'branch') // ??? check for ANY is branch
             pretrancode += "crp += myrp;\n";
         if (subparents.length > 0)
             pretrancode += "float SUBP_rp = " + subparents[subparents.length-1] + "_rp;\n";
@@ -1802,7 +1814,7 @@ export class Horn {
                             uniformsp[this.gn("active", medepth)].value = 0;
                             uniformsp[this.gn("rpbase", medepth)].value = s_tarto + k/sribs * (e_ndo-s_tarto);  //<< todo factor in rref
                             uniformsp.k.value = k;
-                            horns[item.subname]._compileh2a(genes, uniformsp, rendertarget, hset, key, num, hornid, subtype);
+                            horns[item.subname]._compileh2a(genes, uniformsp, rendertarget, hset, key, num, hornid, subtype, refl);
                         }
                     } else {
                         // n.b. _active and _rpbase NOT used as uniforms for 'modern' rendering, to check TODO
@@ -1816,7 +1828,7 @@ export class Horn {
                         uniformsp.k.value = 9999;  // was undefined k, probably not used for !oldrender?
                         var subnum = num*Math.ceil(sribs+1);
                         hset.parents[hset.hornid] = hornid;
-                        horns[item.subname]._compileh2a(genes, uniformsp, rendertarget, hset, subkey, subnum, hornid, subtype);
+                        horns[item.subname]._compileh2a(genes, uniformsp, rendertarget, hset, subkey, subnum, hornid, subtype, refl, item);
                         }
                 }   // refl
                 if (this.hascage) uniformsp[this.gn("reflx", medepth)].value = 1;
@@ -1926,7 +1938,7 @@ export class Horn {
      * key is the list of subhorns this is nested (as string for easier copy)
      * num is the cumulative (product) number of instances of this
      was renderh */
-    _compileh2a(genes: Genes, uniformsp, rendertarget, hset: HornSet, key: string, num: number, parentHornid: number, subtype: Subtype) {
+    _compileh2a(genes: Genes, uniformsp, rendertarget, hset: HornSet, key: string, num: number, parentHornid: number, subtype: Subtype, refl: number, item?) {
        const ddd = this.login('_compileh2a')
         var hornid = hset.hornid++;         // claim my hornid
 
@@ -1939,8 +1951,8 @@ export class Horn {
 
         hset.hornrun[hornid] = {hornid, medepth, horn: this, hornname: this.name,
             start: -999, totnum: -999, cumnum: -999, num: -999, res: -999, key, parentHornid, subtype,
-            depth,
-            ribs: -999};  // sribs: '?sribs', defribs: -999, parents: -999, , code: '?code'
+            depth, item,
+            ribs: -999, refl};  // sribs: '?sribs', defribs: -999, parents: -999, , code: '?code'
 
         // hset._adduniformX('cum count' + hornid, 0, "f", true);  // this really is a uniform even for singlemulti
 
@@ -1992,7 +2004,7 @@ export class Horn {
                     hset.parents[hset.hornid] = hornid;
                     hset.code[hset.hornid] = '// tail code here' + subkey + "\n" + pcode.join('\n') + '\n  ///// end tail code';
                 }
-                horns[this._tail[i]]._compileh2a(genes, uniformsp, rendertarget, hset, subkey, num, hornid, '_tail'); // ??? 19/11/2022 parentHornid);
+                horns[this._tail[i]]._compileh2a(genes, uniformsp, rendertarget, hset, subkey, num, hornid, '_tail', 0); // ??? 19/11/2022 parentHornid);
             }
             for (i in this._head) {
                 uniformsp[this.gn("active", medepth)].value = 0;
@@ -2002,7 +2014,7 @@ export class Horn {
                     hset.parents[hset.hornid] = hornid;
                     hset.code[hset.hornid] = '// head code here' + key + "\n" + pcode.join('\n') + '\n  ///// end head code';
                 }
-                horns[this._head[i]]._compileh2a(genes, uniformsp, rendertarget, hset, subkey, num, hornid, '_head');
+                horns[this._head[i]]._compileh2a(genes, uniformsp, rendertarget, hset, subkey, num, hornid, '_head', 0);
             }
         }
         /***/
@@ -2410,6 +2422,8 @@ export class HornSet {
     parentComplexity: number;   // # hornruns in the parent
 
     colgenenames?;
+    static useColGenes = true;   // false to use COL colours and ignore genes
+    static interpCols = false;   // false generate xhornid from horn, false leave to interp
 
     synthCode: string;
     static tailsToHead = false;
@@ -2458,9 +2472,9 @@ export class HornSet {
         /** called from within parsehorn */
         function tocompile(genes: Genes, hset: HornSet) : _parseret {
             var ugene = gene; // for historic usage
-            var pretranrule='', posttranrule='', luniforms = {}, overrides='', endoverrides='', extraIncludes='', mainhorn=undefined;
+            var pretranrule='', posttranrule='', postautoscale='', luniforms = {}, overrides='', endoverrides='', extraIncludes='', mainhorn=undefined;
             nop('$$$');
-            return {pretranrule, posttranrule, mainhorn, luniforms, overrides, endoverrides, extraIncludes} as _parseret;
+            return {pretranrule, posttranrule, postautoscale, mainhorn, luniforms, overrides, endoverrides, extraIncludes} as _parseret;
 
             // so the tranrule can define genes if needed
             function gene(name:string, def:N, min:N, max:N, delta:N, step:N, help:string, tag:string, free:NS, useuniform=true) {
@@ -2478,7 +2492,7 @@ export class HornSet {
                 gene(n + 'pulsemax', 100, 0, 1000, 1, 1, 'max amount for pulse', 'dyn', 0);
                 gene(n + 'pulseendfade', 0.05, 0, 1, 0.001, 0.001, 'portion of horn ends to fade the pulse effect', 'dyn', 0);
                 // var p = "pulsescale  * pow(0.5 + 0.5 * sin(6.283185307179586 * (time * pulserate  - crp * pulseperhorn  + pulsemodscale / max(pulsemodrate, 0.01)  * sin(time * pulserate * pulsemodrate ))), pulsepow )";
-                var p = "(pulserate, pulseperhorn, pulsepow, pulsescale, pulsemodrate, pulsemodscale, pulsemax, pulseendfade, crp, r, xscale, rp, time)"
+                var p = "(pulserate, pulseperhorn, pulsepow, pulsescale, pulsemodrate, pulsemodscale, pulsemax, pulseendfade, crp, xrscale, rp, time)"
                 p = 'pulsex' + p.replace(/pulse/g, n + 'pulse');
                 return p;
             }
@@ -2488,10 +2502,10 @@ export class HornSet {
             }
             // pulse applied to radius
             function pulsermult(name) {
-                const rr = 'r = ' + _pulse(name) + ';\n';
+                const rr = 'xrscale = ' + _pulse(name) + ';\n';
                 // log('pulser output', rr);
-                posttranrule += rr; // for posttranrule implicit in tranrule
-                return rr;          // for posttranrule = ... explicity in tranrule (backward compatability)
+                postautoscale += rr; // for postautoscale implicit in tranrule .. before 22Mar2024, was posttranrule
+                return rr;          // for postautoscale = ... explicity in tranrule (backward compatability)
             }
 
             /** generate one or more cut planes
@@ -2532,8 +2546,8 @@ export class HornSet {
                 }
                 rr += 'r *= mm;}';
                 // log('cut code generated', rr);
-                posttranrule += rr; // for posttranrule implicit in tranrule
-                return rr;          // for posttranrule = ... explicity in tranrule (backward compatability)
+                postautoscale += rr; // for postautoscale implicit in tranrule
+                return rr;          // for postautoscale = ... explicity in tranrule (backward compatability)
             }
         }   // end tocompile
 
@@ -2576,6 +2590,10 @@ export class HornSet {
                 serious('cannot compile horn function', e);
                 badshader = true;
                 throw(e);
+            }
+
+            if (answer.posttranrule.contains('pulse')) {
+                alert('pulse should now be in postautoscale, not posttranrule\nMove, but be careful of other details such as cut.')
             }
 
             if (tranrule === 'horn("main");') {  // was also tranrule.contains('horn("Qsub").ribs(8).radius(15)') ||
@@ -2698,6 +2716,7 @@ export class HornSet {
     static _incompilehs;
     _compilehs(tranrule: string, genes: Genes) {
         if (HornSet._incompilehs) serious('recursive call to _compilehs')
+        msgfix('horndepth'); // clear if needed
         HornSet._incompilehs = true;
         try {
             this._compilehsI(tranrule, genes)
@@ -2744,6 +2763,7 @@ export class HornSet {
             //     mainhorn: "Qfirst",
             //     overrides: "",
             //     posttranrule: "",
+            //     postautoscale: "",
             //     pretranrule: ""
             // });
             tranrule = skelReplace(genes.tranrule, this.horns);
@@ -2801,9 +2821,11 @@ export class HornSet {
         genes.tranrule = tranrule;
         // currentGenes.tranrule = tranrule;
         // monitorX(currentGenes, 'tranrule', genes)
-        var codes = codeForUniforms(this, genes);
-        this.singlePassCode = codes[0];
-        this.chooseHornCode = codes[1];
+        //if (!_testcompile) {
+            var codes = codeForUniforms(this, genes);
+            this.singlePassCode = codes[0];
+            this.chooseHornCode = HornSet.interpCols ? '' : codes[1];
+        //}
         // var tokill = 'opos---' + tranrule;
         // >>> TODO.  The line below is needed because with SINGLEMULTI a change in the tranrule with recompile
         // the lets getMaterial compile the OPOPOS code completely wrong.
@@ -3327,7 +3349,7 @@ function renderHornobj(genes:Genes, uniformsp, rendertarget, scenep, hset = getH
     // This is mainly an extra prep between compile and rendersinglemulti render
     // A major part of this is setting up hornrun and xuniforms so they are ready for rendersinglemulti
     if (!done) {
-        hset.getmain()._compileh2a(genes, uniformsp, rendertarget, hset, "", 1, -999, '_none');
+        hset.getmain()._compileh2a(genes, uniformsp, rendertarget, hset, "", 1, -999, '_none', 0);
         hset.htmlkeyrun = hset.hornrun.map(x => x ? x.key.replace(/.*?<(.*?)>[^<]*/g, '+$1') + '+' + x.hornname + '+' : undefined);
         setGUITranrule(genes);  // needs updating
     }
@@ -3597,7 +3619,7 @@ function clearBigsceneSet() {
 function multiInstances(bigscene: BigsceneType, num: number) {
     var geometry = bigscene.geometry;
     var ageometry = geometry as any;
-    geometry.instanceCount = num;
+    geometry.instanceCount = Math.min(U.maxInstanceCount, num - U.instanceOffset);
 
     if (ises300) {
         // next line patches bug in THREE.js, still (rev 121) does not allow for instanced geometry with no instance attributes
@@ -4236,7 +4258,7 @@ function newops(op) {
 
     var nhs = getHornSet(genes);
     nhs = cloneHornset(genes);
-    var thorn = nhs.horns[hornname];
+    var thorn = nhs.horns[hornname.pre('/')];
     if (!thorn) { msgfix("incorrect horn element selected", '?'); return; }
     switch(op) {
         case "WRONG?delete":
@@ -4502,11 +4524,12 @@ V.skip = true;
 
 
 /** set the gene values from the tranrule */
-function setGenesFromTranrule(ptranrule /* = currentGenes.tranrule */, trankey=undefined, genes = currentGenes) {
+function setGenesFromTranrule(ptranrule /* = currentGenes.tranrule */ /*, trankey=undefined*/ , genes = currentGenes) {
     let dummyHset = new HornSet();
-    let code = dummyHset.tranrule = _CodeMirrorInstance.getValue()
-    let rr = dummyHset.parsehorn( code, undefined, true);
-    dummyHset._compilehs(code, {});
+    let code = dummyHset.tranrule = ptranrule; // _CodeMirrorInstance.getValue()
+    let tgenes = {};
+    let rr = dummyHset.parsehorn( code, tgenes, true);
+    dummyHset._compilehs(code, tgenes);
     const geneDefaults = dummyHset.geneDefaults;
     let seen = 0, changed = 0;
     let set = {};
@@ -4527,7 +4550,7 @@ function setGenesFromTranrule(ptranrule /* = currentGenes.tranrule */, trankey=u
     }
     msgfixlog('setGenesFromTranrule', {seen, changed}, changed<5 ? set : '');
     log('set', set);
-    updateGuiGenes();
+    if (genes === currentGenes) updateGuiGenes();
 }
 
 /** set the gene values from the tranrule; this version unreliable with

@@ -1042,31 +1042,35 @@ http://localhost:8800/,,/,,/,,/,,/,,/,,/csynthstaticoldversions/rev8096/csynth.h
 
 */
 
-var ZZtests = [
-    ['threek.html?', 'threek'],
-    ['threek.html?tadkin', 'tad'],
-    ['csynth.html?', 'csynth'],
-    ['csynth.html?startscript=rsse/loadrsse.js', 'rsse'],
-    ['csynth.html?startscript=CrickLots/lots.js', 'crick'],
-    ['csynth.html?startscript=ima/lowry.js', 'lowry'],
-    ['csynth.html?startscript=YorkStudents/newtest_v5.js', 'york'],
-    ['csynth.html?startscript=Lorentz/lorentz.js', 'lorentz'],
-    ['csynth.html?startscript=SteveJan19/test.js', 'steve'],
-    ['csynth.html?startscript=covid/spike.js', 'covid'],
-    ['csynth.html?startscript=pdbs/1GFL.pdb', 'pdb'],
-    ['csynth.html?startscript=tric/tric.js', 'tric'],
+var CSYtests = [
+    //['threek.html?', 'threek'],
+    //['threek.html?tadkin', 'tad'],
+    // ['', 'csynth'],
+    ['startscript=wimm/rsse/loadrsse.js', 'rsse'],
+    ['startscript=CrickLots/lots.js', 'crick'],
+    ['startscript=ima/lowry.js', 'lowry'],
+    ['startscript=YorkStudents/newtest_v5.js', 'york'],
+    ['startscript=Lorentz/lorentz.js', 'lorentz'],
+    ['startscript=wimm/SteveJan19/test.js', 'steve'],
+    ['startscript=covid/spike.js', 'covid'],
+    ['startscript=pdbs/1GFL.pdb', 'pdb'],
+    ['startscript=tric/tric.js', 'tric'],
+    ['mcgill', 'mcgill'],
 
     // fails because of test= mixing wrong with javascript style ";
     // ['csynth.html?startscript="YorkStudents/capsid.pdb";if(window.onframe)onframe(()=>{G.springrate=5;G.stepsPerStep=20},4)', 'capsidBigpdb']
 ];
 var searchReplace;
-var tests = Object.entries(searchReplace);
+var alltests = Object.entries(searchReplace);
+var tests;  // active tests
 
 var testtime = 15000;
 /** runtest should be called with correct details in url ready set up  */
 function runtest(n = searchValues.test) {
+    tests = isCSynth ? CSYtests : alltests;
     if (n === false) return;
-    if (n === true) endtest(isCSynth ? 1 : -1);
+    if (n === true) endtest(-1); // isCSynth ? 1 : -1);
+    // if (typeof n === 'string' && n[0].toLowerCase() === 'c') {tests = CSYtests; n=0;}
     setTimeout(endtest, testtime)
 }
 
@@ -1078,7 +1082,7 @@ async function endtest(n = searchValues.test) {
         if (islocalhost) {
             EX.toFront();
             await sleep(200);
-            await S.frame(2);
+            if (CSynth.active) await S.frame(2);
             runcommandphp('mkdir ' + ds + 'tests');
             niractcmd('savescreenshotwin ' + ds + 'tests/' + tests[n][0] + '.jpg');
         } else {
@@ -1214,7 +1218,7 @@ function _compileShader(string, type) {
 
 var _CodeMirrorInstance, HornSet, _testcompile, _lastchecked, _lastres;
 /** check a tranrule, and if x = console show times */
-function checkTranruleAll(rcode = _CodeMirrorInstance.getValue(), x = {time: nop, timeEnd: nop}) {
+function checkTranruleAll(rcode = _CodeMirrorInstance.getValue(), genes = {}, x = {time: nop, timeEnd: nop}) {
     if (rcode === _lastchecked) return _lastres;
     _lastchecked = rcode;
 
@@ -1230,14 +1234,14 @@ function checkTranruleAll(rcode = _CodeMirrorInstance.getValue(), x = {time: nop
         x.time('parse');
         const dummyHset = new HornSet();
         window.xxhset = dummyHset;
-        const rr = dummyHset.parsehorn( code, undefined, true);
+        const rr = dummyHset.parsehorn( code, genes, true);
         x.timeEnd('parse');
         if (rr.error) return _lastres = 'parse error: ' + rr.error;
         dummyHset.tranrule = code;
 
         x.time('compile');
         try {
-            dummyHset._compilehs(dummyHset.tranrule, {});
+            dummyHset._compilehs(dummyHset.tranrule, genes);
             return _lastres = dummyHset;
         } catch (e) {
             return 'our compile error: ' + e;
@@ -1409,7 +1413,8 @@ async function findUniforms(fids = ['minicode/opos.opt.fs', 'minicode/opos.opt.v
 //
 // NOTE the combination blows up: usemask = -97; inps.USESKELBUFFER = false; inps.GPUSCALE = false;
 
-async function genmini({all = true, exclude = excludeUniforms, shorten=4} = {}) {
+async function genmini({all = true, exclude = excludeUniforms, shorten=6, fid} = {}) {
+    if (W.miditestwin) W.miditestwin.close(); // close old test so it doesn't stop this one being focussed
     shadows(0);
     usemask = 4;
     G.OPOSZ = 1;  // not sure why it matters what this is when generating code, but it does seem to
@@ -1448,15 +1453,16 @@ async function genmini({all = true, exclude = excludeUniforms, shorten=4} = {}) 
     // For some reason showUniformsUsed() doesn't find lennum, but that is easily fixed.
 
     // generate the uniforms file
-    const r = ['/* eslint-disable no-sparse-arrays */', 
+    const r = ['/* eslint-disable no-sparse-arrays */',
                'import {R, V, v2, v3, v4, m3, m4} from "./miniorganics.js"',
                `var sourcename='${inps.savename || G.name}'`];
     for (let gn in uu) {
         const gd = genedefs[gn];
+        const v = G[gn] ?? uu[gn]; // may be different, eg profileksize
         if (gd && gd.free && !gn.endsWith('_num') && !gn.endsWith('_ribs'))
-            r.push(`R.${gn}=[${f(gd.min)},${f(gd.max)},${f(uu[gn])}]`)
+            r.push(`R.${gn}=[${f(v)},${f(gd.min)},${f(gd.max)}]`)
         else
-            r.push(`R.${gn}=[${f(uu[gn])}]`)
+            r.push(`R.${gn}=[${f(v)}]`)
     }
     for (let p in feed.fp) {
         r.push(`V.${p}=${feed.fp[p]}`)
@@ -1472,7 +1478,7 @@ async function genmini({all = true, exclude = excludeUniforms, shorten=4} = {}) 
     miniuniforms = miniuniforms.replace('import', '// import');
 
 
-    collectmini({exclude, shorten, uu, miniuniforms});
+    collectmini({exclude, shorten, uu, miniuniforms, fid});
 
 
     function ff(v) { return format(v,6,true); }
@@ -1501,7 +1507,7 @@ async function collectmini(opts = {}) {
 
     let sizes = {}, totsize = 0;
 
-    const miniuniforms = opts.miniuniforms; // modified a little readtext('minicode\\miniuniforms.js'); 
+    const miniuniforms = opts.miniuniforms; // modified a little readtext('minicode\\miniuniforms.js');
     totsize+= sizes.miniuniforms = miniuniforms.length;
 
     // use the optimized versions to find uniforms actually used
@@ -1529,6 +1535,11 @@ async function collectmini(opts = {}) {
         if (!vert) vert = await readtextf('minicode\\' + opmode + 'mini.vs', true);
         if (!vert) vert = await readtextf('minicode\\' + opmode + 'miniNOR.vs', true);
         if (!vert) vert = await readtextf('minicode\\' + opmode + 'B.vs', true);
+        vert = vert.replaceAll('uniform', 'UU')
+        vert = vert.replaceAll('float', 'fl')
+        vert = '#define UU uniform\n' + vert;
+        vert = '#define fl float\n' + vert;
+
         vert = vert.replace('#version', '// #version')
         // dead vert = vert.replace('__VERSION__', '99999')
 
@@ -1538,6 +1549,10 @@ async function collectmini(opts = {}) {
         if (!frag) frag = await readtextf('minicode\\' + opmode + 'miniNOR.fs');
         if (!frag) frag = await readtextf('minicode\\' + opmode + 'B.fs');
         frag = frag.replace('#version', '// #version')
+        frag = frag.replaceAll('uniform', 'UU')
+        frag = frag.replaceAll('float', 'fl')
+        frag = '#define UU uniform\n'+frag
+        frag = '#define fl float\n'+frag
         // dead frag = frag.replace('__VERSION__', '99999')
         const rr = `
             S.${opmode}vert = \` ${vert}\`
@@ -1596,11 +1611,15 @@ function shortenmini(html, opts = {}) {
     let {shorten, uu, miniuniforms, fid, shortmax=1e10} = opts;
     fid = opts.fid ?? prompt('name for save/export of mini files', inps.savename || G.name);
 
+    const lffid = 'minicode\\latestminil.html'
+    writetextremote(lffid, html);
+
+
     if (html) lastminihtml = html; else html = lastminihtml;
     if (miniuniforms) lastminiuniforms = miniuniforms; else miniuniforms = lastminihtml;
     if (uu) lastminiuu = uu; else uu = lastminiuu;
 
-    html = html.replace('miniorganic debug</title>', 'miniorganic: ' + fid + '</title>');
+    html = html.replace('dbg miniorganic</title>', 'miniorganic: ' + fid + '</title>');
     const sizein = html.length;
 
     // shorten uniform names
@@ -1628,20 +1647,6 @@ function shortenmini(html, opts = {}) {
         }
         log('shortened', n);
     }
-    if (shorten & 2 && uu) {
-        const kuu = Object.keys(uu).sort((a,b) => a.length > b.length ? -1 : 0)
-        kuu.forEach((v, i) => {
-            let k = uu[v] === 'X' ? 'X' : 'U';
-            const rg = new RegExp(`(\\W)${v}(\\W)`, 'g')
-            const matches = html.match(rg).length;
-            if (matches < 2) {
-                // log('short split', v, spl.length);
-                k = uu[v] = 'Q';
-            }
-            html = html.replace(rg, `$1${k}${shorten ? i : v}$2`)
-            // html = spl.join(k + (shorten ? i : (v[0] + 'i' + v.substring(1))));
-        });
-    }
 
 
     // shorten horn names and bend etc
@@ -1650,16 +1655,71 @@ function shortenmini(html, opts = {}) {
         const hornnames = miniuniforms.match(/R\.(.*?)_/g).filter((v,ii,a) => a.indexOf(v) === ii).map(x => x.substring(2))
 
         for (const hn of hornnames) {  // horn name, did use currentHset.horns, needed ${hn}_ below
-            const hc = String.fromCharCode('A'.charCodeAt(0) + i++);  // horn character
+            if (hn === '_') continue;
+            const hc = String.fromCharCode('B'.charCodeAt(0) + i++);  // horn character
             html = html.replace( new RegExp(`(\\W)${hn}`, 'g'), `$1${hc}_`);
         }
-        const ss = {bend: 'b', twist: 't', stack: 's', ribs: 'r', ribdepth: 'd', radius: 'R',
-                   cutoffset: 'C', twistoff: 'w', sweep: 'S', branch: 'B', flap: 'f'};
+        const ss = {bend: 'b', twist: 't', stack: 's', ribs: 'r', ribdepth: 'd', radius: 'R', scale: 'S',
+                   cutoffset: 'C', twistoff: 'w', twistoffk: 'W', sweep: 'p', sweepk: 'P', branch: 'B', flap: 'f'};
         for (const op in ss) {
             const sop = ss[op];
             html = html.replace( new RegExp(`_${op}(\\W)`, 'g'), `_${sop}$1`);
         }
     }
+
+    if (shorten & 2 && uu) {
+        // nb AFTER shorten & 4
+        const skip = 'projectionMatrix modelViewMatrix'.split(' ');
+        const kuu = Object.keys(uu).sort((a,b) => a.length > b.length ? -1 : 0)
+        let i=0;
+        kuu.forEach(v => {
+            if (skip.includes(v)) return;
+            let k = uu[v] === 'X' ? 'X' : 'U';
+            const rg = new RegExp(`(\\W)${v}(\\W)`, 'g')
+            const matches = html.match(rg)?.length;
+            if (matches === undefined) return; // {log('no shorten2', v); return; }
+            if (matches < 2) {
+                // log('short split', v, spl.length);
+                k = uu[v] = 'Q';
+            }
+            const targ = `$1${k}${shorten ? ++i : v}$2`
+
+            html = html.replace(rg, targ)
+            // log ('shorten2', v, k,i)
+        });
+    }
+
+
+    // html = html.replace(/\n(.*?)\/\/.*?\n/g, '\n$1\n');
+    html = html.replaceAll('\r\n', '\n')
+    html = html.replace(/\n.*?\/\/\?\?.*/g, '\n')
+    const split = 'https://cdnjs'
+    let [c,b] = html.split(split)
+    b = b.replace(/\/\/.*/g, '');
+    html = c + split + b;
+
+    html = html.replace(/\n\s*/g, '\n')
+    html = html.replace(/\s*\n/g, '\n')
+    html = html.replace(/\/\*[\s\S]*?\*\//g, '');
+    html = html.replace(/<!--[\s\S]*?-->/g, '');
+    html = html.replaceAll('\n\n\n\n', '\n')
+    html = html.replaceAll('\n\n', '\n')
+    html = html.replaceAll(/ ([=*/+\-,;{}:?&!])/g, '$1')
+    html = html.replaceAll(/([=*/+\-,;{}:?&!]) /g, '$1')
+
+    // below finds words, but there are too many 'special' ones not to shorten for now, so not used
+    let words = html.match(/(\b[a-zA-Z_$][a-zA-Z0-9_$]*?\b)*/g);
+    words = words.filter(x => x.length > 3 && !(x in THREE))
+    //words.sort()
+    //const words2 = words.filter((v,i,a) => v !== a[i-1]);
+    const worduse = W.worduse = {}
+    for (const w of words) {worduse[w] = (worduse[w] ?? 0) + 1}
+    const wordtot = W.wordtot = []
+    for (const w in worduse) wordtot.push({w, n:worduse[w], tot: worduse[w] * w.length, savetot: worduse[w] * Math.max(0, (w.length-3))});
+    wordtot.sort((a,bb) => bb.savetot - a.savetot);
+    let ctot = 0; for (const t of wordtot) t.ctot = ctot += t.savetot;
+
+//    html = html.replaceAll(/([=*/+-,;{}:?]) /g, '$1')
 
     // this didn't work because too far removed from use interaction
     // const handle = await savesystem.save('minicode', undefined, html, [{accept: {'text/html': '.html'}}])
@@ -1667,9 +1727,10 @@ function shortenmini(html, opts = {}) {
     // ?? no, was writing to minicode and minicode/test, so we still will
     const ffid = 'minicode\\test\\' + fid + '.html';
     writetextremote(ffid, html);
-    writetextremote('minicode\\latestmini.html', html);
+    const ffid2 = 'minicode\\latestmini.html'
+    writetextremote(ffid2, html);
 
-    window.open(ffid,'_blank');
+    window.miditestwin = window.open(ffid2,'_blank');
 
     log('genmini complete', fid)
     window.savedmini = html
@@ -1683,8 +1744,8 @@ function shortenmini(html, opts = {}) {
  * Note: this still requires uniforms to be available in the shared uniform object
  */
 function shaderFromFiles(name = 'edge', genes = currentGenes) {
-    const vertexShader = readtext(`/shaders/${name}.vs`).replace('#version', '// # version');
-    const fragmentShader = readtext(`/shaders/${name}.fs`).replace('#version', '// # version');
+    const vertexShader = extradefines + readtext(`/shaders/${name}.vs`).replace('#version', '// # version');
+    const fragmentShader = extradefines + readtext(`/shaders/${name}.fs`).replace('#version', '// # version');
 
     const shader = new THREE.RawShaderMaterial({vertexShader, fragmentShader, uniforms});
     shader.glslVersion = THREE.GLSL3;
@@ -1729,27 +1790,28 @@ function rerangeAllLots(ppattern, min, max, allg = []) {
     refall();
 }
 
+// below probably obsolete, 4 Apr 2024
 Object.defineProperty(window, 'edgecolour', {
     get: () => U.profcol.b === 0,
-    set: (b) => {
-        const c3 = col3;
-        if (b === undefined) b = U.profcol.b !== 0;
-        if (b) {
-            U.fillcol = c3(1,1,1)
-            U.edgecol = c3(0,0,0)
-            U.occcol = c3(1,1,0)
-            U.profcol = c3(1,0,0)
-            U.backcol = c3(0.2,0.2,0.2)
-            U.wallcol = c3(0,1,0.2)
-            U.unkcol = c3(0,1,1)
+    set: (bb) => {
+        if (bb === undefined) bb = U.profcol.b !== 0;
+        const s = (o,r,g,b) => o.setRGB(r,g,b);
+        if (bb) {
+            s(U.fillcol, 1,1,1)
+            s(U.edgecol, 0,0,0)
+            s(U.occcol, 1,1,0)
+            s(U.profcol, 1,0,0)
+            s(U.backcol, 0.2,0.2,0.2)
+            s(U.wallcol, 0,1,0.2)
+            s(U.unkcol, 0,1,1)
         } else {
-            U.fillcol = c3(1,1,1)
-            U.edgecol = c3(0,0,0)
-            U.occcol = c3(1,1,1)
-            U.profcol = c3(1,1,1)
-            U.backcol = c3(1,1,1)
-            U.wallcol = c3(0,1,0.2)
-            U.unkcol = c3(0,1,1)
+            s(U.fillcol, 1,1,1)
+            s(U.edgecol, 0,0,0)
+            s(U.occcol, 1,1,1)
+            s(U.profcol, 1,1,1)
+            s(U.backcol, 1,1,1)
+            s(U.wallcol, 0,1,0.2)
+            s(U.unkcol, 0,1,1)
         }
     }
 });

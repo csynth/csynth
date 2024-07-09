@@ -561,11 +561,19 @@ function runkeys(kkkp, ff, evt = {}, tryextra = true) {
         // case 'Insert,End': GX.autoscale(); break;        // scale slider from current value
         // case 'Insert,ArrowUp': GX.hstep(1); break;    // increase value for hover over gui slider
         // case 'Insert,ArrowDown': GX.hstep(-1); break;    // increase value for hover over gui slider
-        // case 'Insert,-': GX.hide(); break;    // hide hovered element
-        case 'Insert,=': GX.show(); break;    // restore last hidden element
+        // case 'Insert,=': GX.hide(); break;    // hide hovered element
+        // ?? case 'Insert,=': GX.show(); break;    // restore last hidden element
+        case 'Insert,Backspace': inps.useinterp = !inps.useinterp; break;    // toggle use of glsl form interpreter
         case 'Insert,Home': windowset(0); break;    // establish 'sensible' sized screen
         case 'Delete,0': setBackgroundColor(0); break;  // black background
         case 'Delete,1': setBackgroundColor(1); break;  // white background
+
+        case 'Q,,': GX.restorenextfile(true); break; // goto previous .settings files
+        case 'Q,.': GX.restorenextfile(); break; // goto next .settings files
+        case 'H': GX.restorenextfile(true); break; // goto previous .settings files
+        case 'F': GX.restorenextfile(); break; // goto next .settings files
+        // case 'K': alert('test key'); break; // test for free
+
         default:
             // kill any non-special keys in the canvas area
             // to reduce risk of errors such as overtype on rules
@@ -891,6 +899,7 @@ function dockeydowninner(kkk, evt) {
             break;
         // ca se ';': if (debugKey) debugKey();
 
+
         case 'Q,1': bigimprep(0); break;    // ??? prepare to save big images
         // case 'Q,2': bigimprep(2); break; // << does not work
         case 'Q,3': bigimprep(3); break;    // ??? prepare to save big images
@@ -918,7 +927,6 @@ function dockeydowninner(kkk, evt) {
 
         case 'Insert,G': genmini(); break;
         case 'shift,Insert,G': genmini({all: false}); break;
-
 
         //16 June 2022, removed, do all F 11 handling ourselves
         //case 'F 11 ': handleF 11("down"); break;  // chrome gets down when entering fs, and up on both enter and leave fs

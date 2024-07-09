@@ -186,6 +186,7 @@ function addGene(c: GeneConfig) {
 
 /** add a gene if not already present: todo decide what to replace in old if already present  */
 function addgene(gn:string, def:number, min:number, max:number, delta?, step?:number, help?:string, tag?:string, free:number|string=1, internal=false, useuniform = true, addGui = true, genes = currentGenes) {
+    if (_testcompile) { if (genes) genes[gn] = def; return; }
 
     // whether new or not, setup or replace the other details
     delta = (delta === undefined || delta === '?' || delta === 'u') ? (max - min)/10 : delta;

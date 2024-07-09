@@ -1,8 +1,8 @@
 // tracker version of dat.guiVR to capture fields
 // we keep names and other details useful for save/restore
-var dat, log, V, location, THREE,msgfixlog, fileTypeHandlers, localStorage, updateMat, W, S,
-onframe, saveAs, writetextremote, CSynth, Blob, openfiles, posturi, sensible, Maestro, CLeap, killev, G, camToGenes, msgfix,
-makeLogval, refall, readtext, loadjs, currentGenes, xxxgenes, mainvp, tad, U, springs, getdesksave, fileExists, feed, Viewedit;  // for lint
+var dat, log, V, THREE,msgfixlog, fileTypeHandlers, localStorage, updateMat, W, S, getObjnames, getFileName,
+onframe, saveAs, writetextremote, CSynth, Blob, openfiles, posturi, sensible, Maestro, CLeap, killev, G, camToGenes, msgfix, isCSynth, msgflash, openfile,
+makeLogval, refall, readtext, loadjs, currentGenes, xxxgenes, mainvp, tad, U, springs, getdesksave, fileExists, feed, Viewedit, readdir, renderVR, guiFromGene;  // for lint
 
 dat.GUIVR.globalEvents.on('onPressed', e => {
     Maestro.trigger('datguiclick', e);
@@ -77,9 +77,47 @@ GX.addButton = function addButton(func, propertyName, tip = propertyName) {
         ).setRowHeight(0.075);
 }
 
+
+var tadkin, edge, COL, RGXX, OrganicSpeech, inps
+GX.objname = function(o) {
+    const nn = {G: currentGenes, U, tad, tadkin, W, feed, edge, COL, S, RGXX, inps, renderVR, springs, OrganicSpeech}
+    // 'tadkin.sv': tadkin.sv, "COL.hsvopts": COL.hsvopts, "COL.ranges": COL.ranges, 'COL._randseed': COL._randseed, 'tad.rb': tad.rb,
+    if (!GX.objmap) {
+        const map = GX.objmap = new Map();
+        for (const n in nn) map.set(nn[n], n);
+    }
+    const r = GX.objmap.get(o);
+    if (r) return r;
+
+    // try second level
+    for (const n in nn) {
+        if (!nn[n]) continue;
+        const i = Object.values(nn[n]).indexOf(o);
+        if (i !== -1)
+            return n + '.' + Object.keys(nn[n])[i]
+    }
+}
+GX.objmap = undefined;
+
 /** add an item to a folder on the gui, mark up the item with its functional aspects, and keep track of added item */
-GX.datGUIVRadd = function datGUIVRadd(object, propertyName, min, max, step, guiname, tooltip, listen=true) {
+GX.datGUIVRadd = function datGUIVRadd(object, propertyName, min, max, step, guiname, tooltip = guiname, listen=true) {
+    if (object.isGXObject || object.isIBP || object.isPanel) {
+        let o = object;
+        if (o.isIBP) o = o.panel;
+        const r = o.isPanel ?
+            this.addImageButtonPanel(o.n, ...o.details) :
+            this.add(o.object, o.propertyName, o._min, o._max, o._step, o.guiName, o.getToolTip())
+        if (o.changeFunction) r.onChange(o.changeFunction);
+        r.basekey = o.basekey ?? o.mostName();  // remember how we were created
+        return r;
+    }
     if (object.isFolder) return this.addFolder(object);
+    const oname = GX.objname(object) || '?object?';
+    tooltip = (tooltip ?? '') + '\n\n' + oname + '.' + propertyName;
+    if (object.objName) {
+        const nn = getObjnames();
+        object = nn[object.ownerName][object.objName]
+    }
     if (object[propertyName] === undefined) return console.log('cannot find property', propertyName, 'on', object);
     if (min === undefined) min = 0;
     if (max === undefined) max = object[propertyName] * 2;
@@ -91,6 +129,7 @@ GX.datGUIVRadd = function datGUIVRadd(object, propertyName, min, max, step, guin
          console.error('NANANANANAANA', object, propertyName); return;
          debugger
     }
+    xx.isGXObject = true;
     xx.object = object;
     xx.propertyName = propertyName;
     xx.guiName = guiname || propertyName;
@@ -100,10 +139,12 @@ GX.datGUIVRadd = function datGUIVRadd(object, propertyName, min, max, step, guin
     if (xx.step) xx.step(step);
     // if (xx.step && ! GX._mat) {       // somewhat arbitrary way to capture the material used on a slider titles
     if (!GX._mat) {       // somewhat arbitrary way to capture the material used on a slider titles
-            GX._mat = xx.children[0].material;
-        GX._hovermat = GX._mat.clone(); GX._hovermat.color.setRGB(3,3,0);
-        GX._selmat = GX._mat.clone(); GX._selmat.color.setRGB(0,6,0);
-        GX._maskmat = GX._mat.clone(); GX._maskmat.color.setRGB(3,0,6);
+        GX._mat = xx.children[0].material;  // steal reference material from standard
+        GX._hovermat = GX._mat.clone();
+        GX._selmat = GX._mat.clone();
+        GX._mselmat = GX._mat.clone();
+        GX._maskmat = GX._mat.clone();
+        // colour setting left to update, otherwise datagui sometimes kills it
     }
     xx.folderParent = this; //already has folder property
     if (xx.setHeight) xx.setHeight(GX.defaultHeight);
@@ -173,12 +214,13 @@ GX.datGUIVRadd = function datGUIVRadd(object, propertyName, min, max, step, guin
         xx.min = function(v) { xx.oldmin(v); xx._min = v; return xx; }
         xx.max = function(v) { xx.oldmax(v); xx._max = v; return xx; }
         xx.step = function(v) { xx.oldstep(v); xx._step = v; return xx; }
-        xx.normalizeRange = function(edge = 0.1) { GX.normalizeRange(xx, edge); }
+        xx.normalizeRange = function(pedge = 0.1) { GX.normalizeRange(xx, pedge); }
     }
     GX.addToDict(xx);
     // GX.guiDictCache = undefined;
     if (tooltip !== undefined) xx.setToolTip(tooltip);
     if (listen && xx.listen) xx.listen();
+    //??xx.basekey = xx.mostName();
     return xx;
 }
 
@@ -208,7 +250,7 @@ GX.datGUIVRaddFolder = function(folder) {
   */
 GX.datGUIVRaddImageButtonPanel = function(n, ...details) {
     const me = this;
-    const panel = {details, folderParent: me, isPanel: true}
+    const panel = {details, n, folderParent: me, isPanel: true}
     details.forEach(d => {
         if (!d.tip) {
             const key = d.key || d.text;
@@ -218,6 +260,7 @@ GX.datGUIVRaddImageButtonPanel = function(n, ...details) {
         d.func = () => { func(); panel.lastSelected = d}
     });
     const ibp = panel.ibp = me.oldaddImageButtonPanel(n, ...details);
+    ibp.isIBP = true;
     ibp.panel = panel;
     CSynth.ret = ibp;
     const guic = ibp.guiChildren;
@@ -247,9 +290,9 @@ GX.datGUIVRaddImageButtonPanel = function(n, ...details) {
     });
     let panelname = rdetails[0].text;
     panelname = panelname[0] + '_' + panelname.substring(1); // insert _ to make name unique
-    panel.guiName = panelname;
-    panel.fullName = function() { return me.fullName() + '/' + panelname; }
-    panel.mostName = function() { return me.mostName() + '/' + panelname; }
+    ibp.guiName = panel.guiName = panelname;
+    ibp.fullName = panel.fullName = function() { return me.fullName() + '/' + panelname; }
+    ibp.mostName = panel.mostName = function() { return me.mostName() + '/' + panelname; }
     panel.getValue = function() {
         if (!panel.lastSelected) return undefined;
         if (panel.lastSelected.mostName) return panel.lastSelected.mostName();
@@ -259,6 +302,7 @@ GX.datGUIVRaddImageButtonPanel = function(n, ...details) {
     panel.setValue = function(str) { const gui = panel.lastSelected = GX.getgui(str); gui.press(); }    // todo more checking
 
     GX.addToDict(panel);
+
     return ibp;
 }
 
@@ -306,9 +350,9 @@ dat.GUIVR.createX = function(guiName) {
 dat.GUIVR.createOLD = dat.GUIVR.create;
 dat.GUIVR.create = dat.GUIVR.createX;
 
-GX.getNewFilename = function(name, extension) {
+GX.getNewFilename = function(name, extension, force=false) {
     const _public = location.host === "csynth.molbiol.ox.ac.uk" && location.search.indexOf('?p=') === -1;
-    if (!name) {
+    if (!name || force) {
         let unp;
         if (_public)
             unp = 'Undecorated will save in the browser, cannot save to server for public projects.';
@@ -320,20 +364,21 @@ GX.getNewFilename = function(name, extension) {
         Start with ! for download as file.
         Start with + for save in Organic code.
         `
-        name = window.prompt(prompt, '');
+        if (name !== '>initial.settings') name = window.prompt(prompt, name ?? '');
     }
     return name;
 }
 
-GX.saveguiString = function() {
+GX.saveguiString = function(pref='') {
     const r = {};
     const s = currentGenes; // in case called with currentGenes masked, temporarily unmask
     if (!currentGenes) currentGenes = xxxgenes(mainvp);
     GX.guilist.forEach(x => {
-        if (x.getValue && !x._nosave) {  // not for folders
+        const name = x.mostName();
+        if (x.getValue && !x._nosave && name.startsWith(pref)) {  // not for folders
             let v = x.getValue();
             if (v instanceof THREE.Color) v = {r: v.r, g:v.g, b: v.b, '$$=type': 'colour'};  // THREE does horrible things with toJSON()
-            r[x.mostName()] = v;
+            r[name] = v;
         }
     });
     currentGenes = s;
@@ -341,13 +386,16 @@ GX.saveguiString = function() {
 }
 
 /** save the gui, plus tad related details. TODO, make the extra detail saving more structured, eg callback */
-GX.savegui = async function(name, full = false) {
-    const extension = '.settings';
-    name = GX.getNewFilename(name, extension);
+GX.savegui = async function(name = '', full = false, pref = '') {
+    let extension = '.settings';
+    if (pref) extension = '.' + pref + extension;
+    // name = (pref ? '+' : '') + name + (pref ? '.' + pref : '');
+    name = GX.getNewFilename(name, extension, !name.contains('!'));
     if (!name) { log('no name, GX.savegui aborted'); return; }
+    if (pref && ! '+>!'.contains(name[0])) name = '+' + name;
     const _public = location.host === "csynth.molbiol.ox.ac.uk" && location.search.indexOf('?p=') === -1;
     if (_public && name[0] !== '>' && name[0] !== '!') name = '>' + name;
-    const r = GX.saveguiString();
+    const r = GX.saveguiString(pref ? pref + '/' : '');
 
     if (full) {
         if (tad?.TADS && tad?.T[0]) {
@@ -384,7 +432,7 @@ GX.restoregui = function(pname='default', name2=undefined, allowmissing = false)
         return false;
     }
     // special case to catch irritating indireect by Oxford server for missing files
-    // TODO: shuold not still be needed
+    // TODO: should not still be needed
     if (sss.trim()[0] === '<' && sss.indexOf('File is unknown in this project') !== -1) { msgfixlog('no saved gui set', name); return false; }
     if (sss.trim()[0] !== '{') { loadjs(sss, name); return; }  // allow for pure java settings files
     const r = JSON.parse(sss);   // recover and parse saved set
@@ -463,6 +511,7 @@ GX.getgui = function(km, retry = true) {
 
 /** restore gui from object */
 GX.restoreGuiFromObject = function(ss) {
+    window.dispatchEvent(new Event('prerestore'));  // if extra features are added not in old save files, prerestore can make them correct default
     const dict = GX.guidict();                  // get current objects for the keys
 
     // work in two passes. handle the buttons first, then the sliders which may have overridden the buttons
@@ -470,9 +519,10 @@ GX.restoreGuiFromObject = function(ss) {
         const v = ss[km];
         const k = GX.keymap(km);
         const guio = dict[k];      // find the current gui object
-        if (guio && guio.isPanel && guio.guiName !== 's_avegui')
+        if (guio && guio.isPanel && !(guio.guiName.startsWith('s_avegui')))
             guio.setValue(v);
     }
+    S.process(true);
 
     // now the sliders etc
     for (let km in ss) {
@@ -483,7 +533,7 @@ GX.restoreGuiFromObject = function(ss) {
             if (typeof v === 'object' && v['$$=type'] === 'colour') {
                 guio.getValue(v).setRGB(v.r, v.g, v.b);
             } else if (guio.setValue && !guio.isPanel) {
-                if (S.rampTime) { // GX.restoreRamptime
+                if (S.rampTime && !S.noramp) { // GX.restoreRamptime
                     S.ramp(guio, 'unused', v, S.rampTime); // was GX.restoreRamptime
                 } else {
                     guio.setValue(v);
@@ -494,6 +544,7 @@ GX.restoreGuiFromObject = function(ss) {
             msgfixlog('cannot recover key', k, 'value=', v);
         }
     }
+    dispatchEvent(new Event('gxrestored'));
     return true;
 }
 fileTypeHandlers['.settings'] = GX.restoregui;
@@ -605,6 +656,7 @@ GX.setupFolderLayoutVals = () => {
     setInterval(() => {
         GX.saveFolderLayout('auto');
         GX.savegui(p + '!auto.settings');
+        for (const f of Object.values(GX.folders())) if (f.isFree()) localStorage['lastfree' + f.guiName] = JSON.stringify(f.position);
     }, 1000);   // save the automatic position on a regular bases
 };
 
@@ -620,48 +672,193 @@ window.addEventListener('load', ()=> {
 GX.hovscale = 1.02;
 GX.selectscale = 1.05;
 
-GX.update = function() {
-    if (V.gui?.parent && !V.gui.parent.visible) {GX.interactions = []; return;} // nv in VR, no gui.parent
-    const interactions = GX.interactions = dat.GUIVR.update();
-    if (GX.lasto && GX.lasto !== GX.selected)
-        GX.lasto.children[0].material = GX.lasto.lastValue === undefined ? GX._mat : GX._maskmat; // GX.lasto.scale.set(1, 1, 1);
-    GX.lasto = undefined;
-    if (interactions.length !== 1) {
+GX.setcol = function(s, hover=true) {
+    if (s === 'all') {
+        GX.updateGuiDictCache();
+        for (const x of Object.values(GX.guidict())) GX.setcol(x)
         return;
     }
-    const maino = interactions[0].object.parent;
-    if (!maino.guiName || !maino.propertyName) return;
-    if (maino !== GX.selected) maino.children[0].material = GX._hovermat; //.scale.set(GX.hovscale, GX.hovscale, GX.hovscale);
-    GX.lasto = maino;
+    if (!s?.children?.[0]) return
+    if (s.isFolder) return; // don't change the folder materials, more complicated
+    s.children[0].material = s === GX.selected ? GX._selmat :
+        GX.sellist.includes(GX.lasto) ? GX._mselmat :
+        s.folderParent === GX.lastSelectedFolder ? GX._mselmat :
+        hover && s === GX.lasto ? GX._hovermat :
+        GX._mat; // GX.lasto.scale.set(1, 1, 1);
 }
 
-GX.select = function(mouseEvent) {
-    if (GX.selected) GX.selected.children[0].material = GX.selected === undefined ? GX._mat : GX._maskmat; //.scale.set(1, 1, 1);
-    const s = GX.selected = GX.lasto;
-    if (mouseEvent.button === 2) {
-        if (!s) return;
-        const curval = s.getValue();
-        if (curval !== s.initialValue) {
-            s.lastValue = curval;
-            s.setValue(s.initialValue);
-            s.children[0].material = GX._maskmat;
-        } else {
-            s.setValue(s.lastValue);
-            s.children[0].material = GX._mat;
-        }
-        return;
+GX.lastfree = {}
+
+GX.update = function() {
+    if (V.gui?.parent && !V.gui.parent.visible) {GX.interactions = []; GX.lasto = undefined; return;} // nv in VR, no gui.parent
+    GX.lastmult0
+    const interactions = GX.interactions = dat.GUIVR.update();
+
+    // let folder = interactions[0]?.object;
+    // while (folder && !folder.folderParent) folder = folder.parent;
+    // let folderParent = GX.folderParent = folder?.folderParent;
+
+        // below dynamic because dat.GUIVR.update() can upset it
+    if (GX._hovermat) {
+        GX._hovermat.color.setRGB(20,0,0);
+        GX._selmat.color.setRGB(0,0,20);
+        GX._mselmat.color.setRGB(0,20,0);
+        GX._maskmat.color.setRGB(10,0,20);
     }
-    // msgfix('!GX.selected', s ? s.guiName : 'none');
-    if (s) s.children[0].material = GX._selmat; //.scale.set(GX.selectscale, GX.selectscale, GX.selectscale);
-    GX.html();
+    GX.setcol(GX.lasto, false)
+    GX.lasto = undefined;
+    const f = interactions[0]?.object?.folder;
+    const n = f?.guiName
+    if (n && f.isFree()) {
+        if (!GX.lastfree[n] && localStorage['lastfree' + n])
+            f.position.copy(JSON.parse(localStorage['lastfree' + n]));  // first time seen this session, use localStorage
+        if (GX.lastfree[n]?.beenfix)
+            f.position.copy(GX.lastfree[n].pos)     // just been freed, so reset prefix position
+        GX.lastfree[n] = {n, pos: f.position.clone(), f, beenfix: false}; // capture position while free
+        localStorage['lastfree' + n] = JSON.stringify(f.position);
+    } else if (GX.lastfree[n]) {
+        GX.lastfree[n].beenfix = true;              // record this has been fixed so is candidate for restore
+    }
+
+    if (interactions.length !== 1) return;
+
+    const maino = interactions[0].object.parent;
+    if (!maino.guiName && maino.guiType !== 'imagebuttongrid') {log('maino no guiName'); return; }
+    // if (!maino.guiName || !maino.propertyName) return;
+    // if (maino !== GX.selected) maino.children[0] .material = GX._hovermat; //.scale.set(GX.hovscale, GX.hovscale, GX.hovscale);
+    GX.lasto = V.nocamscene.visible && !renderVR.invr() ? maino : undefined;
+    GX.setcol(maino)
 }
+
+GX.saveFolder = function(f) {
+    const list = f.guiChildren.filter(x=>x.isGXObject || x.isIBP).map(x => x.basekey).join('\n')
+    GX.write('+' + f.mostName() + '.gxmenu', list)
+}
+
+GX.loadFolder = function(data, fn) {
+    const fname = getFileName(fn.replace('.gxmenu',''));
+    const old = GX.getgui(fname);
+    if (old) GX.removeItem(old);
+    const nn = V.gui.addFolder(fname);
+    for (const l of data.split('\n')) {
+        const s = GX.getgui(l);
+        if (s)
+            nn.add(s)
+        else if (l.startsWith('GENE/'))
+            guiFromGene(nn, l.post('/'));
+        else
+            log('cannot find gui for', l)
+    }
+    nn.open();
+    nn.detach();
+    nn.performLayout();
+    nn.position.set(0.8, 0.8, 0.8);
+    GX.lastSelectedFolder = nn;
+    GX.setcol('all');
+}
+fileTypeHandlers['.gxmenu'] = GX.loadFolder;
+
+GX.sellist = [];
+GX.keyselect = async function(kev) {
+    const s = GX.lasto;
+    if (!s) return;
+    switch(s.guiType) {
+
+        case 'folder': {
+            switch(kev.key) {
+                case 's': GX.savegui('', false, s.guiName); break;
+                case 'o': {
+                    const r = await W.showOpenFilePicker({id: 'settings', types: [ {description: 'settings', accept: {'application/settings': ['.' + s.guiName + ".settings"]}} ]})
+                    if (r?.[0]) openfile(r[0]);
+                } break;
+            }
+        } break;
+
+        case 'slider': {
+            switch(kev.key) {
+                case 'ArrowRight': s.setValue(s.getValue() + s._step); break;
+                case 'ArrowLeft': s.setValue(s.getValue() - s._step); break;
+                case 'ArrowUp': s.setValue(s.getValue() + s._step*10); break;
+                case 'ArrowDown': s.setValue(s.getValue() - s._step*10); break;
+            }
+        } break;
+    }
+    killev(kev);  // kill whether handled or not
+}
+
+GX.mouseselect = function(mouseEvent) {
+    const s = GX.lasto;
+    let f = GX.lastSelectedFolder;
+    try {
+        if (mouseEvent.ctrlKey) {
+            if (!s) { GX.lastSelectedFolder = undefined; return; }
+            if (s.isFolder) { f = GX.lastSelectedFolder = s; return; }
+            if (!f) {
+                const name = prompt('name for new folder?', 'new folder');
+                if (!name) return;
+                f = GX.lastSelectedFolder = V.gui.addFolder(name)
+                f.open();
+                f.detach();
+                f.position.set(0.8, 0.8, 0.8);
+            }
+
+            if (s.isGXObject || s.isIBP) {
+                f.add(s);
+            } else {
+                let msg = 'ctrlclick';
+                if (!s?.isGXObject) msg += '\nno appropriate item selected to add'
+                msgfix(msg);
+                msgflash({col: 'darkred', time: 500});
+            }
+            f.performLayout();  // just in case
+            GX.saveFolder(f);
+            return;
+        }  // ctrlKey
+
+        if (!s) { GX.selected = undefined; GX.html(); return; }
+        GX.selected = GX.lasto;
+        if (mouseEvent.button === 2) {
+            if (!s?.getValue) return;
+            const curval = s.getValue();
+            if (curval !== s.initialValue) {
+                s.lastValue = curval;
+                s.setValue(s.initialValue);
+            } else {
+                s.setValue(s.lastValue);
+            }
+            return;
+        }  // mouseEvent.button === 2
+        GX.html();
+    } finally {
+        GX.setcol('all');
+    }
+
+// experiment for multiple select, but now just put straight into new menu
+// if (mouseEvent.ctrlKey) {
+//     const i = GX.sellist.indexOf(s);
+//     if (i === -1) {
+//         GX.sellist.push(s);
+//         //s.children[0] .material = GX._mselmat;
+//     } else {
+//         GX.sellist.splice(i, 1);
+//         //s.children[0] .material = GX._mat;
+//     }
+//     GX.setcol(s);
+//     return;
+// }
+// if (mouseEvent.shiftKey) {
+//     return;
+// }
+
+} // select()
 
 GX._setselect = function() {
     if (W.canvas) {
         // note: 28 Apr 2022, was 'mouseup' as datguivr killed mousedown events
         // this meant sliding slider to left often gave a mouseup on the select area and brought up sn unwanted html gui
         // datguivr modified
-        W.canvas.addEventListener('mousedown', GX.select)
+        W.canvas.addEventListener('mousedown', GX.mouseselect)
+        W.canvas.addEventListener('keydown', GX.keyselect)
     } else {
         setTimeout(GX._setselect, 100);
     }
@@ -676,15 +873,18 @@ GX.codesettingsprefix = '+';
 GX.localprefixkey = 'savelocal';
 GX.localprefixfull = GX.localprefixkey + GX.localprefix;
 GX.write = function(name, vv) {
+    const nname = name.substring(1);
     if (name[0] === GX.localprefix) {
-        localStorage[GX.localprefixkey + name] = vv;
+        localStorage[GX.localprefixkey + nname] = vv;
     } else if (name[0] === GX.downloadprefix) {
-        saveAs(new Blob([vv]), name.substring(1));
+        saveAs(new Blob([vv]), nname);
     } else if (name[0] === GX.codesettingsprefix) {
-        if (name.contains('/') || name.contains('\\'))
-            writetextremote(name, vv);
+        if (nname.contains('/') || nname.contains('\\'))
+            writetextremote(nname, vv);
+        else if (!isCSynth)
+            writetextremote('settings/' + nname, vv);
         else
-            writetextremote((CSynth.current ? CSynth.current.fullDir : '') + name, vv);
+            writetextremote((CSynth.current ? CSynth.current.fullDir : '') + nname, vv);
     } else {  // no prefix => organicsaves
         const ds = getdesksave()
         writetextremote(name.startsWith(ds) ? name : (ds + name), vv)
@@ -786,7 +986,8 @@ GX.removeItem = function(key) {
         c.updateMatrix();
         if (c.parent) c.parent.remove(c);
     });
-V.gui.requestLayout();
+    GX.updateGuiDictCache();
+    V.gui.requestLayout();
 }
 
 // close all folders
@@ -814,7 +1015,7 @@ GX.findSelected = function() {
 }
 
 /** normalize range according to current value */
-GX.normalizeRange = function(xx, edge = 0.4, extremeEdge = 0.1) {
+GX.normalizeRange = function(xx, pedge = 0.4, extremeEdge = 0.1) {
     if (xx === undefined) {
         const r = GX.findSelected();
         if (r.length === 1)
@@ -831,9 +1032,9 @@ GX.normalizeRange = function(xx, edge = 0.4, extremeEdge = 0.1) {
     let k = 1;
     if (rpos < extremeEdge && v !== 0 && xx._min !== 0) k = v / 3 / xx._min;
     else if (rpos < extremeEdge && v !== 0) k = v * 3 / xx._max;
-    else if (rpos < edge) k = 0.5;
+    else if (rpos < pedge) k = 0.5;
     else if (rpos > (1-extremeEdge) && v !== 0) k = v * 3 / xx._max;
-    else if (rpos > (1-edge)) k = 2;
+    else if (rpos > (1-pedge)) k = 2;
     xx.max(sensible(xx._max * k));
     xx.min(sensible(xx._min * k));
     xx.step(sensible(xx._step * k));
@@ -894,6 +1095,35 @@ GX.hinitval = function(xx = GX.findSelected()[0]) {
     GX.htmlUpdate(GX.htmlgx);
 }
 
+/** copy item */
+GX.copyitem = function(xx = GX.findSelected()[0]) {
+    if (!xx) return;
+    const nn='guiName propertyName _min  _max _step initialValue fullName'.split(' ')
+    const r = {object: Viewedit.findobject(xx.object)}
+    if (!r.object) return alert('cannot find owner object for ' + xx.fullName());
+    for (const n of nn) r[n] = (typeof xx[n] === 'function') ? xx[n]() : xx[n];
+    r.tooltip = xx.getToolTip();
+    const t = JSON.stringify(r);
+    log(t)
+    if (document.hasFocus()) navigator.clipboard.writeText(t);
+}
+
+GX.pasteitem = async function(xx = GX.findSelected()[0]) {
+    if (!xx) return;
+    const text = await navigator.clipboard.readText()
+    const r = JSON.parse(text);
+    if (!r?.guiName) return alert('no guiName in pasted item');
+    const par = xx.folderParent;
+    const i = par.guiChildren.indexOf(xx)
+    if (i === -1) return alert("'can't find gui position");
+    const rr = par.add(r.object, r.propertyName, r._min, r._max, r._step, r.guiName,  r.tooltip, true);
+    const ll = par.children[2].children;
+    const rrr = ll.pop();
+    if (rr !== rrr) return alert('unexpted positions')
+    ll.splice(i+1,0,rr);
+    par.performLayout();
+}
+
 
 /** change the current html element by factor */
 GX.htmlfac = function(k) {
@@ -916,7 +1146,7 @@ GX.html = function(xx = GX.findSelected()[0]) {
         htmlele = GX.htmlele = document.createElement('div');
         htmlele.style.position = 'fixed';
         htmlele.style.zIndex = 99999;
-        htmlele.style.backgroundColor = 'rgba(0,0,0,0)';
+        htmlele.style.backgroundColor = 'rgba(0,0,0,0.8)';
         document.body.append(GX.htmlele);
         const row = n => `
             <tr>
@@ -938,7 +1168,9 @@ GX.html = function(xx = GX.findSelected()[0]) {
                 case 'S/PageUp': GX.hscale(10, undefined, false); break;
                 case 'S/PageDown': GX.hscale(1/10, undefined, false); break;
                 case 'KeyD': GX.hinitval(); break;
+                case 'KeyC': GX.copyitem(); break;
                 case 'KeyX': GX.hide(); GX.html(); break;
+                case 'KeyV': GX.pasteitem(); GX.html(); break;
                 // case 'KeyC': navigator.clipboard.writeText('!gkey:' + W._GXname.innerText); break;
                 default: done = false;
             }
@@ -958,11 +1190,11 @@ GX.html = function(xx = GX.findSelected()[0]) {
     Shift~PageUp/Down: in/dec-crease range by 10
     <br>
     X: hide this gui item
-    <!--
     <br>
     C: copy this gui item (eg for alt-C paste to new gui) PENDING
     <br>
-    --->
+    V: paste copied item PENDING
+    <br>
     .
 `
     }
@@ -1008,12 +1240,12 @@ GX.notip = function() {
 /** make convenient objects for getting/setting gui values
  *
 */
-var RGXX, GXX, _R
+var GXX, _R
 GX.makegxx = function() {
     GX.updateGuiDictCache()
     // GXX uses pattern
     globalThis.GXX = new Proxy(GX.guiDictCache,{
-        get: (o, n) => { const g = GX.getgui(new RegExp(n)); return g ? g.getValue() : undefined},
+        get: (o, n) => { const g = GX.getgui(new RegExp(n)); return g?.getValue ? g.getValue() : undefined},
         set: (o, n, v) => {const g = GX.getgui(new RegExp(n)); if (!g) return false; g.setValue(v); refall(); return true},
         ownKeys : (o) => Reflect.ownKeys(o)
     });
@@ -1027,3 +1259,48 @@ GX.makegxx = function() {
         ownKeys : (o) => Reflect.ownKeys(o)
     });
 }
+
+GX.lastfile = ''
+GX.restorenextfile = function(r) {
+    var files = Object.keys(readdir('settings')).filter(n=>n.endsWith('.settings'))
+    files.sort();
+    if (r) files.reverse();
+    GX.lastfile = files[(files.indexOf(GX.lastfile) + 1) % files.length]
+    log('restored file is', GX.lastfile)
+    GX.restoregui(GX.lastfile)
+}
+
+GX.fileguis = {};
+GX.filesGui = function(parent, ext, dir) {
+    let files = readdir(dir);
+    files = Object.keys(files).filter(x => x.endsWith(ext));
+    const fstr = files.join(',');                   // quick out if no change
+    let fgui = GX.fileguis[ext];
+    if (fstr === fgui?.last) return;
+
+    let place, lastfile;
+
+    if (fgui) {
+        place = fgui.guinode.guiIndex;
+        parent.remove(fgui.guinode);
+    } else {
+        fgui = GX.fileguis[ext] = {lastfile: '', last: fstr}
+    }
+    fgui.guinode = parent.add(fgui, 'lastfile', files).name("Files" + ext).onChoose(fid => {
+        log('>>>> load file', fid);
+        const ffid = dir + '/' + fid;
+        openfile({name: ffid, canonpath: ffid});
+    });
+    if (place !== undefined) fgui.guinode.guiIndex = place;
+
+}
+
+/** add a gene based item from the 'old' alt-C menu */
+GX.addgene = function(gn) {
+    const s = GX.lastSelectedFolder;
+    if (!s) return;
+    const gg = guiFromGene(s, gn);
+    s.performLayout();  // just in case
+    GX.saveFolder(s);
+}
+

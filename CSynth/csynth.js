@@ -947,7 +947,7 @@ CSynth.checkRangePair = function(a, b) {
 //previously getNormalisedPartpos. Using "Normalised" to describe 0-1 range
 CSynth.getPartposFromBP = (bp) => Math.round(CSynth.getNormalisedIndex(bp) * numInstances);
 CSynth.getTexCoFromNormalised = i => i * (numInstances-1) / numInstancesP2;
-CSynth.maxAnnotations = 9999999;
+CSynth.maxAnnotations = 200;
 /** Takes a file with tab separated values where the first line is used as a key for column headers.
  * This is oriented towards data like 'BioMartExport.bed' (with header) or genes.bed (without).
  * Heavy on side-effects: replaces CSynth.annotationGroup with the result....

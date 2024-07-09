@@ -97,6 +97,7 @@ openfiles.dropped = {};  // contents of dropped and other opened files
 const chromeMaxString = 536870888;
 /** read and process a single file, given a File object */
 async function openfile(file) {
+    if (file instanceof W.FileSystemHandle) file = await file.getFile();
     log('openfile start ', file.name);
     if (!(file instanceof Blob)) {
         const fname = file.name;
@@ -104,6 +105,7 @@ async function openfile(file) {
         file = await file.blob();
         file.name = fname
     }
+    if (!file.canonpath) file.canonpath = file.name;
     var ext = getFileExtension(file.name);
     var handler = fileTypeHandlers[ext];
     const canonpath = file.canonpath;
@@ -338,6 +340,11 @@ async function _docdroppaste(evt, dt) {
                 msgfix('evaluate', data, 'failed', e.message);
                 msgflash({col: 'darkred', time: 2000});
             }
+        } else if (path[0].id === 'hovermessage') { // w.i.p. TODO temporary 6 Mar 2024 test for special settings paste
+            let sdata = data.trim()
+            if (sdata.endsWith(',')) sdata = sdata.substring(0, sdata.length-1)
+            const rr = JSON.parse('{' + sdata + '}')
+            GX.restoreGuiFromObject(rr)
         }
         // Poem.start(data); for now disable poem start by text drop
         // does not work, 5 Mar 2014
@@ -772,8 +779,9 @@ var saveSnap = saven;
 /** save genes in the current savename, or given name if specified */
 function save(genes, name) {
     genes = genes || currentGenes;
-    if (!name) name = prompt('name for save', trygeteleval("savename") || genes.name);
+    if (!name) name = prompt('name for save', inps.savename || genes.name);
     if (!name) return;
+    inps.savename = name;
     //log( camera );
     //~~~ localStorageX[savedef + name] = JSON.stringify(newVersion );
     name = name.replace('.oao','');  // just in case .oao given
@@ -820,7 +828,8 @@ function yamlString(genes = currentGenes, extras = undefined) {
     var trsave = genes.tranrule;
     let inconsistentTranruleEncountered = false;
     try {  // modify to force cleaner tranrule saving
-        if (genes.tranrule) genes.tranrule = genes.tranrule.replace(/\t/g, '    ');
+        if (genes.tranrule.value) genes.tranrule.value = genes.tranrule.value.replace(/\t/g, '    ');
+        else if (genes.tranrule) genes.tranrule = genes.tranrule.replace(/\t/g, '    ');
         //genes.tranrule = trsave.split('\n');
         newVersion.inputState.tranrulebox = '->';
         for (let o in currentObjects) {
@@ -845,7 +854,7 @@ function yamlString(genes = currentGenes, extras = undefined) {
                     log(logStr);
                 }
             }
-            if (extraDispobj?.genes.tranrule === trsave) extraDispobj.genes.tranrule = '->';
+            if (trsave && extraDispobj?.genes.tranrule === trsave) extraDispobj.genes.tranrule = '->';
         }
 
         // appears not to be an issue now, 6 March 2021; not using JSON and I think three has fixed things anyway???

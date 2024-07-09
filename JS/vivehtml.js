@@ -358,14 +358,16 @@ VH.positionGUI = function(matrix, distance, scale, gui) {
         const mlx = asp - s * 1.04;              // rightmost ok x (right at right border)
         const oasp = V.oldasp || asp;
         const omlx = oasp - s * 1.04;
-        for (gui of V.nocamscene.children) {    // make all guis have safe x position
-            if (gui.guiName === undefined) continue;
-            let opx = gui.position.x;
+        for (const igui of V.nocamscene.children) {    // make all guis have safe x position
+            if (igui.guiName === undefined) continue;
+            let opx = igui.position.x;
             const lx = oasp + opx;         // space to left
             const rx = omlx - opx;   // space to right
             const px = (lx < rx) ? lx - asp : mlx - rx;   // preserve smaller space
-            gui.position.x = px;
-            gui.updateMatrix();
+            igui.position.x = px;
+            igui.updateMatrix();
+            igui.scale.set(s,s,s);
+
         }
         V.oldasp = asp;
         matrix = V.nocamcamera.matrix;

@@ -22,7 +22,8 @@
     float colourid;
     uniform float colby;
     const float MAX_HORNS_FOR_TYPE = 16384.0; // this allows 16384 = 2**14 horns of a single type
-    const float _tad_h_ribs = 0.;
+    //const float _tad_h_ribs = 0.;
+    uniform float _tad_h_ribs;
 
     uniform mat3 feedbackMatrix;
     uniform mat4 feedbackTintMatrix;
@@ -170,7 +171,7 @@ const int edgeocclude = 2;
 const int edgeprofile = 3;
 const int edgewall = 4;
 const int edgeback = 5;
-const int edgeunk = 6;
+// const int edgeunk = 6; edgeunk not used, 6 April 2024
 
 float g_h00;
 vec4 oposfeed;
@@ -222,19 +223,21 @@ int edgeStatus(out bool alt) {
     int r;
     bool isback = false;
     // if (isedge) return edgeedge; // this test indicates isedge is correct
-
-    colourid = floor(h00 / MAX_HORNS_FOR_TYPE);  // should work for real horns, but with tadpoles will always give 4?
     #ifdef EDGEMAIN
+        // if we are not in EDGEMAIN colourid will already have been set by getPosNormalColid(), allowing for tadpoles as needed
     {
-        if (_tad_h_ribs != 0. && colourid == 4.) {  // ?? is this a reliable test for whether we are in tadpoles
+        colourid = floor(h00 / MAX_HORNS_FOR_TYPE);  // for real horns, with tadpoles will always give 4?
+        #ifdef TADPOLES
+        if (colourid == 4.) {
 			// some of this code should be commoned up/factored out
-            vec4 oposi = texelFetch(rtopos, clamp(bi, ivec2(0,0), textureSize(rtopos, 0)-1), 0);
+            vec4 oposi = oposfeed; // texelFetch(rtopos, clamp(bi, ivec2(0,0), textureSize(rtopos, 0)-1), 0);
             float w = oposi.w;
             float oposHornid = floor(w / MAX_HORNS_FOR_TYPE);
             float oposHornnum = floor(w - oposHornid * MAX_HORNS_FOR_TYPE);
             vec4 tprop = texture(tadprop, vec2(oposi.x, oposHornnum/_tad_h_ribs));
             colourid = tprop.y;
         }
+        #endif
     }
     #endif
 
@@ -242,7 +245,7 @@ int edgeStatus(out bool alt) {
     if (colourid == 0.)  {isback = true; r = edgeback; }
     if (isback) {      // either wall or background
         if (testOcclude(profileksize, 0.)) r = edgeprofile;
-    } else if (edgeidlow <= colourid && colourid <= edgeidhigh) {
+    } else { // used to test (edgeidlow <= colourid && colourid <= edgeidhigh) but tad colourid code above broke that, and now being done in lights.fs 6Apr2024
         // check for alternation
         int ee = int(altstyle);
         if (ee != 0) {
@@ -262,8 +265,8 @@ int edgeStatus(out bool alt) {
         } else {
             r = edgefill; // WALL ID == colour id ? edge wall : edge fill; // WALL ID == colour id already handled
         }
-    } else {
-        r = edgeunk;
+    // } else {
+    //     r = edgeunk;
     }
     return r;
 }
@@ -288,7 +291,8 @@ vec4 trifeed(vec3 feedpos, sampler2D map, inout float feeddepth) {
     // smalltri = clamp(smalltri, 0.005, 0.995);  // avoid joint lines in corefixfeed; fix in feedback setup instead (feed.coreuse)
     vec4 fill = texture(map, smalltri);
     // if (test3 == 2.) {
-    //     fill = texelFetch(map, ivec2(gl_FragCoord.xy), 0);  // special case 1 to 1 feedback
+        // fill = texelFetch(map, ivec2(gl_FragCoord.xy), 0);  // special case 1 to 1 feedback
+        // fill = texelFetch(map, ivec2(smalltri), 0);  // special case 1 to 1 feedback
     // }
 	feeddepth = fill.a - 1./255.;
 
@@ -328,23 +332,24 @@ vec4 edgeColour(out bool alt, out int etype) {
     switch (etype) {
         case edgefill: {
             if (colby == 1.) r = pow(vec3(fract(colourid * 9.78), fract(colourid * 11.34), fract(colourid * 17.917)) * 1.3, vec3(2.2));
-            #ifndef EDGEMAIN
-                else if (colby == 2.) r = stdcolY(colourid);
+            #ifdef EDGEMAIN
+                else if (colby == 2.) r = custcol[int(colourid) % 6 + 1];
             #else
-                else if (colby == 2.) r = custcol[int(g_h00) % 6 + 1];
+                else if (colby == 2.) r = stdcolY(colourid);
             #endif
             else if (colby == 3.) r = custcol[int(hornvdepth[int(colourid)]) % 6 + 1];
             else if (colby == 4.) r = custcol[int(oposfeed.x * floor(ribsa[int(colourid)])) % 6 + 1];
             // else if (colby == 5.) r = custcol[int(g_h00 * 2.) % 6 + 1];
+            else if (colby == 5.) r = custcol[colourid > 15. ? 7 : int(colourid) % 6 + 1];
             else r = fillcol;
         } break;
         case edgeedge: r = edgecol; break;
         case edgeprofile: r = profcol; break;
         case edgeocclude: r = occcol; break;
-        case edgeunk: r = unkcol; break;
+        // case edgeunk: r = unkcol; break;
         case edgewall: r = wallcol; break; // should never happen in standalone mode
         case edgeback: r = renderBackground == 0. ? backcol : screenfeed(backcol, INOUT feeddepth); break;
-        default: r = vec3(1,0,0);
+        default: r = unkcol; // vec3(1,0,0);
     }
     if (alt) r = 1. - r;
     return vec4(r, feeddepth);

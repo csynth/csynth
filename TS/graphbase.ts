@@ -1701,7 +1701,7 @@ var renderFrameInner = function(rt?) {
     if (cheatxr) renderObjs = renderObjsInner;
     renderObjs(rt ?? null);
     Maestro.trigger("postframe", { rendertarget: bigrt });
-} // renderFrame
+} // renderFrameInner
 renderFrame.mmm = new THREE.Matrix4();
 
 /** viewport in canvas width coordinates */
@@ -3078,7 +3078,7 @@ function render_reflection(genes) {
         console.error("render_reflection called without genes set up");
     } else {
         uniforms.ymax.value = uniforms.waterHeight.value + uniforms.waterAmplitude.value * 5;
-        renderPipe(genes, uniforms, Water.m_reflectionRenderTexture, 2);  // from render_reflection
+        renderPipe(genes, uniforms, Water.m_reflectionRenderTexture, 2, null /*dispobj */);  // from render_reflection
     }
     uniforms.ymax.value = 1000000;
     uniforms.ymin.value = -1000000;
@@ -3281,7 +3281,7 @@ function pipeop(p) { // genes, popmode, rendertarget, clearcol, scene, width, )
 
 /** render a single pass using a set of pipe operations, object plus extras (Water, CubeMap)
 * renderPipe: called from render_reflection, DOF code and 'regular' display */
-function renderPipe(genes, uniformsp, rendertarget, rdelta) {
+function renderPipe(genes, uniformsp, rendertarget, rdelta, dispobj) {
     // HW.setHornColours(genes);
 
     rrender.last = 9999;
@@ -3300,7 +3300,7 @@ function renderPipe(genes, uniformsp, rendertarget, rdelta) {
     renderer.setRenderTarget(rendertarget);
     renderer.clearDepth();
     if (!HW.nohorn)  // TODO >>>  (in wrong place, need to consider shadows)
-        renderObjPipe(scene, renderPass, genes, uniformsp, rendertarget, rdelta, usemask);
+        renderObjPipe(scene, renderPass, genes, uniformsp, rendertarget, rdelta, usemask, dispobj);
 
     // VERY experimental pass for rendering extra objects
     // lots of limitations, such as colour, etc, etc
@@ -3308,7 +3308,7 @@ function renderPipe(genes, uniformsp, rendertarget, rdelta) {
     if (tranrule) extraRender({ tranrule, scene, renderPass, genes, uniformsp, rendertarget, rdelta, usemask });
 
     if (!HW.cubeEarly && CubeMap && CubeMap.renderState !== 'color')
-        renderObjPipe(CubeMap.wallScene, CubeMap.RenderPass, genes, uniformsp, rendertarget, rdelta, usemask);
+        renderObjPipe(CubeMap.wallScene, CubeMap.RenderPass, genes, uniformsp, rendertarget, rdelta, usemask, dispobj);
     if (Water) Water.Render(genes, render_camera, rendertarget);
 }
 
@@ -3323,7 +3323,7 @@ var qscene = newscene('qscene');
 
 /** render a single pass using a set of pipe operations, object plus extras (Water, CubeMap)
 * renderPipe: called from render_reflection, DOF code and 'regular' display */
-function renderObjPipe(pscene, prenderPass, genes, uniformsp, rendertarget, rdelta, usemaskp) {
+function renderObjPipe(pscene, prenderPass, genes, uniformsp, rendertarget, rdelta, usemaskp, dispobj) {
     /** call pipeop with correct renderPass function */
     function ipipeop(p) {
         p.renderPass = prenderPass;
@@ -3334,7 +3334,7 @@ function renderObjPipe(pscene, prenderPass, genes, uniformsp, rendertarget, rdel
     function ipipeopEndup(p) {
         let temprt;
         if (WA.fxaa.use || specialPostrender) {
-            const dobj = xxxdispobj(p.genes);
+            const dobj = dispobj; //  ?? xxxdispobj(p.genes);
             assert(p.rendertarget === dobj.rt || renderer.xr.isPresenting, 'check reuse of rt for fxaa');
             // temprt = dobj.rtback;
             temprt = getrendertarget('prefxaa', {sizer});
@@ -3353,7 +3353,8 @@ function renderObjPipe(pscene, prenderPass, genes, uniformsp, rendertarget, rdel
     }
 
     resdelta = rdelta || 0;
-    U.feedtexture = (_fixinfo.feedrt ?? xxxdispobj(genes).rtback).texture;  // was null
+    // U.feedtexture = (_fixinfo.feedrt ?? xxxdispobj(genes).rtback).texture;  // was null
+    U.feedtexture = (_fixinfo.feedrt ?? dispobj.rtback).texture;  // was null
 
     gl.depthFunc(gl.LEQUAL); // unless overridden
     // prepare scene if not already prepared
@@ -3594,24 +3595,45 @@ function constrainGenes(genes) {
 ************************/
 
 var lastGenes = {};   // to force rescale e.g. of object dragged onto mainvp
-/** render object into viewport, 'safe' version to prevent incorrect use of currentGenes */
+/** render object into viewport,
+ * 'safe' version to verify/prevent incorrect use of currentGenes
+ * also allow for interp alternative
+ */
+
+var interp, interptest, setHornColours;
 var renderObjHorn: { (event): void, centreOnDisplay?} = function (event) {
-    console.assert(currentGenes === slots[mainvp].dispobj.genes);
-    const s = currentGenes;
-    currentGenes = undefined;
+    let parms = event.eventParms;   // collect input from event in sensible form
+    let dispobj = parms.dispobj;
+    let genes = dispobj.genes;
+    let realtr = genes.tranrule;
+
+    const s = [currentGenes, genes, genes.tranrule, setHornColours];
+
     try {
-        return _renderObjHorn(event);
+        if (inps.useinterp) { // use interpreter version
+            genes.tranrule = interp.basetranrule;
+            setHornColours = ()=>{};
+            interptest(realtr, genes);
+            genes.tranrule = interp.basetranrule;
+        }
+
+        console.assert(currentGenes === slots[mainvp].dispobj.genes);  // currentGenes checks
+        currentGenes = undefined;
+
+        if (inps.useguibox) {  // override genes with guibox genes
+            genes = Object.assign({}, genes, guiboxgenes);
+        }
+
+        return _renderObjHorn(parms, dispobj, genes);
     } finally {
         console.assert(currentGenes === undefined);
-        currentGenes = s;
+        [currentGenes, dispobj.genes, dispobj.genes.tranrule, setHornColours] = s;
+        if (inps.useinterp) setHornColours(genes)
     }
 }
 
 /** render object into viewport */
-var _renderObjHorn: { (event): void, centreOnDisplay?} = function (event) {
-    let parms = event.eventParms;
-    let dispobj = parms.dispobj;
-    let genes = dispobj.genes;
+var _renderObjHorn = function (parms, dispobj, genes) {
     if (!genes?.tranrule) return;
     let hset = currentHset = HW.getHornSet(genes);
     // constrainGenes(genes);  // not used at the moment, and should be called higher up less often if reinstated
@@ -3670,13 +3692,13 @@ var _renderObjHorn: { (event): void, centreOnDisplay?} = function (event) {
         renderer.clearTarget(DOF.rtTextureColor, true, true, true);
 
         opmode = OPSHADOWS;
-        renderPipe(genes, uniforms, DOF.rtTextureColor, 0);  // called for DOF
+        renderPipe(genes, uniforms, DOF.rtTextureColor, 0, dispobj);  // called for DOF
         opmode = OPREGULAR;
         render_depth(genes, DOF.rtTextureDepth);
 
         DOF.Render(renderer, rendertarget);
     } else {
-        renderPipe(genes, uniforms, rendertarget, 0); // called for renderObjHorn
+        renderPipe(genes, uniforms, rendertarget, 0, dispobj); // called for renderObjHorn
     }
 
     if (geometry.tidy) geometry.tidy();  // it will now be safely established, but may not have tidy (THREE.Geometry ???)
@@ -5397,7 +5419,9 @@ var rrender: Rrender = function (reason, scenep, camerap, target = null, flag?) 
     uniforms.rtSize.value.set(tt.width, tt.height);
     // TODO remove many tests below, now done more efficiently in renderPipe
     let OPMODE = opmode;
-    if (scenep.frustumCulled || scenep.children[0].frustumCulled)
+    let ch0 = scenep.children[0] ?? scenep;
+
+    if (scenep.frustumCulled || ch0.frustumCulled)
         reason = reason + ""; // debugger;
     if (scenep.children.length !== 1)    // we never really use scenes in any interesting way
         reason = reason + ""; // debugger;
@@ -5410,8 +5434,7 @@ var rrender: Rrender = function (reason, scenep, camerap, target = null, flag?) 
         log(scenep.name, 'autoupdate on scene <<<<<<<<< frame', framenum);
         reason = reason + ""; // debugger;
     }
-    let ch0 = scenep.children[0];
-    if (scenep !== vpxQuadScene && scenep.children[0].matrixAutoUpdate) {
+    if (scenep !== vpxQuadScene && ch0.matrixAutoUpdate) {
         ch0.updateMatrix();
         //ch0.matrixWorldNeedsUpdate = true;
         ch0.matrixAutoUpdate = false;
@@ -5510,7 +5533,7 @@ var rrender: Rrender = function (reason, scenep, camerap, target = null, flag?) 
 
         logframetable.push({dt, reason, opmode: oplist[opmode] ?? opmode,
             scene: scenep.name,
-            material: ch0.material?.name?.post(' ')?.substring(0, 10), depth: ch0.material?.depthTest,
+            material: ch0?.material?.name?.post(' ')?.substring(0, 10), depth: ch0?.material?.depthTest,
             target: target?.name, err});
     }
 } // rrender
@@ -6559,7 +6582,7 @@ function showTextureCorners() {
 /** quick debug set/query of shadow */
 function shadows(n=undefined) {
     if (n === undefined) {
-        log('shadows', inputs.SHADOWS, inputs.SHADOWS1, inputs.SHADOWS2);
+        // log('shadows', inputs.SHADOWS, inputs.SHADOWS1, inputs.SHADOWS2);
         return inputs.SHADOWS * 1 + inputs.SHADOWS1 * 2 + inputs.SHADOWS2 * 4;
     } else if (n === 'toggle') {
         return shadows() ? shadows(0) : shadows(7);
@@ -6771,7 +6794,8 @@ function extraRender(options) {
             changed = true;
         }
         currentHset = HW.getHornSet(genes);
-        renderObjPipe(scenei, renderPassi, genes, uniformsi, rendertarget, FIRST(options.rdelta, WW.inputs.resdyndeltaui), FIRST(options.usemask, WW.usemask));
+        // const baddispobj = xxxdispobj(genes);
+        renderObjPipe(scenei, renderPassi, genes, uniformsi, rendertarget, FIRST(options.rdelta, WW.inputs.resdyndeltaui), FIRST(options.usemask, WW.usemask), options.dispobj);
         let m = material.opos ? material.opos[genes.tranrule] : undefined; //there might be a chance of getting to here before appropriate opos entry is established.
         //this happened when adding mouse picking code within vivecontrol method for csynth...
         if (m) m.side = THREE.DoubleSide;  // set once material established

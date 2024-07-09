@@ -1667,11 +1667,12 @@ meX.setHISTLEN(256); meX.repos(); meX.demotopology(); setTimeout(meX.start, 500)
     }
 
     /** repair any NaN spring positions, either random, or from s if given */
-    me.repair = function(s) {
+    me.repair = function(s, lo=0, hi) {
         // const p = me.getpos();
         const rawp = readWebGlFloatDirect(springs.posNewvals);
+        hi = hi ?? rawp.length;
         let n = 0;
-        for (let i = 0; i < rawp.length; i+=4)
+        for (let i = lo; i < hi; i+=4)
             if (isNaN(rawp[i])) {
                 if (s && s[i] !== undefined)
                     springs.setfix(i/4, s.subarray(i, i+3));

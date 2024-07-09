@@ -121,8 +121,12 @@ genet(tex2dystretch, 1, 0, 100, 1, 10, texture, free) // amount to stretch 2d te
 
 // gene(g_hueshift, 0, 0, 1, 0.1, 0.1, texturex, frozen) //global colour shift to rotate colour scheme; if any rgb component of a colour is >1 hueshift is not applied
 uniform float g_hueshift;   // uniform is more hidden from end user, set by colour cycle
+gene(g_texscale, 1, 0, 10, 0.01, 0.01, texturex, frozen) // global texture scale (multiplies base values)
+gene(g_fluwidth, 1, 0, 10, 0.01, 0.01, texturex, frozen) // global fluwidth (multiplies base values)
 gene(g_huefix, 0, 0, 1, 0.01, 0.01, texturex, frozen) //fixed hue
 gene(g_huefixwidth, 1, 0, 1, 0.01, 0.01, texturex, frozen) // range around fixed hue
+gene(g_gloss, 1, 0, 2, 0.1, 0.01, texturex, frozen)    // global gloss override, 0 matt, 1 normal, 2 gloss and in betweens
+
 // gene(g_hueequalize, 1, 0, 1, 0.01, 0.01, texturex, frozen)   // equalize hues, 0 no equalization, 1 full
 // gene(g_huescurve, 1, 0, 1, 0.01, 0.01, texturex, frozen)     // applies scurve to modify hues, makes colour cycle less irregular
 // gene(g_hueconcentrate, 1, 0, 1, 0.1, 0.01, texturex, frozen) // concentrates hue by moving to 1/6 ponts
@@ -347,10 +351,11 @@ Colsurf standardTexcol(in vec3 texpos, float colourid, bool realLookup) {
     float bb3s = bb2e + tbbb;  // start of band 3
     // bb3e = 1
 
-	texpos /= max(texscale, 0.0001);
+    float utexscale = texscale * g_texscale;
+	texpos /= max(utexscale, 0.0001);
     float tp;
 	// tp = w(1., texpos.y) + w(2., texpos.x) + w(3., texpos.z);
-    NONU(if (texscale == 0. || texrepeat == 0.) {)
+    NONU(if (utexscale == 0. || texrepeat == 0.) {)
     NONU(    tpxx = 0.;)
     NONU(} else {)
         #if (OPMODE == OPTSHAPEPOS2COL || OPMODE == OPBUMPNORMAL)

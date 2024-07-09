@@ -1,6 +1,9 @@
 // some basic image processing
 var THREE, renderer, rrender, camera, vec3, log, VEC4;
 
+// Organic compatibility
+if (!rrender) rrender = (reason, scene, cam, target) => {renderer.setRenderTarget(target); renderer.render(scene, cam); }
+
 const imageProc = { vertexShader3: /*glsl*/`#version 300 es
 in vec3 position;
 precision highp float;
@@ -30,6 +33,7 @@ function copyImage(inim, outim) {
             intex: {value: undefined},
         }
         const mat = imageProc.copyMat = new THREE.RawShaderMaterial({vertexShader: imageProc.vertexShader3, fragmentShader, uniforms});
+        mat.name = 'copyMesh';
         mat.depthWrite = false; mat.depthTest = false;
         imageProc.copyMesh = new THREE.Mesh(imageProc.geom, mat);
         imageProc.copyMesh.frustumCulled = false;
@@ -38,8 +42,9 @@ function copyImage(inim, outim) {
     const u = imageProc.copyUniforms;
     u.intex.value = inim;
 
-    renderer.setRenderTarget(outim);
-    renderer.render(imageProc.copyMesh, camera);
+    // renderer.setRenderTarget(outim);
+    // renderer. render(imageProc.copyMesh, camera);
+    rrender('copymesh', imageProc.copyMesh, camera, outim);
 }
 
 
@@ -86,6 +91,7 @@ function spreadEdge(inim, outim, speccol = 0, spread = 1) {
             speccol: {value: new THREE.Vector4(0,0,0,0)}
         }
         const mat = imageProc.spreadMat = new THREE.RawShaderMaterial({vertexShader: imageProc.vertexShader3, fragmentShader, uniforms});
+        mat.name = 'spreadMat';
         mat.depthWrite = false; mat.depthTest = false;
         imageProc.spreadMesh = new THREE.Mesh(imageProc.geom, mat);
         imageProc.spreadMesh.frustumCulled = false;
@@ -109,8 +115,9 @@ function spreadEdge(inim, outim, speccol = 0, spread = 1) {
     u.speccol.value.copy(speccol);
     u.spreadProp.value = spreadProp;
 
-    renderer.setRenderTarget(outim);
-    renderer.render(imageProc.spreadMesh, camera);
+    // renderer.setRenderTarget(outim);
+    // renderer. render(imageProc.spreadMesh, camera);
+    rrender('spreadMesh', imageProc.spreadMesh, camera, outim);
 }
 
 var imageOpts = {
@@ -178,6 +185,7 @@ function concentrateEdge(inim, outim, dx, dy) {
             size: {value: new THREE.Vector2(1,1)},
         }
         const mat = imageProc.concentrateMat = new THREE.RawShaderMaterial({vertexShader: imageProc.vertexShader3, fragmentShader, uniforms});
+        mat.name = 'concentrateMat';
         mat.depthWrite = false; mat.depthTest = false;
         imageProc.concentrateMesh = new THREE.Mesh(imageProc.geom, mat);
         imageProc.concentrateMesh.frustumCulled = false;
@@ -189,8 +197,9 @@ function concentrateEdge(inim, outim, dx, dy) {
     u.size.value.set(im.width, im.height);
     u.d.value.set(dx, dy);
 
-    renderer.setRenderTarget(outim);
-    renderer.render(imageProc.concentrateMesh, camera);
+    // renderer.setRenderTarget(outim);
+    // renderer. render(imageProc.concentrateMesh, camera);
+    rrender('concentrateMesh', imageProc.concentrateMesh, camera), outim;
 }
 
 // /** set up for spreading and/or concentrating */
@@ -259,6 +268,7 @@ function checkImage(inim, outim) {
             intex: {value: undefined}
         }
         const mat = imageProc.checkMat = new THREE.RawShaderMaterial({vertexShader: vertexShader3, fragmentShader, uniforms});
+        mat.name = 'checkMat';
         mat.depthWrite = false; mat.depthTest = false;
         imageProc.checkMesh = new THREE.Mesh(imageProc.geom, mat);
         imageProc.checkMesh.frustumCulled = false;
@@ -267,8 +277,9 @@ function checkImage(inim, outim) {
     const u = imageProc.checkUniforms;
     u.intex.value = inim;
 
-    renderer.setRenderTarget(outim);
-    renderer.render(imageProc.checkMesh, camera);
+    // renderer.setRenderTarget(outim);
+    // renderer. render(imageProc.checkMesh, camera);
+    rrender('checkMesh', imageProc.checkMesh, camera, outim);
     log('errs', readWebGlFloatDirect(outim).filter(x=>x).length);
     return outim;
 }

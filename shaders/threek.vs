@@ -11,6 +11,7 @@ uniform mat4 rot44d;  // 4d viewing transform
 uniform float pointSize;
 uniform float OPOSZ;
 uniform float extrahornid;
+uniform float instanceOffset;
 
 //attribute vec3 position;
 //#if OPMODE == OPMAKESKELBUFF
@@ -18,7 +19,7 @@ uniform float extrahornid;
 //#if __VERSION__ < 300
 //	attribute float instanceID;
 //#else
-	#define instanceID float(gl_InstanceID)  // needs 1.40 or above, but use with gles  300 es
+	#define instanceID (float(gl_InstanceID) + instanceOffset)  // needs 1.40 or above, but use with gles  300 es
 //#endif
 
 #if (OPMODE == OPREGULAR || OPMODE == OPOPOS || OPMODE == OPTEXTURE || OPMODE == OPMAKEGBUFFX)
@@ -115,7 +116,8 @@ void main()	{
     vec2 vv = vec2(mod(iii, skelnum), floor(iii / skelnum));
     //vec2 vv = vec2(floor(iii / skelnum), float(gl_InstanceID));
     vec2 vvv = (vv+0.5) / skelbufferRes;
-    vec4 shapepos = texture(skelbuffer, vvv);
+    //vec4 shapepos = texture(skelbuffer, vvv);
+    vec4 shapepos = getskelbuffer(vvv, INOUT xhornid);
     //vec4 shapepos = texelFetch(skelbuffer, ivec2(vv));
 
     float r = shapepos.w;
@@ -241,8 +243,9 @@ void main()	{
         opos = p; // ??? should not need to pass this always, but ... temp to help USESKELBUFF
 
         #if (OPMODE == OPMAKESKELBUFF)
+            opos = vec4(999.,999.,999.,999.);  // ensure this is dead and not used
             objpos = trskel(p);
-            opos = vec4(999.,999.,999.,999.);  // not used
+
             gl_PointSize = 1.;
             gl_Position = vec4(skbuffpointscreen(p.xyz, skelnum), 0., 1.);
             return;
@@ -370,7 +373,7 @@ void main()	{
         #if (OPMODE == OPREGULAR || OPMODE == OPOPOS)
             opos = p;
             #ifdef USESKELBUFFER
-                { float vv = float(instanceID);
+                if (skelhornid == 0.) { float vv = float(instanceID);
                 $$$chooseHornCode$$ }						// make sure xhornid correct in SINGLEMULTI, noop if not SINGLEMULTI
             #endif
 

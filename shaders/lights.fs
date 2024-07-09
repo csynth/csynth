@@ -1,7 +1,9 @@
 /** file to include to get standard lighting */
 #ifndef LIGHTS
 #define LIGHTS
-#define BADNORM 1.09
+#define BADNORM 1.125
+// #define UBADNORM badnormz
+#define UBADNORM BADNORM
 
 
 /* Current light position */
@@ -428,7 +430,7 @@ vec3 PhongLight(in LightProperties L) {
     vec3 color = L.colsurf.col.xyz;
     vec4 surftype = L.colsurf.surftype;
     float shininess = surftype.x;
-    float gloss = surftype.y;
+    float gloss = surftype.y; gloss = g_gloss == 1. ? gloss : g_gloss >= 2. ? 1. : (1. - pow(1. - gloss, g_gloss < 1. ? g_gloss : 1./(2.-g_gloss)));
     float subband = surftype.z;
     float plastic = surftype.w;
 
@@ -603,9 +605,10 @@ vec3 getBumpedNormal(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, o
     // The other is where the normal is found to be pointing away from the camera.
 
     vec3 mmnormal = -mnormal;               // mmnormal will end up as corrected normal
-    if (xmnormal.z == BADNORM) {
+    if (xmnormal.z == UBADNORM) { // badnormz
+    // ????? if (latenormalsred != 0. && postxcol.x == latenormalsred) {
         // mmnormal = vec3(0., 0., 1.);
-        mmnormal = -viewdir;
+        mmnormal = viewdir;
         //postxcol = vec4(9.,0.,0., 1.);
     } else {
         float dotvn = dot(viewdir, mmnormal);
@@ -734,7 +737,7 @@ virtual vec4 lighting(const vec3 xmnormal, const vec4 trpos, const vec3 texpos, 
         if (fluwidth < 0.) {
             res.rgb += hsv2rgb(colsurf.fluoresc.rgb);
         } else {
-            float fluwidthx = fluwidth / texscale;
+            float fluwidthx = fluwidth / (texscale * g_texscale) * g_fluwidth;
             float fmin = flulow, fmax = flulow+fluwidthx;
             #if (OPMODE == OPTSHAPEPOS2COL)
                 // antialias by computing how much of this pixel has texture within the flu band range.
@@ -868,7 +871,9 @@ virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, 
         NONU(})
 
 
-    bool dofulllights = edgeprop != 1. || fillprop != 1. || flatwallreflp != 1.;
+    bool pureedge = edgeidlow <= colourid && colourid <= edgeidhigh;  // just use 'special' edge, no light  etc
+    bool dofulllights = (edgeprop != 1. || fillprop != 1. || flatwallreflp != 1.) && !pureedge;
+
 	vec3 r = vec3(0);
     if (dofulllights) {
         vec4 licol = lighting(xmnormal, trpos, texpos, INOUT feeddepth);
@@ -878,27 +883,31 @@ virtual vec4 lightingx(/*const NO, for EDGES*/ vec3 xmnormal, const vec4 trpos, 
             (texpos+300.)/600. * xxposprop;
     }
 
-    if (edgeprop != 0. || fillprop != 0.) {
+    if (edgeprop != 0. || fillprop != 0. || pureedge) {
         bool alt; int etype;
         vec4 edger4 = edgeColour(OUT alt, OUT etype);        // edger is 'suggested' colour from edge code
         vec3 edger = edger4.xyz;
-        // feeddepth = 0.;
-        // todo, check feeddepth
-        switch (etype) {
-            case edgefill: r = mix(r, edger, fillprop); break;
-            case edgeedge: r = mix(r, edger, edgeprop); break;
-            // case edgeprofile: r = profcol; break;
-            // case edgeocclude: r = occcol; break;
-            // case edgeunk: r = unkcol; break;
-            case edgewall: {
-                if (!dofulllights) {
-                    r = texcentre(texpos.xy, feedtexture, INOUT feeddepth).xyz; // oversimplified wall
-                }
-            } break; // if we've got a wall the correct work, including wall based feedback, should already have been done
-            // case edgeback: r = screenfeed(backcol, INOUT feeddepth); break;
-            default: r = edger;
+        if (pureedge) {
+            r = edger;
+        } else {
+            // feeddepth = 0.;
+            // todo, check feeddepth
+            switch (etype) {
+                case edgefill: r = mix(r, edger, fillprop); break;
+                case edgeedge: r = mix(r, edger, edgeprop); break;
+                // case edgeprofile: r = profcol; break;
+                // case edgeocclude: r = occcol; break;
+                // case edgeunk: r = unkcol; break;
+                case edgewall: {
+                    if (!dofulllights) {
+                        r = texcentre(texpos.xy, feedtexture, INOUT feeddepth).xyz; // oversimplified wall
+                    }
+                } break; // if we've got a wall the correct work, including wall based feedback, should already have been done
+                // case edgeback: r = screenfeed(backcol, INOUT feeddepth); break;
+                default: r = edger;
+            }
+            if (alt) r = 1. - r;
         }
-        if (alt) r = 1. - r;
     }
 
     if (lightoutpower != 1.) r = pow(r, vec3(lightoutpower));

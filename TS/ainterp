@@ -1,0 +1,46 @@
+/** fill in the gene values in a tranrule string with values from genes, return modified tranrule string */
+function tranruleFromGenes(genes = currentGenes, tranrule = currentGenes.tranrule) {
+    //### don't bother to filter out ' and " numbers, they'll fail the marked gene not found test
+    //### var ss = tranrule.split(/([^"'a-zA-Z])([+-\d][.\d]*)/g);
+    const s = _testcompile;
+    try {
+        _testcompile=true
+        const ss = tranrule.split(/([+-\d][.\d]*)/g);       // separate out numbers (does not know about scientific) and inbetween strings
+        var ovals = ss.slice();                             // save the originals
+        var kk = 7/64                                       // flag to reduce accidental conflict
+        for (let i = 1; i < ss.length; i+=2) if (!isNaN(ss[i])) ss[i] = i + kk // replace potential gene values with markers in ss
+        const marked = ss.join('')                          // and reconstitute a marked tranrule
+        // const saveg = genes
+        // const newg = clone(genes)                           // new set of genes will be overridden
+        // newg.tranrule = marked                              // it has new tranrule
+        // HW.setGenesFromTranrule(marked, newg );             // set newg with the marked genes
+        const ngenes = {};
+        const res = checkTranruleAll(marked, ngenes);
+
+
+        const ig = []                                       // keep track of gene name for each slot number (not used yet)
+        for (const gn in newg) {                            // scan genes and find the marked ones that appear in tranrule
+            const v = newg[gn]                              // v = gene value
+            if (v%1 === kk) {                               // test to see if it is a marked value
+                const k = Math.floor(v)                     // if so, find corresponding slot
+                ig[k] = gn                                  // remember gene name for slot
+                ss[k] = saveg[gn];                          // put the gene value into ss
+            } else {
+                // log('v not found in tranrule', v, gn)    // unmarked genes are expected, ignore
+            }
+        }
+
+        // check for marked changes that didn't seem to have effect, eg numbers in comments, or in '' "", or in ???
+        // probably harmless, restore their original value
+        for (let i = 1; i < ss.length; i+=2)
+            if (ss[i]%1 === kk) {
+                // log('marked gene not found for value', {i, newg: newg[i], ss: ss[i], ovals: ovals[i], saveg: saveg[i], genes: genes[i]} )
+                ss[i] = ovals[i];
+            }
+        var ncode = ss.join('')
+        return ncode;
+    } finally {
+        _testcompile = s;
+    }
+}
+

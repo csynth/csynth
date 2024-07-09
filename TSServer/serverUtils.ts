@@ -218,12 +218,13 @@ export function websocketReflector() {
     });
 } // end websocketReflector
 
+var cwd;
 export function mainServer() {
 // var request = require('request')
 //nb:::  we rely on cwd being aaorganicart/organicart but baseDirectory being aaorganicart
 //having trouble with __dirname after webpack build?
 // sjpt 2 Aug 2020, no good reason to server at parent directory ??? ??? my be general user directory if using open source?
-    const cwd = process.cwd();
+    cwd = process.cwd();
     const lastSlash = Math.max(cwd.lastIndexOf('/'), cwd.lastIndexOf('\\'));
     // const baseDirectory = cwd.substr(0, lastSlash); //__dirname
     const baseDirectory = cwd;
@@ -501,6 +502,7 @@ export function mainServer() {
                 if (upath.endsWith('/clipboards/')) { const rr = clipboards.join('!£"'); writeresp(response, 200, rr); return; }
 
                 if (upath.endsWith('/clear/')) { console.clear(); writeresp(response, 200, 'cleared'); return; }
+                if (upath.endsWith('/cwd/')) { writeresp(response, 200, cwd); return; }
                 if (upath.endsWith('/runcmd.php')) return await cmd(unescape((message.headers as any).cmd), response);
                 if (upath.endsWith('/savefile.php')) return savefile(message, response);
                 if (upath.endsWith('/appendfile.php')) return savefile(message, response, true);

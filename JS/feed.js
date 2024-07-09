@@ -39,7 +39,7 @@ Object.defineProperties(feed, {
                 var fp, ftm
                 if (feed.shadsave) [fp, feed.dofeed, G.centrerefl, G.centrereflx, G.centrerefly, G.maxfeeddepth, ftm] = feed.shadsave;
                 Object.assign(feed.fp, fp);
-                U.feedbackTintMatrix.copy(ftm);
+                if (ftm) U.feedbackTintMatrix.copy(ftm);
                 feed.shadsave = undefined
             } else {
                 feed.shadsave = [Object.assign({}, feed.fp), feed.dofeed, G.centrerefl, G.centrereflx, G.centrerefly, G.maxfeeddepth, U.feedbackTintMatrix.clone()]
@@ -84,20 +84,26 @@ async function guinewbw() {
     bwg.add(feed, 'freeze', 'freeze springs and time', 'freeze springs and time').listen();
     bwg.add(feed, 'clear');
     cycle(U, 'edgewidth', 0.5, 1,2); // toggle edgewidth, 1,2
+    cycle(window, 'usemask', 2, 2,4); // render style
     cycle(U, 'altstyle', 1, 0, 7); // cycle front
-    cycle(U, 'occludewidth', 0.1, 0, 6);
     cycle(U, 'occludedelta', 0.001, 0, 0.04);
     cycle(U, 'edgeDensitySearch', 1, -2, 10);
-    cycle(U, 'colby', 1, 0, 3); // cycle colour by
+    cycle(U, 'colby', 1, 0, 5); // cycle colour by
     // ow, 'canvasScale', d, 0, 3);
     // (canvasScale-1)
     // idth = k*canvas.width+'px'; canvas.style.height = k*canvas.height+'px';
     cycle(U, 'baseksize', 0.1, 0.1, 6); // cycle base kernel size
+    cycle(U, 'occludewidth', 0.1, 0, 6);
+    cycle(U, 'profileksize', 0.1, 0, 36); // cycle profile kernel size
     bwg.add(imageOpts, 'usethick', 'use thickness for baseksize', 'use thickness for baseksize').listen();
     bwg.add(feed, 'fixfeed', 'fix feedback buffer', 'fix feedback buffer').listen();
-    bwg.add(window, 'edgecolour', 'colour scheme for edges', 'colour scheme for edges').listen();
+    //  OBSOLETE? 4 Apr 2024 bwg.add(window, 'edgecolour', 'colour scheme for edges', 'colour scheme for edges').listen();
     bwg.add(U, 'fillcol', 'fill colour', 'fill colour').listen();
-    cycle(U, 'profileksize', 0.1, 0, 36); // cycle profile kernel size
+    bwg.add(U, 'edgecol', 'edge colour', 'edge colour').listen();
+    bwg.add(U, 'occcol', 'occlusion colour', 'occlusion colour').listen();
+    bwg.add(U, 'profcol', 'profile colour', 'profile colour').listen();
+    bwg.add(U, 'unkcol', 'colour for uunknown', 'colour for uunknown').listen();
+    bwg.add(U, 'wallcol', 'wall colour in b/w', 'wall colour in b/w').listen();
     cycle(U, 'centrerefl', 0.01, 0.2, 2); // cycle centre refl
     cycle(inps, 'resbaseui', 0.2, 7, 14); // resolutiuon
 

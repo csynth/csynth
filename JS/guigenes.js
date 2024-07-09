@@ -6,7 +6,7 @@
 /** for encapsulation verification */
 var W, genedefs, currentGenes, getg, getkey, lastval,uid, slots, xxxgenes, NODO, saveExtraObjects, mainvp, inputs, lastTraninteracttime,
 frametime, killev, keysdown, saveInteresting, setvalf, mousewhich, saveExtra, setgenes, clone, refall, target,
-restoreExtra, guigenes, newmain, trysetele,  onWindowResize, msgfix, HW, Director, sweepgene, sweepall, isDisplayed
+restoreExtra, guigenes, newmain, trysetele,  onWindowResize, msgfix, HW, Director, sweepgene, sweepall, isDisplayed, GX
 ;
 
 /** set gene to min value */
@@ -273,6 +273,7 @@ function geneCallback(g, name) {
     g.onkeydown = geneonkeydown;
     g.currentEle.onchange = currentEleonchange;
     g.currentEle.oninput = eleoninput;
+    g.nameEle.onclick = evt => {if (evt.ctrlKey && GX.addgene) GX.addgene(g.nameEle.textContent); }
     g.currentEle.onclick = currentEleonclick;
     g.currentEle.onfocus = currentEleonfocus;
     g.sliderEle.onchange = sliderEleonchange;

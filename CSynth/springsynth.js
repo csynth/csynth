@@ -2382,9 +2382,10 @@ CSynth.press = function(ii) {
 }
 
 
+CSynth.loadfiles = {lastfile: ''};
 
 /** make dropdown for file, and replace in place if needed */
-CSynth.updateAvailableFiles = function(parent = /* V.lastsavegui || */ V.saveloadgui, newname) {
+CSynth.updateAvailableFiles = function(parent = /* V.lastsavegui || */ V.saveloadgui ?? V.filesgui.folderParent, newname) {
     V.lastsavegui = parent;
     const cc = CSynth.current;
     if (!cc) return;
@@ -2392,7 +2393,7 @@ CSynth.updateAvailableFiles = function(parent = /* V.lastsavegui || */ V.saveloa
     if (newname === '>!auto.settings') return;
     // ??? better than above ??? if (cc.availableFiles && cc.availableFiles[newname]) return;
     cc.availableFiles = dir ? readdir(dir) : [];
-    const xx = {x:''};
+    const xx = CSynth.loadfiles;
     let files = Object.keys(cc.availableFiles).filter(x => x.endsWith('.settings') || x.endsWith('.xyz'));
     files = files.concat(GX.locallist());
     files = files.filter(x => !x.includes('!'));    // do not display files with ! in name
@@ -2407,9 +2408,9 @@ CSynth.updateAvailableFiles = function(parent = /* V.lastsavegui || */ V.saveloa
     }
     V.filesgui = undefined;
     if (files.length === 0) return;
-    const nnn = V.filesgui = parent.add(xx, 'x', files).name("Files:").onChoose(fn => {
+    const nnn = V.filesgui = parent.add(xx, 'lastfile', files).name("Files:").onChoose(fn => {
         log('>>>> load file', fn);
-        xx.x = '';
+        // xx.x = xx.x + '';
         if (fn.endsWith('settings') || fn[0] === '#')
             GX.restoregui(fn);
         if (fn.endsWith('.xyz'))

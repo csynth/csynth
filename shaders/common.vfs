@@ -105,7 +105,7 @@ vec4 texcentre(vec2 r, sampler2D map, inout float feeddepth) {
 #endif
 
 gene(edgeidlow, 0, 0,32, 1, 1, gtex, frozen)        // low id for which edges apply
-gene(edgeidhigh, 31, -1,31, 1, 1, gtex, frozen)     // high id for which edges apply
+gene(edgeidhigh, -1, -1,31, 1, 1, gtex, frozen)     // high id for which edges apply
 //dead ge ne(feed scale, 1, 0, 10, 0.1, 0.01, feedback, frozen)  // scaling for feedback
 uniform vec3 walllow, wallhigh;
 

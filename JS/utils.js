@@ -86,7 +86,7 @@ console.error = function () {
 
     if (emsg.startsWith('Error creating WebGL context'))
         throwe(emsg);
-    if (emsg === 'THREE.WebGLProgram: shader error: ') {
+    if (emsg.startsWith('THREE.WebGLProgram: Shader Error ')) {
         showErrors(arguments);
         return;
     }
@@ -640,7 +640,7 @@ msgfix.force = function(ss) {
         const rval = typeof mset.val === 'function' ?
             format(mset.val()) :
             mset.args ? showvals.apply(htmlformat, mset.args).substring(i.length + 1) : mset.val;
-        const val = rval.replaceall('\n', '<br>');
+        const val = rval.toString().replaceall('\n', '<br>');
 
 
         if (mset.htmlo && mset.xclass !== mset.newxclass) {
@@ -725,8 +725,7 @@ function trysetele(eleid, propname, value) {
         ele = eleid;  // already passed the ele itself
         eleid = ele.id;
     }
-    if (eleid in inputs)         // add sjpt 6 Oct 2022
-        inputs[eleid] = value;
+    let r = true;
     if (ele) {
         if (propname === 'value')
             setInput(eleid, value); // inputs[eleid] = value;
@@ -736,9 +735,12 @@ function trysetele(eleid, propname, value) {
         //this seemed like a potential low-level point to maximise likelihood that in general we would call any interested listeners
         //however, didn't seem to help, and has potential to hinder performance.
         //$(eleid).trigger("change");
-        return true;
     }
-    else return false;
+    else r = false;
+    if (eleid in inputs)         // add sjpt 6 Oct 2022, move 22 June 2024 as it broke setInput change test
+        inputs[eleid] = value;
+    return r;
+
 }
 /** set value on a id'd element, if element exists. */
 function tryseteleval(eleid, value) {
@@ -2012,7 +2014,9 @@ function getBody(fun) {
 
 
 /** format number with max n decimal places, remove trailing 0 . */
-function format(k, n, opts = {}) {
+function format(k, n=6, opts = {}) {
+    if (typeof k === 'number') return parseFloat(k.toPrecision(n)) + '';
+    if (typeof k === 'boolean') return k + '';
     let trim = opts.trim ?? false;
     let totlen = opts.totlen ?? 100000;
     let maxdepth = opts.maxdepth ?? 2;
@@ -3485,9 +3489,9 @@ async function windowset(w = 0, h, swapoff=0, forcebig=true) {
         inps.fullvp = false;
         return;
     }
-    if (w <= 4 && h == undefined) {h = screen.height* w, w = screen.width * w}
+    if (w <= 4 && h == undefined) {swapoff *= screen.width, h = screen.height, w = screen.width * w}
 
-    // // get rid of lots of styling, otherwise Chrome won't let the window be big enough to handle the borders
+    // // get rid of lots of styling, otherwise Chrome won't let the window be big enough to handle the borders windowset(1)
     // // as of June 2022 it still won't let the window be big enough, so don't bother
     // // WS_SIZEBOX, WS_CAPTION https://docs.microsoft.com/en-us/windows/win32/winmsg/window-styles
     // nircmd(`win -style stitle "${document.title}" 0x00C40000`);
@@ -3561,7 +3565,7 @@ function showrts(a, b, c, d, e) {
     }
 
     function sqf(v) {
-        return format(Math.sqrt(v) * 255, 0);
+        return format(Math.sqrt(v) * 255, 3);
     }
 
     function readrt(rt, showhhh = true) {
@@ -3945,61 +3949,6 @@ function forceoao(key, val) {
     setAllLots(key, val);
     dockeydowninner('ctrl,S')
 }
-
-/** monitor a field by turning it into a property (not monitor, clashes with developer tools) */
-function monitorX(object, field, option = 'debugchange') {
-    if (typeof object === 'string') {
-        const s = object.split('.');
-        let o = window;
-        for (let i = 0; i < s.length-1; i++) o = o[s[i]];
-        object = o; field = s.pop();
-    }
-    const desc = Object.getOwnPropertyDescriptor(object, field);
-    if (!desc) { log('no property to monitor'); return; }
-    if (desc.get || desc.set) { log('cannot monitor property', field); return; }
-    const v = object[field];
-    log(`monitorX initial ${field} = ${v}`);
-    Object.defineProperty(object, '..'+field, { // use property so we can prevent enumeration
-        value: v,
-        writable: true,
-        enumerable: false,
-        configurable: true    // configurable so we can remove it in unmonitorX
-    });
-
-    delete object[field];
-    Object.defineProperty(object, field, {
-        get : function() {
-            if (option.indexOf('logget') !== -1) log(`monitorX get ${field} = ${object['..'+field]}`);
-            return object['..'+field];
-        },
-        set : function(vs) { _monitor_fun(object, field, vs, option) },
-        enumerable: true,
-        configurable: true
-    });
-}
-
-/** turn off monitoring, replace the property with a field */
-function unmonitorX(object, field) {
-    const v = object['..' + field];
-    log(`unmonitorX initial ${field} = ${v}`);
-    const ok = delete object[field]
-    if (!ok) console.error('failed to unmonitor', object, field);
-    object[field] = v;
-    const ok2 = delete object['..'+field]
-    if (!ok2) console.log('failed to remove temp from object', object, '..' + field);
-}
-
-function _monitor_fun(object, field, value, option) {
-    const un = () => unmonitorX(object, field);    // quick unmonitor when stopped in this function, eg in debugger below
-    if (option.indexOf('logset') !== -1) log(`monitorX set ${field} = ${value}`);
-    if (object['..' + field] !== value) {
-        if (option.indexOf('change') !== -1) log(`monitorX change ${field} = ${object['..' + field]} => ${value}`);
-        if (option.indexOf('debugchange') !== -1)
-            debugger;  // note: if this is overkill, go up one level in stack to 'set', and set option='change' (or whatever)
-        object['..' + field] = value;
-    }
-}
-
 
 /** view different targts conveniently */
 function viewtargets() {
@@ -4742,11 +4691,13 @@ function makeDraggable(ptodrag, {usesize=true, button = 2, movecallback, upcallb
 
     function dragmousemove(evt) {
         // log('dragmousemove', evt.buttons, !mousedownbuttons, offx(evt))
+        if (evt.currentTarget === document) return;
         if (evt.buttons !== button || evt.buttons !== mousedownbuttons) {
-            // xst = offx(evt) < sizemargin ? 'w' : offx(evt) > +s.width.pre('px')-sizemargin ? 'e' : '';
-            // yst = offy(evt) < sizemargin ? 'n' : offy(evt) > +s.height.pre('px')-sizemargin ? 's' : '';
-            xst = offx(evt) < sizemargin ? 'w' : offx(evt) > todrag.clientWidth-sizemargin ? 'e' : '';
-            yst = offy(evt) < sizemargin ? 'n' : offy(evt) > todrag.clientHeight-sizemargin ? 's' : '';
+            const oox = evt.target.getBoundingClientRect().x - evt.currentTarget.getBoundingClientRect().x + evt.offsetX
+            const ooy = evt.target.getBoundingClientRect().y - evt.currentTarget.getBoundingClientRect().y + evt.offsetY
+            xst = oox < sizemargin ? 'w' : oox > todrag.clientWidth-sizemargin ? 'e' : '';
+            yst = ooy < sizemargin ? 'n' : ooy > todrag.clientHeight-sizemargin ? 's' : '';
+            msgfix('off', {offy:offy(evt), offset: evt.offsetY, client: evt.clientY, screen: evt.screenY, oy: ooy})
             st = yst + xst;
             s.cursor = st === '' ? '' : st + '-resize';   // crosshair sometimes disappears
             // log('movedrag x', offx(evt), st, s.cursor);
@@ -4956,6 +4907,7 @@ function execasync(str, opts) {
 }
 var distxyz = (i,j) => Math.sqrt((i.x-j.x)**2 + (i.y-j.y)**2 + (i.z-j.z)**2); // really const
 var distarr3 = (i,j) => Math.sqrt((i[0]-j[0])**2 + (i[1]-j[1])**2 + (i[2]-j[2])**2); // really const
+var dist6 = (x,y,z, x1,y1,z1) => Math.sqrt((x-x1)**2 + (y-y1)**2 + (z-z1)**2 )
 
 /** traverse materials */
 function mtraverse(node, action) {
@@ -5368,6 +5320,19 @@ async function timef(fn, n=1, id) {
     return v;
 }
 
+/** profile a function */
+async function profilef(fn, n=1, id) {
+    console.profile(id);
+    let v;
+    for (let i = 0; i <n; i++) {
+        v = fn();
+        if (v instanceof Promise) v = await v;
+    }
+    console.profileEnd(id);
+    return v;
+}
+
+
 /** setImmediate shim, needed to allow jszip to work at reasonable speed
  * This must be set up before jszip is loaded,
  * jszip setImmediate shim will see and use this rather than its setTimeout shim
@@ -5520,7 +5485,8 @@ var _R = function(ooo) {
             switch (typeof oo) {
                 case 'object': return _R(oo); break;
                 case 'number': return oo; break;
-                default: if (n !== 'hasOwnProperty') throw new Error('wrong proxy')
+                // default: return undefined
+                // default: if (n !== 'hasOwnProperty') throw new Error('wrong proxy')
             }
         },
 
@@ -6197,3 +6163,23 @@ function filtmap(a, ff) {
 
     // test the function
     // console.log(isDevToolsOpen()); // true or false
+
+// get local ip, from https://stackoverflow.com/questions/20194722/can-you-get-a-users-local-lan-ip-address-via-javascript
+async function getLocalIP() {
+    window.RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;//compatibility for Firefox and chrome
+    var pc = new RTCPeerConnection({iceServers:[]}), noop = function(){};
+    pc.createDataChannel('');//create a bogus data channel
+    const r = await pc.createOffer(); // pc.setLocalDescription.bind(pc), noop);// create offer and set local description
+    pc.setLocalDescription.bind(pc)(r);
+    return new Promise(resolve => {
+        pc.onicecandidate = function(ice) {
+            if (ice && ice.candidate && ice.candidate.candidate) {
+                console.log(ice.candidate.candidate)
+                // var myIP = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/.exec(ice.candidate.candidate)[1];
+                var myIP = ice.candidate.candidate.split(' ')[4];
+                pc.onicecandidate = noop;
+                resolve(myIP);
+            }
+        }
+    });
+}

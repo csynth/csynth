@@ -1,8 +1,9 @@
 'use strict'
-var makeDraggable, log, everyframe, currentGenes, U, tad, tadkin, W, feed, GX, S, format, Maestro, killev, writetextremote, readtext,
-fileTypeHandlers, COL, WA, makeRegexp, THREE, getFoldState, genedefs, xfetch;
+var makeDraggable, log, everyframe, currentGenes, U, tad, tadkin, W, feed, edge, GX, S, format, Maestro, killev, writetextremote, readtext, RGXX,
+fileTypeHandlers, COL, WA, makeRegexp, THREE, getFoldState, genedefs, xfetch, BS;
 
 var _vieweditlist = {}
+Viewedit.changed = [];  // keep track of things viewedit has changed in loading
 /** make a new viewedit panel me.name, and  use it  to set values if requested */
 function Viewedit({name = 'test', usevalues = true, initstring, top, left, right, width=370, height=600} = {}) {
     if (!everyframe) everyframe = f => setInterval(f, 100); //  for minicode version
@@ -82,7 +83,7 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left, right
                 continue;
             } else try {
                 if (k[0] === '.') {
-                    r = JSON.stringify(Viewedit.list(k.substring(1))).replaceall('"','');
+                    r = JSON.stringify(BS.list(k.substring(1))).replaceall('"','');
                 } else {
                     r = dds[i].getter();
                 }
@@ -258,6 +259,7 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left, right
     }
 
     me.makefun = s => {
+        if (s[0] === '>') s = s.substring(1);  // read only flag
         let ss = s ? 'return (' + s + ')' : ''
         if (s && s[0] === '#') {
             const sk = s.substring(1);
@@ -305,17 +307,21 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left, right
             me.calc()
         } else {
             const k = dds[i-1].value;
-            const v = dds[i].value;
-            const oldv = dds[i-1].getter();
-            try {
-                if (dds[i].type === 'color')
-                    me.eval(`${k}.setHex(0x${v.substring(1)})`);
-                else if (typeof oldv === 'object')
-                    me.eval(`Object.assign(${k}, ${v})`);
-                else
-                    me.eval(k + '=' + ((tt.type === 'checkbox' || tt.type === 'radio') ? tt.checked : tt.value));
-            } catch(e) {
-                console.error('cannot assign' , k, '=', v);
+            if (k[0] === '>') {
+                // do not try change with '>' read only
+            } else {
+                const v = dds[i].value;
+                const oldv = dds[i-1].getter();
+                try {
+                    if (dds[i].type === 'color')
+                        me.eval(`${k}.setHex(0x${v.substring(1)})`);
+                    else if (typeof oldv === 'object')
+                        me.eval(`Object.assign(${k}, ${v})`);
+                    else
+                        me.eval(k + '=' + ((tt.type === 'checkbox' || tt.type === 'radio') ? tt.checked : tt.value));
+                } catch(e) {
+                    console.error('cannot assign' , k, '=', v);
+                }
             }
         }
         localStorage['viewedit_' + me.name] = dds.map(v => me.inpp(v)).join('\n~~~\n');
@@ -356,6 +362,12 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left, right
         setclass(dds.indexOf(e), mytype);
         ee.onchange({target: e})
         if (v !== undefined) {
+            const ov = f.value;
+            if (f.value !== v && !k.startsWith('/*') && k[0] !== '>' &&
+                    !(ov === "true" && v === true) && !(ov === "false" && v === false)) {
+                log('viewedit load set change', k, ov, v)
+                Viewedit.changed.push(`${k} = ${v} // ${ov} `)
+            }
             f.value = f.checked = v;
             ee.onchange({target: f});
         }
@@ -446,9 +458,13 @@ function Viewedit({name = 'test', usevalues = true, initstring, top, left, right
     })
 } // Viewedit
 
-/** find a 'holder' of this object so we can generate a string for it */
-Viewedit.findobject = function findobject(o, ffprefs) {
-    ffprefs = ffprefs ?? {G: currentGenes, U, tad, tadkin, W, feed, COL, "COL.hsvopts": COL.hsvopts} // dynnamic in case 'base' object change
+function getObjnames() { return {G: currentGenes, U, tad, 'tad.sv': tad.sv, tadkin, W, feed, edge, COL, S, "COL.hsvopts": COL.hsvopts, "COL.ranges": COL.ranges, RGXX}} // dynamic in case 'base' object change
+
+/** find a 'holder' of this object so we can generate a string for it
+GUISubaddlog creates hidden wrapper function, issues for tadkin, kinect/pullhair ...
+files: dropdown now supported yet?
+*/
+Viewedit.findobject = function findobject(o, ffprefs = getObjnames(), why = '?') {
     for (const ownerName in ffprefs) {
         const owner = ffprefs[ownerName];
         if (owner === o)
@@ -459,6 +475,7 @@ Viewedit.findobject = function findobject(o, ffprefs) {
             return {ownerName, objName}
         }
     }
+    log("'can't find object", o, why);
 }
 
 Viewedit.fromGX = function(pat) {
@@ -495,13 +512,21 @@ Viewedit.keyFromGX = function VieweditkeyFromGX(pat) {
 
 /** find named owner object + property for all gui items */
 Viewedit.mapobjects = function() {
-    const notfound = WA.notfound = []
-    const noobj = WA.noobj = []
+    const notfound = []
+    const noobj = []
+    const presses = {}
+    const panels = {}
+    const folders = {}
+    const nosave = {}
+    const holders = {}
+
     const r = {}
     for (let n in GX.guiDictCache) {
         let c = GX.guiDictCache[n];
-        if (c.object) {
-            let oo = Viewedit.findobject(c.object);
+        if (c._nosave) {
+            nosave[n] = c;
+        } else if (c.object) {
+            let oo = Viewedit.findobject(c.object, undefined, n);
             if (!oo) {
                 log(n, 'object not found')
                 notfound.push[n]
@@ -509,34 +534,30 @@ Viewedit.mapobjects = function() {
                 oo.propertyName = c.propertyName
                 oo.value = c.getValue()
                 r[n] = oo;
+                const oname = oo.ownerName === 'W' ? oo.objName : oo.ownerName;
+                if (!holders[oname]) holders[oname] = {};
+                holders[oname][n] = oo;
+                c.ownerName = oo.ownerName + '.' + oo.objName;
+                c.jsname = c.ownerName + '.' + c.propertyName;
             }
+        } else if (c.press) {
+            presses[n] = c.press;
+        } else if (c.isPanel) {
+            panels[n] = c;
+        } else if (c.isFolder) {
+            folders[n] = c;
         } else {
             log(n, 'no object')
             noobj.push(n)
         }
     }
-return r;
+    return {ok: r, notfound, noobj, presses, panels, folders, nosave, holders};
 }
 
 // change display of all viewedit meus, h undefined, toggle, else true or false
 Viewedit.toggle = function(h) {
     if (h === undefined) h = !Object.values(_vieweditlist)[0].visible;
     for (const v of Object.values(_vieweditlist)) v.visible = h;
-}
-
-/** find all places where this name happens */
-Viewedit.owners = 'W G U tad tadkin feed'.split(' ')
-Viewedit.list = function eelist(lname, prefs = Viewedit.owners) {
-    const r = {}
-    for (const pn of prefs) {
-        const p = window[pn];
-        const v = JSON.stringify(p[lname]);
-        if (v !== undefined) {
-            if (!r[v]) r[v] = '';
-            r[v] += pn
-        }
-    }
-return r;
 }
 
 

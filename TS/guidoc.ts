@@ -204,27 +204,37 @@ function getGUITranrule() {
 }
 
 /** function to return code with current values: just code by default */
-function valuecode(genes) {
-    /** currently disabled, loses SynthBus and other disturbances ... also see NOTvaluecode
-    var tk = trancodeForTranrule(currentGenes.tranrule, genes).trankey;
+function valuecode(genes = G) {
+    /** NOT currently disabled, 22 June 2024
+     * SynthBus section now not transferred
+     * 'other disturbances' did include mishandling of structures such as {k:1} (fixed??)
+     * 'other disturbances', loss of unused horns and of comments
+     ... also see NOTvaluecode */
+    var t1 = trancodeForTranrule(genes.tranrule, genes).trankey;
+    if (!t1) return genes.tranrule;  // in case called before compile
     for (var gn in genes) {
-        tk = tk.replaceall( '#' + gn + '#', format(genes[gn]));
+        t1 = t1.replaceall( '#' + gn + '#', format(genes[gn]));
     }
-    return tk;
-    **/
-    return genes.tranrule;
+
+    // var split = genes.tranrule.match(/\n(.*)SynthBus([\s\S]*)/)
+    var match = genes.tranrule.match(/\n.*SynthBus[\s\S]*/)
+    return match ? t1 + '\n' + match : t1
 }
 
 /** set the gui tranrule to match the given object (default currentGenes) */
-function setGUITranrule(genes) {
+function setGUITranrule(genes = currentGenes) {
     if (_testcompile) return;
     if (!genes.tranrule) return;
     if (dualmode) return;
     //trysetele("tranrulebox", "innerHTML", res.replace(/\n/g, "<br>"));
-    var vcode = valuecode(genes);
+    var vcode = genes.tranrule;
+    if (vcode.startsWith('//ZCODE'))
+        return log('setGUITranrule ZCODE'); // valuecode(genes); // 23 June 2024,  valuecode not safe
     if (tryseteleval("tranrulebox", vcode)) {
         W.tranrulebox.autosize();
         $("#tranrulebox").trigger("change");
+        currentHset.tranrule = vcode;
+        genes.tranrule = vcode;
     }
     HW.updateHTMLRules(genes);
 }
@@ -367,6 +377,7 @@ function orginit() {
     }
 }
 
+var guiboxgenes: any = {notyetset: true};  // use to keep track of last seen genes in the gui
 // this should force  codeMirror => tranrulebox in step, must check changes other way round
 // also colour codeMirror by bad (red), good but changed from definitive G.tranrule (green), not changed (clear, ?black)
 function _CodeMirrorInstanceOnChange() {
@@ -374,12 +385,15 @@ function _CodeMirrorInstanceOnChange() {
     let code = _CodeMirrorInstance.getValue();
     let r = '#004000';
     // const res = dummyHset.parsehorn(code, undefined, true);
-    const res = checkTranruleAll(code);
+    const genes = {};
+    const res = checkTranruleAll(code, genes);
+    if (olength(genes)) guiboxgenes = genes;  // indirect in case optimization prevents sensible return of genes
     if (typeof res === 'string') {
         r = '#400000';
         msgfixerror('compile', res);
     } else {
         msgfix('compile', 'OK');
+        if (inps.useinterp) G.tranrule = code; // immediate update as we can
     }
     setInput(W.tranrulebox, code);
     if (code === G.tranrule) r = '';
@@ -416,8 +430,9 @@ function initCodeMirror() {
     // $('.CodeMirror').css({'z-index': 10000, 'max-width': '1200px', 'position': 'fixed', 'bottom': 0,
     //     height: 'auto', width: 'auto', left: '360px' });
     // changed now tranrulebox is wrapped in foldable group
-    $('.CodeMirror').css({'z-index': 10000, 'max-width': '1200px', 'position': 'relative', 'bottom': 0,
+    $('.CodeMirror').css({'z-index': 10000, 'position': 'relative', 'bottom': 0, 'max-width': '1200px',
         height: 'auto', width: 'auto', left: '0px' });
+    $('.CodeMirror')[0].id = 'cm_tranrule';
     $('.CodeMirror-scroll').css( {'max-height': '500px'} );  // cannot use % for max-height as no reliable parent?
 
     _CodeMirrorInstance.getWrapperElement().addEventListener("keydown", function(e) {
@@ -454,6 +469,7 @@ function initCodeMirror() {
     // });
 
     _CodeMirrorInstance.setOption("extraKeys", {"Ctrl-Space": "autocomplete",
+        // test "Ctrl": () => console.error("ctrl key ctrl key"),
         "Ctrl-Enter": function(cm) {
             var code = cm.getValue();
             currentGenes.tranrule = code;
@@ -473,14 +489,15 @@ function initCodeMirror() {
             _CodeMirrorInstanceOnChange();
             //remakeShaders();
         },
-        "Alt-Enter": function(cm) {
+        "Alt-Enter": function(cm) { //set genes from visible tranrule
             var code = cm.getValue();
             //for now, the tranrulebox will still ultimately be the source of code to evaluate
             //$('#tranrulebox').val(code);
-            HW.setGenesFromTranrule(code, trancodeForTranrule(currentGenes.tranrule, currentGenes).trankey );
+            HW.setGenesFromTranrule(code); //>>>, trancodeForTranrule(currentGenes.tranrule, currentGenes).trankey );
             if (code !== W.tranrulebox.value) console.error('tranrulebox and codeMirror out of step');
             setInput(W.tranrulebox, code);   // probably not needed?, done more generically on change
             currentHset.tranrule = code;
+            G.tranrule = code;
         },
         "Shift-Ctrl-Enter": function(cm) {
             var code = cm.getValue();
@@ -515,6 +532,11 @@ function initCodeMirror() {
         // },
         "Alt-R": function() {
             setInput(WA.showrules, false);
+        }, //TODO shortcut to insert synth args object?
+        "Shift-Alt-R": function() {
+            const s = W._tranrule.style;
+            if (s.width === '99%')  { s.width = s.left = ''; WA.cm_tranrule.style.maxWidth = '1200px'; }
+            else {s.width = '99%'; s.left = '0';  WA.cm_tranrule.style.maxWidth = ''; }
         }, //TODO shortcut to insert synth args object?
         "Ctrl-.": function(cm) {
             sclog(`Clearing synths ("Ctrl-." in code editor)`);
@@ -569,4 +591,64 @@ function initCodeMirror() {
 
     // otherwise rules displayed directory from loading oao do not show populated. ? should be a better way to force population ?
     onframe(() => _CodeMirrorInstance.setValue(_CodeMirrorInstance.getValue()), 10);
+}
+
+/** fill in the gene values in a tranrule string with values from genes, return modified tranrule string */
+function tranruleFromGenes(genes = currentGenes, tranrule = currentGenes.tranrule) {
+    //### don't bother to filter out ' and " numbers, they'll fail the marked gene not found test
+    //### var ss = tranrule.split(/([^"'a-zA-Z])([+-\d][.\d]*)/g);
+    const s = _testcompile;
+    try {
+        _testcompile=true
+        const ss = tranrule.split(/([+-\d][.\d]*)/g);       // separate out numbers (does not know about scientific) and inbetween strings
+        var ovals = ss.slice();                             // save the originals
+        var kk = 7/64                                       // flag to reduce accidental conflict
+        for (let i = 1; i < ss.length; i+=2) if (!isNaN(ss[i])) ss[i] = i + kk // replace potential gene values with markers in ss
+        const marked = ss.join('')                          // and reconstitute a marked tranrule
+        const saveg = genes
+        const newg = clone(genes)                           // new set of genes will be overridden
+        newg.tranrule = marked                              // it has new tranrule
+        HW.setGenesFromTranrule(marked, newg );             // set newg with the marked genes
+
+        const ig = []                                       // keep track of gene name for each slot number (not used yet)
+        for (const gn in newg) {                            // scan genes and find the marked ones that appear in tranrule
+            const v = newg[gn]                              // v = gene value
+            if (v%1 === kk) {                               // test to see if it is a marked value
+                const k = Math.floor(v)                     // if so, find corresponding slot
+                ig[k] = gn                                  // remember gene name for slot
+                ss[k] = saveg[gn];                          // put the gene value into ss
+            } else {
+                // log('v not found in tranrule', v, gn)    // unmarked genes are expected, ignore
+            }
+        }
+
+        // check for marked changes that didn't seem to have effect, eg numbers in comments, or in '' "", or in ???
+        // probably harmless, restore their original value
+        for (let i = 1; i < ss.length; i+=2)
+            if (ss[i]%1 === kk) {
+                // log('marked gene not found for value', {i, newg: newg[i], ss: ss[i], ovals: ovals[i], saveg: saveg[i], genes: genes[i]} )
+                ss[i] = ovals[i];
+            }
+        var ncode = ss.join('')
+        return ncode;
+    } finally {
+        _testcompile = s;
+    }
+}
+
+/** insert genes from current genes into a tranrule (probably active version), and save  */
+function setTranruleFromGenes(genes = currentGenes, tranrule = _CodeMirrorInstance.getValue() ) {
+    const sg = currentGenes; currentGenes = undefined;  // just make sure we are not playing with currentGenes by mistake
+    try {
+        const ncode = tranruleFromGenes(genes, tranrule);
+        genes.tranrule = ncode
+        if (genes === currentGenes)
+            inps.tranrulebox = ncode
+        else
+            log('unexpected setTranruleFromGenes genes')
+    } catch (e) {
+        msgfixerrorlog('error in setTranruleFromGenes', e)
+    } finally {
+        currentGenes = sg;
+    }
 }

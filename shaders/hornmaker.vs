@@ -10,6 +10,18 @@ make cumcount uniform array
 
 **/
 
+#if VERTEX == 1
+    #define Hhornnum float(instanceID)
+#else
+    #define Hhornnum oposHornid
+#endif
+
+#define interpsig void interpretfun(inout float x, inout float y, inout float z, \
+    inout float rp, inout float r, inout float xscale, \
+    in float hornnum, inout float hornid, inout float colourid, inout float reflnorm)
+#define interpcall interpretfun(x, y, z, rp, r, xscale, splitkhornnum, xhornid, colourid, reflnorm)
+interpsig;  // early forward dcl
+
 #define hhornnum loposuvw.z
 #define hhornid loposuvw.w
 
@@ -186,6 +198,8 @@ gene(repeattran, 1, 0, 1e73, 1, 1, geom, frozen) // if REPEATTRAN is defined and
 gene(killbplength, 1e20, 0, 100, 1, 1, geom, frozen) // kill segments where adjacet points are > killbplength apart
 gene(isolatebp, 0, 0, 1,  1, 1, geom, frozen) // isolate all base pairs to points
 
+gene(skelhornid, 0, 0,10,0.1,0.1, geom, frozen) // if non 0, muliplex hornid and radius in skel w channel
+
 
 //ge ne(wallzpush, 1, 0,3, 0.1,0.01, wall, frozen) // wall z kick out
 //ge ne(wallxpushwidth, 250, -1, 501, 1,1, wall, frozen) // wall width of z kickout
@@ -312,7 +326,9 @@ float ppp(const float n, const float nsub) {
 
 // split an integer v (possibly held in z of modelMat rix), k is range of numbers (parpos)
 // k may be fractional to allow for part subhorns
+float splitkhornnum;
 Parpos splitk(float vv) {
+    splitkhornnum = vv;
     vec4 ka, kb;  // set from uniforms parnumsa/b for shorter names; , => ; to help minify
     ka = kb = vec4(9999999);  // make sure they appear set for eg minimizer
     #ifdef SINGLEMULTI
@@ -448,9 +464,9 @@ vec3 rotaxf(const vec3 p, const vec3 aax, const float th) {
                 // ge ne(n + 'pulsemodrate', 0.7, 0, 5, 0.001, 0.001, 'FM mod ratio for pulse', 'dyn', 0);
                 // ge ne(n + 'pulsemodscale', 0.2, 0, 1, 0.001, 0.001, 'FM mod scale for pulse', 'dyn', 0);
 
-float pulsex(float rate, float perhorn, float powp, float scale, float modrate, float modscale, float maxp, float pulseendfade,
-    float crp, float r, float xscale, float rp, float time) {
-    if (scale == 0.) return r;  // n.b. this stops maxp being active
+float pulsex(float rate, float perhorn, float powp, float pscale, float modrate, float modscale, float maxp, float pulseendfade,
+    float crp, float xrscale, float rp, float time) {
+    if (pscale == 0.) return xrscale;  // n.b. this stops maxp being active for an unused pulse (eg b_pulsescale=0, b_pulsemax=5)
     float modv = modscale / max(modrate, 0.000001)  * sin(time * rate * modrate);           // fm modulation contribution to wave
 
     float wave = 0.5 + 0.5 * sin(6.283185307179586 * (time * rate  - crp * perhorn  + modv )); // wave scale: range 1 .. 2
@@ -459,11 +475,11 @@ float pulsex(float rate, float perhorn, float powp, float scale, float modrate, 
     if (pulseendfade > 0.) {
         float ff = fract(rp);
         ff = min(ff, 1.-ff);    // f ranges from 0 at each end to 0.5
-        scale *= smoothstep(0., pulseendfade, ff);
+        pscale *= smoothstep(0., pulseendfade, ff);
     }
 
-    float vv = scale * pow(wave, powp );        // pow makes wave sharper
-    return min(maxp, r * (1. + vv));                       // new radius after wave shaping
+    float vv = pscale * pow(wave, powp );        // pow makes wave sharper
+    return min(maxp, xrscale * (1. + vv));    // new radius after wave shaping
 }
 
 
@@ -977,6 +993,7 @@ vec4 tr_i(const vec4 p, const float ppx, const Parpos parpos, out float xrscale,
 	#endif
 
 
+
     // output into slots to save on varying
     // when we kept first_rp etc as varying,
     // we blew the max number of varyings allowed
@@ -990,8 +1007,13 @@ vec4 tr_i(const vec4 p, const float ppx, const Parpos parpos, out float xrscale,
     //     r =  max(r, 0.);
     // #endif
     xrscale = xscale * r;
+    xscale = r = -99.; // check xscale and r not used after xrscale computed //??
     // Math.max(r * radmult + radadd, radmin);
     /*??? if (r > 0.) **/ xrscale = max(xrscale * global_radmult + global_radadd, global_radmin);
+
+    //<< postautoscale, automatically generated from user defined tranrule
+    $$$postautoscale$$
+
 
     return vec4(x, y, z, w);
 }  // tr_i
@@ -1130,6 +1152,18 @@ void cubicChoice(float x, vec4 p0, vec4 p1, vec4 p2, vec4 p3) {
     }
 }
 
+/** get from skelbuffer, and if skelhornid demultiplex radius and set xhornid as side effect */
+vec4 getskelbuffer(vec2 bp, inout float hid) {
+    vec4 aa = textureget( skelbuffer, bp);
+        // if (skelhornid > 0.) objpos.w = xhornid + clamp(.5 + log(objpos.w) / skelhornid, 0.001, 0.999);
+    if (skelhornid > 0.) {
+        hid = floor(aa.w);
+        aa.w = exp((fract(aa.w) - 0.5) * skelhornid);
+    }
+
+    return aa;
+}
+
 
 /** compute transform and direction,  output skeleton information plus data (xmu etc) to flesh it out to full horn */
 void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, out float xrscale, out float texxscale, out vec3 texpos, out float lll) {
@@ -1157,7 +1191,7 @@ void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, o
 		dd *= 1.1;
 		// vec2 bp = skbuffpointtexture(vec3(ppx, 0., oposz), skelnum);
         vec2 bp = vec2(ppx * skelnum + 0.5, oposz + 0.5) / skelbufferRes;
-		aa = textureget(skelbuffer, bp); // if (aa.w >= 16.) aa.w -= 16.;
+		aa = getskelbuffer(bp, INOUT xhornid); // if (aa.w >= 16.) aa.w -= 16.;
 		skela3 = aa.xyz;
 
 		// make ppx2 be in next linear segment so that the direction xmu and normal move smoothly
@@ -1167,7 +1201,7 @@ void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, o
 		float ppx2 = ppx+dd;
 		// bp = skbuffpointtexture(vec3(ppx2, 0., oposz), skelnum);
         bp = vec2(ppx2 * skelnum + 0.5, oposz + 0.5) / skelbufferRes;
-		vec3 skela31 = textureget(skelbuffer, bp).xyz;
+		vec3 skela31 = getskelbuffer(bp, INOUT xhornid).xyz;
 
 		// compute direction
 		skelstep = (skela31-skela3);
@@ -1201,10 +1235,10 @@ void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, o
         // Looked up skeleton points that define segment
 		// May be able to optimize below using deltas in framebuffer space
         float skelnum1 = 1.;
-		vec4 p0 = textureget(skelbuffer, skbuffpointtexture(vec3(s0, 0., oposz), skelnum1));
-		vec4 p1 = textureget(skelbuffer, skbuffpointtexture(vec3(s1, 0., oposz), skelnum1));
-		vec4 p2 = textureget(skelbuffer, skbuffpointtexture(vec3(s2, 0., oposz), skelnum1));
-		vec4 p3 = textureget(skelbuffer, skbuffpointtexture(vec3(s3, 0., oposz), skelnum1));
+		vec4 p0 = getskelbuffer(skbuffpointtexture(vec3(s0, 0., oposz), skelnum1), INOUT xhornid);
+		vec4 p1 = getskelbuffer(skbuffpointtexture(vec3(s1, 0., oposz), skelnum1), INOUT xhornid);
+		vec4 p2 = getskelbuffer(skbuffpointtexture(vec3(s2, 0., oposz), skelnum1), INOUT xhornid);
+		vec4 p3 = getskelbuffer(skbuffpointtexture(vec3(s3, 0., oposz), skelnum1), INOUT xhornid);
 
         // now correct the ends to get the last segments right, especially for small skelends, tadpoles
         if (lowint - 1. < 0.) p0 = 3.*(p1-p2) + p3;
@@ -1281,7 +1315,7 @@ void trdir(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, o
                 if (b01) {                      // left split is isolated
                     dir = vec4(-1);             // Case A 1
                 } else {                        // left split not islated
-            		vec4 pm = textureget(skelbuffer, skbuffpointtexture(vec3(lowint-2., 0., oposz), skelnum1));
+            		vec4 pm = getskelbuffer(skbuffpointtexture(vec3(lowint-2., 0., oposz), skelnum1), INOUT xhornid);
                     testb(bm0, pm); bm0 = bm0 ||  (lowint - 2. < -0.5);
                     if (bm0) {
                         dir = p1-p0;            //Case C 01
@@ -1492,6 +1526,7 @@ void coretr(const float ppx, const Parpos parpos, out vec4 skela, out vec3 xmu, 
     ;
 /**/
     float xrscale2, texxscale2; vec3 texpos2; // so texxscale not corrupted
+    // ??? tr_i(base, ppx - 9.*sampdist, parpos, OUT xrscale2, OUT texxscale2, OUT texpos2); // <<?? TEMP TEMP TO GET xhornid
     if (lll == 0. || NORMTYPE == 0.) {  // always use same direction
         rad1a = vec3(1.,0.,0.);
         lll = 1.;
@@ -1761,7 +1796,7 @@ if (rpx < 0.) {  // sphere at head. force points equal round end circle, not alo
 	texpos = surfpos;
 
     return vec4(surfpos, skela.w);  // w may not take part in sweeping, but at least it is not forgotten
-}	// end real tr () (! NO TR)
+}	// end trnoflat real tr () (! NO TR)
 
 
 gene(makeflat, 0.0, 0,1.1, 0.1, 0.01, geom, frozen) // set to 1 to make flat with algorithm, >1 for 'pure' flat and no call to trnoflat
@@ -1814,13 +1849,13 @@ vec4 tr(const vec4 loposuvw, out vec3 xmnormal, out vec3 texpos, out float ribnu
 vec4 trskel(const vec4 p) {
     Parpos parpos;
 	// used to hold position in each active horn
-    parpos = splitk(/*modelMat rix[3][2]*/ + p.z);  // establish position in parents for multi-grid
+    parpos = splitk(/*modelMat rix[3][2]*/ + p.z);  // establish position in parents for multi-grid (and xhornid etc)
 
     float xrscale, texxscale;  // set by tr_i and used to establish correct geometry
     vec3 texpos;                        // set by tr_i (and ignored for now? */
 
     vec4 skelpos = tr_i(base, p.x, parpos, OUT xrscale, OUT texxscale, OUT texpos) * rot44d;
-    skelpos.w = 1.;
+    skelpos.w = 1.; // for correct transform
 
     // inside-out or other distortion to prevent getting too close
     vec3 trpos = (vec4(skelpos) * rot4).xyz;
@@ -1860,8 +1895,10 @@ vec4 trskel(const vec4 p) {
     xrscale *= sqrt(k);
 	}
 
-
     skelpos.w = xrscale;
+    // if (skelhornid > 0.) objpos.w = xhornid + clamp(.5 + log(objpos.w) / skelhornid, 0.001, 0.999);
+
+    if (skelhornid > 0.) skelpos.w = xhornid + clamp(.5 + log(skelpos.w) / skelhornid, 0.001, 0.999);
     return skelpos;
 }
 #endif
@@ -1900,5 +1937,6 @@ includes scaleFactor
 
 
 */
+#include interp.vs;
 #endif // NOHORNMAKER
 // end hornmaker.vs <<<<

@@ -168,6 +168,11 @@ function addGene(c) {
 }
 /** add a gene if not already present: todo decide what to replace in old if already present  */
 function addgene(gn, def, min, max, delta, step, help, tag, free = 1, internal = false, useuniform = true, addGui = true, genes = currentGenes) {
+    if (_testcompile) {
+        if (genes)
+            genes[gn] = def;
+        return;
+    }
     // whether new or not, setup or replace the other details
     delta = (delta === undefined || delta === '?' || delta === 'u') ? (max - min) / 10 : delta;
     if (step === undefined)

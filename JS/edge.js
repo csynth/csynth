@@ -1,5 +1,7 @@
 var zoomCam, feed, camera, xxxrt, imageOpts, xxxgenes, U, killev, msgfixlog
 
+var edge = {}
+
 /** this will be called after uniforms set to patch them
 scale up some edge details;
 for now, G.baseksize is used to set required thickness and this code decides how to achieve that
@@ -40,10 +42,15 @@ function res2uniforms() {
         // less black edges so very thin lines can be represented
         // We won't be adding thickness, so speccol is not relevant
         if (U.baseksize < 1) {
-            U.edgecol.setScalar((1-U.baseksize)); // ???  ** (1/2.2));
+            U.edgecol.setScalar((1-U.baseksize)); // ???  ** (1/2.2)); .. only sensible if background is black
             U.baseksize = 1;
         } else {
-            U.edgecol.setRGB(0,0,0); // need to have a reference value to reset it to
+            const v = edge.xcols?.back ?? 0;
+            U.backcol.setRGB(v,v,v);
+            // 4 Apr 2024, use edge.xcols.back as reference ??? need to have a reference value to reset it to
+            // 28 April 2024, we need something fxor normal white on black, so reinstate edgecol here
+            // but must check for other situations. Maybe don't let the temporary small size during save corrupt it above??
+            U.edgecol.setRGB(v,v,v);
         }
 
         // occlusion less than line width gives odd line edge effect (todo? fix in shader)
@@ -60,7 +67,6 @@ function res2uniforms() {
 }
 window.addEventListener('setObjUniforms', res2uniforms);
 
-var edge = {}
 var copyXflip, oldlayerX, width, oldlayerY, height, inps, readWebGlFloatDirect, getrendertarget, msgfixerror, tad, G, log,
     floor, MAX_HORNS_FOR_TYPE, msgfixerrorlog
 /*** choose a colour based on picked point */

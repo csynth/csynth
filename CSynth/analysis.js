@@ -4,7 +4,7 @@ var CSynth, msgfixlog, springs, spearson, G, format, msgfix, sleep, log, numInst
 Eigenvalues, VEC3, uniforms, geneOverrides, copyFrom, inworker, Worker, currentGenes, applyMatop, height, width, GO, framenum, glsl, S, array2Table, getstats,$;
 
 var setViewports, genedefs, mutate, slots, vps, setObjUniforms, renderObjsInner, mainvp, V, rot4toGenes, refmain, setAllLots, msgfixerrorlog,
-    clamp, U, addscript, makeDraggable, W;
+    clamp, U, addscript, makeDraggable, W, basescale;
 
 // get positions for key or ready made positions
 CSynth.pos = function(inputDef) {
@@ -783,22 +783,31 @@ CSynth.showEigen = function(doOrient, d = CSynth.stats()) {
     lineGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
     lineGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
 
+    if (doOrient)
+        CSynth.statsOrient(d, {angled: doOrient === 'angled', locate: false, scale: false});
 
-    if (doOrient) {
-        const e = d.eigenvectors;
-        for (let i=0; i<2; i++) e[i].normalize();
-        const t = currentGenes._rot4_ele;
-        e[2].crossVectors(e[0], e[1]);  // third eigenvector sometimes give -ve determinant
+}
 
-        const x = e[0], y = e[1], z = e[2];
-        G._rot4_ele = [x.x, x.y, x.z, 0, y.x, y.y, y.z, 0, z.x, z.y, z.z, 0, 0,0,0,1];
+// not really CSynth ...
+CSynth.statsOrient = function statsOrient(stats = skelstats(), {angled = false, locate = true, scale = true } = {}) {
+    const e = stats.eigenvectors;
+    for (let i=0; i<2; i++) e[i].normalize();
+    const t = currentGenes._rot4_ele;
+    e[2].crossVectors(e[0], e[1]);  // third eigenvector sometimes give -ve determinant
 
-        if (doOrient === 'angled')
-            applyMatop(0,1, Math.atan2(height, width));
-        else
-            rot4toGenes();
-        refmain();
-    }
+    const v = stats.eigenvalues.map(x=>x**0.5);
+    const cen = stats.centroid.multiplyScalar(locate ? 1/basescale : 0);
+    const vsize = Math.max(v[0], v[1] * width / height);
+    if (scale) G._uScale = basescale/vsize/1.5;
+
+    const x = e[0], y = e[1], z = e[2];
+    G._rot4_ele = [x.x, x.y, x.z, cen.x, y.x, y.y, y.z, cen.y, z.x, z.y, z.z, cen.z, 0,0,0,1];
+
+    if (angled)
+        applyMatop(0,1, Math.atan2(height, width));
+    else
+        rot4toGenes();
+    refmain();
 }
 
 /** orient with centroid to middle,particle # px to the right and py to the top */
@@ -1523,7 +1532,7 @@ CSynth.plotev = function plotev(e) {
 }
 
 // xx=(data,label) => ({data:CSynth.makess(data).map(x=>Math.log10(x)), label}); CSynth.plot([xx(ccc1.unitData, 'raw'), xx(ccc1.textureData, 'csynorm'),xx(ccc0.unitData, 'xnorm'), xx(ccc0.textureData, 'xnorm,csynorm')] )
-CSynth.plot = function(rlabel) {
+CSynth.plot = function(rlabel, {xmin, xmax, ymin = -0.02, ymax = 0.02, type = 'line', lineWidth = 1, pointRadius = 0} = {}) {
     if (!Chart) {
         log('adding Chart')
         addscript("https://cdn.jsdelivr.net/npm/chart.js");
@@ -1553,7 +1562,7 @@ CSynth.plot = function(rlabel) {
         div.addEventListener('mousemove', CSynth.plotev);
         makeDraggable(div, {button: 1, movecallback: canvsize, upcallback: sizechange});
     }
-    if (CSynth.chart) CSynth.chart.destroy();
+    if (CSynth.chart) { CSynth.chart.destroy(); CSynth.chart = undefined; }
     function canvsize() {  // size so you can see what is happening
         canvas.style.width = div.style.width;
         canvas.style.height = div.style.height;
@@ -1565,15 +1574,15 @@ CSynth.plot = function(rlabel) {
         CSynth.chart.resize(w, h);
     }
 
-    let chart;
+    // let chart;
     const datasets = [];
     for (let i=0; i<rlabel.length; i++)
         datasets.push(Object.assign(
-        {   borderWidth: 1,  // borderWidth is lineWidth
-            pointRadius: 0}, rlabel[i]))
+        {   borderWidth: lineWidth,  // borderWidth is lineWidth
+            pointRadius}, rlabel[i]))
 
     const cfg = {
-        type: 'line',
+        type,
         data: {
             datasets,
             labels: new Array(rlabel[0].data.length).fill(''), // labels needed otherwise it collapses x, to give a vertical line
@@ -1586,12 +1595,23 @@ CSynth.plot = function(rlabel) {
             onMouseMove: CSynth.plotev,
             animation: false,
             //scales: {yAxes: [{ticks: {max: 440.2}, {ticks: {max: 0.0002}]}}
-            scales: {y: {max: 0.002, min:-0.002 }}
+            scales: {
+                y: {max: ymax, min:ymin},
+                xAxes: {type: 'linear', position: 'bottom', min: xmin, max: xmax}
+            }
         }
         // labels: r,
     }
 
-    chart = CSynth.chart = new Chart(CSynth.plotcanvas, cfg);
+    try {
+        CSynth.chart = new Chart(CSynth.plotcanvas, cfg);
+        if (!CSynth.chart) {console.error('failed to make chart'); return; }
+    } catch(e) {
+        console.error('new CSynth chart call failed', e.message);
+        document.body.removeChild(CSynth.plotdiv);
+        CSynth.plotdiv = 0; // force refresh, cChart.js confused ??? and has done some allocation work
+        return;
+    }
     sizechange();
     // chart corrupts the size, so reset it
 

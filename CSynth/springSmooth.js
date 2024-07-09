@@ -44,8 +44,9 @@ CSynth.SpringSmooth = function springSmooth() {
                 os.xyz = max(os.xyz, 1e-5);
                 os.xyz = pow(os.xyz, vec3(contactPowi));                                // old values, contact space
                 float nd = length(pos1 - pos2);                                         // new distance
-                float nc = pow(nd, contactPowi);                                        // new distance, contact space
                 float nh = nd < springSmoothHitDist ? 1. : 0.;                          // new hits
+                // if (gl_FragCoord.x+gl_FragCoord.y <= 1.) nd = nh = 3.5; // debug test                
+                float nc = pow(nd, contactPowi);                                        // new distance, contact space
                 smoothed = os * damp + vec4(nc, nc, nc, nh) * (1. - damp);              // smoothed outputs
                 smoothed.xyz = pow(smoothed.xyz, vec3(contactPow));                     // saved in dist space
             }
@@ -71,6 +72,7 @@ CSynth.SpringSmooth = function springSmooth() {
         U.lastSpringSmooth = rt2.texture;
 
         CSynth.springSmoothReset();
+        me.regen = false;
     }  // end jitinit
 
     let guidamp = vec4(0, 2,3, 0);
@@ -81,7 +83,7 @@ CSynth.SpringSmooth = function springSmooth() {
 
     CSynth.springSmoothStep = function springSmoothStep(force = false) {
         if (!me.running && !force) return;
-        if (!rt1) jitinit();   // jit
+        if (!rt1 || me.regen) jitinit();   // jit
         [rt1, rt2] = [rt2, rt1];
         uniforms.lastSpringSmooth.value = rt1.texture;
         damp.y = 1 - 10**-guidamp.y
@@ -91,7 +93,7 @@ CSynth.SpringSmooth = function springSmooth() {
         rrender('springSmooth', scene, camera, rt2)
         CSynth.springSmoothRT = rt2;
         uniforms.lastSpringSmooth.value = rt2.texture;  // for users of springSmooth
-        steps++;
+        me.steps = steps++;
     }
 
     CSynth.springSmoothReset = function springSmoothReset() {

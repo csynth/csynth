@@ -9,7 +9,7 @@ var V, VH, THREE, CSynth, sharedgeo, addgeneperm, extraRender, rrender, dat,
     currentGenes, onframe, remakeShaders, newscene, camera, baseTrancodeForTranrule, usemask,
     material, genedefs, setval, readWebGlFloat, log, copyFrom, guiFromGene, W, numInstances, HW, processFile, updateMat,
     customSettings, msgfix, addtaggeduniform, uniforms, uniformsForTag, copyFromSel, G, setKeyRgb, hsv2rgb,
-    getstats, GX, PICKNUM, searchValues, setExtraKey;
+    getstats, GX, PICKNUM, searchValues, setExtraKey, xxxdispobj;
 
 CSynth.maxMatrixSize = 1024;
 CSynth.Matrix = function() {
@@ -430,7 +430,7 @@ CSynth.Matrix = function() {
             const type = G['matcoltype' + n];  // input type
             let r = type; // unless proved otherwise
             // auto start just once, eg not if user explicitly sets running off
-            if (6 <= r && r <= 9 && !setmatrix.runningdone) setmatrix.runningdone = CSynth.springSmooth.running = true; 
+            if (6 <= r && r <= 9 && !setmatrix.runningdone) setmatrix.runningdone = CSynth.springSmooth.running = true;
             let rest = 10;
             if (type <= 4) {            // handles 0,1,x,y,currentDist; and 7..10 for smoothed
                 // r = type;
@@ -515,10 +515,11 @@ CSynth.Matrix = function() {
         var math = currentGenes.matheight; // height of matrix
 
         var rot4 = [mats,0,0,-hd,  0,0,mats,math,  0,-mats,0,hd,  0,0,0,1];
+        const dispobj = xxxdispobj(currentGenes);
         var options = {
             tranrule: 'matrix', rendertarget: rt, genes: currentGenes, scene: CSynth.matrixScene,
             renderPass, rot4, trancodeForTranrule: CSynth.Matrix.trancodeForTranrule,
-            extradefines: CSynth.Matrix.extradefines, useskelbuffer: false, NORMTYPE: 1
+            extradefines: CSynth.Matrix.extradefines, useskelbuffer: false, NORMTYPE: 1, dispobj
         };
         if (usemask !== 'pick') options.usemask = 1.5;
         if (material.opos && material.opos.matrix) material.opos.matrix.side = THREE.DoubleSide;  // in case overridden

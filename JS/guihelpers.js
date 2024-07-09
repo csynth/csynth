@@ -6,7 +6,7 @@ GUIwallgui, G, cMap, RGXX, useKinect, RGG, setInput, WA, runkeys, updateGuiGenes
 mainvp, NODO, lastDispobj, saveimage1high, onframe, evalq, S, home, keysdown, imageOpts, ml, msgfix, DispobjC, clearObjzoom,
 lastdocx, lastdocy, oldlayerX, oldlayerY, newmain, framenum, springs, xxxgenes, camera, xxxrt, copyXflip, width, height, fitCanvasToWindow,
 usemask, ops, ctrl, alt, shift, right, left, middle, renderer, xxxdispobj, setExtraKey, getdesksave,
-fixfeed, unfixfeed, canvas, everyframe, fixfeedcoreprep, fixfeedcoreend, shadows, sethighres, Viewedit, guinewbw, feed, renderVR, setAllLots
+fixfeed, unfixfeed, canvas, everyframe, fixfeedcoreprep, fixfeedcoreend, shadows, sethighres, Viewedit, guinewbw, feed, renderVR, setAllLots, edge
 
 var tad
 
@@ -17,7 +17,8 @@ function GUIInit(title = 'generic gui') {
     if (!V.gui) {
         V.gui = dat.GUIVR.createX(title);
         const bbb = [3,
-            { func: () => GX.savegui(undefined, true), tip: "Save current settings from the gui,\n+orientation.", text: 'savegui' },
+            { func: () => GX.savegui(undefined, true), tip: "Save current settings from the gui,\n+orientation.", text: 'saveguiBIG' },
+            { func: () => GX.savegui(undefined, false), tip: "Save current settings from the gui,\nNO orientation.", text: 'savegui' },
             { func: ()=>runcommandphp('explorer ' + runcommandphp('cd').split('\r')[0] + '\\settings'), tip: 'open settings in explorer', text: 'explore'},
         ];
         const savegubut = V.gui.addImageButtonPanel(...bbb).setRowHeight(0.100);
@@ -32,6 +33,9 @@ function GUIInit(title = 'generic gui') {
         if (V.modesgui) V.gui.addFolder(V.modesgui);
         // V.modesgui = V.gui;
         if (!G.springrate) WA.getSpringUniforms(); // usually OK, needed for tadpomp?
+
+		V.nocamscene.add(V.gui);
+		dat.GUIVR.enableMouse(V.nocamcamera, renderer);
 
         bb = [5];
     }
@@ -161,6 +165,7 @@ function guiFromGene(gui, gn, xgn) {
     });
     if (gd.help) gg.setToolTip(gd.help + '\nGENE: ' + gn + (gd.togui ? ' fun:' + gd.togui.name : ''));
     guiFromGene.items[gn] = guiFromGene.items[xgn] = gg;
+	gg.basekey = 'GENE/' + gn;
 	return gg;
 }
 guiFromGene.items = {};
@@ -252,6 +257,7 @@ async function GUIwallkeys() {
     sgui.add(tad.covdef, 'aspect', 0, 3, 0.001, 'room aspect', 'room aspect, 0 use width and height').listen().onChange(tad.covidSetScene)
     sgui.add(tad.covdef, 'fixFloor', -3, 3, 0.01, 'floor', 'floor').listen().onChange(tad.covidSetScene)
     sgui.add(tad.covdef, 'hideWalls', 'hide side/top walls', 'hide side/top walls').listen().onChange(tad.covidSetScene)
+    sgui.add(inps, 'SHADOWS', 'shadows', 'use shadows').listen()
 
     //sgui.add(tad.covdef, 'fov', 5, 50, 0.1, 'camera fov', 'camera fov').listen().onChange(tad.covidSetScene)
     sgui.add(tad.covdef, 'camz', -20, -5, 0.1, 'camera dist', 'camera dist (mouse wheel)').listen().onChange(tad.covidSetScene)
@@ -265,10 +271,20 @@ async function GUIwallkeys() {
     sgui.add(tad, 'rolescale', 0.5, 5, 0.01, 'object size', 'object size').listen().onChange(tad.covidSetScene);
     // sgui.add(xx, 'camdist', 0, 25, 0.01, 'camera distance', 'camera distance, mouse wheel');
 
-    if (tadkin?.kincamscale) {
-        sgui.add(tadkin.kincamscale, 'x', 0.1, 4, 0.01, 'x scale for interaction', 'x scale for interaction').listen();
-        sgui.add(tadkin.kincamscale, 'y', 0.1, 4, 0.01, 'y scale for interaction', 'y scale for interaction').listen();
-        sgui.add(tadkin.kincamscale, 'z', 0.1, 4, 0.01, 'z scale for interaction', 'z scale for interaction').listen();
+    // if (tadkin?.kincamscale) {
+    //     sgui.add(tadkin.kincamscale, 'x', 0.1, 4, 0.01, 'x scale for interaction', 'x scale for interaction').listen();
+    //     sgui.add(tadkin.kincamscale, 'y', 0.1, 4, 0.01, 'y scale for interaction', 'y scale for interaction').listen();
+    //     sgui.add(tadkin.kincamscale, 'z', 0.1, 4, 0.01, 'z scale for interaction', 'z scale for interaction').listen();
+    // }
+    if (tadkin?.kincamdef) {
+        const c = tadkin?.kincamdef
+        sgui.add(c, 'height', 0, 4, 0.01, 'camera height', 'camera height').listen();
+        sgui.add(c, 'lookheight', 0, 4, 0.01, 'height of lookat point', 'height of lookat point').listen();
+        sgui.add(c, 'lookwall', 0, 4, 0.01, 'dist wall to lookat point', 'dist wall to lookat point').listen();
+
+        sgui.add(c, 'scx', 0.1, 4, 0.01, 'x scale for interaction', 'x scale for interaction').listen();
+        sgui.add(c, 'scy', 0.1, 4, 0.01, 'y scale for interaction', 'y scale for interaction').listen();
+        sgui.add(c, 'scz', 0.1, 4, 0.01, 'z scale for interaction', 'z scale for interaction').listen();
     }
 
 
@@ -279,11 +295,12 @@ async function GUIwallkeys() {
         RGG.fillprop = 1;
         RGG.edgeidlow = 3;  // so walls take normal texture etc etc
         RGG.wall_shadowstrength = 1;        // effectively no shadows
-        Rtad.tadrad = 1;
-        if (tadkin) tadkin.ribsPerMetre = 1000;
+        // Rtad.tadrad = 1;
+        // if (tadkin) tadkin.ribsPerMetre = 1000;
         U.edgecol.setScalar(0);
         U.fillcol.setScalar(1);
-        RGXX.backgroundwhite = 1; RGXX.whitenessforfill = 1; RGXX.whitenessforedges = 0;
+        RGXX.backgroundwhite = 0; RGXX.whitenessforfill = 1; RGXX.whitenessforedges = 0;
+		usemask = 4;
         onframe(() => updateGuiGenes());   // deferring this means it will happen after any other callers have done their bit
     });
     GUIKey('K,J,A,I', 'white/black', 'white/black', () => {
@@ -292,21 +309,24 @@ async function GUIwallkeys() {
     });
     GUIKey('K,J,A,S', 'stained glass', 'stained glass', () => {
         runkeys('K,J,A');
+		usemask = 2;
         RGG.fillprop = 0;
         RGXX.backgroundwhite = 1; RGXX.whitenessforfill = 1; RGXX.whitenessforedges = 0.33;
     });
     GUIKey('K,J,A,B', 'lino', 'lino style', () => {
         runkeys('K,J,A');
         Rtadkin.ribsPerMetre = 100;
-        Rtad.tadrad = 0.3; updateGuiGenes();
+        // Rtad.tadrad = 0.3;
+		updateGuiGenes();
         RGXX.backgroundwhite = 0; RGXX.whitenessforfill = 0; RGXX.whitenessforedges = 1;
     });
-    GUIKey('K,J,A,C', 'minimal bw', 'minimal black.white', () => {runkeys('K,J,A'); Rtadkin.ribsPerMetre = 100; Rtad.tadrad = 0.3; });
+    GUIKey('K,J,A,C', 'minimal bw', 'minimal black.white', () => {runkeys('K,J,A'); Rtadkin.ribsPerMetre = 100; }); // Rtad.tadrad = 0.3; });
     GUIKey('K,J,B', 'exit drawing', 'exit drawing mode', () => {
         RGG.edgeprop = 0;
         RGG.fillprop = 0;
         RGG.wall_shadowstrength = 0;
-        Rtad.tadrad = 1;
+		usemask = 2;
+        // Rtad.tadrad = 1;
         updateGuiGenes();
     });
     GUISpacer(6);
@@ -319,16 +339,16 @@ async function GUIwallkeys() {
         GUIKey('K,J,H,F', 'man special', 'man only in special', () => { G.edgeidlow = tadkin.mancol - tadkin.mancolnum + 1; G.edgeidhigh = tadkin.mancol; });
         GUIKey('K,J,H,G', 'all special', 'all special', () => { G.edgeidlow = 0; G.edgeidhigh = 31; });
         GUIKey('K,J,H,I', 'mixed special', 'mixed special', () => { G.edgeidlow = 8; G.edgeidhigh = 16; });
-        GUIKey('K,J,H,L', 'none special', 'none special', () => { G.edgeidlow = 32; });
+        GUIKey('K,J,H,L', 'none special', 'none special', () => { G.edgeidhigh = -1; });
         GUIFinishPanel();
         GX.getgui('walls/nonespecial').highlight();
     }
     GUISpacer(6);
 
     if (!searchValues.notadgui) {
-        const xx = {
-            get back() { return bigcol.r ** (1/(currentGenes.gamma || 2.2)); },
-            set back(v) { setBackgroundColor(v); },
+        const xx = edge.xcols = {
+            get back() { return bigcol.r ** (1/(xxxgenes().gamma.gamma || 2.2)); },
+            set back(v) { setBackgroundColor(v); U.backcol.setRGB(v,v,v);},
             //get invert() { return U.edgecol.r; },
             //set invert(v) { U.edgecol.setRGB(v,v,v); U.fillcol.setRGB(1-v, 1-v, 1-v) ;},
             get edgewhite() { return U.edgecol.r ** 0.5; },
@@ -343,7 +363,7 @@ async function GUIwallkeys() {
         // d.add(xx, 'invert', 0, 1, 0.01, 'invert black/white', 'invert edgecol/fillcol\nn.b. colours available but no gui').listen();
         d.add(xx, 'edgewhite', 0, 1, 0.01, 'whiteness for edges', 'whiteness for edges\nn.b. colours available but no gui').listen();
         d.add(xx, 'fillwhite', 0, 1, 0.01, 'whiteness for fill', 'whiteness for fill\nn.b. colours available but no gui').listen();
-        if ('tadrad' in tad) d.add(tad, 'tadrad', 0, 2, 0.01, 'relative tad radius', 'radius relative to normal').listen();
+        if ('tadrad' in tad) d.add(tad, 'tadrad', 0, 4, 0.01, 'relative tad radius', 'radius relative to normal').listen();
         if (tadkin) d.add(tadkin, 'ribsPerMetre', 0, 2500, 0.1, 'rib density (man)',
             'density of ribs, appproximately per metre\nApplies to green man style form only').listen();
         d.add(xx, 'back', 0, 1, 0.01, 'background white', 'whiteness of background').listen();
@@ -458,17 +478,17 @@ async function tadbwSetup() {
     // feed.showfeed = true;
 }
 
-async function setviewedit() {
-    new Viewedit({name: 'feed', top: "15px", left:"40%"})
-    new Viewedit({name: 'edge', top: "15px", left:"60%"})
-    new Viewedit({name: 'sys', top: "15px", left:"80%"})
-    G._tad_h_ribs = tad.HEADS - 1;
+async function setviewedit(usevalues = true) {
+    new Viewedit({name: 'feed', top: "15px", left:"40%", usevalues})
+    new Viewedit({name: 'edge', top: "15px", left:"60%", usevalues})
+    new Viewedit({name: 'sys', top: "15px", left:"80%", usevalues})
+    G._tad_h_ribs = tad.HEADS - 1 || 0;
     await S.frame(20);
     // sethighres(5e9);
-    G._tad_h_ribs =  tad.HEADS - 1;
+    G._tad_h_ribs =  tad.HEADS - 1 || 0;
 }
 
-/** set up for potential China Creative Machine exhibition */
+/** set up for potential Manchester exhibition setup, but also see tadchinaSetup() in tadkin.js */
 async function tadmanchesterSetup() {
     G.OPOSZ=1;
     G.renderBackground=1;

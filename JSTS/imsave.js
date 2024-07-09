@@ -367,13 +367,13 @@ saveframetga.convert = function (rt, late = 0, channels) {
  * does NOT save nocamscene (typically menu)
  */
 async function saveimage1(ww, hh, bmp) {
-    const s = V.nocamscene;
-    V.nocamscene = undefined;
+    const s = V.nocamscene.visible;
+    V.nocamscene.visible = false;
     try {
         await saveimage(ww, hh, bmp, true);
     }
     finally {
-        V.nocamscene = s;
+        V.nocamscene.visible = s;
     }
 }
 /** save single image high quality: size is taken from parameter ss, or if none from imageres, or if none from savesize */
@@ -386,7 +386,7 @@ async function saveimagehigh(ww, hh, bmp, oneonly) {
     let srr = inputs.renderRatioUi;
     let srres = inputs.imageres;
     let sww = width, shh = height;
-    setSize(100, 100); // this may help having mutiple lots of big buffers around at once
+    // setSize(100,100);               // this may help having mutiple lots of big buffers around at once BUT upsets tile size and aspect
     clearrendertargets();
     inps.resbaseui = Math.max(inps.resbaseui, 14);
     //    setInput(W.renderRatioUi, 1);  // << tradeoff here, value such as 0.5 means imageres must be reduced
@@ -400,6 +400,7 @@ async function saveimagehigh(ww, hh, bmp, oneonly) {
 var xpv4, xpv3; // save realloc if done in advance
 /** save image: size is taken from parameter ss, or if none from imageres, or if none from savesize */
 async function saveimage(ww, hh, bmp, oneonly, ffid) {
+    // ??? check  usemask, renderRatioUI, springs.start,
     vpalleq = 'sides';
     let fullww = (slots[-1]) ? slots[-1].x : width; // don't include projvp
     let asp = inputs.previewAr ? inputs.imageasp : fullww / height;
@@ -420,7 +421,7 @@ async function saveimage(ww, hh, bmp, oneonly, ffid) {
     fid = getdesksave() + fid;
     msgfixlog('saveimage', "starting ...", ww, hh, 'bmp', bmp, 'oneolny', oneonly, 'fid', fid);
     if ((oneonly || vps[0] * vps[1] <= 1) && ww > 3 * 1024)
-        return saveframetgabig(fid, ww, hh);
+        return await saveframetgabig(fid, ww, hh);
     inputs.resbaseui += 1;
     let vfast = false && ww === canvas.width && hh === canvas.height; // todo, decide if/when this can be used
     let rt, sww, shh, svp0, svp1, susebyte = Dispobj.usebyte;
@@ -605,9 +606,16 @@ async function saveimage(ww, hh, bmp, oneonly, ffid) {
  *    second phase records images in stripes, each image is fairly low res, but with high antialias
  */
 async function saveframetgabig(fid = 'big.tga', ww = width * 4, hh = height * 4, opts = {}) {
-    await sethighres(5e9);
-    await fixfeedcoreprep(50);
-    await renderTiles(fid, ww, hh, opts);
+    const sv = [usemask, Dispobj.usebyte, WA.maxsize, inps.renderRatioUi, springs.isRunning];
+    const restore = () => [usemask, Dispobj.usebyte, WA.maxsize, inps.renderRatioUi, springs.isRunning] = sv;
+    try {
+        await sethighres(5e9);
+        await fixfeedcoreprep(50);
+        await renderTiles(fid, ww, hh, opts);
+    }
+    finally {
+        restore();
+    }
 }
 /** set to maximum 'safe' resolution
  * 2e9 ->  8268x4651
@@ -615,7 +623,8 @@ async function saveframetgabig(fid = 'big.tga', ww = width * 4, hh = height * 4,
  */
 async function sethighres(maxsize = 3e9, bigcanv = false) {
     const maxt = renderer.capabilities.maxTextureSize;
-    usemask = 1;
+    if (usemask === 2)
+        usemask = 1;
     Dispobj.usebyte = true;
     WA.maxsize = Infinity;
     // decide some values
@@ -1035,4 +1044,5 @@ async function genpair({ dpi = 300 } = {}) {
     await renderTiles(ds + 'strip' + dpi + '_1.tga', undefined, undefined, { wm: tadbwSetup.width, striplm: 0, striprm: 5.4, dpi });
     await renderTiles(ds + 'strip' + dpi + '_2.tga', undefined, undefined, { wm: tadbwSetup.width, striplm: 5.4, striprm: tadbwSetup.width, dpi });
 }
+///// find sendkey avoiding // comments ..  ^(?:(?!\/\/).)*sendkey
 //# sourceMappingURL=imsave.js.map

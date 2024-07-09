@@ -1,7 +1,7 @@
 // arrange set of colour/texture definitions as THREE texture buffer
 // They behave like uniforms, only this mechanism allows a much larger set of values than uniforms do
 // the fields use .x, .y, .z, .w
-var THREE, updateGuiGenes;
+var THREE, updateGuiGenes, hsv2rgb;
 
 // PARMS is the number of distinct colour/texture parameters expected for one particular colourId
 // NUM is the number of distinct colourId values expected
@@ -151,6 +151,9 @@ COL.setx = function setx(list, low, high) {
                     if (list.exclude && list.exclude.indexOf[r] !== -1) continue;   // can exclude, e.g. walls
                     if (typeof v === 'number') {
                         COL.set(coln, r, gamma ? v**gamma : v);        // fixed value for all
+                    } else if (typeof v === 'function') {
+                        const vv = v(r);
+                        COL.set(coln, r, gamma ? vv**gamma : vv);        // fixed value for all
                     } else {
                         let vv = COL.prand(r,coln) * (v[1] - v[0]) + v[0];
                         if (v[2]) vv = v[2](vv);
@@ -201,7 +204,7 @@ COL.defaultDef = {'': 0.0, red:1, band:1, gloss:0.8, plastic:0.5, shininess: 40,
 
 COL.huecols = function(l = 0, h = COL.NUM-1, sp = 1.7) {
     for (let i = l; i <= h; i++)
-        COL.setx({h: (i * sp) % 1, bump:0, band1:9999}, i); 
+        COL.setx({h: (i * sp) % 1, bump:0, band1:9999}, i);
     COL.col2genes();
 }
 
@@ -390,6 +393,38 @@ COL.bold = function() {
         COL.setarr('red2', colnum, col);
         COL.setarr('red3', colnum, col);
     }
+}
+
+/** set lots of bold colours */
+COL.manybold = function() {
+    COL.setx({'irid': 0, bump: 0, flu: 0});
+    COL.setx('red', 4)
+    COL.setx('yellow', 5)
+    COL.setx('green', 6)
+    COL.setx('cyan', 7)
+    COL.setx('blue', 8)
+    COL.setx('magenta', 9)
+    COL.setx('white', 10)
+    COL.setx('black', 11)
+
+    COL.setx('red', 12)
+    COL.setx('yellow', 13)
+    COL.setx('green', 14)
+    COL.setx('cyan', 15)
+    COL.setx('blue', 16)
+    COL.setx('magenta', 17)
+    COL.setx('white', 18)
+    COL.setx('black', 19)
+
+    COL.setx('red', 20)
+    COL.setx('yellow', 21)
+    COL.setx('green', 22)
+    COL.setx('cyan', 23)
+    COL.setx('blue', 24)
+    COL.setx('magenta', 25)
+    COL.setx('white', 26)
+    COL.setx('black', 27)
+    COL.col2genes()
 }
 
 /** return random integer range l..h-1, or 0..l-1 if h undefined */

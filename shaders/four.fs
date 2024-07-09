@@ -60,6 +60,7 @@ gene(xxoposprop, 0, 0,1, 1,0.1, gtex, frozen) // proportion of 'position' color 
 gene(latenormals, 1, 0,20, 1,1, gtex, frozen) // apply normals late, value is sampling distance (also modified by baseksize)
 // ge ne(latenormalsnearenough, 8, 0,20, 1,1, gtex, frozen) // fallback test for near enough
 gene(latenormalsred, 0, 0,100, 10,10, gtex, frozen) // show latenormals errors (red channel)
+gene(badnormz, 1.125, -2,2, 0.01,0.01, gtex, frozen) // z value to use for bad normals
 gene(cutx, 0, 0.8, 4, 0.05, 0.01, gtex, frozen ) // cut ratio for VR in x , 2.5 for VR
 gene(cuty, 0, 0.8, 4, 0.05, 0.01, gtex, frozen ) // cut ratio for VR in y , 2.2 for VR
 gene(cutfall, 1.1, 1, 1.6, 0.05, 0.01, gtex, frozen ) // fall off radius factor after cut (1 is sharp)
@@ -80,7 +81,7 @@ gene(edgeDensitySearch, -1, 0, 8, 1,1, edge, frozen)   // fill overpopulated are
 gene(baseksize, 1, 1, 6, 0.1,0.1, edge, frozen)   // size for base edge detection kernel
 gene(radkmult, 0, 0, 20, 0.1,0.1, edge, frozen)   // multiplier for radius (where available) for basek
 gene(profileksize, 1, 0, 16, 1,1, edge, frozen)   // size for profile edge detection kernel
-gene(colby, 0, 0, 3, 1,1, edge, frozen)   // colouring (if used) for bw rendering
+gene(colby, 0, 0, 5, 1,1, edge, frozen)   // colouring (if used) for bw rendering
 gene(renderBackground, 0, 0, 1, 0.01, 0.01, edge, frozen)  // proportion of background to render; 0 falls through to dis card/backcol
 uniform mat3 feedbackMatrix;        // rot, scale etc of feedback
 uniform mat4 feedbackTintMatrix;          // rgb tint for edge feedback
@@ -296,10 +297,10 @@ virtual void getPosNormalColid(out vec3 xmnormal, out vec4 shapepos, out float t
 
         // This will catch case where nothing even near enough in one A or B direction, or both
         // Could refine where one direction is OK.
-        if (length(imnormal) < 0.000000001) {
+        if (length(imnormal) < 1e-16) {
             // debug, there are surprisingly many of these round the edges, TODO check
             postxcol = vec4(latenormalsred, 0.,0., 0.); // BADBASE); // do not try to use a channel
-            xmnormal = vec3(0., 0., BADNORM);
+            xmnormal = vec3(0., 0., UBADNORM); // badnormz);
         } else {
             xmnormal = normalize(imnormal);
             //xmnormal += vec3(0,0,0.000000000000001);  // bugs in side walls if this was omitted, not sure why >>> TODO
@@ -567,7 +568,8 @@ void main() {
             }
 		#endif
 		float ribnum;  // ribbing along one horn
-        vec4 shapepos = tr(oposuvw, OUT xmnormal, OUT texpos, OUT ribnum);    /* compute horn shape. inc normals etc */
+        vec4 shapepos = tr(oposuvw, OUT xmnormal, OUT texpos, OUT ribnum);    /* compute horn shape. inc normals etc OPSHAPEPOS */
+        lhornid = /*colourid; //*/ xhornid; // added AFTER tr() 26/06/2024, tr() can now change xhornid
         // vec4 trpos = vec4(99); // show trpos no used in this case ...
 
         // multiplex position and orientation into multi.xyz
@@ -591,7 +593,7 @@ void main() {
     #elif (OPMODE == OPREGULAR)
         { // OPREGULAR}
 		float zzzribnum;
-        vec4 shapepos = tr(oposuvw, xmnormal, texpos, zzzribnum);    /* compute horn shape. inc normals etc */
+        vec4 shapepos = tr(oposuvw, xmnormal, texpos, zzzribnum);    /* compute horn shape. inc normals etc OPREGULAR */
         #ifdef USESKELBUFFER
                 float vv = oposHornnum;
                 $$$chooseHornCode$$						// make sure xhornid correct in SINGLEMULTI, noop if not SINGLEMULTI
@@ -621,7 +623,7 @@ void main() {
         #endif
         float zzzribnum;
         vec4 shapepos = (xhornid == WALLID) ? trwall(oposuvw, OUT xmnormal, OUT texpos, OUT zzzribnum) : // compute wall details, especially normals
-                trhorn(oposuvw, OUT xmnormal, OUT texpos, OUT zzzribnum); // compute horn shape. inc normals etc
+                trhorn(oposuvw, OUT xmnormal, OUT texpos, OUT zzzribnum); // compute horn shape. inc normals etc OPOPOS2COL, with interp may set colourid, xhornid as side effect
         if (xhornid != WALLID) {
             float vv = oposHornnum;
             $$$chooseHornCode$$						         // make sure xhornid, ribs, ribdepth correct in SINGLEMULTI, noop if not SINGLEMULTI
@@ -721,7 +723,7 @@ else gl_FragColor = vec4(1.,1.,1.,1.);
         vec4 shapepos;
         float fullkey;
         getPosNormalColid(OUT xmnormal, OUT shapepos, OUT xhornid, OUT fullkey);  // nb sets colourid = xhornid from rtshapepos
-        texpos = shapepos.xyz / max(texscale, 0.0001);
+        texpos = shapepos.xyz / max(texscale * g_texscale, 0.0001);
 
         gl_FragColor.w = /**oposHornid +**/ MAX_HORNS_FOR_TYPE*xhornid;
         gl_FragColor.x = gl_FragColor.y = gl_FragColor.z = textvalmix(texpos.xyz, opos.xyz, texrepeat); // + texoffset;  to range approx 0 .. 1 //??? opo s_wok/uvw

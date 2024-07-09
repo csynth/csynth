@@ -37,7 +37,9 @@ function localstartLate() {
         if (mystart) {
             getserveroao(mystart);
 		} else if (startvr) {
-            getserveroao("gallery/GalaxRefl.oao");
+            //getserveroao("gallery/GalaxRefl.oao");
+             getserveroao("gallery/GalaxRefl2023Nov03.oao");
+
             //getserveroao("gallery/Galax1a inside.oao");
             //getserveroao("gallery/Tempest3ax8.oao");
             //getserveroao("gallery/testsave.oao");

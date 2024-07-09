@@ -661,7 +661,7 @@ var GGG = new Proxy(currentGenes ?? {}, {
     get: (o, n) => currentGenes[n],
     set: (o, n, v) => {
         for (const oo of Object.values(currentGenes)) {
-            if (oo.genes) oo.genes[n] = v;
+            if (oo?.genes) oo.genes[n] = v;
         }
         refall();
         return true;

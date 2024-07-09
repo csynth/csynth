@@ -79,12 +79,21 @@ uniforms = {
         projectionImage:{type: 't'},               // projection image, used for Kinect
         edgecol:        {value: col3(0,0,0)},  // target colour for edges if using EDGE
         fillcol:        {value: col3(1,1,1)},  // target colour for fill (nonedges) if using EDGE
-        occcol:         {value: col3(0,1,1)},  // target colour for occlusion if using EDGE
+        occcol:         {value: col3(1,1,1)},  // target colour for occlusion if using EDGE
         unkcol:         {value: col3(1,0,1)},  // target colour for unknown if using EDGE
         profcol:        {value: col3(1,1,1)},  // target colour for profile if using EDGE
         wallcol:        {value: col3(0,1,1)},  // target colour for wall if using EDGE
         backcol:        {value: col3(0,1,1)},  // target colour for wall if using EDGE
-        custcol:        {value: new Array(8)}, // custom colours
+        custcol:        {value: [
+            col3(0,0,0),
+            col3(1,0,0),
+            col3(1,1,0),
+            col3(0,1,0),
+            col3(0,1,1),
+            col3(0,0,1),
+            col3(1,0,1),
+            col3(1,1,1),
+        ]}, // custom colours
         cameraAspect:   {value: 1},                     // camera aspect
         feedbackMatrix: {value: new THREE.Matrix3()},
         feedbackTintMatrix:   {value: new THREE.Matrix4()},
@@ -93,8 +102,8 @@ uniforms = {
         // scaleDampTarget:{type: 't'}                 // for gpu scaling
     };
 for (let u in uniforms) uniforms[u].framenum = -1;
-const ucc = uniforms.custcol.value;
-for (let i = 0; i < ucc.length; i++) ucc[i] = col3(i & 1, i>>1 & 1, i>>2 & 1);
+// const ucc = uniforms.custcol.value;
+// for (let i = 0; i < ucc.length; i++) ucc[i] = col3(i & 1, i>>1 & 1, i>>2 & 1);
 var baseuniforms = clone(uniforms);
 
 function setGenesAndUniforms() {
@@ -186,7 +195,8 @@ function rangeiprep(genes, whichRange) {
     uniforms.shrinkradiusA.value = uniforms.shrinkradiusB.value = 0;    // scale does not use shrink/cut
     if (!render_camera) render_camera = camera;
 
-    renderskelbuff(genes);
+    if (!inps.useinterp)   // TODO decide clearer way to decide if this is needed
+        renderskelbuff(genes);
     if (scaleInUnitTarget) uniforms.scaleDampTarget.value = sscaleDampTarget;
 
     renderer.setRenderTarget(scaleRenderTarget[whichRange]);
@@ -481,7 +491,11 @@ function centrescale(xxx = currentGenes, whichRange=undefined, damp=undefined, a
     if (searchValues.nohorn) return;
 
     var dispobj = xxxdispobj(genes);
-    if (dispobj) dispobj.render();
+    if (dispobj) {
+        const s = dispobj.needsRender;  // centrescale should not change needsRender
+        dispobj.render();
+        dispobj.needsRender = s;
+    }
 
     const predone = genes === centrescale.lastgenes && framenum === centrescale.lastframenum;
     // log(predone, 'vn', xxxvn(genes), 'oldvn', xxxvn(centrescale.lastgenes), 'framenum', framenum, 'oldframenum', centrescale.lastframenum);
@@ -736,7 +750,7 @@ function pickGPU(dispobj, x,y, slotoff=0, slotoffmat=-1, doclear=true) {
         uniforms.pickxslot.value = slotoff;
         //renderPass(dispobj.genes, uniforms, pickRenderTarget);
 
-        if (renderMainObject)  renderObjPipe(scene, renderPass, dispobj.genes, uniforms, pickRenderTarget, 0, "pick");
+        if (renderMainObject)  renderObjPipe(scene, renderPass, dispobj.genes, uniforms, pickRenderTarget, 0, "pick", dispobj);
 
         // handle matrix if present
         if (VH.matrix && VH.matrix.visible && slotoffmat >= 0) {
@@ -826,9 +840,9 @@ function showpick(dispobj, callback, pickenv) {
         // working towards new pick
         if (pickenv.reuseopos) {
             // compensate for renderRatio and copyXflip
-            let rr = 1/inps.renderRatioUi;
+            let rr = inps.renderRatioUi;
             if (dispobj.vn === mainvp && inps.renderRatioUiMain !== 0) rr = inps.renderRatioUiMain;
-            if (dispobj.vn === mainvp && inps.renderRatioUiProj !== 0 && slots[-1]) rr = inps.renderRatioUiProj; // <<<??? should be rr = 1/inps.... ????
+            if (dispobj.vn === mainvp && inps.renderRatioUiProj !== 0 && slots[-1]) rr = inps.renderRatioUiProj;
             let left = pickenv.x - dispobj.left;
             if (copyXflip < 0) left = dispobj.width - left;
             left /= rr;
@@ -909,11 +923,18 @@ function showpick(dispobj, callback, pickenv) {
     }
 }
 
-// phase two of
+// phase two of picking, use the found hitvals etc data
 function objhit(evt) {
     const {dispobj, hitvals, hset, cumcount} = evt.eventParms;
-    const hnum = Math.round(hitvals[2]);
-    const lnum = Math.round(hitvals[3]);
+    let hnum, lnum
+    if (G.OPOSZ === 0) {
+        hnum = Math.round(hitvals[2]);
+        lnum = Math.round(hitvals[3]);
+    } else {
+        const r = Math.floor(hitvals[3]);
+        hnum = r % 16384
+        lnum = Math.floor(r / 16384)  
+    }
     hset.hornhighlight = undefined;
     dispobj.render(1); // so highlighting stops
     if (hnum === 999) {
@@ -960,7 +981,7 @@ function objhit(evt) {
                 const cc = hset.hornrun[hornid];
                 dnum = hnum - (cumcount[hornid-1] || 0)
                 f(hornid, hnum);
-                msgfix('newhit', `vn=${dispobj.vn}  ${s.reverse().join(', ')}`);
+                msgfix('!newhit', `vn=${dispobj.vn}  ${s.reverse().join(', ')}`);
                 hset.hornhighlight = hornid;
                 dispobj.render(Infinity); // so highlighting can work
                 return;
